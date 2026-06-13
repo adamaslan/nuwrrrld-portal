@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAM_ID_PLACEHOLDER.com.nuwrrrld.financial"],
+        "components": [
+          { "/": "/oauth-callback", "comment": "OAuth deep link into the Expo app" }
+        ]
+      }
+    ]
+  }
+}
