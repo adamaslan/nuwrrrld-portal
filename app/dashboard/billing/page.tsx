@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ManageBillingButton } from "./ManageBillingButton";
-import { tierFromStatus } from "@nwf/lib/subscription";
-import type { SubscriptionStatus } from "@nwf/lib/subscription";
+import { tierFromStatus } from "@/lib/subscription";
+import type { SubscriptionStatus } from "@/lib/subscription";
 import "./billing.css";
 
 export const metadata: Metadata = {

@@ -1,7 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import type { SubscriptionState } from "@nwf/lib/subscription";
-import { tierFromStatus } from "@nwf/lib/subscription";
+import type { SubscriptionState } from "@/lib/subscription";
+import { tierFromStatus } from "@/lib/subscription";
 
 export async function GET() {
   const { userId } = await auth();
