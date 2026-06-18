@@ -59,14 +59,8 @@ export async function POST(req: NextRequest) {
 async function syncSubscriptionToClerk(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
-  // Find the Clerk user by stripe_customer_id stored in their metadata.
+  // Resolve Clerk user via clerk_user_id stored on the Stripe customer at creation.
   const clerk = await clerkClient();
-  const { data: users } = await clerk.users.getUserList({
-    limit: 1,
-  });
-
-  // Search via externalId is not possible directly; use metadata query instead.
-  // We stored clerk_user_id on the Stripe customer — fetch it from there.
   const customer = await stripe.customers.retrieve(customerId);
   if (customer.deleted) return;
 

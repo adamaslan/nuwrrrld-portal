@@ -7,9 +7,12 @@ export const metadata: Metadata = {
   description: "The terms governing your use of NuWrrrld Financial.",
 };
 
-// PLACEHOLDER terms. The Clerk sign-up consent checkbox links here, so the page
-// must return 200, but the language below is a NON-BINDING scaffold and MUST be
-// replaced with attorney-reviewed copy before launch (see homebase/legal-todo.md).
+// PLACEHOLDER terms — NON-BINDING scaffold. Must be replaced with attorney-reviewed
+// copy before launch. See homebase/legal-todo.md.
+if (process.env.NODE_ENV === "production" && process.env.LEGAL_COPY_APPROVED !== "true") {
+  console.warn("[NWF] Terms of Service page is still placeholder copy. Set LEGAL_COPY_APPROVED=true after attorney review.");
+}
+
 const LAST_UPDATED = "2026-06-13";
 
 export default function TermsOfService() {

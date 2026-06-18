@@ -68,8 +68,8 @@
 .billing-status--active { color: #16a34a; }
 .billing-status--trialing { color: #d97706; }
 .billing-status--past_due { color: #dc2626; }
-.billing-status--canceled { color: #9ca3af; }
-.billing-status--free { color: #9ca3af; }
+.billing-status--canceled { color: #6b7280; }
+.billing-status--free { color: #6b7280; }
 
 .billing-actions {
   margin-top: 0.5rem;

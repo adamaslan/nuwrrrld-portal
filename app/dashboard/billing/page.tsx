@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function BillingPage() {
   const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard/billing");
 
   const user = await currentUser();
   const meta = user?.publicMetadata ?? {};
@@ -29,6 +29,7 @@ export default async function BillingPage() {
       month: "long",
       day: "numeric",
       year: "numeric",
+      timeZone: "UTC",
     });
 
   return (
@@ -68,7 +69,7 @@ export default async function BillingPage() {
         )}
 
         <div className="billing-actions">
-          {hasStripeCustomer && (status === "active" || status === "trialing" || status === "past_due") ? (
+          {hasStripeCustomer ? (
             <ManageBillingButton />
           ) : (
             <Link href="/pricing" className="billing-upgrade-btn">

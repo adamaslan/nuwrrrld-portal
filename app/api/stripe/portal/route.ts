@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no billing account found" }, { status: 404 });
   }
 
-  const origin = req.headers.get('origin') ?? 'https://financial.nuwrrrld.com';
+  const origin = req.nextUrl.origin;
 
   const session = await stripe.billingPortal.sessions.create({
     customer: stripeCustomerId,

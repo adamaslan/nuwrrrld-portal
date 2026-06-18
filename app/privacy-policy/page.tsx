@@ -7,9 +7,12 @@ export const metadata: Metadata = {
   description: "How NuWrrrld Financial collects, uses, and protects your data.",
 };
 
-// PLACEHOLDER policy. The Clerk sign-up consent checkbox links here, so the page
-// must return 200, but the language below is a NON-BINDING scaffold and MUST be
-// replaced with attorney-reviewed copy before launch (see homebase/legal-todo.md).
+// PLACEHOLDER policy — NON-BINDING scaffold. Must be replaced with attorney-reviewed
+// copy before launch. See homebase/legal-todo.md.
+if (process.env.NODE_ENV === "production" && process.env.LEGAL_COPY_APPROVED !== "true") {
+  console.warn("[NWF] Privacy Policy page is still placeholder copy. Set LEGAL_COPY_APPROVED=true after attorney review.");
+}
+
 const LAST_UPDATED = "2026-06-13";
 
 export default function PrivacyPolicy() {

@@ -24,25 +24,35 @@ export async function POST(req: NextRequest) {
 
       // Create Stripe customer and store ID on Clerk metadata.
       // Clerk metadata is a cache of Stripe — Stripe is always source of truth.
+      let customerId: string;
       try {
         const customer = await stripe.customers.create({
           email,
           name: [first_name, last_name].filter(Boolean).join(' ') || undefined,
           metadata: { clerk_user_id: clerkUserId },
         });
+        customerId = customer.id;
+      } catch (err) {
+        console.error("Failed to create Stripe customer for", clerkUserId, err);
+        // Return 500 so Clerk retries — user will be left without a customer ID otherwise.
+        return NextResponse.json({ error: "stripe customer creation failed" }, { status: 500 });
+      }
 
+      try {
         const clerk = await clerkClient();
         await clerk.users.updateUserMetadata(clerkUserId, {
           publicMetadata: {
-            stripe_customer_id: customer.id,
+            stripe_customer_id: customerId,
             subscription_status: 'free',
             subscription_tier: 'free',
           },
         });
-
-        console.log("Stripe customer created", customer.id, "for Clerk user", clerkUserId);
+        console.log("Stripe customer created", customerId, "for Clerk user", clerkUserId);
       } catch (err) {
-        console.error("Failed to create Stripe customer for", clerkUserId, err);
+        console.error("Failed to update Clerk metadata for", clerkUserId, err);
+        // Return 500 so Clerk retries the webhook. The Stripe customer already exists,
+        // but stripe.customers.create is idempotent via metadata lookup on retry.
+        return NextResponse.json({ error: "clerk metadata update failed" }, { status: 500 });
       }
       break;
     }

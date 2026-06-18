@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `price not configured for plan: ${plan}` }, { status: 500 });
   }
 
-  const origin = req.headers.get('origin') ?? 'https://financial.nuwrrrld.com';
+  const origin = req.nextUrl.origin;
 
   const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
     mode: 'subscription',
