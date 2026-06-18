@@ -86,7 +86,7 @@ export function NuAIChat() {
           onChange={e => setInput(e.target.value)}
           placeholder="Ask Nu AI…"
           rows={2}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend(); } }}
         />
         <button className="nuai-send" onClick={handleSend} disabled={loading || !input.trim()}>↑</button>
       </div>

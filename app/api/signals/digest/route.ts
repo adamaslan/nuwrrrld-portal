@@ -65,8 +65,13 @@ export async function GET() {
     return NextResponse.json({ error: "no signals available" }, { status: 503 });
   }
 
+  // Extract periodLabel from whichever raw response provided it.
+  const r1 = raw1 as Record<string, unknown> | null;
+  const r2 = raw2 as Record<string, unknown> | null;
+  const periodLabel = r1?.period_label ?? r1?.periodLabel ?? r2?.period_label ?? r2?.periodLabel ?? '';
+
   const digest = normaliseDigest(
-    { signals: mergedSignals, generated_at: new Date().toISOString() },
+    { signals: mergedSignals, period_label: periodLabel, generated_at: new Date().toISOString() },
     sources
   );
 

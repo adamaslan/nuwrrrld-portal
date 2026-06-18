@@ -9,6 +9,20 @@ export type SignalDirection = 'bullish' | 'bearish' | 'neutral';
 export type SignalTimeframe = 'intraday' | 'short' | 'medium' | 'long';
 export type SignalConfidence = 'low' | 'medium' | 'high';
 
+const VALID_DIRECTIONS = new Set<string>(['bullish', 'bearish', 'neutral']);
+const VALID_TIMEFRAMES = new Set<string>(['intraday', 'short', 'medium', 'long']);
+const VALID_CONFIDENCES = new Set<string>(['low', 'medium', 'high']);
+
+function safeDirection(v: unknown): SignalDirection {
+  return VALID_DIRECTIONS.has(String(v)) ? (v as SignalDirection) : 'neutral';
+}
+function safeTimeframe(v: unknown): SignalTimeframe {
+  return VALID_TIMEFRAMES.has(String(v)) ? (v as SignalTimeframe) : 'medium';
+}
+function safeConfidence(v: unknown): SignalConfidence {
+  return VALID_CONFIDENCES.has(String(v)) ? (v as SignalConfidence) : 'low';
+}
+
 export interface SignalPayload {
   id: string;
   ticker: string;
@@ -38,19 +52,22 @@ export function normaliseDigest(raw: unknown, sources: string[]): DigestPayload 
   if (!raw || typeof raw !== 'object') throw new Error('Invalid digest response');
   const r = raw as Record<string, unknown>;
 
+  // Single fallback timestamp for the whole batch — avoids per-signal Date construction.
+  const fallbackDate = new Date().toISOString();
+
   const rawSignals = Array.isArray(r.signals) ? r.signals : [];
   const signals: SignalPayload[] = rawSignals.map((s: unknown, i: number) => {
     const sig = (s ?? {}) as Record<string, unknown>;
     return {
       id: String(sig.id ?? `signal-${i}`),
       ticker: String(sig.ticker ?? ''),
-      direction: (sig.direction as SignalDirection) ?? 'neutral',
-      timeframe: (sig.timeframe as SignalTimeframe) ?? 'medium',
-      confidence: (sig.confidence as SignalConfidence) ?? 'low',
+      direction: safeDirection(sig.direction),
+      timeframe: safeTimeframe(sig.timeframe),
+      confidence: safeConfidence(sig.confidence),
       title: String(sig.title ?? sig.summary ?? ''),
       explanation: String(sig.explanation ?? sig.why ?? sig.reason ?? ''),
       indicators: Array.isArray(sig.indicators) ? sig.indicators.map(String) : [],
-      generatedAt: String(sig.generated_at ?? sig.generatedAt ?? new Date().toISOString()),
+      generatedAt: String(sig.generated_at ?? sig.generatedAt ?? fallbackDate),
     };
   });
 
@@ -58,7 +75,7 @@ export function normaliseDigest(raw: unknown, sources: string[]): DigestPayload 
     schemaVersion: DIGEST_SCHEMA_VERSION,
     periodLabel: String(r.period_label ?? r.periodLabel ?? ''),
     signals,
-    generatedAt: String(r.generated_at ?? r.generatedAt ?? new Date().toISOString()),
+    generatedAt: String(r.generated_at ?? r.generatedAt ?? fallbackDate),
     sources,
   };
 }

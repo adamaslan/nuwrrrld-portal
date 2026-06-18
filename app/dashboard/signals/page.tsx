@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import type { DigestPayload } from "@/lib/digest";
+import { normaliseDigest, type DigestPayload } from "@/lib/digest";
 import "./signals.css";
 
 export const metadata: Metadata = {
@@ -12,15 +12,39 @@ export const metadata: Metadata = {
 };
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-1007181159506.us-central1.run.app";
+const TIMEOUT_MS = 8_000;
 
-async function fetchDigest(token: string): Promise<DigestPayload | null> {
+async function fetchWithTimeout(url: string, token: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${MCP_URL}/api/signals/digest`, {
-      headers: { Authorization: `Bearer ${token}` },
-      next: { revalidate: 900 }, // 15-min ISR cache
-    });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
     if (!res.ok) return null;
     return await res.json();
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+/** Fetches and merges both optimizers — same logic as the API route. */
+async function fetchDigest(token: string): Promise<DigestPayload | null> {
+  try {
+    const [raw1, raw2] = await Promise.all([
+      fetchWithTimeout(`${MCP_URL}/api/signals/digest`, token),
+      fetchWithTimeout(`${MCP_URL}/api/signals/digest/v2`, token),
+    ]);
+    const sources: string[] = [];
+    const mergedSignals: unknown[] = [];
+    function extract(raw: unknown, src: string) {
+      if (!raw || typeof raw !== 'object') return;
+      const r = raw as Record<string, unknown>;
+      if (Array.isArray(r.signals)) { mergedSignals.push(...r.signals); sources.push(src); }
+    }
+    extract(raw1, 'ai-fin-opt');
+    extract(raw2, 'ai-fin-opt2');
+    if (mergedSignals.length === 0) return null;
+    const r1 = raw1 as Record<string, unknown> | null;
+    const r2 = raw2 as Record<string, unknown> | null;
+    const periodLabel = r1?.period_label ?? r1?.periodLabel ?? r2?.period_label ?? r2?.periodLabel ?? '';
+    return normaliseDigest({ signals: mergedSignals, period_label: periodLabel, generated_at: new Date().toISOString() }, sources);
   } catch {
     return null;
   }
