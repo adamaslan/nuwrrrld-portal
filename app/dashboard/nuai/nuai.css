@@ -1,0 +1,35 @@
+.nuai-page { display: flex; flex-direction: column; height: calc(100vh - 60px); max-width: 760px; margin: 0 auto; padding: 0 1.5rem; font-family: var(--font-geist-sans, sans-serif); }
+.nuai-page-header { padding: 1.5rem 0 .75rem; flex-shrink: 0; }
+.nuai-back { color: #2563eb; font-size: .9rem; text-decoration: none; display: inline-block; margin-bottom: .5rem; }
+.nuai-page-header h1 { font-size: 1.5rem; font-weight: 700; }
+
+.nuai-container { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.nuai-messages { flex: 1; overflow-y: auto; padding: 1rem 0; display: flex; flex-direction: column; gap: .75rem; }
+
+.nuai-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem; }
+.nuai-empty-emoji { font-size: 44px; margin-bottom: .75rem; }
+.nuai-empty-title { font-size: 1.4rem; font-weight: 700; color: #111; margin-bottom: .5rem; }
+.nuai-empty-sub { font-size: .95rem; color: #555; line-height: 1.6; max-width: 360px; }
+
+.nuai-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: 16px; }
+.nuai-bubble--user { background: #2563eb; align-self: flex-end; border-bottom-right-radius: 4px; }
+.nuai-bubble--assistant { background: #f3f4f6; align-self: flex-start; border-bottom-left-radius: 4px; }
+.nuai-bubble-text { font-size: .95rem; line-height: 1.55; white-space: pre-wrap; }
+.nuai-bubble--user .nuai-bubble-text { color: #fff; }
+.nuai-bubble--assistant .nuai-bubble-text { color: #111; }
+.nuai-typing { font-size: .9rem; color: #9ca3af; font-style: italic; }
+.nuai-error { font-size: .85rem; color: #dc2626; text-align: center; }
+
+.nuai-input-row { display: flex; gap: .5rem; align-items: flex-end; padding: .75rem 0; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+.nuai-input { flex: 1; resize: none; border: 1px solid #d1d5db; border-radius: 12px; padding: .65rem .9rem; font-size: .95rem; font-family: inherit; outline: none; }
+.nuai-input:focus { border-color: #2563eb; }
+.nuai-send { width: 40px; height: 40px; border-radius: 20px; background: #2563eb; color: #fff; border: none; font-size: 1.1rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+.nuai-send:disabled { opacity: .5; cursor: not-allowed; }
+
+.nuai-disclaimer, .nuai-footer-disclaimer { font-size: .72rem; color: #9ca3af; text-align: center; padding-bottom: .5rem; }
+.nuai-footer-disclaimer a { color: #9ca3af; }
+
+.nuai-limit { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 2rem; }
+.nuai-limit-emoji { font-size: 40px; margin-bottom: .75rem; }
+.nuai-limit-title { font-size: 1.3rem; font-weight: 700; color: #111; margin-bottom: .5rem; }
+.nuai-limit-sub { font-size: .95rem; color: #555; }
