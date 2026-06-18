@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { clerkClient } from "@clerk/nextjs/server";
 import stripe from "@/lib/stripe";
-import type { SubscriptionStatus, SubscriptionTier } from "@nwf/lib/subscription";
-import { tierFromStatus } from "@nwf/lib/subscription";
+import type { SubscriptionStatus, SubscriptionTier } from "@/lib/subscription";
+import { tierFromStatus } from "@/lib/subscription";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
