@@ -9,15 +9,16 @@ export async function GET() {
   let mcpStatus: "ok" | "degraded" | "down" = "down";
   let mcpLatencyMs: number | null = null;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     const res = await fetch(`${MCP_URL}/health`, { signal: controller.signal });
-    clearTimeout(timer);
     mcpLatencyMs = Date.now() - start;
     mcpStatus = res.ok ? "ok" : "degraded";
   } catch {
     mcpStatus = "down";
+  } finally {
+    clearTimeout(timer);
   }
 
   const overall = mcpStatus === "ok" ? "ok" : mcpStatus === "degraded" ? "degraded" : "down";

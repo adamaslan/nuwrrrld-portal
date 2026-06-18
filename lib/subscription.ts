@@ -42,12 +42,16 @@ const FEATURE_TIER_MAP: Record<Feature, SubscriptionTier> = {
 
 const TIER_RANK: Record<SubscriptionTier, number> = { free: 0, pro: 1 };
 
-/** The shape stored in Clerk user public metadata. */
+/**
+ * The shape stored in Clerk user public metadata.
+ * Keys must match exactly what the Stripe webhook writes — prefixed with
+ * `subscription_` to avoid collisions with other Clerk metadata.
+ */
 export interface SubscriptionMetadata {
   stripe_customer_id: string;
   stripe_subscription_id?: string;
-  status: SubscriptionStatus;
-  tier: SubscriptionTier;
+  subscription_status: SubscriptionStatus;
+  subscription_tier: SubscriptionTier;
   /** Unix timestamp seconds — from Stripe trial_end field. */
   trial_end?: number;
   current_period_end?: number;

@@ -25,3 +25,5 @@
   border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;
 }
 .feedback-btn:hover { background: #1d4ed8; }
+.feedback-success { color: #16a34a; font-size: .95rem; margin-bottom: .75rem; font-weight: 600; }
+.feedback-error { color: #dc2626; font-size: .95rem; margin-bottom: .75rem; }
