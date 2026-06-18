@@ -1,13 +1,8 @@
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
+import { clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import stripe from "@/lib/stripe";
 
-/**
- * Clerk webhook receiver (svix-verified).
- *
- * Configured in auth-todo Phase G.1. Requires CLERK_WEBHOOK_SIGNING_SECRET
- * (whsec_...) in the environment — set via `vercel env add` after creating
- * the endpoint in Clerk.
- */
 export async function POST(req: NextRequest) {
   let evt;
   try {
@@ -18,17 +13,47 @@ export async function POST(req: NextRequest) {
   }
 
   switch (evt.type) {
-    case "user.created":
-      // TODO(Stripe Phase 2): create the Stripe customer here — this is the
-      // Clerk→backend user-mapping moment (see gcp3-mobile-robust-50.md, Monetization move 1).
-      console.log("user.created", evt.data.id);
+    case "user.created": {
+      const { id: clerkUserId, email_addresses, first_name, last_name } = evt.data;
+      const email = email_addresses?.[0]?.email_address;
+
+      if (!email) {
+        console.warn("user.created event missing email", clerkUserId);
+        break;
+      }
+
+      // Create Stripe customer and store ID on Clerk metadata.
+      // Clerk metadata is a cache of Stripe — Stripe is always source of truth.
+      try {
+        const customer = await stripe.customers.create({
+          email,
+          name: [first_name, last_name].filter(Boolean).join(' ') || undefined,
+          metadata: { clerk_user_id: clerkUserId },
+        });
+
+        const clerk = await clerkClient();
+        await clerk.users.updateUserMetadata(clerkUserId, {
+          publicMetadata: {
+            stripe_customer_id: customer.id,
+            subscription_status: 'free',
+            subscription_tier: 'free',
+          },
+        });
+
+        console.log("Stripe customer created", customer.id, "for Clerk user", clerkUserId);
+      } catch (err) {
+        console.error("Failed to create Stripe customer for", clerkUserId, err);
+      }
       break;
+    }
+
     case "user.updated":
     case "user.deleted":
     case "session.created":
     case "session.ended":
       console.log(evt.type, evt.data.id);
       break;
+
     default:
       break;
   }
