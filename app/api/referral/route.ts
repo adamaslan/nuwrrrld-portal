@@ -1,17 +1,20 @@
 /**
  * Referral API — generates and validates referral codes.
- * Referral codes are stored in Clerk publicMetadata so they survive across devices.
- * Rewards: both referrer and referred get one free month (TRIAL_DAYS extension).
+ * Codes are stored in Clerk publicMetadata so they survive across devices.
+ * Reward: referrer and referred each get a free month (metadata flag read by billing).
  */
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-function generateCode(userId: string): string {
-  // Short, memorable code: first 6 chars of userId + 4 random alphanum chars.
-  const base = userId.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase();
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `${base}${rand}`;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Unambiguous chars
+const CODE_LENGTH = 10;
+
+function generateCode(): string {
+  // CSPRNG — no user-derived prefix so codes don't leak user ID shape.
+  const buf = new Uint8Array(CODE_LENGTH);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
 }
 
 /** GET /api/referral — get or create the current user's referral code. */
@@ -21,10 +24,14 @@ export async function GET() {
 
   const user = await currentUser();
   const existing = user?.publicMetadata?.referral_code as string | undefined;
-  if (existing) return NextResponse.json({ code: existing, referralsCompleted: user?.publicMetadata?.referrals_completed ?? 0 });
+  if (existing) {
+    return NextResponse.json({
+      code: existing,
+      referralsCompleted: user?.publicMetadata?.referrals_completed ?? 0,
+    });
+  }
 
-  // Generate and store a new code.
-  const code = generateCode(userId);
+  const code = generateCode();
   const clerk = await clerkClient();
   await clerk.users.updateUserMetadata(userId, {
     publicMetadata: { referral_code: code, referrals_completed: 0 },
@@ -42,18 +49,23 @@ export async function POST(req: NextRequest) {
   const code = typeof body.code === 'string' ? body.code.toUpperCase().trim() : '';
   if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
 
-  // Find the referrer by their referral_code in publicMetadata.
+  // Check if current user already redeemed before doing the lookup scan.
+  const me = await currentUser();
+  if (me?.publicMetadata?.referral_redeemed) {
+    return NextResponse.json({ error: "already redeemed" }, { status: 409 });
+  }
+
+  // Lookup by referral code. For scale, store codes in a DB with an indexed query.
+  // getUserList limit is a known constraint — acceptable at founding-user scale.
   const clerk = await clerkClient();
-  const { data: users } = await clerk.users.getUserList({ limit: 100 });
-  const referrer = users.find(u => (u.publicMetadata?.referral_code as string | undefined) === code);
+  const { data: users } = await clerk.users.getUserList({ limit: 500 });
+  const referrer = users.find(
+    u => (u.publicMetadata?.referral_code as string | undefined) === code
+  );
 
   if (!referrer) return NextResponse.json({ error: "invalid code" }, { status: 404 });
   if (referrer.id === userId) return NextResponse.json({ error: "cannot use own code" }, { status: 400 });
 
-  const alreadyRedeemed = currentUser().then(u => u?.publicMetadata?.referral_redeemed as boolean | undefined);
-  if (await alreadyRedeemed) return NextResponse.json({ error: "already redeemed" }, { status: 409 });
-
-  // Mark referrer's count and mark this user as referred.
   const prevCount = (referrer.publicMetadata?.referrals_completed as number) ?? 0;
   await Promise.all([
     clerk.users.updateUserMetadata(referrer.id, {
@@ -64,7 +76,5 @@ export async function POST(req: NextRequest) {
     }),
   ]);
 
-  // Reward is a free month — handled via Stripe coupon in production.
-  // For now we set a metadata flag that the billing system reads.
   return NextResponse.json({ redeemed: true, message: "You and your referrer each get a free month!" });
 }

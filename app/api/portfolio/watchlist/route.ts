@@ -2,8 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { WatchlistItem } from "@/lib/portfolio";
 
-// In-memory store — replace with a database in production.
-const store = new Map<string, WatchlistItem[]>();
+// Exported so the [ticker] sub-route shares the same instance.
+// Replace with a database before launch.
+export const store = new Map<string, WatchlistItem[]>();
 
 export async function GET() {
   const { userId } = await auth();

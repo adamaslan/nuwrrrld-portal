@@ -1,9 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-
-// Import the same store from the parent route.
-// In production both routes would query the same database.
-const store = new Map<string, { ticker: string; addedAt: string }[]>();
+import { store } from "../route";
 
 export async function DELETE(
   _req: NextRequest,
@@ -13,8 +10,8 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { ticker } = await params;
+  const upper = ticker.toUpperCase();
   const list = store.get(userId) ?? [];
-  const updated = list.filter(i => i.ticker !== ticker.toUpperCase());
-  store.set(userId, updated);
-  return NextResponse.json({ removed: ticker.toUpperCase() });
+  store.set(userId, list.filter(i => i.ticker !== upper));
+  return NextResponse.json({ removed: upper });
 }
