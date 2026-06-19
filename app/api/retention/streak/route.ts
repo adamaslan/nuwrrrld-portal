@@ -3,12 +3,10 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { advanceStreak, type StreakState } from "@/lib/retention";
 
-const DEFAULT_STREAK: StreakState = {
-  currentStreak: 0,
-  longestStreak: 0,
-  lastActiveDate: "",
-  updatedAt: new Date().toISOString(),
-};
+// Factory avoids stale timestamp from module-load-time evaluation.
+function defaultStreak(): StreakState {
+  return { currentStreak: 0, longestStreak: 0, lastActiveDate: "", updatedAt: new Date().toISOString() };
+}
 
 /** GET — return current streak. POST — record today's activity and advance streak. */
 export async function GET() {
@@ -17,7 +15,7 @@ export async function GET() {
 
   const clerk = await clerkClient();
   const user = await clerk.users.getUser(userId);
-  const streak = (user.privateMetadata?.streak as StreakState | undefined) ?? DEFAULT_STREAK;
+  const streak = (user.privateMetadata?.streak as StreakState | undefined) ?? defaultStreak();
   return NextResponse.json(streak);
 }
 
@@ -27,7 +25,7 @@ export async function POST() {
 
   const clerk = await clerkClient();
   const user = await clerk.users.getUser(userId);
-  const current = (user.privateMetadata?.streak as StreakState | undefined) ?? DEFAULT_STREAK;
+  const current = (user.privateMetadata?.streak as StreakState | undefined) ?? defaultStreak();
   const updated = advanceStreak(current);
 
   // Only write if state changed (avoids unnecessary Clerk API calls).
