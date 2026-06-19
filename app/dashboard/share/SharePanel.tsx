@@ -12,7 +12,10 @@ export function SharePanel() {
 
   useEffect(() => {
     fetch("/api/referral")
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(d => { setCode(d.code); setReferralsCompleted(d.referralsCompleted ?? 0); })
       .catch(() => setError("Could not load your referral code."));
   }, []);
@@ -21,9 +24,23 @@ export function SharePanel() {
 
   async function copyLink() {
     if (!referralUrl) return;
-    await navigator.clipboard.writeText(referralUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(referralUrl);
+      } else {
+        // Fallback for non-secure contexts
+        const el = document.createElement("textarea");
+        el.value = referralUrl;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Silent — user can manually copy the URL shown below
+    }
   }
 
   const tweetText = encodeURIComponent(

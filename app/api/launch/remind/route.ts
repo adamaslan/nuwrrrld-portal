@@ -33,23 +33,26 @@ export async function POST(req: NextRequest) {
 <p style="font-size:11px;color:#9ca3af;">Nothing in this email is financial advice.</p>
   `.trim();
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
-      to: recipients,
-      subject: "We launched today — upvote us on Product Hunt?",
-      html,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error("Resend error", err);
-    return NextResponse.json({ error: "email failed" }, { status: 502 });
+  // Send individually — putting all addresses in `to` exposes recipients to each other.
+  let sent = 0;
+  let failed = 0;
+  for (const address of recipients) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
+        to: [address],
+        subject: "We launched today — upvote us on Product Hunt?",
+        html,
+      }),
+    });
+    if (res.ok) { sent++; } else {
+      failed++;
+      console.error("Resend error for", address, await res.text());
+    }
   }
 
-  console.log(`[launch/remind] sent to ${recipients.length} recipients`);
-  return NextResponse.json({ sent: recipients.length });
+  console.log(`[launch/remind] sent=${sent} failed=${failed}`);
+  return NextResponse.json({ sent, failed });
 }
