@@ -22,10 +22,10 @@ export default async function Dashboard() {
           <span>NuWrrrld Financial</span>
         </Link>
         <div className="topnav">
-          <a href="#briefing">Briefing</a>
-          <a href="#signals">Signals</a>
-          <a href="#holdfold">Hold/Fold</a>
-          <a href="#council">Council</a>
+          <Link href="/dashboard/signals">Signals</Link>
+          <Link href="/dashboard/nuai">Nu AI</Link>
+          <Link href="/dashboard/billing">Billing</Link>
+          <Link href="/dashboard/beta">Founders</Link>
           <UserButton />
         </div>
       </nav>
