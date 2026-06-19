@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { normaliseDigest, type DigestPayload } from "@/lib/digest";
+import { globalDigestCache } from "@/app/api/signals/refresh/route";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
@@ -31,10 +32,16 @@ export async function GET() {
   const { userId, getToken } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  // Return cached digest if still fresh.
+  // 1. Return per-user cached digest if still fresh.
   const cached = cache.get(userId);
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.digest);
+  }
+
+  // 2. Fall back to globally-pushed digest from local refresh script (warm ~1h).
+  const GLOBAL_CACHE_TTL_MS = 60 * 60 * 1000;
+  if (globalDigestCache.digest && (Date.now() - globalDigestCache.pushedAt) < GLOBAL_CACHE_TTL_MS) {
+    return NextResponse.json(globalDigestCache.digest);
   }
 
   const token = await getToken();
