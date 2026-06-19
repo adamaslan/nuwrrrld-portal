@@ -5,7 +5,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Nu AI — Personal Finance AI Assistant Powered by Your Portfolio",
   description: "Ask Nu AI anything about your portfolio, signals, or market concepts. Answers grounded in your actual holdings — not generic advice.",
-  alternates: { canonical: "https://financial.nuwrrrld.com/ai-assistant" },
+  alternates: { canonical: "/ai-assistant" },
   openGraph: { title: "Nu AI Finance Assistant · NuWrrrld Financial", description: "AI that knows your actual portfolio." },
 };
 
@@ -35,7 +35,7 @@ export default function AIAssistantLandingPage() {
           { icon: "⚖️", title: "Honest about limits", body: "Nu AI tells you when it doesn't know, and never pretends to give personalised investment advice. Information only." },
         ].map(f => (
           <div key={f.title} className="feature-card">
-            <span className="feature-icon">{f.icon}</span>
+            <span className="feature-icon" aria-hidden="true">{f.icon}</span>
             <h3>{f.title}</h3>
             <p>{f.body}</p>
           </div>

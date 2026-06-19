@@ -9,7 +9,7 @@
 .landing-sub { font-size: 1.15rem; color: #555; max-width: 600px; margin: 0 auto 2rem; line-height: 1.7; }
 .hero-cta { display: inline-block; background: #2563eb; color: #fff; padding: .9rem 2rem; border-radius: 10px; font-size: 1.05rem; font-weight: 700; text-decoration: none; }
 .hero-cta:hover { background: #1d4ed8; }
-.hero-note { margin-top: .75rem; font-size: .85rem; color: #9ca3af; }
+.hero-note { margin-top: .75rem; font-size: .85rem; color: #4b5563; }
 
 .landing-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin: 3rem 0; }
 .feature-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; }
@@ -19,8 +19,8 @@
 
 .landing-cta-block { text-align: center; padding: 3rem 1rem; background: #f9fafb; border-radius: 16px; }
 .landing-cta-block h2 { font-size: 1.6rem; font-weight: 700; margin-bottom: 1.5rem; }
-.landing-disclaimer { margin-top: 1rem; font-size: .8rem; color: #9ca3af; }
-.landing-disclaimer a { color: #6b7280; }
+.landing-disclaimer { margin-top: 1rem; font-size: .8rem; color: #4b5563; }
+.landing-disclaimer a { color: #374151; }
 
 @media (max-width: 640px) {
   .landing-hero h1 { font-size: 1.8rem; }

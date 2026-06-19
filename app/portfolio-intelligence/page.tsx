@@ -5,7 +5,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Portfolio Intelligence — Health Score & Optimizer Suggestions",
   description: "Get a portfolio health score graded A–F with factor-level explanations and actionable suggestions from our AI optimizer. Know where you stand.",
-  alternates: { canonical: "https://financial.nuwrrrld.com/portfolio-intelligence" },
+  alternates: { canonical: "/portfolio-intelligence" },
   openGraph: { title: "Portfolio Intelligence · NuWrrrld Financial", description: "A health score for your portfolio, graded A–F." },
 };
 
@@ -35,7 +35,7 @@ export default function PortfolioIntelligenceLandingPage() {
           { icon: "👁️", title: "Watchlists & alerts", body: "Build a watchlist of tickers you're watching. Get signal and price alerts delivered the moment they trigger." },
         ].map(f => (
           <div key={f.title} className="feature-card">
-            <span className="feature-icon">{f.icon}</span>
+            <span className="feature-icon" aria-hidden="true">{f.icon}</span>
             <h3>{f.title}</h3>
             <p>{f.body}</p>
           </div>

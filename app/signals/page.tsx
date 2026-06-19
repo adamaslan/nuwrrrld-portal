@@ -5,7 +5,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "AI Stock Signals — Daily Digest with Explanations",
   description: "Get daily AI-generated stock signals with plain-language explanations. Know not just what the signal is, but why — then decide for yourself.",
-  alternates: { canonical: "https://financial.nuwrrrld.com/signals" },
+  alternates: { canonical: "/signals" },
   openGraph: { title: "AI Stock Signals · NuWrrrld Financial", description: "Daily signals, explained." },
 };
 
@@ -35,7 +35,7 @@ export default function SignalsLandingPage() {
           { icon: "🔔", title: "Watchlist alerts", body: "Set price and signal thresholds per ticker. Get notified the moment a signal fires, not hours later." },
         ].map(f => (
           <div key={f.title} className="feature-card">
-            <span className="feature-icon">{f.icon}</span>
+            <span className="feature-icon" aria-hidden="true">{f.icon}</span>
             <h3>{f.title}</h3>
             <p>{f.body}</p>
           </div>
