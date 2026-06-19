@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { normaliseDigest, type DigestPayload } from "@/lib/digest";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-1007181159506.us-central1.run.app";
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
 
 // Simple in-memory cache — TTL matches signal freshness (15 min).

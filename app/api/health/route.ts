@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-1007181159506.us-central1.run.app";
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 5_000;
 
 export async function GET() {

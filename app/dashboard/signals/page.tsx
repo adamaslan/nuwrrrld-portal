@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "Signal Digest · NuWrrrld Financial",
 };
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-1007181159506.us-central1.run.app";
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(url: string, token: string): Promise<unknown> {
