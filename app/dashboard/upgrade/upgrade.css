@@ -1,0 +1,17 @@
+.upgrade-page { max-width: 520px; margin: 0 auto; padding: 2.5rem 1.5rem; font-family: var(--font-geist-sans, sans-serif); }
+.upgrade-back { color: #2563eb; font-size: .9rem; text-decoration: none; display: inline-block; margin-bottom: 1rem; }
+.upgrade-hero { text-align: center; margin-bottom: 2rem; }
+.upgrade-badge { background: #dcfce7; color: #166534; font-size: .8rem; font-weight: 700; padding: .3rem .75rem; border-radius: 20px; }
+.upgrade-hero h1 { font-size: 1.7rem; font-weight: 800; margin: .75rem 0 .5rem; }
+.upgrade-sub { color: #555; line-height: 1.6; }
+.upgrade-comparison { display: flex; align-items: center; justify-content: center; gap: 1.5rem; margin: 1.75rem 0; }
+.upgrade-plan { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.25rem 1.5rem; text-align: center; min-width: 140px; }
+.upgrade-plan--annual { border-color: #2563eb; background: #eff6ff; }
+.plan-label { font-size: .75rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .25rem; }
+.plan-price { font-size: 2rem; font-weight: 800; color: #111; }
+.plan-price span { font-size: 1rem; font-weight: 400; color: #6b7280; }
+.plan-total { font-size: .8rem; color: #6b7280; margin-top: .25rem; }
+.upgrade-arrow { font-size: 1.5rem; color: #9ca3af; }
+.upgrade-note { font-size: .8rem; color: #6b7280; margin-top: 1rem; text-align: center; line-height: 1.6; }
+.upgrade-note a { color: #2563eb; }
+.upgrade-disclaimer { font-size: .72rem; color: #9ca3af; text-align: center; margin-top: .5rem; }
