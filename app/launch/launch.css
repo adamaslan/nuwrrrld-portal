@@ -1,0 +1,14 @@
+.launch-page { }
+.launch-badge { display: inline-block; background: #fef3c7; color: #92400e; font-size: .85rem; font-weight: 600; padding: .35rem .85rem; border-radius: 20px; margin-bottom: 1rem; }
+.launch-hero { text-align: center; padding: 2.5rem 1rem 2rem; }
+.launch-ctas { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: .75rem; }
+.ph-btn { display: inline-flex; align-items: center; gap: .5rem; background: #ff6154; color: #fff; padding: .85rem 1.75rem; border-radius: 10px; font-size: 1rem; font-weight: 700; text-decoration: none; }
+.ph-btn:hover { background: #e5574a; }
+.ph-btn--lg { font-size: 1.1rem; padding: 1rem 2.25rem; }
+.launch-sub { color: #555; margin-bottom: 1.5rem; }
+.launch-social { margin: 3rem 0; }
+.launch-social h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 1.25rem; }
+.testimonial-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.testimonial { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.25rem; margin: 0; }
+.testimonial p { font-size: .95rem; color: #222; line-height: 1.6; margin-bottom: .5rem; }
+.testimonial footer { font-size: .8rem; color: #6b7280; }
