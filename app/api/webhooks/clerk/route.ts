@@ -1,7 +1,7 @@
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
 import { clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import stripe from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 
 export async function POST(req: NextRequest) {
   let evt;
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       // Create Stripe customer and store ID on Clerk metadata.
       // Clerk metadata is a cache of Stripe — Stripe is always source of truth.
       let customerId: string;
+      const stripe = getStripe();
       try {
         const customer = await stripe.customers.create({
           email,
