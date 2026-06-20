@@ -6,7 +6,11 @@ import { tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import "./dashboard.css";
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
@@ -15,6 +19,9 @@ export default async function Dashboard() {
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
   const tier = tierFromStatus(status);
   const isPro = tier === "pro";
+
+  const params = await searchParams;
+  const checkoutSuccess = params.checkout === "success";
 
   const hour = new Date().getUTCHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -37,6 +44,11 @@ export default async function Dashboard() {
       </nav>
 
       <main>
+        {checkoutSuccess && (
+          <div className="checkout-notice success">
+            ✓ Subscription started! Your 7-day trial begins now. See you at billing for details.
+          </div>
+        )}
         <div className="greeting">
           <h1>{greeting}, {firstName}.</h1>
           <span className="greeting-sub">
