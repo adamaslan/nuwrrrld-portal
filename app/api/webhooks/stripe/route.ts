@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { clerkClient } from "@clerk/nextjs/server";
-import stripe from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import type { SubscriptionStatus, SubscriptionTier } from "@/lib/subscription";
 import { tierFromStatus } from "@/lib/subscription";
 
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "webhook not configured" }, { status: 500 });
   }
 
+  const stripe = getStripe();
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
@@ -61,6 +62,7 @@ async function syncSubscriptionToClerk(sub: Stripe.Subscription) {
 
   // Resolve Clerk user via clerk_user_id stored on the Stripe customer at creation.
   const clerk = await clerkClient();
+  const stripe = getStripe();
   const customer = await stripe.customers.retrieve(customerId);
   if (customer.deleted) return;
 

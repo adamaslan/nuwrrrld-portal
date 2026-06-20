@@ -1,6 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import stripe, { PRICES } from "@/lib/stripe";
+import { getStripe, PRICES } from "@/lib/stripe";
 import { TRIAL_DAYS } from "@/lib/subscription";
 
 export async function POST(req: NextRequest) {
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   const origin = req.nextUrl.origin;
+  const stripe = getStripe();
 
   const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
     mode: 'subscription',
