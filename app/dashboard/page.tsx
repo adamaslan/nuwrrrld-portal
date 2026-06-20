@@ -46,7 +46,8 @@ export default async function Dashboard({
       <main>
         {checkoutSuccess && (
           <div className="checkout-notice success">
-            ✓ Subscription started! Your 7-day trial begins now. See you at billing for details.
+            ✓ Subscription started! Your 7-day trial begins now.{" "}
+            <Link href="/dashboard/billing">Manage billing →</Link>
           </div>
         )}
         <div className="greeting">

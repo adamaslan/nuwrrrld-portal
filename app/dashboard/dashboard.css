@@ -275,12 +275,25 @@
   border-radius: var(--radius);
   border: 1px solid;
   font-size: 0.95rem;
+  animation: checkoutNoticeFade 6s ease forwards;
+  animation-delay: 2s;
 }
 
 .nwf-dash .checkout-notice.success {
   background: rgba(53, 208, 127, 0.1);
   border-color: var(--green);
   color: var(--green);
+}
+
+.nwf-dash .checkout-notice a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@keyframes checkoutNoticeFade {
+  0% { opacity: 1; max-height: 120px; margin-bottom: 2rem; }
+  85% { opacity: 1; max-height: 120px; margin-bottom: 2rem; }
+  100% { opacity: 0; max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; }
 }
 
 @media (max-width: 880px) {
