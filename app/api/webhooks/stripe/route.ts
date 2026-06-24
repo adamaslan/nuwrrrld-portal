@@ -38,6 +38,31 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const clerkUserId = session.metadata?.clerk_user_id;
+        const customerId =
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id ?? null;
+        if (clerkUserId && customerId) {
+          // Stamp clerk_user_id on the Customer so syncSubscriptionToClerk can resolve it.
+          await stripe.customers.update(customerId, {
+            metadata: { clerk_user_id: clerkUserId },
+          });
+          // Sync subscription immediately if Stripe already created it.
+          if (session.subscription) {
+            const subId =
+              typeof session.subscription === "string"
+                ? session.subscription
+                : session.subscription.id;
+            const sub = await stripe.subscriptions.retrieve(subId);
+            await syncSubscriptionToClerk(sub);
+          }
+        }
+        break;
+      }
+
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         console.log("Payment failed for customer", invoice.customer);
