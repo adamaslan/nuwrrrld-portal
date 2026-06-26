@@ -38,6 +38,31 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const clerkUserId = session.metadata?.clerk_user_id;
+        const customerId =
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id ?? null;
+        if (clerkUserId && customerId) {
+          // Stamp clerk_user_id on the Customer so syncSubscriptionToClerk can resolve it.
+          await stripe.customers.update(customerId, {
+            metadata: { clerk_user_id: clerkUserId },
+          });
+          // Sync subscription immediately if Stripe already created it.
+          // Use the already-expanded object if available to avoid an extra API call.
+          if (session.subscription) {
+            const sub =
+              typeof session.subscription === "string"
+                ? await stripe.subscriptions.retrieve(session.subscription)
+                : session.subscription;
+            await syncSubscriptionToClerk(sub);
+          }
+        }
+        break;
+      }
+
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         console.log("Payment failed for customer", invoice.customer);
@@ -51,7 +76,12 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error("Error processing Stripe event", event.type, err);
-    // Return 200 so Stripe doesn't retry — log the error for investigation.
+    // For checkout.session.completed, return 500 so Stripe retries — a missed
+    // entitlement sync here is unrecoverable without a retry.
+    if (event.type === "checkout.session.completed") {
+      return NextResponse.json({ error: "sync failed, will retry" }, { status: 500 });
+    }
+    // For other events, return 200 to avoid infinite Stripe retries on non-critical paths.
   }
 
   return NextResponse.json({ received: true });
