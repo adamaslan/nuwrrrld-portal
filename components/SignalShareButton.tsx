@@ -13,26 +13,26 @@ export function SignalShareButton({ signal }: SignalShareButtonProps) {
 
   const handleShare = async () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://financial.nuwrrrld.com';
-    const card = buildSignalCard(signal, baseUrl, 'https://financial.nuwrrrld.com');
+    const card = buildSignalCard(signal, baseUrl, baseUrl);
     const text = formatSignalForShare(signal);
-    const fullText = `${text}\n\n${card.shareUrl}`;
+    const fullText = `${text}\n\n${card.imageUrl}\n${card.shareUrl}`;
 
-    // Try native Web Share API first (mobile-friendly)
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Signal: ${signal.ticker}`,
           text: fullText,
-          url: card.shareUrl,
+          url: card.imageUrl,
         });
         return;
       } catch (e) {
-        // User cancelled or share failed, fall back to copy
+        if (e instanceof Error && e.name === 'AbortError') {
+          return;
+        }
         console.error('Share failed:', e);
       }
     }
 
-    // Fallback: copy to clipboard
     try {
       await navigator.clipboard.writeText(fullText);
       setCopied(true);

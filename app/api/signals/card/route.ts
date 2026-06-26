@@ -12,14 +12,32 @@ const DIRECTION_EMOJI: Record<string, string> = {
   neutral: '➡️',
 };
 
+const VALID_DIRECTIONS = new Set(['bullish', 'bearish', 'neutral']);
+const VALID_CONFIDENCES = new Set(['low', 'medium', 'high']);
+const VALID_TIMEFRAMES = new Set(['intraday', 'short', 'medium', 'long']);
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const ticker = searchParams.get('ticker') || 'UNKNOWN';
-  const direction = (searchParams.get('direction') || 'neutral') as keyof typeof DIRECTION_COLOR;
-  const confidence = searchParams.get('confidence') || 'low';
-  const timeframe = searchParams.get('timeframe') || 'medium';
+  const rawTicker = searchParams.get('ticker') || 'UNKNOWN';
+  const rawDirection = searchParams.get('direction') || 'neutral';
+  const rawConfidence = searchParams.get('confidence') || 'low';
+  const rawTimeframe = searchParams.get('timeframe') || 'medium';
+
+  const ticker = escapeXml(rawTicker);
+  const direction = VALID_DIRECTIONS.has(rawDirection) ? rawDirection : 'neutral';
+  const confidence = VALID_CONFIDENCES.has(rawConfidence) ? rawConfidence : 'low';
+  const timeframe = VALID_TIMEFRAMES.has(rawTimeframe) ? rawTimeframe : 'medium';
 
   const color = DIRECTION_COLOR[direction] || '#666';
   const emoji = DIRECTION_EMOJI[direction] || '➡️';
