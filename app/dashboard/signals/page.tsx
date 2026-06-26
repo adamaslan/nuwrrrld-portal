@@ -5,6 +5,7 @@ import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { normaliseDigest, type DigestPayload } from "@/lib/digest";
+import { SignalShareButton } from "@/components/SignalShareButton";
 import "./signals.css";
 
 export const metadata: Metadata = {
@@ -85,11 +86,14 @@ export default async function SignalsPage() {
           {digest.signals.map(sig => (
             <div key={sig.id} className="signal-card">
               <div className="signal-card-header">
-                <span className="signal-ticker">{sig.ticker}</span>
-                <span className={`signal-direction signal-direction--${sig.direction}`}>
-                  {sig.direction === "bullish" ? "↑" : sig.direction === "bearish" ? "↓" : "→"}{" "}
-                  {sig.direction}
-                </span>
+                <div>
+                  <span className="signal-ticker">{sig.ticker}</span>
+                  <span className={`signal-direction signal-direction--${sig.direction}`}>
+                    {sig.direction === "bullish" ? "↑" : sig.direction === "bearish" ? "↓" : "→"}{" "}
+                    {sig.direction}
+                  </span>
+                </div>
+                <SignalShareButton signal={sig} />
               </div>
               <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
               <p className="signal-title">{sig.title}</p>

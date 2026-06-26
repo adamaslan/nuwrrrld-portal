@@ -6,9 +6,11 @@
 .signals-cta { display: inline-block; margin-top: 1rem; color: #2563eb; text-decoration: underline; }
 .signals-list { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
 .signal-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.25rem; }
-.signal-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .375rem; }
+.signal-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .375rem; gap: 1rem; }
 .signal-ticker { font-size: 1.2rem; font-weight: 700; color: #111; }
 .signal-direction { font-size: .875rem; font-weight: 600; text-transform: capitalize; }
+.signal-share-btn { background: #ecfdf5; border: 1px solid #d1fae5; color: #059669; padding: .375rem .75rem; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all .15s ease; white-space: nowrap; flex-shrink: 0; }
+.signal-share-btn:hover { background: #d1fae5; }
 .signal-direction--bullish { color: #16a34a; }
 .signal-direction--bearish { color: #dc2626; }
 .signal-direction--neutral { color: #d97706; }
