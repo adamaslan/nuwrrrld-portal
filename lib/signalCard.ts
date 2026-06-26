@@ -7,28 +7,31 @@ import type { SignalPayload } from './digest';
 export interface SignalCardData {
   signal: SignalPayload;
   imageUrl: string; // Generated card image
-  shareUrl: string; // Deep link with card data
+  shareUrl: string; // Web link to signal (clickable everywhere)
 }
 
 /**
  * Generate a shareable card from a signal.
- * imageUrl is built server-side to handle image generation;
- * shareUrl is a deep link back to this signal in-app.
+ * imageUrl is generated server-side; shareUrl is a web link (clickable in share sheets).
+ * Use basePortalUrl for both to ensure shareUrl is web-clickable across all platforms.
  */
 export function buildSignalCard(
   signal: SignalPayload,
   basePortalUrl: string,
   baseAppUrl: string,
 ): SignalCardData {
-  // Server-side image generation endpoint — passes minimal signal data to avoid URL length limits.
-  // POST to /api/signals/card to generate the actual image.
-  const imageUrl = `${basePortalUrl}/api/signals/card?ticker=${encodeURIComponent(
-    signal.ticker,
-  )}&direction=${signal.direction}&confidence=${signal.confidence}&timeframe=${signal.timeframe}`;
+  // Server-side image generation — encode all params to prevent malformed URLs
+  const imageUrl = `${basePortalUrl}/api/signals/card?${new URLSearchParams({
+    ticker: signal.ticker,
+    direction: signal.direction,
+    confidence: signal.confidence,
+    timeframe: signal.timeframe,
+  }).toString()}`;
 
-  // Deep link back to this signal in the app (mobile) or web.
-  // Uses signal ID so the native app can deep-link to the exact signal in the digest.
-  const shareUrl = `${baseAppUrl}/signals/${signal.id}`;
+  // Deep link to signal — use portal URL so it's clickable in share sheets.
+  // Universal Links (iOS) + App Links (Android) on the domain will route to native app if installed.
+  const normalizedBase = basePortalUrl.endsWith('/') ? basePortalUrl.slice(0, -1) : basePortalUrl;
+  const shareUrl = `${normalizedBase}/dashboard/signals#signal-${signal.id}`;
 
   return {
     signal,
