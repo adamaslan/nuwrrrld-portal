@@ -23,8 +23,10 @@ async function fetchDigest(): Promise<DigestPayload | null> {
       next: { revalidate: 900 },
     });
     if (!res.ok) return null;
-    return adaptLiveSignals(await res.json());
-  } catch {
+    const data = await res.json();
+    return adaptLiveSignals(data);
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return null;
     return null;
   } finally {
     clearTimeout(timer);

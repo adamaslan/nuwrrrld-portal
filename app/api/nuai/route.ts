@@ -4,7 +4,6 @@ import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
-import { callCouncilSeat } from "@/lib/openrouter";
 
 // Simple per-user daily token counter (in-memory; resets on cold start).
 // For production this should be persisted in a KV store (e.g. Vercel KV).
@@ -67,7 +66,7 @@ export async function POST(req: NextRequest) {
     ? `The user currently holds: ${portfolioContext.join(", ")}.`
     : "The user has not connected a portfolio yet.";
 
-  const systemLines = [
+  const systemPrompt = [
     "You are Nu AI, a financial information assistant for NuWrrrld Financial.",
     "You help users understand their portfolio, market signals, and financial concepts.",
     NU_AI_DISCLAIMER,
@@ -76,22 +75,52 @@ export async function POST(req: NextRequest) {
     contextLine,
   ].join("\n");
 
-  const lastUserContent = messages.at(-1)?.content ?? "";
-  const userPrompt = `${systemLines}\n\n${lastUserContent}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const result = await callCouncilSeat("T1", userPrompt, apiKey);
-    recordUsage(userId, Math.ceil(userPrompt.length / 4) + Math.ceil(result.answer.length / 4));
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://financial.nuwrrrld.com",
+        "X-Title": "NuWrrrld Financial Nu AI",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-sonnet-4-6",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: messages.map(m => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`OpenRouter ${response.status}: ${text.slice(0, 200)}`);
+    }
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }>, usage?: { input_tokens?: number; output_tokens?: number } };
+    const answer = data.choices?.[0]?.message?.content ?? "";
+    const inputTokens = data.usage?.input_tokens ?? 0;
+    const outputTokens = data.usage?.output_tokens ?? 0;
+    recordUsage(userId, inputTokens + outputTokens);
 
     return NextResponse.json({
       message: {
         role: "assistant",
-        content: result.answer,
+        content: answer,
         timestamp: new Date().toISOString(),
       },
     });
   } catch (err) {
     console.error("Nu AI error", err);
     return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
+  } finally {
+    clearTimeout(timer);
   }
 }

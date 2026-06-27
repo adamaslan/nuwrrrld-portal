@@ -21,15 +21,20 @@ interface IndustryEntry {
 }
 
 async function fetchIndustryData() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/industry-intel`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${MCP_URL}/industry-intel`, {
+      signal: controller.signal,
+      next: { revalidate: 3600 },
+    });
     if (!res.ok) return null;
     const data = await res.json() as { date?: string; industries?: Record<string, IndustryEntry> };
     const industries = data.industries ?? {};
     const sorted = Object.entries(industries)
       .sort(([, a], [, b]) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
     return { date: data.date, topGainers: sorted.slice(0, 5), topLosers: sorted.slice(-5).reverse() };
-  } catch { return null; }
+  } catch { return null; } finally { clearTimeout(timer); }
 }
 
 export default async function PortfolioIntelligenceLandingPage() {

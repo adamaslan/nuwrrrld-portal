@@ -46,8 +46,13 @@ export async function POST(req: NextRequest) {
   if (prefs?.emailDigest === "off") return NextResponse.json({ skipped: true });
 
   let signalHtml = "<p>No signals available this week.</p>";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const sRes = await fetch(`${MCP_URL}/signals`, { next: { revalidate: 900 } } as RequestInit);
+    const sRes = await fetch(`${MCP_URL}/signals`, {
+      signal: controller.signal,
+      next: { revalidate: 900 },
+    });
     if (sRes.ok) {
       const digest = adaptLiveSignals(await sRes.json());
       const top3 = (digest?.signals ?? []).slice(0, 3);
@@ -57,7 +62,9 @@ export async function POST(req: NextRequest) {
         ).join("")}</ul>`;
       }
     }
-  } catch { /* signals unavailable — send without */ }
+  } catch { /* signals unavailable — send without */ } finally {
+    clearTimeout(timer);
+  }
 
   const name = escHtml(user.firstName ?? "there");
   const html = `

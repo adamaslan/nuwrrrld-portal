@@ -12,12 +12,32 @@ interface CouncilSample {
   generatedAt?: string;
 }
 
+async function fetchCouncilSample(): Promise<CouncilSample | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const { callCouncilSeat } = await import("@/lib/openrouter");
+    const [t1, t2] = await Promise.all([
+      callCouncilSeat("T1", "Analyze SPY for current market conditions. Provide a concise, grounded assessment.", apiKey),
+      callCouncilSeat("T2", "Analyze SPY for current market conditions. Provide a concise, grounded assessment.", apiKey),
+    ]);
+    return { shortTerm: t1, longTerm: t2, generatedAt: new Date().toISOString() };
+  } catch { return null; }
+}
+
 async function fetchLandingData() {
-  const SELF = process.env.NEXT_PUBLIC_SITE_URL ?? "https://financial.nuwrrrld.com";
-  const [mktRes, sigRes, councilRes] = await Promise.allSettled([
-    fetch(`${MCP_URL}/market-overview`, { next: { revalidate: 3600 } }),
-    fetch(`${MCP_URL}/signals`, { next: { revalidate: 3600 } }),
-    fetch(`${SELF}/api/council/sample`, { next: { revalidate: 21600 } }),
+  const fetchWithTimeout = async (url: string, cache: number) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    try {
+      return await fetch(url, { signal: controller.signal, next: { revalidate: cache } });
+    } finally { clearTimeout(timer); }
+  };
+
+  const [mktRes, sigRes, council] = await Promise.allSettled([
+    fetchWithTimeout(`${MCP_URL}/market-overview`, 3600),
+    fetchWithTimeout(`${MCP_URL}/signals`, 3600),
+    fetchCouncilSample(),
   ]);
   const market = mktRes.status === "fulfilled" && mktRes.value.ok
     ? await mktRes.value.json().catch(() => null)
@@ -32,10 +52,8 @@ async function fetchLandingData() {
         return score(b) - score(a);
       }).slice(0, 4)
     : null;
-  const council: CouncilSample | null = councilRes.status === "fulfilled" && councilRes.value.ok
-    ? await councilRes.value.json().catch(() => null)
-    : null;
-  return { market, topSignals, council };
+  const councilData: CouncilSample | null = council.status === "fulfilled" ? council.value : null;
+  return { market, topSignals, council: councilData };
 }
 
 // Signed-out visitors get the marketing landing (mirrors

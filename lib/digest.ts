@@ -52,23 +52,24 @@ export function adaptLiveSignals(raw: unknown): DigestPayload | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   const symbols = (r.symbols ?? {}) as Record<string, Record<string, unknown>>;
-  const entries = Object.values(symbols);
+  const entries = Object.entries(symbols).filter(([, v]) => v && typeof v === 'object' && !Array.isArray(v));
   if (entries.length === 0) return null;
 
   const updated = String(r.updated ?? new Date().toISOString());
-  const signals: SignalPayload[] = entries.map((s, i) => {
-    const action = String(s.ai_action ?? 'HOLD');
+  const signals: SignalPayload[] = entries.map(([symbolKey, s], i) => {
+    const action = String(s?.ai_action ?? 'HOLD');
+    const ticker = String(s?.symbol ?? symbolKey).trim().toUpperCase();
     return {
-      id: String(s.symbol ?? `signal-${i}`),
-      ticker: String(s.symbol ?? ''),
+      id: ticker || `signal-${i}`,
+      ticker,
       direction:
         action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'neutral',
       timeframe: 'medium',
-      confidence: safeConfidence(String(s.ai_confidence ?? 'low').toLowerCase()),
-      title: String(s.ai_summary ?? ''),
-      explanation: String(s.ai_outlook ?? ''),
-      indicators: Array.isArray(s.signals)
-        ? (s.signals as Array<Record<string, unknown>>).map((x) => String(x.signal))
+      confidence: safeConfidence(String(s?.ai_confidence ?? 'low').toLowerCase()),
+      title: String(s?.ai_summary ?? ''),
+      explanation: String(s?.ai_outlook ?? ''),
+      indicators: Array.isArray(s?.signals)
+        ? (s.signals as Array<Record<string, unknown>>).map((x) => String(x?.signal ?? ''))
         : [],
       generatedAt: updated,
     };

@@ -13,12 +13,17 @@ export const metadata: Metadata = {
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 
 async function fetchPublicSignals(): Promise<SignalPayload[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/signals`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${MCP_URL}/signals`, {
+      signal: controller.signal,
+      next: { revalidate: 3600 },
+    });
     if (!res.ok) return [];
     const digest = adaptLiveSignals(await res.json());
     return digest?.signals ?? [];
-  } catch { return []; }
+  } catch { return []; } finally { clearTimeout(timer); }
 }
 
 export default async function SignalsLandingPage() {

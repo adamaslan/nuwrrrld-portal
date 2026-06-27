@@ -18,11 +18,16 @@ interface MarketOverview {
 }
 
 async function fetchMarketOverview(): Promise<MarketOverview | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/market-overview`, { next: { revalidate: 900 } });
+    const res = await fetch(`${MCP_URL}/market-overview`, {
+      signal: controller.signal,
+      next: { revalidate: 900 },
+    });
     if (!res.ok) return null;
     return await res.json() as MarketOverview;
-  } catch { return null; }
+  } catch { return null; } finally { clearTimeout(timer); }
 }
 
 export default async function Dashboard({

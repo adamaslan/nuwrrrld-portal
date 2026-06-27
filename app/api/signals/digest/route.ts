@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
 import { globalDigestCache } from "@/app/api/signals/refresh/route";
+import { getLatestDigest, saveDigest } from "@/lib/digest-cache-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
@@ -44,10 +45,18 @@ export async function GET() {
     return NextResponse.json(globalDigestCache.digest);
   }
 
+  // 3. Check Neon-persisted cache — survives cold starts.
+  const dbDigest = await getLatestDigest();
+  if (dbDigest) {
+    cache.set(userId, { digest: dbDigest, expiresAt: Date.now() + CACHE_TTL_MS });
+    return NextResponse.json(dbDigest);
+  }
+
   const digest = await fetchLiveSignals();
   if (!digest) return NextResponse.json({ error: "no signals available" }, { status: 503 });
 
   cache.set(userId, { digest, expiresAt: Date.now() + CACHE_TTL_MS });
+  void saveDigest(digest);
 
   return NextResponse.json(digest);
 }
