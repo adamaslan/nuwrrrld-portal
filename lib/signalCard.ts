@@ -7,7 +7,7 @@ import type { SignalPayload } from './digest';
 export interface SignalCardData {
   signal: SignalPayload;
   imageUrl: string; // Generated card image
-  shareUrl: string; // Web link to signal (clickable everywhere)
+  shareUrl: string; // Deep link to signal on web (clickable in share sheets)
 }
 
 /**
@@ -20,17 +20,19 @@ export function buildSignalCard(
   basePortalUrl: string,
   baseAppUrl: string,
 ): SignalCardData {
-  // Server-side image generation — encode all params to prevent malformed URLs
-  const imageUrl = `${basePortalUrl}/api/signals/card?${new URLSearchParams({
+  // Normalize once — used for both imageUrl and shareUrl to avoid double-slash paths.
+  const normalizedBase = basePortalUrl.endsWith('/') ? basePortalUrl.slice(0, -1) : basePortalUrl;
+
+  // Server-side image generation — encode all params to prevent malformed URLs.
+  const imageUrl = `${normalizedBase}/api/signals/card?${new URLSearchParams({
     ticker: signal.ticker,
     direction: signal.direction,
     confidence: signal.confidence,
     timeframe: signal.timeframe,
   }).toString()}`;
 
-  // Deep link to signal — use portal URL so it's clickable in share sheets.
-  // Universal Links (iOS) + App Links (Android) on the domain will route to native app if installed.
-  const normalizedBase = basePortalUrl.endsWith('/') ? basePortalUrl.slice(0, -1) : basePortalUrl;
+  // Deep link to signal — web-clickable URL with id anchor so the share scrolls to the right card.
+  // Universal Links (iOS) + App Links (Android) on the domain route to native app if installed.
   const shareUrl = `${normalizedBase}/dashboard/signals#signal-${signal.id}`;
 
   return {

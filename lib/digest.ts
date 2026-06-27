@@ -55,10 +55,17 @@ export interface DigestPayload {
 export function adaptLiveSignals(raw: unknown): DigestPayload {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid /signals response');
   const r = raw as Record<string, unknown>;
-  const symbols = (r.symbols ?? {}) as Record<string, Record<string, unknown>>;
+  // Validate symbols is a plain object — reject arrays or nulls at the boundary.
+  if (!r.symbols || typeof r.symbols !== 'object' || Array.isArray(r.symbols)) {
+    throw new Error('Invalid /signals response: symbols must be a plain object');
+  }
+  const symbols = r.symbols as Record<string, Record<string, unknown>>;
   const fallbackDate = String(r.updated ?? new Date().toISOString());
 
-  const signals: SignalPayload[] = Object.values(symbols).map((s, i) => {
+  // Use Object.entries so the map key (authoritative ticker) is always available
+  // even when the inner record omits the redundant `symbol` field.
+  const signals: SignalPayload[] = Object.entries(symbols).map(([symbolKey, s], i) => {
+    const ticker = String(s.symbol ?? symbolKey).trim().toUpperCase();
     const action = String(s.ai_action ?? '').toUpperCase();
     const direction: SignalDirection =
       action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'neutral';
@@ -67,8 +74,8 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
       ? (s.signals as Record<string, unknown>[]).map(x => String(x.signal ?? ''))
       : [];
     return {
-      id: String(s.symbol ?? `signal-${i}`),
-      ticker: String(s.symbol ?? ''),
+      id: ticker || `signal-${i}`,
+      ticker,
       direction,
       timeframe: 'medium',
       confidence: safeConfidence(rawConf),

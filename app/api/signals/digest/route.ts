@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
 import { globalDigestCache } from "@/app/api/signals/refresh/route";
 
@@ -25,12 +25,21 @@ async function fetchLiveSignals(): Promise<unknown> {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  // 1. Serve per-user cached digest if still fresh.
-  const cached = cache.get(userId);
+  // Allow trusted internal callers (e.g. retention digest-email route) via shared secret.
+  // This avoids retention emails silently losing signals when no Clerk session exists.
+  const secret = process.env.PORTAL_PUSH_SECRET;
+  const isInternal =
+    Boolean(secret) && req.headers.get("authorization") === `Bearer ${secret}`;
+
+  if (!userId && !isInternal) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+
+  // 1. Serve per-user cached digest if still fresh (skip for internal callers).
+  const cached = userId ? cache.get(userId) : undefined;
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.digest);
   }
@@ -54,6 +63,6 @@ export async function GET() {
     return NextResponse.json({ error: "failed to parse signals" }, { status: 502 });
   }
 
-  cache.set(userId, { digest, expiresAt: Date.now() + CACHE_TTL_MS });
+  if (userId) cache.set(userId, { digest, expiresAt: Date.now() + CACHE_TTL_MS });
   return NextResponse.json(digest);
 }

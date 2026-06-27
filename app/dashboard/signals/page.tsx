@@ -63,7 +63,7 @@ export default async function SignalsPage() {
       {digest && (
         <div className="signals-list">
           {digest.signals.map(sig => (
-            <div key={sig.id} className="signal-card">
+            <div key={sig.id} id={`signal-${sig.id}`} className="signal-card">
               <div className="signal-card-header">
                 <div>
                   <span className="signal-ticker">{sig.ticker}</span>
