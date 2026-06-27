@@ -35,6 +35,7 @@ export default async function Dashboard({
         </Link>
         <div className="topnav">
           <Link href="/dashboard/signals">Signals</Link>
+          <Link href="/dashboard/holdfold">Hold/Fold</Link>
           <Link href="/dashboard/nuai">Nu AI</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
@@ -81,15 +82,15 @@ export default async function Dashboard({
             <span className="tool-cta">Ask Nu AI →</span>
           </Link>
 
-          <Link href="/dashboard/signals" className="tool tool--link">
+          <Link href="/dashboard/holdfold" className="tool tool--link">
             <div className="tool-head">
-              <h2>Portfolio Health</h2>
+              <h2>Hold / Fold</h2>
               {isPro
                 ? <span className="pill live">Live</span>
                 : <span className="pill soon">Pro</span>}
             </div>
-            <p>A health score graded A–F across risk, diversification, and momentum — with optimizer suggestions.</p>
-            <span className="tool-cta">Check your score →</span>
+            <p>Tactical trade verdicts with bias, risk, volatility regime, and the exact indicator readings behind them.</p>
+            <span className="tool-cta">Get verdicts →</span>
           </Link>
 
           <Link href="/dashboard/share" className="tool tool--link">
