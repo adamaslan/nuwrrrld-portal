@@ -71,7 +71,10 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: buildCouncilPrompt(v, seat), seat }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setCouncil({ status: "ok", answer: data.answer, model: data.model, seat });
     } catch (err) {
