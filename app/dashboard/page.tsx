@@ -6,6 +6,25 @@ import { tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import "./dashboard.css";
 
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+
+interface MarketOverview {
+  brief?: {
+    summary?: string;
+    avg_change_pct?: number;
+    metrics_52w?: Record<string, unknown>;
+  };
+  indices?: Record<string, { price?: number; change_pct?: number }>;
+}
+
+async function fetchMarketOverview(): Promise<MarketOverview | null> {
+  try {
+    const res = await fetch(`${MCP_URL}/market-overview`, { next: { revalidate: 900 } });
+    if (!res.ok) return null;
+    return await res.json() as MarketOverview;
+  } catch { return null; }
+}
+
 export default async function Dashboard({
   searchParams,
 }: {
@@ -22,6 +41,8 @@ export default async function Dashboard({
 
   const params = await searchParams;
   const checkoutSuccess = params.checkout === "success";
+
+  const market = await fetchMarketOverview();
 
   const hour = new Date().getUTCHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -58,6 +79,26 @@ export default async function Dashboard({
             {!isPro && <Link href="/pricing" className="upgrade-link">upgrade to Pro →</Link>}
           </span>
         </div>
+
+        {market && (
+          <div className="market-overview-bar">
+            {market.indices && Object.entries(market.indices).slice(0, 4).map(([sym, idx]) => (
+              <span key={sym} className="market-index-chip">
+                <strong>{sym}</strong>{" "}
+                {idx.price != null ? idx.price.toLocaleString() : "—"}
+                {idx.change_pct != null && (
+                  <span className={idx.change_pct >= 0 ? "up" : "down"}>
+                    {" "}{idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                  </span>
+                )}
+              </span>
+            ))}
+            {market.brief?.summary && (
+              <span className="market-brief-summary">{market.brief.summary}</span>
+            )}
+            <span className="pill live">Live</span>
+          </div>
+        )}
 
         <div className="tool-grid">
           <Link href="/dashboard/signals" className="tool tool--link">
@@ -100,6 +141,17 @@ export default async function Dashboard({
             </div>
             <p>Refer a friend and you both get a free month. Share your personal referral link in one tap.</p>
             <span className="tool-cta">Get your link →</span>
+          </Link>
+
+          <Link href="/portfolio-intelligence" className="tool tool--link">
+            <div className="tool-head">
+              <h2>Portfolio Intel</h2>
+              {isPro
+                ? <span className="pill live">Live</span>
+                : <span className="pill soon">Pro</span>}
+            </div>
+            <p>Industry performance, sector rotation, and factor breakdown — which industries are leading and lagging today.</p>
+            <span className="tool-cta">See industry intel →</span>
           </Link>
         </div>
 

@@ -1,10 +1,10 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
+import { callCouncilSeat } from "@/lib/openrouter";
 
 // Simple per-user daily token counter (in-memory; resets on cold start).
 // For production this should be persisted in a KV store (e.g. Vercel KV).
@@ -60,46 +60,33 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
-  const client = new Anthropic({ apiKey });
+  const contextLine = portfolioContext.length > 0
+    ? `The user currently holds: ${portfolioContext.join(", ")}.`
+    : "The user has not connected a portfolio yet.";
 
-  const systemPrompt = [
+  const systemLines = [
     "You are Nu AI, a financial information assistant for NuWrrrld Financial.",
     "You help users understand their portfolio, market signals, and financial concepts.",
     NU_AI_DISCLAIMER,
     "Never provide specific buy/sell price targets or personalised trading advice.",
     "If you are uncertain, say so clearly rather than guessing.",
-    portfolioContext.length > 0
-      ? `The user currently holds: ${portfolioContext.join(", ")}.`
-      : "The user has not connected a portfolio yet.",
+    contextLine,
   ].join("\n");
 
-  const anthropicMessages = messages.map(m => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  const lastUserContent = messages.at(-1)?.content ?? "";
+  const userPrompt = `${systemLines}\n\n${lastUserContent}`;
 
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: anthropicMessages,
-    });
-
-    const outputTokens = response.usage?.output_tokens ?? 0;
-    const inputTokens = response.usage?.input_tokens ?? 0;
-    recordUsage(userId, inputTokens + outputTokens);
-
-    const content = response.content[0];
-    const text = content?.type === "text" ? content.text : "";
+    const result = await callCouncilSeat("T1", userPrompt, apiKey);
+    recordUsage(userId, Math.ceil(userPrompt.length / 4) + Math.ceil(result.answer.length / 4));
 
     return NextResponse.json({
       message: {
         role: "assistant",
-        content: text,
+        content: result.answer,
         timestamp: new Date().toISOString(),
       },
     });

@@ -22,6 +22,27 @@
 .landing-disclaimer { margin-top: 1rem; font-size: .8rem; color: #4b5563; }
 .landing-disclaimer a { color: #374151; }
 
+.landing-signals-preview { max-width: 860px; margin: 0 auto 2rem; padding: 0 1rem; }
+.landing-signals-preview h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px; }
+.live-badge { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; background: #16a34a; color: #fff; padding: 2px 7px; border-radius: 99px; }
+.signals-preview-group { margin-bottom: 1rem; }
+.signals-preview-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+.signals-preview-label.bullish { color: #16a34a; }
+.signals-preview-label.bearish { color: #dc2626; }
+.signals-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.signals-preview-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; background: #fff; display: flex; flex-direction: column; gap: 4px; }
+.sig-ticker { font-weight: 700; font-size: 0.95rem; }
+.sig-conf { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.sig-conf--bullish { color: #16a34a; }
+.sig-conf--bearish { color: #dc2626; }
+.sig-title { font-size: 0.78rem; color: #4b5563; line-height: 1.4; }
+.signals-preview-note { font-size: 0.78rem; color: #6b7280; margin-top: 10px; }
+.industry-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.industry-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85rem; }
+.industry-name { flex: 1; font-weight: 500; }
+.industry-etf { font-size: 0.72rem; color: #9ca3af; background: #f3f4f6; padding: 1px 5px; border-radius: 4px; }
+.industry-pct { font-weight: 700; font-size: 0.85rem; }
+
 @media (max-width: 640px) {
   .landing-hero h1 { font-size: 1.8rem; }
   .landing-sub { font-size: 1rem; }
