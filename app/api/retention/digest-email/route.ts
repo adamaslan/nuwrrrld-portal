@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
+import { adaptLiveSignals } from "@/lib/digest";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
 const MCP_URL = process.env.MCP_BACKEND_URL;
@@ -45,18 +46,25 @@ export async function POST(req: NextRequest) {
   if (prefs?.emailDigest === "off") return NextResponse.json({ skipped: true });
 
   let signalHtml = "<p>No signals available this week.</p>";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const sRes = await fetch(`${MCP_URL}/api/signals/digest`, { headers: { "X-Cron": "true" } });
+    const sRes = await fetch(`${MCP_URL}/signals`, {
+      signal: controller.signal,
+      next: { revalidate: 900 },
+    });
     if (sRes.ok) {
-      const data = await sRes.json() as { signals?: Array<{ ticker?: string; title?: string; direction?: string }> };
-      const top3 = (data.signals ?? []).slice(0, 3);
+      const digest = adaptLiveSignals(await sRes.json());
+      const top3 = (digest?.signals ?? []).slice(0, 3);
       if (top3.length > 0) {
         signalHtml = `<ul>${top3.map(s =>
           `<li><strong>${escHtml(s.ticker ?? '')}</strong> — ${escHtml(s.title ?? '')} <em>(${escHtml(s.direction ?? '')})</em></li>`
         ).join("")}</ul>`;
       }
     }
-  } catch { /* signals unavailable — send without */ }
+  } catch { /* signals unavailable — send without */ } finally {
+    clearTimeout(timer);
+  }
 
   const name = escHtml(user.firstName ?? "there");
   const html = `

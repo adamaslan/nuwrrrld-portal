@@ -6,6 +6,37 @@ import { tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import "./dashboard.css";
 
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+
+interface IndexEntry {
+  symbol?: string;
+  price?: number;
+  change_pct?: number;
+}
+
+interface MarketOverview {
+  brief?: {
+    summary?: string;
+    avg_change_pct?: number;
+    market_tone?: string;
+    indices?: Record<string, IndexEntry>;
+    metrics_52w?: Record<string, unknown>;
+  };
+}
+
+async function fetchMarketOverview(): Promise<MarketOverview | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const res = await fetch(`${MCP_URL}/market-overview`, {
+      signal: controller.signal,
+      next: { revalidate: 900 },
+    });
+    if (!res.ok) return null;
+    return await res.json() as MarketOverview;
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
 export default async function Dashboard({
   searchParams,
 }: {
@@ -23,6 +54,8 @@ export default async function Dashboard({
   const params = await searchParams;
   const checkoutSuccess = params.checkout === "success";
 
+  const market = await fetchMarketOverview();
+
   const hour = new Date().getUTCHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -37,6 +70,7 @@ export default async function Dashboard({
           <Link href="/dashboard/signals">Signals</Link>
           <Link href="/dashboard/holdfold">Hold/Fold</Link>
           <Link href="/dashboard/nuai">Nu AI</Link>
+          <Link href="/portfolio-intelligence">Portfolio</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
@@ -58,6 +92,26 @@ export default async function Dashboard({
             {!isPro && <Link href="/pricing" className="upgrade-link">upgrade to Pro →</Link>}
           </span>
         </div>
+
+        {market?.brief?.indices && (
+          <div className="market-overview-bar">
+            {Object.entries(market.brief.indices).slice(0, 4).map(([name, idx]) => (
+              <span key={name} className="market-index-chip">
+                <strong>{idx.symbol ?? name}</strong>{" "}
+                {idx.price != null ? idx.price.toLocaleString() : "—"}
+                {idx.change_pct != null && (
+                  <span className={idx.change_pct >= 0 ? "up" : "down"}>
+                    {" "}{idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                  </span>
+                )}
+              </span>
+            ))}
+            {market.brief.summary && (
+              <span className="market-brief-summary">{market.brief.summary}</span>
+            )}
+            <span className="pill live">Live</span>
+          </div>
+        )}
 
         <div className="tool-grid">
           <Link href="/dashboard/signals" className="tool tool--link">
@@ -101,12 +155,30 @@ export default async function Dashboard({
             <p>Refer a friend and you both get a free month. Share your personal referral link in one tap.</p>
             <span className="tool-cta">Get your link →</span>
           </Link>
+
+          <Link href="/portfolio-intelligence" className="tool tool--link">
+            <div className="tool-head">
+              <h2>Portfolio Intel</h2>
+              {isPro
+                ? <span className="pill live">Live</span>
+                : <span className="pill soon">Pro</span>}
+            </div>
+            <p>Industry performance, sector rotation, and factor breakdown — which industries are leading and lagging today.</p>
+            <span className="tool-cta">See industry intel →</span>
+          </Link>
         </div>
 
         {!isPro && (
           <div className="upgrade-banner">
             <strong>Unlock all features</strong> — signal digest, Nu AI, and portfolio intelligence.{" "}
             <Link href="/pricing" className="upgrade-banner-link">Start 7-day free trial →</Link>
+          </div>
+        )}
+
+        {isPro && status === "active" && (
+          <div className="upgrade-banner upgrade-banner--annual">
+            <strong>Save 34%</strong> — switch to annual billing and pay $6.58/mo instead of $9.99/mo.{" "}
+            <Link href="/dashboard/upgrade" className="upgrade-banner-link">Switch to annual →</Link>
           </div>
         )}
       </main>

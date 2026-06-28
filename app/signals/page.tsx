@@ -1,6 +1,7 @@
 import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { adaptLiveSignals, type SignalPayload } from "@/lib/digest";
 
 export const metadata: Metadata = {
   title: "AI Stock Signals — Daily Digest with Explanations",
@@ -9,7 +10,27 @@ export const metadata: Metadata = {
   openGraph: { title: "AI Stock Signals · NuWrrrld Financial", description: "Daily signals, explained." },
 };
 
-export default function SignalsLandingPage() {
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+
+async function fetchPublicSignals(): Promise<SignalPayload[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const res = await fetch(`${MCP_URL}/signals`, {
+      signal: controller.signal,
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const digest = adaptLiveSignals(await res.json());
+    return digest?.signals ?? [];
+  } catch { return []; } finally { clearTimeout(timer); }
+}
+
+export default async function SignalsLandingPage() {
+  const signals = await fetchPublicSignals();
+  const topBuy = signals.filter(s => s.direction === "bullish").slice(0, 6);
+  const topSell = signals.filter(s => s.direction === "bearish").slice(0, 3);
+
   return (
     <main className="landing-page">
       <nav className="landing-nav">
@@ -26,6 +47,41 @@ export default function SignalsLandingPage() {
         <Link href="/pricing" className="hero-cta">Start 7-day free trial</Link>
         <p className="hero-note">No credit card required to start · Cancel anytime</p>
       </section>
+
+      {(topBuy.length > 0 || topSell.length > 0) && (
+        <section className="landing-signals-preview">
+          <h2>Today&apos;s signals <span className="live-badge">Live</span></h2>
+          {topBuy.length > 0 && (
+            <div className="signals-preview-group">
+              <div className="signals-preview-label bullish">Bullish</div>
+              <div className="signals-preview-grid">
+                {topBuy.map(s => (
+                  <div key={s.id} className="signals-preview-card">
+                    <span className="sig-ticker">{s.ticker}</span>
+                    <span className="sig-conf sig-conf--bullish">{s.confidence}</span>
+                    <span className="sig-title">{s.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {topSell.length > 0 && (
+            <div className="signals-preview-group">
+              <div className="signals-preview-label bearish">Bearish</div>
+              <div className="signals-preview-grid">
+                {topSell.map(s => (
+                  <div key={s.id} className="signals-preview-card">
+                    <span className="sig-ticker">{s.ticker}</span>
+                    <span className="sig-conf sig-conf--bearish">{s.confidence}</span>
+                    <span className="sig-title">{s.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="signals-preview-note">Full explanations, indicators, and daily digest available with a Pro account.</p>
+        </section>
+      )}
 
       <section className="landing-features">
         {[

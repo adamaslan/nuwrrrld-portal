@@ -1,13 +1,66 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import { adaptLiveSignals } from "@/lib/digest";
 import "./landing.css";
+
+const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+
+interface CouncilSample {
+  shortTerm?: { answer?: string };
+  longTerm?: { answer?: string };
+  generatedAt?: string;
+}
+
+async function fetchCouncilSample(): Promise<CouncilSample | null> {
+  try {
+    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://financial.nuwrrrld.com";
+    const res = await fetch(`${base}/api/council/sample`, {
+      next: { revalidate: 21600 }, // 6h — matches the route's in-memory TTL
+    });
+    if (!res.ok) return null;
+    return await res.json() as CouncilSample;
+  } catch { return null; }
+}
+
+async function fetchLandingData() {
+  const fetchWithTimeout = async (url: string, cache: number) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    try {
+      return await fetch(url, { signal: controller.signal, next: { revalidate: cache } });
+    } finally { clearTimeout(timer); }
+  };
+
+  const [mktRes, sigRes, council] = await Promise.allSettled([
+    fetchWithTimeout(`${MCP_URL}/market-overview`, 3600),
+    fetchWithTimeout(`${MCP_URL}/signals`, 3600),
+    fetchCouncilSample(),
+  ]);
+  const market = mktRes.status === "fulfilled" && mktRes.value.ok
+    ? await mktRes.value.json().catch(() => null)
+    : null;
+  const sigRaw = sigRes.status === "fulfilled" && sigRes.value.ok
+    ? await sigRes.value.json().catch(() => null)
+    : null;
+  const digest = sigRaw ? adaptLiveSignals(sigRaw) : null;
+  const topSignals = digest
+    ? [...digest.signals].sort((a, b) => {
+        const score = (s: typeof a) => s.confidence === "high" ? 3 : s.confidence === "medium" ? 2 : 1;
+        return score(b) - score(a);
+      }).slice(0, 4)
+    : null;
+  const councilData: CouncilSample | null = council.status === "fulfilled" ? council.value : null;
+  return { market, topSignals, council: councilData };
+}
 
 // Signed-out visitors get the marketing landing (mirrors
 // gcp3-mobile/landing/index3.html); signed-in users go straight to the tooling.
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
+
+  const { market, topSignals, council } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
@@ -18,7 +71,9 @@ export default async function Home() {
         </Link>
         <div className="navlinks">
           <a href="#product">Product</a>
-          <a href="#engine">Signals</a>
+          <Link href="/signals">Signals</Link>
+          <Link href="/portfolio-intelligence">Portfolio</Link>
+          <Link href="/ai-assistant">Nu AI</Link>
           <a href="#council">Council</a>
           <Link className="nav-keep" href="/sign-in">Sign in</Link>
           <Link className="nav-action" href="/sign-up">Create account</Link>
@@ -65,32 +120,68 @@ export default async function Home() {
               <div className="screen">
                 <div className="statusbar"><span>9:41</span><span>NuWrrrld Financial</span></div>
                 <div className="app-title"><strong>Market Briefing</strong><span className="pill">Live</span></div>
-                <div className="brief-card">
-                  <div className="label">S&P 500</div>
-                  <div className="big-number up">5,943.21</div>
-                  <p className="brief-text">Open - Bullish. AI brief favors semis, software, and quality growth while flagging macro headline risk.</p>
-                </div>
-                <div className="mini-grid">
-                  <div className="mini-card"><strong>NASDAQ</strong><span>+0.71%</span></div>
-                  <div className="mini-card"><strong>Dow</strong><span>-0.08%</span></div>
-                  <div className="mini-card"><strong>Leaders</strong><span>AI infra, chips</span></div>
-                  <div className="mini-card"><strong>Lagging</strong><span>Energy, defensives</span></div>
-                </div>
-                <div className="council-bubble">
-                  Long-term council: near-term risk is acceptable, but 6-12 month exposure should favor sectors with earnings acceleration and margin durability.
-                </div>
+                {market?.indices?.SPY != null ? (
+                  <>
+                    <div className="brief-card">
+                      <div className="label">S&P 500</div>
+                      <div className={`big-number ${(market.indices.SPY.change_pct ?? 0) >= 0 ? "up" : "down"}`}>
+                        {market.indices.SPY.price?.toLocaleString() ?? "—"}
+                      </div>
+                      {market?.brief?.summary && (
+                        <p className="brief-text">{market.brief.summary}</p>
+                      )}
+                    </div>
+                    <div className="mini-grid">
+                      {["QQQ", "DIA", "IWM"].map((sym) => {
+                        const idx = market?.indices?.[sym];
+                        return (
+                          <div key={sym} className="mini-card">
+                            <strong>{sym}</strong>
+                            <span className={idx?.change_pct != null && idx.change_pct >= 0 ? "up" : "down"}>
+                              {idx?.change_pct != null
+                                ? `${idx.change_pct >= 0 ? "+" : ""}${idx.change_pct.toFixed(2)}%`
+                                : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="brief-card">
+                    <p className="brief-text">Market data loading…</p>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="phone side right">
               <div className="screen">
                 <div className="statusbar"><span>9:41</span><span>Signals</span></div>
-                <div className="app-title"><strong>Today</strong><span className="pill">8 reads</span></div>
+                <div className="app-title">
+                  <strong>Today</strong>
+                  <span className="pill">{topSignals ? `${topSignals.length} reads` : "Live"}</span>
+                </div>
                 <div className="brief-card">
-                  <div className="signal-row"><b>NVDA</b><div className="bar"><span style={{ width: "91%" }} /></div><span className="up">BUY</span></div>
-                  <div className="signal-row"><b>MSFT</b><div className="bar"><span style={{ width: "74%" }} /></div><span className="up">BUY</span></div>
-                  <div className="signal-row"><b>TSLA</b><div className="bar"><span style={{ width: "58%" }} /></div><span className="flat">HOLD</span></div>
-                  <div className="signal-row"><b>XLE</b><div className="bar"><span style={{ width: "36%" }} /></div><span className="down">SELL</span></div>
+                  {topSignals ? topSignals.map((sig) => {
+                    const pct = sig.confidence === "high" ? 91 : sig.confidence === "medium" ? 65 : 40;
+                    const cls = sig.direction === "bullish" ? "up" : sig.direction === "bearish" ? "down" : "flat";
+                    const label = sig.direction === "bullish" ? "BUY" : sig.direction === "bearish" ? "SELL" : "HOLD";
+                    return (
+                      <div key={sig.id} className="signal-row">
+                        <b>{sig.ticker}</b>
+                        <div className="bar"><span style={{ width: `${pct}%` }} /></div>
+                        <span className={cls}>{label}</span>
+                      </div>
+                    );
+                  }) : (
+                    <>
+                      <div className="signal-row"><b>NVDA</b><div className="bar"><span style={{ width: "91%" }} /></div><span className="up">BUY</span></div>
+                      <div className="signal-row"><b>MSFT</b><div className="bar"><span style={{ width: "74%" }} /></div><span className="up">BUY</span></div>
+                      <div className="signal-row"><b>TSLA</b><div className="bar"><span style={{ width: "58%" }} /></div><span className="flat">HOLD</span></div>
+                      <div className="signal-row"><b>XLE</b><div className="bar"><span style={{ width: "36%" }} /></div><span className="down">SELL</span></div>
+                    </>
+                  )}
                 </div>
                 <div className="council-bubble">Signal confidence compresses technical, macro, sector, sentiment, and event evidence.</div>
               </div>
@@ -265,23 +356,37 @@ export default async function Home() {
             <article className="council-panel">
               <h3>Short-term council</h3>
               <p className="section-copy">For tactical trades: speed, range, catalyst timing, and technical invalidation.</p>
-              <div className="horizon-grid">
-                <div className="horizon"><b>1 day</b><span>Next-session momentum and range.</span></div>
-                <div className="horizon"><b>2-5 days</b><span>Swing setup and catalyst timing.</span></div>
-                <div className="horizon"><b>1-4 weeks</b><span>Trend strength and regime quality.</span></div>
-                <div className="horizon"><b>30-60 days</b><span>Durability, volatility, and macro risk.</span></div>
-              </div>
+              {council?.shortTerm?.answer ? (
+                <div className="council-live-output">
+                  <div className="council-live-label">SPY · live sample</div>
+                  <p>{council.shortTerm.answer}</p>
+                </div>
+              ) : (
+                <div className="horizon-grid">
+                  <div className="horizon"><b>1 day</b><span>Next-session momentum and range.</span></div>
+                  <div className="horizon"><b>2-5 days</b><span>Swing setup and catalyst timing.</span></div>
+                  <div className="horizon"><b>1-4 weeks</b><span>Trend strength and regime quality.</span></div>
+                  <div className="horizon"><b>30-60 days</b><span>Durability, volatility, and macro risk.</span></div>
+                </div>
+              )}
             </article>
 
             <article className="council-panel">
               <h3>Long-term council</h3>
               <p className="section-copy">For allocation decisions: earnings, trend, cycle, and structural horizons.</p>
-              <div className="horizon-grid">
-                <div className="horizon"><b>2-3 months</b><span>Tactical and earnings-cycle read.</span></div>
-                <div className="horizon"><b>6-12 months</b><span>Sector rotation and trend regime.</span></div>
-                <div className="horizon"><b>1-3 years</b><span>Business cycle and macro phase.</span></div>
-                <div className="horizon"><b>3-5 years</b><span>Structural shift or cyclical noise.</span></div>
-              </div>
+              {council?.longTerm?.answer ? (
+                <div className="council-live-output">
+                  <div className="council-live-label">SPY · live sample</div>
+                  <p>{council.longTerm.answer}</p>
+                </div>
+              ) : (
+                <div className="horizon-grid">
+                  <div className="horizon"><b>2-3 months</b><span>Tactical and earnings-cycle read.</span></div>
+                  <div className="horizon"><b>6-12 months</b><span>Sector rotation and trend regime.</span></div>
+                  <div className="horizon"><b>1-3 years</b><span>Business cycle and macro phase.</span></div>
+                  <div className="horizon"><b>3-5 years</b><span>Structural shift or cyclical noise.</span></div>
+                </div>
+              )}
             </article>
           </div>
         </div>
