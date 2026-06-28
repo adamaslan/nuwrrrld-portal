@@ -26,9 +26,9 @@ export default function TermsOfService() {
 
         <h2>1. Overview</h2>
         <p>
-          These Terms of Service ("Terms") govern your access to and use of NuWrrrld
-          Financial's website, mobile application, and services (collectively, the
-          "Service"). By accessing or using the Service, you agree to be bound by
+          These Terms of Service (&quot;Terms&quot;) govern your access to and use of NuWrrrld
+          Financial&apos;s website, mobile application, and services (collectively, the
+          &quot;Service&quot;). By accessing or using the Service, you agree to be bound by
           these Terms. If you do not agree to these Terms, you may not use the Service.
         </p>
 
@@ -37,7 +37,7 @@ export default function TermsOfService() {
           <strong>NuWrrrld Financial does not provide personalized financial,
           investment, legal, or tax advice.</strong> Our Service provides informational
           tools, market briefings, signals, trade analysis (Hold/Fold verdicts), and
-          AI-generated commentary (the "AI Council"). These are educational tools and
+          AI-generated commentary (the &quot;AI Council&quot;). These are educational tools and
           information products only.
         </p>
         <p>
@@ -99,13 +99,13 @@ export default function TermsOfService() {
           current billing cycle.
         </p>
         <p>
-          All prices are subject to change with 30 days notice. We are not responsible for
+          All prices are subject to change with 30 days&apos; notice. We are not responsible for
           any fees or charges imposed by your payment provider.
         </p>
 
         <h2>7. No warranty; limitation of liability</h2>
         <p>
-          <strong>The Service is provided "as is" and "as available" without warranties
+          <strong>The Service is provided &quot;as is&quot; and &quot;as available&quot; without warranties
           of any kind, express or implied, including merchantability, fitness for a
           particular purpose, or non-infringement.</strong>
         </p>
@@ -143,7 +143,7 @@ export default function TermsOfService() {
         <h2>11. Changes to these terms</h2>
         <p>
           We may update these Terms at any time. Material changes will be noted by updating
-          the "Last updated" date above. Your continued use of the Service after changes
+          the &quot;Last updated&quot; date above. Your continued use of the Service after changes
           constitutes your acceptance of the updated Terms. If you do not agree to any
           changes, you must discontinue use of the Service.
         </p>

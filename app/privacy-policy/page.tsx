@@ -26,8 +26,8 @@ export default function PrivacyPolicy() {
 
         <h2>1. Overview</h2>
         <p>
-          NuWrrrld Financial ("we", "our", "Company") operates the NuWrrrld Financial
-          website, mobile application, and services (the "Service"). This Privacy Policy
+          NuWrrrld Financial (&quot;we&quot;, &quot;our&quot;, &quot;Company&quot;) operates the NuWrrrld Financial
+          website, mobile application, and services (the &quot;Service&quot;). This Privacy Policy
           explains how we collect, use, disclose, and safeguard your information when you
           access and use the Service.
         </p>
@@ -98,7 +98,7 @@ export default function PrivacyPolicy() {
             <strong>AI/LLM providers</strong> (e.g., OpenRouter, Anthropic) - When you use
             the AI Council or related features, your prompts and relevant context may be
             transmitted to third-party model providers to generate responses. Your data
-            is processed according to each provider privacy policies.
+            is processed according to each provider&apos;s privacy policies.
           </li>
           <li>
             <strong>Analytics (if enabled)</strong> - We may use analytics tools to measure
@@ -147,8 +147,8 @@ export default function PrivacyPolicy() {
             <strong>Right to correct:</strong> You may request that we correct inaccurate data.
           </li>
           <li>
-            <strong>Right to delete:</strong> You may request deletion of your data (the "right
-            to be forgotten").
+            <strong>Right to delete:</strong> You may request deletion of your data (the &quot;right
+            to be forgotten&quot;).
           </li>
           <li>
             <strong>Right to restrict processing:</strong> You may request that we limit how
@@ -188,12 +188,12 @@ export default function PrivacyPolicy() {
           affect Service functionality.
         </p>
 
-        <h2>10. Childrens privacy</h2>
+        <h2>10. Children&apos;s privacy</h2>
         <p>
           The Service is intended for users 18 years of age and older. We do not knowingly
           collect personal data from individuals under 18. If we become aware that we have
           collected data from a minor, we will take steps to delete such data and terminate
-          the minors account.
+          the minor&apos;s account.
         </p>
 
         <h2>11. International data transfers</h2>
@@ -207,7 +207,7 @@ export default function PrivacyPolicy() {
         <h2>12. Changes to this Privacy Policy</h2>
         <p>
           We may update this Privacy Policy at any time. Material changes will be noted by
-          updating the "Last updated" date above. Your continued use of the Service after
+          updating the &quot;Last updated&quot; date above. Your continued use of the Service after
           changes constitutes your acceptance. If you do not agree to the updated policy,
           you must discontinue use of the Service.
         </p>
