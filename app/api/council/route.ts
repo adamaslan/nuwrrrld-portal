@@ -26,12 +26,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "prompt required" }, { status: 400 });
   }
 
-  if (seat !== "T1" && seat !== "T2") {
-    return NextResponse.json({ error: "invalid seat" }, { status: 400 });
-  }
-
   try {
-    const result = await callCouncilSeat(seat, prompt, apiKey);
+    const result = await callCouncilSeat(seat as CouncilSeat, prompt, apiKey);
     return NextResponse.json(result);
   } catch (err) {
     console.error("Council error", err);

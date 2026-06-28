@@ -5,6 +5,7 @@ import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
+import { SignalShareButton } from "@/components/SignalShareButton";
 import "./signals.css";
 
 export const metadata: Metadata = {
@@ -14,19 +15,16 @@ export const metadata: Metadata = {
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
 
+/** Fetch live signals from GCP3 backend — public endpoint, no auth header needed. */
 async function fetchDigest(): Promise<DigestPayload | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${MCP_URL}/signals`, {
-      signal: controller.signal,
-      next: { revalidate: 900 },
-    });
+    const res = await fetch(`${MCP_URL}/signals`, { signal: controller.signal });
     if (!res.ok) return null;
-    const data = await res.json();
-    return adaptLiveSignals(data);
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') return null;
+    const raw = await res.json();
+    return adaptLiveSignals(raw);
+  } catch {
     return null;
   } finally {
     clearTimeout(timer);
@@ -57,7 +55,7 @@ export default async function SignalsPage() {
 
       {!digest && (
         <div className="signals-empty">
-          <p>No signals available yet. Connect your Schwab account to get started.</p>
+          <p>Signals are refreshing. Check back shortly — data is updated throughout the trading day.</p>
           <Link href="/dashboard" className="signals-cta">Go to dashboard</Link>
         </div>
       )}
@@ -65,13 +63,16 @@ export default async function SignalsPage() {
       {digest && (
         <div className="signals-list">
           {digest.signals.map(sig => (
-            <div key={sig.id} className="signal-card">
+            <div key={sig.id} id={`signal-${sig.id}`} className="signal-card">
               <div className="signal-card-header">
-                <span className="signal-ticker">{sig.ticker}</span>
-                <span className={`signal-direction signal-direction--${sig.direction}`}>
-                  {sig.direction === "bullish" ? "↑" : sig.direction === "bearish" ? "↓" : "→"}{" "}
-                  {sig.direction}
-                </span>
+                <div>
+                  <span className="signal-ticker">{sig.ticker}</span>
+                  <span className={`signal-direction signal-direction--${sig.direction}`}>
+                    {sig.direction === "bullish" ? "↑" : sig.direction === "bearish" ? "↓" : "→"}{" "}
+                    {sig.direction}
+                  </span>
+                </div>
+                <SignalShareButton signal={sig} />
               </div>
               <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
               <p className="signal-title">{sig.title}</p>

@@ -50,34 +50,24 @@ export async function callCouncilSeat(
   apiKey: string,
 ): Promise<CouncilResponse> {
   const model = SEAT_MODELS[seat];
-  if (!model) throw new Error(`Unknown council seat: ${seat}`);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-  let res: Response;
-  try {
-    res = await fetch(`${OR_BASE}/chat/completions`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://financial.nuwrrrld.com',
-        'X-Title': 'NuWrrrld Financial AI Council',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: SEAT_SYSTEM[seat] },
-          { role: 'user', content: userPrompt },
-        ],
-        max_tokens: 400,
-        temperature: 0.4,
-      }),
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await fetch(`${OR_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://financial.nuwrrrld.com',
+      'X-Title': 'NuWrrrld Financial AI Council',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: SEAT_SYSTEM[seat] },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 400,
+      temperature: 0.4,
+    }),
+  });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
