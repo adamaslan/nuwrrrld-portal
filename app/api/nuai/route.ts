@@ -106,15 +106,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `AI unavailable: ${response.status}` }, { status: 503 });
     }
 
-    // Pipe the SSE stream from OpenRouter to the client.
-    // Each SSE line is: "data: {...}\n\n" or "data: [DONE]\n\n"
+    // Content-negotiate: stream SSE to clients that ask for it,
+    // return buffered JSON to legacy clients (shipped mobile builds) that don't.
+    const wantsStream = (req.headers.get("Accept") ?? "").includes("text/event-stream");
+
     const upstream = response.body!;
     const decoder = new TextDecoder();
-    const enc = new TextEncoder();
     let tokenCount = 0;
     let sseBuffer = "";
     const reader = upstream.getReader();
 
+    if (!wantsStream) {
+      // Legacy path: collect all delta text and return a ChatResponse JSON object.
+      let fullText = "";
+      let finished = false;
+      try {
+        while (!finished) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+            if (payload === "[DONE]") { finished = true; break; }
+            try {
+              const parsed = JSON.parse(payload);
+              const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
+              if (delta) {
+                fullText += delta;
+                tokenCount += Math.ceil(delta.length / 4);
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+      } finally {
+        clearTimeout(timer);
+        recordUsage(userId, tokenCount);
+        reader.cancel().catch(() => {});
+      }
+      return NextResponse.json({
+        message: {
+          role: "assistant",
+          content: fullText,
+          timestamp: new Date().toISOString(),
+        },
+        flagged: false,
+      });
+    }
+
+    // SSE streaming path: pipe OpenRouter stream directly to the client.
+    const enc = new TextEncoder();
     const stream = new ReadableStream({
       async start(ctrl) {
         try {
