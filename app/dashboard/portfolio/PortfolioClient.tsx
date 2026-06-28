@@ -27,8 +27,12 @@ function SectorRow({ sector }: { sector: SectorEntry }) {
   const badgeLabel = action === "BUY" ? "BUY" : action === "SELL" ? "SELL" : "HOLD";
 
   return (
-    <div className={`port-sector-row${open ? " port-sector-row--expanded" : ""}`} onClick={() => setOpen(o => !o)}>
-      <div style={{ flex: 1 }}>
+    <button
+      className={`port-sector-row${open ? " port-sector-row--expanded" : ""}`}
+      onClick={() => setOpen(o => !o)}
+      aria-expanded={open}
+    >
+      <div style={{ flex: 1, textAlign: "left" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span className="port-sector-name">{sector.name}</span>
           <span className={`port-sector-change port-sector-change--${up ? "up" : "down"}`}>
@@ -52,7 +56,7 @@ function SectorRow({ sector }: { sector: SectorEntry }) {
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -114,13 +118,15 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       const item = await res.json() as WatchlistItem;
       setWatchlist(w => [...w, item]);
       setTickerInput("");
+    } catch {
+      setAddError("Network error — could not add ticker.");
     } finally {
       setAdding(false);
     }
   }
 
   async function removeTicker(ticker: string) {
-    const res = await fetch(`/api/portfolio/watchlist/${ticker}`, { method: "DELETE" });
+    const res = await fetch(`/api/portfolio/watchlist/${encodeURIComponent(ticker)}`, { method: "DELETE" });
     if (res.ok) setWatchlist(w => w.filter(i => i.ticker !== ticker));
   }
 

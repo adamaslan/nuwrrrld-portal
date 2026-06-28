@@ -9,6 +9,9 @@ import "../holdfold.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 
+// Distinct sentinel so the page can differentiate "backend down" from "ticker not found"
+class BackendError extends Error {}
+
 async function fetchVerdict(ticker: string): Promise<HoldFoldVerdict | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8_000);
@@ -17,16 +20,18 @@ async function fetchVerdict(ticker: string): Promise<HoldFoldVerdict | null> {
       signal: ctrl.signal,
       next: { revalidate: 900 },
     });
-    if (!res.ok) return null;
+    if (!res.ok) throw new BackendError(`upstream ${res.status}`);
     const raw = await res.json() as Record<string, unknown>;
-    if (!raw?.symbols || typeof raw.symbols !== "object" || Array.isArray(raw.symbols)) return null;
+    if (!raw?.symbols || typeof raw.symbols !== "object" || Array.isArray(raw.symbols)) {
+      throw new BackendError("invalid signals shape");
+    }
 
     const symbols = raw.symbols as Record<string, Record<string, unknown>>;
     const upper = ticker.toUpperCase();
     const entry = Object.entries(symbols).find(([k, s]) =>
       String(s.symbol ?? k).trim().toUpperCase() === upper
     );
-    if (!entry) return null;
+    if (!entry) return null; // ticker genuinely not in the dataset → caller sends notFound()
     const [key, s] = entry;
 
     const action = String(s.ai_action ?? "").toUpperCase();
@@ -84,7 +89,10 @@ export default async function TickerDetailPage(
 ) {
   const { ticker } = await params;
   const { userId } = await auth();
-  if (!userId) redirect(`/sign-in?redirect_url=/dashboard/holdfold/${ticker}`);
+  if (!userId) {
+    const returnUrl = `/dashboard/holdfold/${encodeURIComponent(ticker)}`;
+    redirect(`/sign-in?${new URLSearchParams({ redirect_url: returnUrl }).toString()}`);
+  }
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
@@ -94,7 +102,16 @@ export default async function TickerDetailPage(
     redirect("/pricing?source=holdfold");
   }
 
-  const v = await fetchVerdict(ticker);
+  let v: HoldFoldVerdict | null;
+  try {
+    v = await fetchVerdict(ticker);
+  } catch (err) {
+    if (err instanceof BackendError) {
+      // Backend unavailable — don't 404, surface a generic error
+      throw err;
+    }
+    throw err;
+  }
   if (!v) notFound();
 
   const verdictCls = v.verdict === "HOLD EM" ? "hf-verdict--hold" : v.verdict === "FOLD EM" ? "hf-verdict--fold" : "hf-verdict--neutral";

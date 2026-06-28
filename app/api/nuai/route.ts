@@ -110,21 +110,33 @@ export async function POST(req: NextRequest) {
     // Each SSE line is: "data: {...}\n\n" or "data: [DONE]\n\n"
     const upstream = response.body!;
     const decoder = new TextDecoder();
+    const enc = new TextEncoder();
     let tokenCount = 0;
+    let sseBuffer = "";
+    const reader = upstream.getReader();
 
     const stream = new ReadableStream({
       async start(ctrl) {
-        const reader = upstream.getReader();
-        const enc = new TextEncoder();
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
-            // Forward raw SSE lines to the client
             ctrl.enqueue(enc.encode(chunk));
-            // Rough token estimate for budget tracking (1 token ≈ 4 chars)
-            tokenCount += Math.ceil(chunk.length / 4);
+            // Count only assistant text deltas for budget tracking
+            sseBuffer += chunk;
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const payload = line.slice(6).trim();
+              if (payload === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(payload);
+                const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
+                if (delta) tokenCount += Math.ceil(delta.length / 4);
+              } catch { /* skip malformed */ }
+            }
           }
         } finally {
           ctrl.close();
@@ -134,6 +146,8 @@ export async function POST(req: NextRequest) {
       },
       cancel() {
         clearTimeout(timer);
+        reader.cancel().catch(() => {});
+        controller.abort();
       },
     });
 

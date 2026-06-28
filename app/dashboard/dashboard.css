@@ -323,10 +323,9 @@
 .cockpit-mover-chip--neutral { color: var(--muted); border-color: var(--line); background: transparent; }
 .cockpit-mover-ticker { font-weight: 800; letter-spacing: .04em; }
 .cockpit-mover-verdict { font-size: .68rem; font-weight: 700; letter-spacing: .04em; opacity: .8; }
-.cockpit-mover-conf { font-size: .65rem; color: currentColor; opacity: .6; }
+.cockpit-mover-conf { font-size: .65rem; color: currentcolor; opacity: .6; }
 
 /* Daily Brief cockpit */
-.cockpit-brief { }
 .cockpit-brief-btn { background: linear-gradient(135deg, #1e40af, #0369a1); color: #fff; border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .cockpit-brief-btn:hover { opacity: .88; }
 .cockpit-brief-btn--locked { background: linear-gradient(135deg, #374151, #4b5563); }

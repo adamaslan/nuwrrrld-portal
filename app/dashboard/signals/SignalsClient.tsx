@@ -180,7 +180,16 @@ export function SignalsClient({ signals }: Props) {
                       </div>
                     )}
                     {deeper?.status === "error" && (
-                      <p className="signal-deeper-error">{deeper.error}</p>
+                      <div>
+                        <p className="signal-deeper-error">{deeper.error}</p>
+                        <button
+                          className="signal-deeper-btn"
+                          style={{ marginTop: "6px" }}
+                          onClick={() => handleGoDeeper(sig)}
+                        >
+                          ↺ Retry
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

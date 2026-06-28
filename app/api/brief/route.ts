@@ -116,20 +116,27 @@ export async function POST(req: NextRequest) {
     }
 
     const upstream = response.body!;
+    const decoder = new TextDecoder();
+    const enc = new TextEncoder();
+    const reader = upstream.getReader();
+
     const stream = new ReadableStream({
       async start(ctrl2) {
-        const reader = upstream.getReader();
-        const enc = new TextEncoder();
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            ctrl2.enqueue(enc.encode(new TextDecoder().decode(value, { stream: true })));
+            ctrl2.enqueue(enc.encode(decoder.decode(value, { stream: true })));
           }
         } finally {
           ctrl2.close();
           clearTimeout(timer);
         }
+      },
+      cancel() {
+        clearTimeout(timer);
+        reader.cancel().catch(() => {});
+        ctrl.abort();
       },
     });
 

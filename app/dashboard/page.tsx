@@ -64,7 +64,7 @@ async function fetchTopMovers(): Promise<MoverChip[]> {
       ticker: v.ticker,
       verdict: v.verdict,
       confidenceLabel: v.confidenceLabel,
-      href: `/dashboard/holdfold/${v.ticker}`,
+      href: `/dashboard/holdfold/${encodeURIComponent(v.ticker)}`,
     }));
   } catch { return []; } finally { clearTimeout(t); }
 }

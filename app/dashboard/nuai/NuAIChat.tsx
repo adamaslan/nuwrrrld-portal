@@ -45,6 +45,12 @@ export function NuAIChat() {
       });
 
       if (res.status === 429) { setLimitReached(true); return; }
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error === "upgrade_required"
+          ? "Nu AI requires a Pro subscription. Upgrade to continue."
+          : `HTTP 403`);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const contentType = res.headers.get("content-type") ?? "";
@@ -56,9 +62,9 @@ export function NuAIChat() {
         let accumulated = "";
         let buffer = "";
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        outer: while (true) {
+          const { done: readDone, value } = await reader.read();
+          if (readDone) break;
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
@@ -66,7 +72,7 @@ export function NuAIChat() {
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
             const payload = line.slice(6).trim();
-            if (payload === "[DONE]") break;
+            if (payload === "[DONE]") break outer;
             try {
               const parsed = JSON.parse(payload);
               const delta = parsed?.choices?.[0]?.delta?.content ?? "";
