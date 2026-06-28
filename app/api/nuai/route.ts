@@ -102,19 +102,71 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       clearTimeout(timer);
-      const text = await response.text().catch(() => "");
       return NextResponse.json({ error: `AI unavailable: ${response.status}` }, { status: 503 });
     }
 
-    // Pipe the SSE stream from OpenRouter to the client.
-    // Each SSE line is: "data: {...}\n\n" or "data: [DONE]\n\n"
+    // Content-negotiate: stream SSE to clients that ask for it,
+    // return buffered JSON to legacy clients (shipped mobile builds) that don't.
+    const wantsStream = (req.headers.get("Accept") ?? "").includes("text/event-stream");
+
     const upstream = response.body!;
     const decoder = new TextDecoder();
-    const enc = new TextEncoder();
-    let tokenCount = 0;
+    // Seed with a prompt cost estimate so large prompts count toward budget
+    const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+    let tokenCount = estimateTokens(systemPrompt)
+      + messages.reduce((total, m) => total + estimateTokens(m.content), 0);
     let sseBuffer = "";
     const reader = upstream.getReader();
 
+    const drainSSELines = (raw: string, onDelta: (d: string) => void): { remaining: string; done: boolean } => {
+      const lines = raw.split("\n");
+      const remaining = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]") return { remaining, done: true };
+        try {
+          const parsed = JSON.parse(payload);
+          const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
+          if (delta) onDelta(delta);
+        } catch { /* skip malformed */ }
+      }
+      return { remaining, done: false };
+    };
+
+    if (!wantsStream) {
+      // Legacy path: collect all delta text and return a ChatResponse JSON object.
+      let fullText = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            sseBuffer += decoder.decode();
+            if (sseBuffer) drainSSELines(sseBuffer + "\n", d => { fullText += d; tokenCount += estimateTokens(d); });
+            break;
+          }
+          sseBuffer += decoder.decode(value, { stream: true });
+          const result = drainSSELines(sseBuffer, d => { fullText += d; tokenCount += estimateTokens(d); });
+          sseBuffer = result.remaining;
+          if (result.done) break;
+        }
+      } finally {
+        clearTimeout(timer);
+        recordUsage(userId, tokenCount);
+        reader.cancel().catch(() => {});
+      }
+      return NextResponse.json({
+        message: {
+          role: "assistant",
+          content: fullText,
+          timestamp: new Date().toISOString(),
+        },
+        flagged: false,
+      });
+    }
+
+    // SSE streaming path: pipe OpenRouter stream directly to the client.
+    const enc = new TextEncoder();
     const stream = new ReadableStream({
       async start(ctrl) {
         try {
@@ -123,23 +175,16 @@ export async function POST(req: NextRequest) {
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
             ctrl.enqueue(enc.encode(chunk));
-            // Count only assistant text deltas for budget tracking
+            // Count assistant text deltas for budget tracking
             sseBuffer += chunk;
-            const lines = sseBuffer.split("\n");
-            sseBuffer = lines.pop() ?? "";
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              const payload = line.slice(6).trim();
-              if (payload === "[DONE]") continue;
-              try {
-                const parsed = JSON.parse(payload);
-                const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
-                if (delta) tokenCount += Math.ceil(delta.length / 4);
-              } catch { /* skip malformed */ }
-            }
+            const result = drainSSELines(sseBuffer, d => { tokenCount += estimateTokens(d); });
+            sseBuffer = result.remaining;
+            if (result.done) break;
           }
-        } finally {
           ctrl.close();
+        } catch (err) {
+          ctrl.error(err);
+        } finally {
           clearTimeout(timer);
           recordUsage(userId, tokenCount);
         }

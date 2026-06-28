@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { NU_AI_DISCLAIMER } from "@/lib/nuai";
 import type { ChatMessage } from "@/lib/nuai";
+import { consumeSSE } from "@/lib/shared/sse";
 import "./nuai.css";
 
 const SUGGESTED_PROMPTS = [
@@ -40,7 +41,7 @@ export function NuAIChat() {
     try {
       const res = await fetch("/api/nuai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Accept": "text/event-stream, application/json" },
         body: JSON.stringify({ messages: next }),
       });
 
@@ -55,44 +56,16 @@ export function NuAIChat() {
 
       const contentType = res.headers.get("content-type") ?? "";
 
-      if (contentType.includes("text/event-stream") && res.body) {
-        // Streaming path: parse SSE and accumulate tokens
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let accumulated = "";
-        let buffer = "";
-
-        outer: while (true) {
-          const { done: readDone, value } = await reader.read();
-          if (readDone) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const payload = line.slice(6).trim();
-            if (payload === "[DONE]") break outer;
-            try {
-              const parsed = JSON.parse(payload);
-              const delta = parsed?.choices?.[0]?.delta?.content ?? "";
-              if (delta) {
-                accumulated += delta;
-                const snap = accumulated;
-                setMessages(m => {
-                  const copy = [...m];
-                  const last = copy[copy.length - 1];
-                  if (last?.role === "assistant") {
-                    copy[copy.length - 1] = { ...last, content: snap };
-                  }
-                  return copy;
-                });
-              }
-            } catch {
-              // ignore malformed SSE lines
-            }
-          }
-        }
+      if (contentType.includes("text/event-stream")) {
+        // Streaming path: use shared consumeSSE parser
+        await consumeSSE(res, (_delta, accumulated) => {
+          setMessages(m => {
+            const copy = [...m];
+            const lastIdx = copy.map(msg => msg.role).lastIndexOf("assistant");
+            if (lastIdx !== -1) copy[lastIdx] = { ...copy[lastIdx], content: accumulated };
+            return copy;
+          });
+        });
       } else {
         // Fallback: non-streaming JSON response
         const data = await res.json();

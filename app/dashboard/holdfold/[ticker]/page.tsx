@@ -64,7 +64,11 @@ async function fetchVerdict(ticker: string): Promise<HoldFoldVerdict | null> {
       aiOutlook: String(s.ai_outlook ?? ""),
       updatedAt,
     };
-  } catch { return null; } finally { clearTimeout(t); }
+  } catch (err) {
+    if (err instanceof BackendError) throw err;
+    if (ctrl.signal.aborted) throw new BackendError("upstream timeout");
+    return null;
+  } finally { clearTimeout(t); }
 }
 
 export async function generateMetadata(

@@ -4,6 +4,7 @@ import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { store } from "@/app/api/portfolio/watchlist/route";
 import type { PortfolioHealth } from "@/lib/portfolio";
+import { gradeFromScore } from "@/lib/portfolio";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
 const OR_BASE = "https://openrouter.ai/api/v1";
@@ -20,7 +21,7 @@ async function fetchHealth(userId: string, token: string): Promise<PortfolioHeal
     if (!res.ok) return null;
     const raw = await res.json() as Record<string, unknown>;
     const score = typeof raw.score === "number" ? Math.round(raw.score) : 0;
-    const grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+    const grade = gradeFromScore(score);
     return {
       score,
       grade,
@@ -127,8 +128,10 @@ export async function POST(req: NextRequest) {
             if (done) break;
             ctrl2.enqueue(enc.encode(decoder.decode(value, { stream: true })));
           }
-        } finally {
           ctrl2.close();
+        } catch (err) {
+          ctrl2.error(err);
+        } finally {
           clearTimeout(timer);
         }
       },

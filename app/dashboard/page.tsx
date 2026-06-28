@@ -43,11 +43,14 @@ async function fetchTopMovers(): Promise<MoverChip[]> {
     const raw = await res.json() as Record<string, unknown>;
     if (!raw?.symbols || typeof raw.symbols !== "object" || Array.isArray(raw.symbols)) return [];
 
-    const symbols = raw.symbols as Record<string, Record<string, unknown>>;
-    const verdicts = Object.entries(symbols).map(([key, s]) => {
-      const ticker = String(s.symbol ?? key).trim().toUpperCase();
-      const action = String(s.ai_action ?? "").toUpperCase();
-      const confLabel = String(s.ai_confidence ?? "LOW").toUpperCase();
+    const symbols = raw.symbols as Record<string, unknown>;
+    const verdicts = Object.entries(symbols)
+      .filter(([, s]) => s !== null && typeof s === "object" && !Array.isArray(s))
+      .map(([key, s]) => {
+      const entry = s as Record<string, unknown>;
+      const ticker = String(key || entry.symbol || "").trim().toUpperCase();
+      const action = String(entry.ai_action ?? "").toUpperCase();
+      const confLabel = String(entry.ai_confidence ?? "LOW").toUpperCase();
       const verdict = action === "BUY" ? "HOLD EM" : action === "SELL" ? "FOLD EM" : "NEUTRAL";
       const confNum = confLabel === "HIGH" ? 80 : confLabel === "MEDIUM" ? 55 : 30;
       return { ticker, verdict, confidenceLabel: confLabel, confidence: confNum };

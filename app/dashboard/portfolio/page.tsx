@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Portfolio · NuWrrrld Financial",
 };
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+const MCP_URL = process.env.MCP_BACKEND_URL;
 
 interface IndustryEntry {
   sector?: string;
@@ -24,6 +24,7 @@ interface IndustryEntry {
 }
 
 async function fetchIndustryData() {
+  if (!MCP_URL) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 7_000);
   try {
