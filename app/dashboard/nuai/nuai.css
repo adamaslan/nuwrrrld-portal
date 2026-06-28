@@ -26,6 +26,10 @@
 .nuai-send { width: 40px; height: 40px; border-radius: 20px; background: #2563eb; color: #fff; border: none; font-size: 1.1rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
 .nuai-send:disabled { opacity: .5; cursor: not-allowed; }
 
+.nuai-chips { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; margin: 1rem 0; }
+.nuai-chip { background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; font-size: .82rem; font-weight: 500; padding: .4rem .85rem; border-radius: 20px; cursor: pointer; transition: background .15s; }
+.nuai-chip:hover { background: #dbeafe; }
+
 .nuai-disclaimer, .nuai-footer-disclaimer { font-size: .72rem; color: #9ca3af; text-align: center; padding-bottom: .5rem; }
 .nuai-footer-disclaimer a { color: #9ca3af; }
 

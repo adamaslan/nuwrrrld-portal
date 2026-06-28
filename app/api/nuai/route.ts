@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4-6",
         max_tokens: 1024,
+        stream: true,
         system: systemPrompt,
         messages: messages.map(m => ({
           role: m.role as "user" | "assistant",
@@ -100,27 +101,66 @@ export async function POST(req: NextRequest) {
     });
 
     if (!response.ok) {
+      clearTimeout(timer);
       const text = await response.text().catch(() => "");
-      throw new Error(`OpenRouter ${response.status}: ${text.slice(0, 200)}`);
+      return NextResponse.json({ error: `AI unavailable: ${response.status}` }, { status: 503 });
     }
 
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }>, usage?: { input_tokens?: number; output_tokens?: number } };
-    const answer = data.choices?.[0]?.message?.content ?? "";
-    const inputTokens = data.usage?.input_tokens ?? 0;
-    const outputTokens = data.usage?.output_tokens ?? 0;
-    recordUsage(userId, inputTokens + outputTokens);
+    // Pipe the SSE stream from OpenRouter to the client.
+    // Each SSE line is: "data: {...}\n\n" or "data: [DONE]\n\n"
+    const upstream = response.body!;
+    const decoder = new TextDecoder();
+    const enc = new TextEncoder();
+    let tokenCount = 0;
+    let sseBuffer = "";
+    const reader = upstream.getReader();
 
-    return NextResponse.json({
-      message: {
-        role: "assistant",
-        content: answer,
-        timestamp: new Date().toISOString(),
+    const stream = new ReadableStream({
+      async start(ctrl) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            ctrl.enqueue(enc.encode(chunk));
+            // Count only assistant text deltas for budget tracking
+            sseBuffer += chunk;
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const payload = line.slice(6).trim();
+              if (payload === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(payload);
+                const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
+                if (delta) tokenCount += Math.ceil(delta.length / 4);
+              } catch { /* skip malformed */ }
+            }
+          }
+        } finally {
+          ctrl.close();
+          clearTimeout(timer);
+          recordUsage(userId, tokenCount);
+        }
+      },
+      cancel() {
+        clearTimeout(timer);
+        reader.cancel().catch(() => {});
+        controller.abort();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (err) {
+    clearTimeout(timer);
     console.error("Nu AI error", err);
     return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
-  } finally {
-    clearTimeout(timer);
   }
 }

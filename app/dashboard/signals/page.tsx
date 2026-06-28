@@ -4,8 +4,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
-import { SignalShareButton } from "@/components/SignalShareButton";
+import { adaptLiveSignals } from "@/lib/digest";
+import type { DigestPayload } from "@/lib/digest";
+import { SignalsClient } from "./SignalsClient";
 import "./signals.css";
 
 export const metadata: Metadata = {
@@ -60,37 +61,7 @@ export default async function SignalsPage() {
         </div>
       )}
 
-      {digest && (
-        <div className="signals-list">
-          {digest.signals.map(sig => (
-            <div key={sig.id} id={`signal-${sig.id}`} className="signal-card">
-              <div className="signal-card-header">
-                <div>
-                  <span className="signal-ticker">{sig.ticker}</span>
-                  <span className={`signal-direction signal-direction--${sig.direction}`}>
-                    {sig.direction === "bullish" ? "↑" : sig.direction === "bearish" ? "↓" : "→"}{" "}
-                    {sig.direction}
-                  </span>
-                </div>
-                <SignalShareButton signal={sig} />
-              </div>
-              <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
-              <p className="signal-title">{sig.title}</p>
-              <details className="signal-why">
-                <summary>Why this signal</summary>
-                <p className="signal-explanation">{sig.explanation}</p>
-                {sig.indicators.length > 0 && (
-                  <div className="signal-indicators">
-                    {sig.indicators.map(ind => (
-                      <span key={ind} className="signal-chip">{ind}</span>
-                    ))}
-                  </div>
-                )}
-              </details>
-            </div>
-          ))}
-        </div>
-      )}
+      {digest && <SignalsClient signals={digest.signals} />}
 
       <p className="signals-disclaimer">
         Signals are informational only and not personalised financial advice. Past signals do not guarantee future results.
