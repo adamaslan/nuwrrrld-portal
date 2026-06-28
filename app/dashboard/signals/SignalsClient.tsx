@@ -39,7 +39,8 @@ export function SignalsClient({ signals }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [goDeeper, setGoDeeper] = useState<Record<string, GoDeeper>>({});
 
-  // Persist last filter in localStorage
+  // Load saved filter once on mount; suppress the save effect until after load.
+  const [filterReady, setFilterReady] = useState(false);
   useEffect(() => {
     const saved = localStorage.getItem("signals-filter");
     if (saved) {
@@ -49,11 +50,13 @@ export function SignalsClient({ signals }: Props) {
         if (s) setSort(s);
       } catch { /* ignore */ }
     }
+    setFilterReady(true);
   }, []);
 
   useEffect(() => {
+    if (!filterReady) return;
     localStorage.setItem("signals-filter", JSON.stringify({ direction, sort }));
-  }, [direction, sort]);
+  }, [direction, sort, filterReady]);
 
   const filtered = useMemo(() => {
     let list = signals;
@@ -84,7 +87,12 @@ export function SignalsClient({ signals }: Props) {
         return;
       }
       const data = await res.json();
-      setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "ok", answer: data.answer } }));
+      const answer = data.answer ?? "";
+      if (!answer) {
+        setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "error", error: "Council returned an empty response — try again." } }));
+        return;
+      }
+      setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "ok", answer } }));
     } catch (err) {
       setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "error", error: err instanceof Error ? err.message : "Failed" } }));
     }

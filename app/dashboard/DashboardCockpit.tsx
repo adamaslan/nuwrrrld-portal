@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { consumeSSE } from "@/lib/shared/sse";
 
 export interface IndexChip {
   name: string;
@@ -24,30 +25,6 @@ interface Props {
   movers?: MoverChip[];
 }
 
-async function consumeStream(res: Response, onChunk: (text: string) => void): Promise<void> {
-  if (!res.body) return;
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let accumulated = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const payload = line.slice(6).trim();
-      if (payload === "[DONE]") return;
-      try {
-        const parsed = JSON.parse(payload);
-        const delta = parsed?.choices?.[0]?.delta?.content ?? "";
-        if (delta) { accumulated += delta; onChunk(accumulated); }
-      } catch { /* skip */ }
-    }
-  }
-}
 
 function IndexBar({ indices, marketTone }: { indices: IndexChip[]; marketTone?: string }) {
   const [expandedName, setExpandedName] = useState<string | null>(null);
@@ -135,12 +112,18 @@ export function DashboardCockpit({ isPro, indices = [], marketTone, movers = [] 
         return;
       }
       const contentType = res.headers.get("content-type") ?? "";
+      let finalText = "";
       if (contentType.includes("text/event-stream")) {
-        await consumeStream(res, text => { setBrief(text); });
-        setBriefStatus("ok");
+        await consumeSSE(res, (_delta, accumulated) => { finalText = accumulated; setBrief(accumulated); });
       } else {
         const data = await res.json();
-        setBrief(data.brief ?? data.answer ?? "");
+        finalText = data.brief ?? data.answer ?? "";
+        setBrief(finalText);
+      }
+      if (!finalText) {
+        setBriefStatus("error");
+        setBriefError("Brief returned empty — try again.");
+      } else {
         setBriefStatus("ok");
       }
     } catch (err) {

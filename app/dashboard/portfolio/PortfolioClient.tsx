@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { WatchlistItem } from "@/lib/portfolio";
+import { consumeSSE } from "@/lib/shared/sse";
 
 interface SectorEntry {
   name: string;
@@ -60,37 +61,6 @@ function SectorRow({ sector }: { sector: SectorEntry }) {
   );
 }
 
-async function consumeStream(
-  res: Response,
-  onChunk: (accumulated: string) => void,
-): Promise<void> {
-  if (!res.body) return;
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let accumulated = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const payload = line.slice(6).trim();
-      if (payload === "[DONE]") return;
-      try {
-        const parsed = JSON.parse(payload);
-        const delta = parsed?.choices?.[0]?.delta?.content ?? "";
-        if (delta) {
-          accumulated += delta;
-          onChunk(accumulated);
-        }
-      } catch { /* skip */ }
-    }
-  }
-}
 
 export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>(initialWatchlist);
@@ -148,12 +118,18 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
         return;
       }
       const contentType = res.headers.get("content-type") ?? "";
+      let finalText = "";
       if (contentType.includes("text/event-stream")) {
-        await consumeStream(res, text => setHealthText(text));
-        setHealthStatus("ok");
+        await consumeSSE(res, (_delta, accumulated) => { finalText = accumulated; setHealthText(accumulated); });
       } else {
         const data = await res.json();
-        setHealthText(data.answer ?? "");
+        finalText = data.answer ?? "";
+        setHealthText(finalText);
+      }
+      if (!finalText) {
+        setHealthStatus("error");
+        setHealthError("Health check returned empty — try again.");
+      } else {
         setHealthStatus("ok");
       }
     } catch (err) {
@@ -194,7 +170,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
               <div key={item.ticker} className="port-watch-item">
                 <span className="port-watch-ticker">{item.ticker}</span>
                 <span className="port-watch-date">{new Date(item.addedAt).toLocaleDateString()}</span>
-                <button className="port-watch-remove" onClick={() => removeTicker(item.ticker)}>✕</button>
+                <button className="port-watch-remove" onClick={() => removeTicker(item.ticker)} aria-label={`Remove ${item.ticker} from watchlist`}>✕</button>
               </div>
             ))}
           </div>
