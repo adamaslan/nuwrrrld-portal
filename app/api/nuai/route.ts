@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4-6",
         max_tokens: 1024,
+        stream: true,
         system: systemPrompt,
         messages: messages.map(m => ({
           role: m.role as "user" | "assistant",
@@ -100,27 +101,52 @@ export async function POST(req: NextRequest) {
     });
 
     if (!response.ok) {
+      clearTimeout(timer);
       const text = await response.text().catch(() => "");
-      throw new Error(`OpenRouter ${response.status}: ${text.slice(0, 200)}`);
+      return NextResponse.json({ error: `AI unavailable: ${response.status}` }, { status: 503 });
     }
 
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }>, usage?: { input_tokens?: number; output_tokens?: number } };
-    const answer = data.choices?.[0]?.message?.content ?? "";
-    const inputTokens = data.usage?.input_tokens ?? 0;
-    const outputTokens = data.usage?.output_tokens ?? 0;
-    recordUsage(userId, inputTokens + outputTokens);
+    // Pipe the SSE stream from OpenRouter to the client.
+    // Each SSE line is: "data: {...}\n\n" or "data: [DONE]\n\n"
+    const upstream = response.body!;
+    const decoder = new TextDecoder();
+    let tokenCount = 0;
 
-    return NextResponse.json({
-      message: {
-        role: "assistant",
-        content: answer,
-        timestamp: new Date().toISOString(),
+    const stream = new ReadableStream({
+      async start(ctrl) {
+        const reader = upstream.getReader();
+        const enc = new TextEncoder();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            // Forward raw SSE lines to the client
+            ctrl.enqueue(enc.encode(chunk));
+            // Rough token estimate for budget tracking (1 token ≈ 4 chars)
+            tokenCount += Math.ceil(chunk.length / 4);
+          }
+        } finally {
+          ctrl.close();
+          clearTimeout(timer);
+          recordUsage(userId, tokenCount);
+        }
+      },
+      cancel() {
+        clearTimeout(timer);
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (err) {
+    clearTimeout(timer);
     console.error("Nu AI error", err);
     return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
-  } finally {
-    clearTimeout(timer);
   }
 }

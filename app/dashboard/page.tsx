@@ -4,6 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
 import { tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
+import { DashboardCockpit } from "./DashboardCockpit";
+import type { IndexChip, MoverChip } from "./DashboardCockpit";
 import "./dashboard.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
@@ -17,24 +19,54 @@ interface IndexEntry {
 interface MarketOverview {
   brief?: {
     summary?: string;
-    avg_change_pct?: number;
     market_tone?: string;
     indices?: Record<string, IndexEntry>;
-    metrics_52w?: Record<string, unknown>;
   };
 }
 
 async function fetchMarketOverview(): Promise<MarketOverview | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/market-overview`, {
-      signal: controller.signal,
-      next: { revalidate: 900 },
-    });
+    const res = await fetch(`${MCP_URL}/market-overview`, { signal: ctrl.signal, next: { revalidate: 900 } });
     if (!res.ok) return null;
     return await res.json() as MarketOverview;
-  } catch { return null; } finally { clearTimeout(timer); }
+  } catch { return null; } finally { clearTimeout(t); }
+}
+
+async function fetchTopMovers(): Promise<MoverChip[]> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 7_000);
+  try {
+    const res = await fetch(`${MCP_URL}/signals`, { signal: ctrl.signal, next: { revalidate: 900 } });
+    if (!res.ok) return [];
+    const raw = await res.json() as Record<string, unknown>;
+    if (!raw?.symbols || typeof raw.symbols !== "object" || Array.isArray(raw.symbols)) return [];
+
+    const symbols = raw.symbols as Record<string, Record<string, unknown>>;
+    const verdicts = Object.entries(symbols).map(([key, s]) => {
+      const ticker = String(s.symbol ?? key).trim().toUpperCase();
+      const action = String(s.ai_action ?? "").toUpperCase();
+      const confLabel = String(s.ai_confidence ?? "LOW").toUpperCase();
+      const verdict = action === "BUY" ? "HOLD EM" : action === "SELL" ? "FOLD EM" : "NEUTRAL";
+      const confNum = confLabel === "HIGH" ? 80 : confLabel === "MEDIUM" ? 55 : 30;
+      return { ticker, verdict, confidenceLabel: confLabel, confidence: confNum };
+    });
+
+    // Top 3: highest-confidence HOLD EM first, then FOLD EM
+    verdicts.sort((a, b) => {
+      const order = { "HOLD EM": 0, "FOLD EM": 1, "NEUTRAL": 2 };
+      const od = order[a.verdict as keyof typeof order] - order[b.verdict as keyof typeof order];
+      return od !== 0 ? od : b.confidence - a.confidence;
+    });
+
+    return verdicts.slice(0, 4).map(v => ({
+      ticker: v.ticker,
+      verdict: v.verdict,
+      confidenceLabel: v.confidenceLabel,
+      href: `/dashboard/holdfold/${v.ticker}`,
+    }));
+  } catch { return []; } finally { clearTimeout(t); }
 }
 
 export default async function Dashboard({
@@ -54,7 +86,17 @@ export default async function Dashboard({
   const params = await searchParams;
   const checkoutSuccess = params.checkout === "success";
 
-  const market = await fetchMarketOverview();
+  const [market, movers] = await Promise.all([fetchMarketOverview(), fetchTopMovers()]);
+
+  const indices: IndexChip[] = market?.brief?.indices
+    ? Object.entries(market.brief.indices).slice(0, 4).map(([name, idx]) => ({
+        name,
+        symbol: idx.symbol ?? name,
+        price: idx.price ?? null,
+        changePct: idx.change_pct ?? null,
+        tone: market.brief?.market_tone,
+      }))
+    : [];
 
   const hour = new Date().getUTCHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -70,7 +112,7 @@ export default async function Dashboard({
           <Link href="/dashboard/signals">Signals</Link>
           <Link href="/dashboard/holdfold">Hold/Fold</Link>
           <Link href="/dashboard/nuai">Nu AI</Link>
-          <Link href="/portfolio-intelligence">Portfolio</Link>
+          <Link href="/dashboard/portfolio">Portfolio</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
@@ -93,33 +135,18 @@ export default async function Dashboard({
           </span>
         </div>
 
-        {market?.brief?.indices && (
-          <div className="market-overview-bar">
-            {Object.entries(market.brief.indices).slice(0, 4).map(([name, idx]) => (
-              <span key={name} className="market-index-chip">
-                <strong>{idx.symbol ?? name}</strong>{" "}
-                {idx.price != null ? idx.price.toLocaleString() : "—"}
-                {idx.change_pct != null && (
-                  <span className={idx.change_pct >= 0 ? "up" : "down"}>
-                    {" "}{idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
-                  </span>
-                )}
-              </span>
-            ))}
-            {market.brief.summary && (
-              <span className="market-brief-summary">{market.brief.summary}</span>
-            )}
-            <span className="pill live">Live</span>
-          </div>
-        )}
+        <DashboardCockpit
+          isPro={isPro}
+          indices={indices}
+          marketTone={market?.brief?.market_tone}
+          movers={movers}
+        />
 
         <div className="tool-grid">
           <Link href="/dashboard/signals" className="tool tool--link">
             <div className="tool-head">
               <h2>Signal Digest</h2>
-              {isPro
-                ? <span className="pill live">Live</span>
-                : <span className="pill soon">Pro</span>}
+              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
             </div>
             <p>Daily AI signals with plain-language explanations — which indicators fired, why, and what timeframe.</p>
             <span className="tool-cta">View today&apos;s signals →</span>
@@ -128,9 +155,7 @@ export default async function Dashboard({
           <Link href="/dashboard/nuai" className="tool tool--link">
             <div className="tool-head">
               <h2>Nu AI</h2>
-              {isPro
-                ? <span className="pill live">Live</span>
-                : <span className="pill soon">Pro</span>}
+              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
             </div>
             <p>Ask anything about your portfolio, signals, or market concepts. Answers grounded in your actual holdings.</p>
             <span className="tool-cta">Ask Nu AI →</span>
@@ -139,9 +164,7 @@ export default async function Dashboard({
           <Link href="/dashboard/holdfold" className="tool tool--link">
             <div className="tool-head">
               <h2>Hold / Fold</h2>
-              {isPro
-                ? <span className="pill live">Live</span>
-                : <span className="pill soon">Pro</span>}
+              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
             </div>
             <p>Tactical trade verdicts with bias, risk, volatility regime, and the exact indicator readings behind them.</p>
             <span className="tool-cta">Get verdicts →</span>
@@ -156,15 +179,13 @@ export default async function Dashboard({
             <span className="tool-cta">Get your link →</span>
           </Link>
 
-          <Link href="/portfolio-intelligence" className="tool tool--link">
+          <Link href="/dashboard/portfolio" className="tool tool--link">
             <div className="tool-head">
               <h2>Portfolio Intel</h2>
-              {isPro
-                ? <span className="pill live">Live</span>
-                : <span className="pill soon">Pro</span>}
+              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
             </div>
-            <p>Industry performance, sector rotation, and factor breakdown — which industries are leading and lagging today.</p>
-            <span className="tool-cta">See industry intel →</span>
+            <p>Watchlist manager, sector rotation, and AI health check — grounded in real factor data.</p>
+            <span className="tool-cta">Open portfolio →</span>
           </Link>
         </div>
 

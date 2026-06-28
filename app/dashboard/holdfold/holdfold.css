@@ -439,3 +439,16 @@
   text-decoration: none;
   font-weight: 700;
 }
+
+/* Standalone detail page (deep-link) */
+.hf-detail--standalone {
+  position: static;
+  max-height: none;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.hf-returns { margin-bottom: 20px; }
+.hf-ret--up { color: var(--green); }
+.hf-ret--down { color: var(--red); }
+.hf-sig-detail { font-size: .72rem; color: var(--dim); margin-left: auto; }
+.hf-detail-footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 8px; flex-wrap: wrap; gap: 10px; }
