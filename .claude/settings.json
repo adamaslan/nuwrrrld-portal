@@ -3,7 +3,10 @@
     "allow": [
       "Bash(cp /Users/adamaslan/code/homebase/.claude/commands/sync-pr.md /Users/adamaslan/code/nuwrrrld-portal/.claude/commands/sync-pr.md)",
       "Bash(cp /Users/adamaslan/code/homebase/.claude/commands/sync-pr.md /Users/adamaslan/code/gcp3-mobile/.claude/commands/sync-pr.md)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(wrangler pages *)",
+      "Bash(chmod +x /private/tmp/get_zones.sh)",
+      "Bash(/private/tmp/get_zones.sh)"
     ]
   }
 }
