@@ -13,15 +13,13 @@ interface CouncilSample {
 }
 
 async function fetchCouncilSample(): Promise<CouncilSample | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return null;
   try {
-    const { callCouncilSeat } = await import("@/lib/openrouter");
-    const [t1, t2] = await Promise.all([
-      callCouncilSeat("T1", "Analyze SPY for current market conditions. Provide a concise, grounded assessment.", apiKey),
-      callCouncilSeat("T2", "Analyze SPY for current market conditions. Provide a concise, grounded assessment.", apiKey),
-    ]);
-    return { shortTerm: t1, longTerm: t2, generatedAt: new Date().toISOString() };
+    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://financial.nuwrrrld.com";
+    const res = await fetch(`${base}/api/council/sample`, {
+      next: { revalidate: 21600 }, // 6h — matches the route's in-memory TTL
+    });
+    if (!res.ok) return null;
+    return await res.json() as CouncilSample;
   } catch { return null; }
 }
 
@@ -75,6 +73,7 @@ export default async function Home() {
           <a href="#product">Product</a>
           <Link href="/signals">Signals</Link>
           <Link href="/portfolio-intelligence">Portfolio</Link>
+          <Link href="/ai-assistant">Nu AI</Link>
           <a href="#council">Council</a>
           <Link className="nav-keep" href="/sign-in">Sign in</Link>
           <Link className="nav-action" href="/sign-up">Create account</Link>

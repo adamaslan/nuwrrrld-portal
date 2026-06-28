@@ -70,7 +70,14 @@ export default async function BillingPage() {
 
         <div className="billing-actions">
           {hasStripeCustomer ? (
-            <ManageBillingButton />
+            <>
+              <ManageBillingButton />
+              {status === "active" && (
+                <Link href="/dashboard/upgrade" className="billing-upgrade-btn billing-upgrade-btn--annual">
+                  Switch to annual — save 34%
+                </Link>
+              )}
+            </>
           ) : (
             <Link href="/pricing" className="billing-upgrade-btn">
               Upgrade to Pro

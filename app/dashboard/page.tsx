@@ -8,13 +8,20 @@ import "./dashboard.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 
+interface IndexEntry {
+  symbol?: string;
+  price?: number;
+  change_pct?: number;
+}
+
 interface MarketOverview {
   brief?: {
     summary?: string;
     avg_change_pct?: number;
+    market_tone?: string;
+    indices?: Record<string, IndexEntry>;
     metrics_52w?: Record<string, unknown>;
   };
-  indices?: Record<string, { price?: number; change_pct?: number }>;
 }
 
 async function fetchMarketOverview(): Promise<MarketOverview | null> {
@@ -63,6 +70,7 @@ export default async function Dashboard({
           <Link href="/dashboard/signals">Signals</Link>
           <Link href="/dashboard/holdfold">Hold/Fold</Link>
           <Link href="/dashboard/nuai">Nu AI</Link>
+          <Link href="/portfolio-intelligence">Portfolio</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
@@ -85,11 +93,11 @@ export default async function Dashboard({
           </span>
         </div>
 
-        {market && (
+        {market?.brief?.indices && (
           <div className="market-overview-bar">
-            {market.indices && Object.entries(market.indices).slice(0, 4).map(([sym, idx]) => (
-              <span key={sym} className="market-index-chip">
-                <strong>{sym}</strong>{" "}
+            {Object.entries(market.brief.indices).slice(0, 4).map(([name, idx]) => (
+              <span key={name} className="market-index-chip">
+                <strong>{idx.symbol ?? name}</strong>{" "}
                 {idx.price != null ? idx.price.toLocaleString() : "—"}
                 {idx.change_pct != null && (
                   <span className={idx.change_pct >= 0 ? "up" : "down"}>
@@ -98,7 +106,7 @@ export default async function Dashboard({
                 )}
               </span>
             ))}
-            {market.brief?.summary && (
+            {market.brief.summary && (
               <span className="market-brief-summary">{market.brief.summary}</span>
             )}
             <span className="pill live">Live</span>
@@ -164,6 +172,13 @@ export default async function Dashboard({
           <div className="upgrade-banner">
             <strong>Unlock all features</strong> — signal digest, Nu AI, and portfolio intelligence.{" "}
             <Link href="/pricing" className="upgrade-banner-link">Start 7-day free trial →</Link>
+          </div>
+        )}
+
+        {isPro && status === "active" && (
+          <div className="upgrade-banner upgrade-banner--annual">
+            <strong>Save 34%</strong> — switch to annual billing and pay $6.58/mo instead of $9.99/mo.{" "}
+            <Link href="/dashboard/upgrade" className="upgrade-banner-link">Switch to annual →</Link>
           </div>
         )}
       </main>
