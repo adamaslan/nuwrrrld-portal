@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";

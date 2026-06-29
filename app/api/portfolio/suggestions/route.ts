@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { PORTFOLIO_DISCLAIMER, type OptimizerSuggestion } from "@/lib/portfolio";

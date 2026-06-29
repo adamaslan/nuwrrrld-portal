@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 /**
  * GET /api/council/sample
  * Returns a cached real AI council pair (T1 short-term + T2 long-term) for SPY.
