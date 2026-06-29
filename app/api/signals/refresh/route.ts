@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 /**
  * POST /api/signals/refresh
  * Accepts a pre-computed DigestPayload from the local refresh-signals.py script
