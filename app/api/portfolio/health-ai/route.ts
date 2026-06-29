@@ -1,8 +1,9 @@
+export const runtime = 'edge';
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { store } from "@/app/api/portfolio/watchlist/route";
+import { store } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
 

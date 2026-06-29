@@ -1,7 +1,8 @@
+export const runtime = 'edge';
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
-import { globalDigestCache } from "@/app/api/signals/refresh/route";
+import { globalDigestCache } from "@/lib/digest-cache";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;

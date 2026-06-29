@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 /**
  * POST /api/retention/digest-email
  * Sends the weekly signal digest email for a single user.

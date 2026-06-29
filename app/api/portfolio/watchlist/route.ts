@@ -1,10 +1,8 @@
+export const runtime = 'edge';
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { WatchlistItem } from "@/lib/portfolio";
-
-// Exported so the [ticker] sub-route shares the same instance.
-// Replace with a database before launch.
-export const store = new Map<string, WatchlistItem[]>();
+import { store } from "@/lib/watchlist-store";
 
 export async function GET() {
   const { userId } = await auth();

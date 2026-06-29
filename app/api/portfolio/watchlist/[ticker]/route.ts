@@ -1,6 +1,7 @@
+export const runtime = 'edge';
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "../route";
+import { store } from "@/lib/watchlist-store";
 
 export async function DELETE(
   _req: NextRequest,

@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 /**
  * POST /api/signals/refresh
  * Accepts a pre-computed DigestPayload from the local refresh-signals.py script
@@ -7,13 +8,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { normaliseDigest, type DigestPayload } from "@/lib/digest";
-
-// Module-level cache shared with /api/signals/digest/route.ts
-// In production, replace with Redis/Vercel KV so multiple instances share state.
-export const globalDigestCache: { digest: DigestPayload | null; pushedAt: number } = {
-  digest: null,
-  pushedAt: 0,
-};
+import { globalDigestCache } from "@/lib/digest-cache";
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";

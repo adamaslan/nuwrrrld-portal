@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";

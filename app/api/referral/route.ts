@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 /**
  * Referral API — generates and validates referral codes.
  * Codes are stored in Clerk publicMetadata so they survive across devices.

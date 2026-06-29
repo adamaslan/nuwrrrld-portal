@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { store } from "@/app/api/portfolio/watchlist/route";
+import { store } from "@/lib/watchlist-store";
 import { PortfolioClient } from "./PortfolioClient";
 import "./portfolio.css";
 

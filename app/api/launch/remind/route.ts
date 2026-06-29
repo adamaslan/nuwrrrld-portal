@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 /**
  * POST /api/launch/remind — send a Product Hunt upvote reminder.
  * Called once on launch day via cron or manual trigger.
