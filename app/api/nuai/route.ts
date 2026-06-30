@@ -85,11 +85,13 @@ export async function POST(req: NextRequest) {
       {
         max_tokens: 1024,
         stream: true,
-        system: systemPrompt,
-        messages: messages.map(m => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map(m => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ],
       },
       "NuWrrrld Financial Nu AI",
       controller.signal,
