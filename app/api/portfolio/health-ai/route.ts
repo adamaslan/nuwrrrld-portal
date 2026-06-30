@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         "X-Title": "NuWrrrld Financial Portfolio Health Check",
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: "cohere/command-r7b-12-2024",
         max_tokens: 400,
         stream: true,
         messages: [{ role: "user", content: prompt }],

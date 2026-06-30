@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         "X-Title": "NuWrrrld Financial Daily Brief",
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.3-70b-instruct",
+        model: "qwen/qwen3-next-80b-a3b-instruct:free",
         max_tokens: 350,
         stream: true,
         messages: [{ role: "user", content: prompt }],

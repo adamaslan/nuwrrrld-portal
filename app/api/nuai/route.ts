@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         "X-Title": "NuWrrrld Financial Nu AI",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4-6",
+        model: "qwen/qwen3-next-80b-a3b-instruct:free",
         max_tokens: 1024,
         stream: true,
         system: systemPrompt,

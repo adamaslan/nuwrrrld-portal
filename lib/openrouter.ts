@@ -19,10 +19,10 @@ export interface CouncilResponse {
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 
-// Seat → model mapping. Prefer fast/cheap for T1, stronger for T2.
+// Seat → model mapping. Both are free-tier on OpenRouter.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
-  T1: 'meta-llama/llama-3.3-70b-instruct',
-  T2: 'openai/gpt-4o-mini',
+  T1: 'cohere/command-r7b-12-2024',
+  T2: 'qwen/qwen3-next-80b-a3b-instruct:free',
 };
 
 const SEAT_SYSTEM: Record<CouncilSeat, string> = {
