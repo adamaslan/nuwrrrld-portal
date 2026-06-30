@@ -4,6 +4,7 @@ import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
+import { fetchWithModelFallback } from "@/lib/openrouter";
 
 // Simple per-user daily token counter (in-memory; resets on cold start).
 // For production this should be persisted in a KV store (e.g. Vercel KV).
@@ -79,17 +80,9 @@ export async function POST(req: NextRequest) {
   const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://financial.nuwrrrld.com",
-        "X-Title": "NuWrrrld Financial Nu AI",
-      },
-      body: JSON.stringify({
-        model: "qwen/qwen3-next-80b-a3b-instruct:free",
+    const { response } = await fetchWithModelFallback(
+      apiKey,
+      {
         max_tokens: 1024,
         stream: true,
         system: systemPrompt,
@@ -97,13 +90,10 @@ export async function POST(req: NextRequest) {
           role: m.role as "user" | "assistant",
           content: m.content,
         })),
-      }),
-    });
-
-    if (!response.ok) {
-      clearTimeout(timer);
-      return NextResponse.json({ error: `AI unavailable: ${response.status}` }, { status: 503 });
-    }
+      },
+      "NuWrrrld Financial Nu AI",
+      controller.signal,
+    );
 
     // Content-negotiate: stream SSE to clients that ask for it,
     // return buffered JSON to legacy clients (shipped mobile builds) that don't.

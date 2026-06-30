@@ -2,9 +2,9 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
+import { fetchWithModelFallback } from "@/lib/openrouter";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-const OR_BASE = "https://openrouter.ai/api/v1";
 
 interface IndexEntry { symbol?: string; price?: number; change_pct?: number }
 interface MarketOverview {
@@ -92,28 +92,12 @@ export async function POST(req: NextRequest) {
   const timer = setTimeout(() => ctrl.abort(), 25_000);
 
   try {
-    const response = await fetch(`${OR_BASE}/chat/completions`, {
-      method: "POST",
-      signal: ctrl.signal,
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://financial.nuwrrrld.com",
-        "X-Title": "NuWrrrld Financial Daily Brief",
-      },
-      body: JSON.stringify({
-        model: "qwen/qwen3-next-80b-a3b-instruct:free",
-        max_tokens: 350,
-        stream: true,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      clearTimeout(timer);
-      return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
-    }
+    const { response } = await fetchWithModelFallback(
+      apiKey,
+      { max_tokens: 350, stream: true, messages: [{ role: "user", content: prompt }], temperature: 0.3 },
+      "NuWrrrld Financial Daily Brief",
+      ctrl.signal,
+    );
 
     const upstream = response.body!;
     const decoder = new TextDecoder();
