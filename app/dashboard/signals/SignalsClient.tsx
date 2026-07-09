@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import type { SignalPayload } from "@/lib/digest";
 import { SignalShareButton } from "@/components/SignalShareButton";
+import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 
 interface Props {
   signals: SignalPayload[];
@@ -134,9 +135,10 @@ export function SignalsClient({ signals }: Props) {
       )}
 
       <div className="signals-list">
-        {filtered.map(sig => {
+        {filtered.map((sig, idx) => {
           const isExpanded = expandedId === sig.id;
           const deeper = goDeeper[sig.id];
+          const isPrimary = idx === 0;
           return (
             <div key={sig.id} id={`signal-${sig.id}`} className={`signal-card${isExpanded ? " signal-card--expanded" : ""}`}>
               <div className="signal-card-header">
@@ -196,6 +198,10 @@ export function SignalsClient({ signals }: Props) {
                   )}
                   {sig.engineVersion && (
                     <p className="signal-provenance">Source: {sig.engineVersion} · {sig.generatedAt}</p>
+                  )}
+
+                  {isPrimary && (
+                    <TrackRecordBadge symbol={sig.ticker} strength={sig.confidence} />
                   )}
 
                   <div className="signal-deeper">
