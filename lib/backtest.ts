@@ -9,7 +9,7 @@
  * haven't confirmed is live.
  */
 
-const SIGNALS_ENGINE_URL = process.env.SIGNALS_ENGINE_URL ?? "";
+const SIGNALS_ENGINE_URL = (process.env.SIGNALS_ENGINE_URL ?? "").replace(/\/$/, "");
 const TIMEOUT_MS = 8_000;
 
 export interface BacktestBucket {
@@ -28,10 +28,29 @@ export interface BacktestResult {
   by_strength: BacktestBucket[];
 }
 
+function isBacktestBucket(value: unknown): value is BacktestBucket {
+  if (!value || typeof value !== "object") return false;
+  const b = value as Record<string, unknown>;
+  return (
+    typeof b.key === "string" &&
+    typeof b.hits === "number" &&
+    typeof b.total === "number" &&
+    typeof b.hit_rate === "number"
+  );
+}
+
+function isBacktestResult(value: unknown): value is BacktestResult {
+  if (!value || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  return Array.isArray(r.by_category) && r.by_category.every(isBacktestBucket)
+    && Array.isArray(r.by_strength) && r.by_strength.every(isBacktestBucket);
+}
+
 /**
  * Fetch historical hit-rate backtest data for a symbol.
- * Returns null on any failure (disabled, timeout, non-2xx, bad JSON) —
- * this is a nice-to-have enhancement and must never crash the page it's used on.
+ * Returns null on any failure (disabled, timeout, non-2xx, bad JSON, or a
+ * response that doesn't match BacktestResult's shape) — this is a
+ * nice-to-have enhancement and must never crash the page it's used on.
  */
 export async function fetchBacktest(symbol: string): Promise<BacktestResult | null> {
   if (!SIGNALS_ENGINE_URL) return null;
@@ -44,9 +63,9 @@ export async function fetchBacktest(symbol: string): Promise<BacktestResult | nu
       { signal: controller.signal },
     );
     if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || typeof data !== "object") return null;
-    return data as BacktestResult;
+    const data: unknown = await res.json();
+    if (!isBacktestResult(data)) return null;
+    return data;
   } catch {
     return null;
   } finally {

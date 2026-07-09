@@ -35,8 +35,17 @@ export function TrackRecordBadge({ symbol, strength }: TrackRecordBadgeProps) {
         setStatus('error');
         return;
       }
-      const data = (await res.json()) as BacktestResult;
-      setResult(data);
+      const data: unknown = await res.json();
+      if (
+        !data ||
+        typeof data !== 'object' ||
+        !Array.isArray((data as BacktestResult).by_strength) ||
+        !Array.isArray((data as BacktestResult).by_category)
+      ) {
+        setStatus('error');
+        return;
+      }
+      setResult(data as BacktestResult);
       setStatus('ok');
     } catch {
       setStatus('error');

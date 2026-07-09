@@ -16,6 +16,8 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { symbol } = await params;
+  if (!symbol) return new NextResponse(null, { status: 204 });
+
   const result = await fetchBacktest(symbol.toUpperCase());
   if (!result) return new NextResponse(null, { status: 204 });
 
