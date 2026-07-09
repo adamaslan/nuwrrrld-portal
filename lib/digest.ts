@@ -56,6 +56,8 @@ export interface SignalPayload {
   isStale: boolean;
   /** Which scoring engine/version produced this signal, when the source reports one (provenance) */
   engineVersion?: string;
+  /** Backend-reported data quality ("fresh" | "stale" | "unknown"), when the source computes one — takes precedence over the client-side isStale heuristic */
+  dataQualityScore?: 'fresh' | 'stale' | 'unknown';
 }
 
 export interface DigestPayload {
@@ -102,6 +104,18 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
     const bearish = typeof s.bear_count === 'number' ? s.bear_count : undefined;
     const total = typeof s.signal_count === 'number' ? s.signal_count : undefined;
     const engineVersion = typeof s.engine_version === 'string' ? s.engine_version : undefined;
+    const rawDqScore = s.data_quality_score;
+    const dataQualityScore: SignalPayload['dataQualityScore'] =
+      rawDqScore === 'fresh' || rawDqScore === 'stale' || rawDqScore === 'unknown'
+        ? rawDqScore
+        : undefined;
+    // Prefer the backend's authoritative data_quality_score when present — it
+    // reflects the source industry_cache's true age, not just this signal's
+    // own generatedAt timestamp. Fall back to the client-side heuristic
+    // otherwise (e.g. older backend versions that don't emit the field yet).
+    const isStale = dataQualityScore
+      ? dataQualityScore !== 'fresh'
+      : computeIsStale(fallbackDate);
     return {
       id: ticker || `signal-${i}`,
       ticker,
@@ -118,8 +132,9 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
         bullish !== undefined && bearish !== undefined && total !== undefined
           ? { bullish, bearish, total }
           : undefined,
-      isStale: computeIsStale(fallbackDate),
+      isStale,
       engineVersion,
+      dataQualityScore,
     };
   });
 
