@@ -1,29 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
-import { globalDigestCache } from "@/lib/digest-cache";
-
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-const TIMEOUT_MS = 8_000;
-
-// Per-user in-memory cache — 15 min TTL matches signal freshness.
-const CACHE_TTL_MS = 15 * 60 * 1000;
-const cache = new Map<string, { digest: DigestPayload; expiresAt: number }>();
-
-async function fetchLiveSignals(): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    // GET /signals is public on the GCP3 backend — no auth header needed.
-    const res = await fetch(`${MCP_URL}/signals`, { signal: controller.signal });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import { getOrFetchDigest } from "@/lib/digest-cache";
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
@@ -38,38 +15,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  // 1. Serve per-user cached digest if still fresh (skip for internal callers).
-  const cached = userId ? cache.get(userId) : undefined;
-  if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.digest);
+  // Shared cache/fallback chain with the server-rendered signals page — see
+  // lib/digest-cache.ts. Internal callers pass no userId, so they skip the
+  // per-user cache exactly as before.
+  const digest = await getOrFetchDigest(userId);
+  if (!digest) {
+    return NextResponse.json({ error: "no signals available" }, { status: 503 });
   }
-
-  // 2. Fall back to globally-pushed digest from local refresh script (warm ~1h).
-  const GLOBAL_CACHE_TTL_MS = 60 * 60 * 1000;
-  if (globalDigestCache.digest && Date.now() - globalDigestCache.pushedAt < GLOBAL_CACHE_TTL_MS) {
-    return NextResponse.json(globalDigestCache.digest);
-  }
-
-  // 3. Fetch from the live GCP3 /signals endpoint (public, no user token needed).
-  const raw = await fetchLiveSignals();
-  if (raw) {
-    try {
-      const digest = adaptLiveSignals(raw);
-      if (userId) cache.set(userId, { digest, expiresAt: Date.now() + CACHE_TTL_MS });
-      return NextResponse.json(digest);
-    } catch {
-      // Parse failure falls through to the degraded stale-cache path below
-      // rather than a hard error — a malformed backend response shouldn't
-      // take down the whole response when we have something to show instead.
-    }
-  }
-
-  // 4. Graceful degradation: the backend is down/unparseable AND the global
-  // cache is past its normal TTL — better to show stale data with a visible
-  // warning than nothing at all (signal-multiplication-analysis.md pillar 6).
-  if (globalDigestCache.digest) {
-    return NextResponse.json({ ...globalDigestCache.digest, degraded: true });
-  }
-
-  return NextResponse.json({ error: "no signals available" }, { status: 503 });
+  return NextResponse.json(digest);
 }
