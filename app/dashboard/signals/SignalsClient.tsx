@@ -168,11 +168,15 @@ export function SignalsClient({ signals }: Props) {
               {isExpanded && (
                 <div className="signal-detail">
                   <p className="signal-explanation">{sig.explanation}</p>
-                  {(sig.score !== undefined || sig.signalCounts) && (
+                  {(sig.score != null || sig.signalCounts) && (
                     <p className="signal-score">
-                      {sig.score !== undefined && <>Confluence score: {sig.score.toFixed(2)}</>}
+                      {sig.score != null && <>Confluence score: {sig.score.toFixed(2)}</>}
                       {sig.signalCounts && (
-                        <> ({sig.signalCounts.bullish} bullish / {sig.signalCounts.bearish} bearish of {sig.signalCounts.total})</>
+                        <>
+                          {sig.score != null ? " (" : ""}
+                          {sig.signalCounts.bullish} bullish / {sig.signalCounts.bearish} bearish of {sig.signalCounts.total}
+                          {sig.score != null ? ")" : ""}
+                        </>
                       )}
                     </p>
                   )}
