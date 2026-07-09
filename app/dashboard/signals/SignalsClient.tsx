@@ -158,18 +158,40 @@ export function SignalsClient({ signals }: Props) {
                   </button>
                 </div>
               </div>
-              <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
+              {sig.isStale ? (
+                <p className="signal-stale-badge">⚠ Stale data — last updated {sig.generatedAt}</p>
+              ) : (
+                <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
+              )}
               <p className="signal-title">{sig.title}</p>
 
               {isExpanded && (
                 <div className="signal-detail">
                   <p className="signal-explanation">{sig.explanation}</p>
+                  {(sig.score !== undefined || sig.signalCounts) && (
+                    <p className="signal-score">
+                      {sig.score !== undefined && <>Confluence score: {sig.score.toFixed(2)}</>}
+                      {sig.signalCounts && (
+                        <> ({sig.signalCounts.bullish} bullish / {sig.signalCounts.bearish} bearish of {sig.signalCounts.total})</>
+                      )}
+                    </p>
+                  )}
+                  {sig.reasons && sig.reasons.length > 0 && (
+                    <ul className="signal-reasons">
+                      {sig.reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  )}
                   {sig.indicators.length > 0 && (
                     <div className="signal-indicators">
                       {sig.indicators.map(ind => (
                         <span key={ind} className="signal-chip">{ind}</span>
                       ))}
                     </div>
+                  )}
+                  {sig.engineVersion && (
+                    <p className="signal-provenance">Source: {sig.engineVersion} · {sig.generatedAt}</p>
                   )}
 
                   <div className="signal-deeper">
