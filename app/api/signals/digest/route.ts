@@ -52,17 +52,24 @@ export async function GET(req: NextRequest) {
 
   // 3. Fetch from the live GCP3 /signals endpoint (public, no user token needed).
   const raw = await fetchLiveSignals();
-  if (!raw) {
-    return NextResponse.json({ error: "no signals available" }, { status: 503 });
+  if (raw) {
+    try {
+      const digest = adaptLiveSignals(raw);
+      if (userId) cache.set(userId, { digest, expiresAt: Date.now() + CACHE_TTL_MS });
+      return NextResponse.json(digest);
+    } catch {
+      // Parse failure falls through to the degraded stale-cache path below
+      // rather than a hard error — a malformed backend response shouldn't
+      // take down the whole response when we have something to show instead.
+    }
   }
 
-  let digest: DigestPayload;
-  try {
-    digest = adaptLiveSignals(raw);
-  } catch {
-    return NextResponse.json({ error: "failed to parse signals" }, { status: 502 });
+  // 4. Graceful degradation: the backend is down/unparseable AND the global
+  // cache is past its normal TTL — better to show stale data with a visible
+  // warning than nothing at all (signal-multiplication-analysis.md pillar 6).
+  if (globalDigestCache.digest) {
+    return NextResponse.json({ ...globalDigestCache.digest, degraded: true });
   }
 
-  if (userId) cache.set(userId, { digest, expiresAt: Date.now() + CACHE_TTL_MS });
-  return NextResponse.json(digest);
+  return NextResponse.json({ error: "no signals available" }, { status: 503 });
 }
