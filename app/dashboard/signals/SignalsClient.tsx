@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import type { SignalPayload } from "@/lib/digest";
 import { SignalShareButton } from "@/components/SignalShareButton";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
+import { SignalAskAnything } from "@/components/SignalAskAnything";
 
 interface Props {
   signals: SignalPayload[];
@@ -203,7 +204,10 @@ export function SignalsClient({ signals }: Props) {
                   )}
 
                   {isPrimary && (
-                    <TrackRecordBadge symbol={sig.ticker} strength={sig.confidence} />
+                    <>
+                      <TrackRecordBadge symbol={sig.ticker} strength={sig.confidence} />
+                      <SignalAskAnything key={sig.ticker} ticker={sig.ticker} />
+                    </>
                   )}
 
                   <div className="signal-deeper">
