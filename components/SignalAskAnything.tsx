@@ -59,6 +59,7 @@ export function SignalAskAnything({ ticker }: SignalAskAnythingProps) {
           value={question}
           onChange={e => setQuestion(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleAsk(); }}
+          disabled={status === 'loading'}
         />
         <button
           className="signal-deeper-btn"
@@ -69,7 +70,7 @@ export function SignalAskAnything({ ticker }: SignalAskAnythingProps) {
         </button>
       </div>
       {status === 'ok' && answer && (
-        <p className="signal-ask-anything-answer">{answer}</p>
+        <p className="signal-ask-anything-answer" style={{ whiteSpace: 'pre-wrap' }}>{answer}</p>
       )}
       {status === 'error' && error && (
         <p className="signal-deeper-error">{error}</p>

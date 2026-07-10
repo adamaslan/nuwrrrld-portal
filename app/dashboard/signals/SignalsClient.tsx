@@ -206,7 +206,7 @@ export function SignalsClient({ signals }: Props) {
                   {isPrimary && (
                     <>
                       <TrackRecordBadge symbol={sig.ticker} strength={sig.confidence} />
-                      <SignalAskAnything ticker={sig.ticker} />
+                      <SignalAskAnything key={sig.ticker} ticker={sig.ticker} />
                     </>
                   )}
 

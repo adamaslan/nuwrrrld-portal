@@ -41,7 +41,10 @@ export async function POST(
     }
     const data = await res.json();
     return NextResponse.json(data);
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return NextResponse.json({ error: "signal chat request timed out" }, { status: 504 });
+    }
     return NextResponse.json({ error: "signal chat unavailable" }, { status: 503 });
   } finally {
     clearTimeout(timer);
