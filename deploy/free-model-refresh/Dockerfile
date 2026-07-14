@@ -1,5 +1,7 @@
 # Cloud Run Job image for the weekly FREE_MODEL_CHAIN refresh.
-# Tiny: node-slim + git + gh, running the portable remote wrapper.
+# Self-contained: it fetches the portable runner from the repo's main branch at
+# runtime (same as the Modal deploy), so the build context is just this file and
+# the image never carries a stale copy of the scripts.
 FROM node:20-slim
 
 RUN apt-get update \
@@ -11,10 +13,8 @@ RUN apt-get update \
     && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-# Only the wrapper is baked in; it clones the repo (incl. refresh-free-models.mjs)
-# fresh at runtime, so the image never carries a stale copy of the script.
-COPY scripts/run-refresh-remote.sh ./scripts/
-RUN chmod +x scripts/run-refresh-remote.sh
+ARG RUNNER_URL=https://raw.githubusercontent.com/adamaslan/nuwrrrld-portal/main/scripts/run-refresh-remote.sh
+ENV RUNNER_URL=${RUNNER_URL}
 
-ENTRYPOINT ["bash", "scripts/run-refresh-remote.sh"]
+WORKDIR /app
+ENTRYPOINT ["bash", "-c", "curl -fsSL \"$RUNNER_URL\" -o run-refresh-remote.sh && bash run-refresh-remote.sh"]

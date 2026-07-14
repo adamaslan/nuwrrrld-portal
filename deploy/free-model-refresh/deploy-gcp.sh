@@ -1,38 +1,36 @@
 #!/usr/bin/env bash
 #
 # Deploy the FREE_MODEL_CHAIN refresh as a GCP Cloud Run Job + weekly Cloud
-# Scheduler trigger. Idempotent — safe to re-run.
+# Scheduler trigger. Idempotent — safe to re-run. No local Docker needed
+# (image is built by Cloud Build).
 #
-# Prereqs (one-time, done by a human because they involve secrets):
-#   1. gcloud auth login  &&  gcloud config set project <PROJECT>
-#   2. Create the two secrets in Secret Manager:
-#        printf '%s' "$OPENROUTER_API_KEY" | gcloud secrets create openrouter-api-key --data-file=-
-#        printf '%s' "$GH_PAT"             | gcloud secrets create free-model-gh-token --data-file=-
-#      (GH_PAT = a GitHub fine-grained PAT with contents:write + pull_requests:write on nuwrrrld-portal)
-#   3. Grant the job's runtime service account secretAccessor on both secrets.
+# Prereqs (secrets — provisioned separately):
+#   gcloud secrets create openrouter-api-key   --data-file=- <<< "$OPENROUTER_API_KEY"
+#   gcloud secrets create free-model-gh-token   --data-file=- <<< "$GH_TOKEN"
+#   (GH_TOKEN pushes the refreshed chain; grant the job SA secretAccessor on both.)
 #
-# Then: bash deploy/free-model-refresh/deploy-gcp.sh
+# Then: PROJECT=ttb-lang1 bash deploy/free-model-refresh/deploy-gcp.sh
 set -euo pipefail
 
 PROJECT="${PROJECT:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${REGION:-us-central1}"
 JOB="${JOB:-free-model-refresh}"
 SCHEDULE="${SCHEDULE:-0 9 * * 1}"          # Mondays 09:00
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+IMAGE="${IMAGE:-gcr.io/${PROJECT}/${JOB}:latest}"
+DOCKER_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "==> Project=$PROJECT Region=$REGION Job=$JOB"
+echo "==> Project=$PROJECT Region=$REGION Job=$JOB Image=$IMAGE"
 
-echo "==> Building + deploying Cloud Run Job from source (Cloud Build; no local Docker needed)"
+echo "==> Building image with Cloud Build (context = deploy dir, Dockerfile is self-contained)"
+gcloud builds submit "$DOCKER_DIR" --tag "$IMAGE" --project "$PROJECT"
+
+echo "==> Deploying Cloud Run Job"
 gcloud run jobs deploy "$JOB" \
-  --source "$REPO_ROOT" \
+  --image "$IMAGE" \
   --region "$REGION" \
   --project "$PROJECT" \
   --tasks 1 --max-retries 1 --task-timeout 600 \
-  --set-secrets "OPENROUTER_API_KEY=openrouter-api-key:latest,GH_TOKEN=free-model-gh-token:latest" \
-  --command bash \
-  --args scripts/run-refresh-remote.sh
-# NOTE: --source builds with the Dockerfile at deploy/free-model-refresh/Dockerfile
-# only if it is the repo-root Dockerfile; otherwise pass a prebuilt --image. See README.
+  --set-secrets "OPENROUTER_API_KEY=openrouter-api-key:latest,GH_TOKEN=free-model-gh-token:latest"
 
 echo "==> Creating/updating weekly Cloud Scheduler trigger"
 SA="$(gcloud run jobs describe "$JOB" --region "$REGION" --project "$PROJECT" \
@@ -49,4 +47,4 @@ else
     --oauth-service-account-email "$SA"
 fi
 
-echo "==> Done. Run once now with:  gcloud run jobs execute $JOB --region $REGION --project $PROJECT"
+echo "==> Done. Run once now:  gcloud run jobs execute $JOB --region $REGION --project $PROJECT"
