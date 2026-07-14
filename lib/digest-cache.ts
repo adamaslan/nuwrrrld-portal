@@ -56,10 +56,10 @@ export async function getOrFetchDigest(
     if (cached && cached.expiresAt > Date.now()) {
       return cached.digest;
     }
-    const dbDigest = await getUserDigest(userId);
-    if (dbDigest) {
-      userCache.set(userId, { digest: dbDigest, expiresAt: Date.now() + USER_CACHE_TTL_MS });
-      return dbDigest;
+    const dbResult = await getUserDigest(userId);
+    if (dbResult) {
+      userCache.set(userId, { digest: dbResult.digest, expiresAt: dbResult.expiresAt.getTime() });
+      return dbResult.digest;
     }
   }
 
@@ -84,7 +84,9 @@ export async function getOrFetchDigest(
         userCache.set(userId, { digest, expiresAt: expiresAt.getTime() });
         await saveUserDigest(userId, digest, expiresAt);
       } else {
-        // No user context (internal caller) — warm the global durable cache.
+        // No user context (internal caller) — warm both L1 and durable cache.
+        globalDigestCache.digest = digest;
+        globalDigestCache.pushedAt = Date.now();
         await saveDigest(digest);
       }
       return digest;

@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS council_verdicts (
   invalidation text,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS council_verdicts_session_idx
+  ON council_verdicts (session_id);
 CREATE INDEX IF NOT EXISTS council_verdicts_ticker_idx
   ON council_verdicts (ticker, created_at DESC);
 

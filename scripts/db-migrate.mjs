@@ -19,19 +19,41 @@ if (!url) {
 const schemaPath = join(process.cwd(), "lib", "db", "schema.sql");
 const schema = readFileSync(schemaPath, "utf8");
 
-// The neon HTTP driver runs one statement per call. Strip `--` line comments
-// first (some contain semicolons), then split on `;`. Safe here because the
-// schema has no `--` inside string literals and no function bodies.
-const statements = schema
-  .split("\n")
-  .map((line) => {
-    const idx = line.indexOf("--");
-    return idx >= 0 ? line.slice(0, idx) : line;
-  })
-  .join("\n")
-  .split(";")
-  .map((s) => s.trim())
-  .filter((s) => s.length > 0);
+// Split SQL on `;` while ignoring semicolons inside single-quoted string literals
+// and `--` line comments. Handles the common DDL subset used by this schema.
+function splitSql(src) {
+  const stmts = [];
+  let buf = "";
+  let inSingle = false;
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (inSingle) {
+      buf += ch;
+      if (ch === "'" && src[i + 1] === "'") { buf += src[++i]; } // escaped ''
+      else if (ch === "'") { inSingle = false; }
+    } else if (ch === "'" ) {
+      inSingle = true;
+      buf += ch;
+    } else if (ch === "-" && src[i + 1] === "-") {
+      // skip to end of line
+      while (i < src.length && src[i] !== "\n") i++;
+      continue;
+    } else if (ch === ";") {
+      const s = buf.trim();
+      if (s) stmts.push(s);
+      buf = "";
+    } else {
+      buf += ch;
+    }
+    i++;
+  }
+  const tail = buf.trim();
+  if (tail) stmts.push(tail);
+  return stmts;
+}
+
+const statements = splitSql(schema);
 
 const sql = neon(url);
 for (const statement of statements) {

@@ -35,16 +35,18 @@ export async function saveDigest(digest: DigestPayload): Promise<void> {
 // hasn't been migrated yet, callers fall back to their in-memory L1. Safe to deploy
 // before `npm run db:migrate` has run.
 
-export async function getUserDigest(userId: string): Promise<DigestPayload | null> {
+export async function getUserDigest(
+  userId: string,
+): Promise<{ digest: DigestPayload; expiresAt: Date } | null> {
   try {
     const rows = await sql`
-      SELECT payload
+      SELECT payload, expires_at
       FROM user_digest_cache
       WHERE user_id = ${userId} AND expires_at > now()
       LIMIT 1
     `;
     if (!rows.length) return null;
-    return rows[0].payload as DigestPayload;
+    return { digest: rows[0].payload as DigestPayload, expiresAt: new Date(rows[0].expires_at) };
   } catch {
     return null;
   }
