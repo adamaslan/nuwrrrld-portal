@@ -1,10 +1,19 @@
 /**
  * OpenRouter client — multi-model AI council seats.
- * T1 = short-term trader (fast, tactical)
- * T2 = long-term investor (deeper, strategic)
+ *
+ * Six roles (WS2, portal-10x-council-db-local.md):
+ *   T1    = short-term trader (fast, tactical)
+ *   T2    = long-term investor (strategic)
+ *   RISK  = devil's advocate — argues against the trade, sizes the downside
+ *   MACRO = rates / dollar / sector-rotation context
+ *   QUANT = interprets the provided data ONLY (score, hit-rates) — no narrative
+ *   CHAIR = reads all seats, issues the synthesis + structured verdict
  */
 
-export type CouncilSeat = 'T1' | 'T2';
+export type CouncilSeat = 'T1' | 'T2' | 'RISK' | 'MACRO' | 'QUANT' | 'CHAIR';
+
+/** The debate seats (everyone except the synthesizing chair). */
+export const DEBATE_SEATS: CouncilSeat[] = ['T1', 'T2', 'RISK', 'MACRO', 'QUANT'];
 
 export interface CouncilMessage {
   role: 'system' | 'user' | 'assistant';
@@ -15,6 +24,7 @@ export interface CouncilResponse {
   answer: string;
   model: string;
   seat: CouncilSeat;
+  latencyMs: number;
 }
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
@@ -27,28 +37,70 @@ export const FREE_MODEL_CHAIN = [
   'mistralai/mistral-7b-instruct:free',
 ] as const;
 
-// Seat primary models; falls back through FREE_MODEL_CHAIN on failure.
+// Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
+// free-tier to keep deliberation (~11 calls) at $0 — see WS2.6 cost control.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
   T1: 'cohere/command-r7b-12-2024',
   T2: 'qwen/qwen3-next-80b-a3b-instruct:free',
+  RISK: 'meta-llama/llama-3.3-70b-instruct:free',
+  MACRO: 'qwen/qwen3-next-80b-a3b-instruct:free',
+  QUANT: 'mistralai/mistral-7b-instruct:free',
+  CHAIR: 'qwen/qwen3-next-80b-a3b-instruct:free',
 };
+
+const _DISCLAIMER = 'You provide informational analysis only — not personalised financial advice.';
+const _GROUND = 'Ground every claim in the exact data provided. Cite specific numbers.';
 
 const SEAT_SYSTEM: Record<CouncilSeat, string> = {
   T1: [
     'You are the Short-Term Trading Council seat (T1) for NuWrrrld Financial.',
     'You analyze tactical trades across 1-day to 60-day horizons.',
-    'Ground every claim in the exact data provided. Cite specific numbers.',
+    _GROUND,
     'Deliver: outlook (bullish/bearish/neutral), key driver, invalidation level, entry/exit/stop.',
-    'Be concise (~180 words). No generic platitudes.',
-    'You provide informational analysis only — not personalised financial advice.',
+    'Be concise (~150 words). No generic platitudes.',
+    _DISCLAIMER,
   ].join(' '),
   T2: [
     'You are the Long-Term Investment Council seat (T2) for NuWrrrld Financial.',
     'You analyze strategic positions across 2-month to 5-year horizons.',
-    'Ground every claim in the exact data provided. Cite specific numbers.',
+    _GROUND,
     'Deliver: secular thesis, risk/reward over 6-12m, key catalyst and invalidation.',
-    'Be concise (~180 words). No generic platitudes.',
-    'You provide informational analysis only — not personalised financial advice.',
+    'Be concise (~150 words). No generic platitudes.',
+    _DISCLAIMER,
+  ].join(' '),
+  RISK: [
+    'You are the Risk Council seat (RISK) for NuWrrrld Financial — the devil\'s advocate.',
+    'Argue the case AGAINST the prevailing direction. Name the specific failure modes,',
+    'the downside scenario, and how a position would be sized to survive being wrong.',
+    _GROUND,
+    'Be concise (~150 words). Do not hedge into neutrality — your job is the bear/bull opposite case.',
+    _DISCLAIMER,
+  ].join(' '),
+  MACRO: [
+    'You are the Macro Council seat (MACRO) for NuWrrrld Financial.',
+    'Frame the setup in rates, the dollar, liquidity, and sector rotation. Is the macro',
+    'wind at this trade\'s back or in its face? What macro event would invalidate it?',
+    _GROUND,
+    'Be concise (~150 words).',
+    _DISCLAIMER,
+  ].join(' '),
+  QUANT: [
+    'You are the Quant Council seat (QUANT) for NuWrrrld Financial.',
+    'Interpret ONLY the numeric data in the brief: confluence score, per-indicator',
+    'signals, and historical hit-rates. State what the numbers support, with no',
+    'narrative or outside knowledge. If the data is thin, say so plainly.',
+    'Be concise (~130 words).',
+    _DISCLAIMER,
+  ].join(' '),
+  CHAIR: [
+    'You are the Chair of the NuWrrrld Financial AI Council.',
+    'You have read every seat\'s answer and critique. Synthesize: state whether the',
+    'council is in consensus or split, the strongest argument on each side, and your',
+    'call. Then, on the FINAL line, output a single-line JSON verdict:',
+    '{"direction":"bullish|bearish|neutral","confidence":"low|medium|high","horizon":"e.g. 1-5d","invalidation":"the level/condition that voids the call"}',
+    _GROUND,
+    'Prose ~180 words, then the JSON line.',
+    _DISCLAIMER,
   ].join(' '),
 };
 
@@ -89,14 +141,22 @@ export async function fetchWithModelFallback(
   throw new Error(`OpenRouter ${lastStatus}: all models in chain failed`);
 }
 
-export async function callCouncilSeat(
+/**
+ * Run one seat against an explicit message list, trying the seat's primary model
+ * then the free-tier chain. Returns the answer plus which model served it and the
+ * wall-clock latency (persisted for observability). Throws only if every model
+ * in the chain fails — callers isolate per-seat failures.
+ */
+export async function runSeat(
   seat: CouncilSeat,
-  userPrompt: string,
+  messages: CouncilMessage[],
   apiKey: string,
+  maxTokens = 500,
 ): Promise<CouncilResponse> {
   const primaryModel = SEAT_MODELS[seat];
   const modelChain = [primaryModel, ...FREE_MODEL_CHAIN.filter(m => m !== primaryModel)];
 
+  const started = Date.now();
   let lastStatus = 503;
   for (const model of modelChain) {
     const ctrl = new AbortController();
@@ -111,20 +171,12 @@ export async function callCouncilSeat(
           'HTTP-Referer': 'https://financial.nuwrrrld.com',
           'X-Title': 'NuWrrrld Financial AI Council',
         },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: SEAT_SYSTEM[seat] },
-            { role: 'user', content: userPrompt },
-          ],
-          max_tokens: 400,
-          temperature: 0.4,
-        }),
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.4 }),
       });
       if (res.ok) {
         const data = await res.json();
         const answer = data.choices?.[0]?.message?.content ?? '';
-        return { answer, model, seat };
+        return { answer, model, seat, latencyMs: Date.now() - started };
       }
       lastStatus = res.status;
       await res.body?.cancel().catch(() => {});
@@ -137,4 +189,26 @@ export async function callCouncilSeat(
     }
   }
   throw new Error(`OpenRouter ${lastStatus}: council ${seat} — all models failed`);
+}
+
+/** System prompt for a seat — exported so the deliberation route can compose rounds. */
+export function seatSystemPrompt(seat: CouncilSeat): string {
+  return SEAT_SYSTEM[seat];
+}
+
+/** Backwards-compatible single-shot call used by the existing /api/council route. */
+export async function callCouncilSeat(
+  seat: CouncilSeat,
+  userPrompt: string,
+  apiKey: string,
+): Promise<CouncilResponse> {
+  return runSeat(
+    seat,
+    [
+      { role: 'system', content: SEAT_SYSTEM[seat] },
+      { role: 'user', content: userPrompt },
+    ],
+    apiKey,
+    400,
+  );
 }
