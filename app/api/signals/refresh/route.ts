@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normaliseDigest, type DigestPayload } from "@/lib/digest";
 import { globalDigestCache } from "@/lib/digest-cache";
+import { saveDigest } from "@/lib/digest-cache-db";
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";
@@ -32,6 +33,9 @@ export async function POST(req: NextRequest) {
 
   globalDigestCache.digest = digest;
   globalDigestCache.pushedAt = Date.now();
+  // Durable: survives serverless cold starts and is shared across instances.
+  // try/catch inside saveDigest → non-fatal if the DB is unreachable.
+  await saveDigest(digest);
 
   console.log(`[signals/refresh] cached ${digest.signals.length} signals from local push`);
   return NextResponse.json({ cached: true, signals: digest.signals.length, generatedAt: digest.generatedAt });
