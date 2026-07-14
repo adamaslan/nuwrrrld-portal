@@ -1,17 +1,29 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  color-scheme: dark;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --bg:        #06070d;
+  --surface:   #0d1018;
+  --surface-2: #141926;
+  --text:      #e8ecf4;
+  --text-dim:  #9aa4bd;
+  --border:    #212a3d;
+
+  --neon-blue: #2fd8ff;
+  --neon-red:  #ff3b5c;
+  --bull: var(--neon-blue);
+  --bear: var(--neon-red);
+
+  --glow-blue: 0 0 12px rgba(47, 216, 255, .55), 0 0 32px rgba(47, 216, 255, .25);
+  --glow-red:  0 0 12px rgba(255, 59, 92, .55),  0 0 32px rgba(255, 59, 92, .25);
+
+  /* legacy aliases kept for pages not yet converted */
+  --background: var(--bg);
+  --foreground: var(--text);
 }
 
 html {
   height: 100%;
+  color-scheme: dark;
 }
 
 html,
@@ -21,14 +33,41 @@ body {
 }
 
 body {
+  position: relative;
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--text);
+  background: var(--bg);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient neon flares — fixed, blurred, non-interactive haze behind content */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  opacity: 0.18;
+}
+
+body::before {
+  top: -20vmax;
+  left: -15vmax;
+  background: var(--neon-blue);
+}
+
+body::after {
+  bottom: -20vmax;
+  right: -15vmax;
+  background: var(--neon-red);
 }
 
 * {
@@ -42,8 +81,21 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+:focus-visible {
+  outline: 2px solid var(--neon-blue);
+  outline-offset: 2px;
+}
+
+/* Accessibility: honor reduced-motion — kill flare/glow animation + transitions,
+   keeping the static neon look. Required guardrail for the neon theme
+   (portal-10x-council-db-local.md, WS4). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
