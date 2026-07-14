@@ -1,0 +1,45 @@
+name: Refresh free model chain
+
+# Weekly, plus manual trigger. Rewrites FREE_MODEL_CHAIN with models that are
+# both $0-priced on OpenRouter and pass a live probe, then opens a PR if the
+# list changed. Merge the PR to redeploy on Vercel.
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Refresh FREE_MODEL_CHAIN
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MODEL_CHAIN_SIZE: '4'
+        run: node scripts/refresh-free-models.mjs
+
+      - name: Open PR if the chain changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/refresh-free-models
+          base: main
+          commit-message: 'chore: refresh FREE_MODEL_CHAIN with currently-free, reachable models'
+          title: 'chore: weekly free-model chain refresh'
+          body: |
+            Automated weekly refresh of `FREE_MODEL_CHAIN` in `lib/openrouter.ts`.
+
+            Each listed model is both **$0-priced** on OpenRouter and passed a
+            **live probe** (returned 200, not 402/429) at refresh time.
+
+            Merge to redeploy. If this PR is empty/absent, the chain was already current.
+          delete-branch: true

@@ -19,12 +19,14 @@ export interface CouncilResponse {
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 
-// Free-tier model fallback chain — tried in order on 429 / 5xx.
-// All three must be truly free-tier (:free suffix or confirmed $0 quota).
+// Free-tier model fallback chain — tried in order on 402 / 429 / 5xx.
+// Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
+// Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
-  'qwen/qwen3-next-80b-a3b-instruct:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'openai/gpt-oss-120b:free',
+  'google/gemma-4-31b-it:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure.
@@ -54,7 +56,7 @@ const SEAT_SYSTEM: Record<CouncilSeat, string> = {
 
 /**
  * Try each model in FREE_MODEL_CHAIN until one returns 2xx.
- * Retries on 429 / 5xx only; other errors propagate immediately.
+ * Retries on 402 / 429 / 5xx; other errors propagate immediately.
  * Callers provide baseBody WITHOUT the model field.
  */
 export async function fetchWithModelFallback(
@@ -80,7 +82,10 @@ export async function fetchWithModelFallback(
       if (response.ok) return { response, model };
       lastStatus = response.status;
       await response.body?.cancel().catch(() => {});
-      if (response.status !== 429 && response.status < 500) break;
+      // Retry on 402 (free-tier quota) / 429 (rate limit) / 5xx; other 4xx are
+      // fatal for this request and propagate. 402 must fall through so one
+      // exhausted free model doesn't abort the rest of the chain.
+      if (response.status !== 402 && response.status !== 429 && response.status < 500) break;
     } catch (err) {
       // Re-throw client-initiated aborts; treat network errors as transient and try next model.
       if (err instanceof Error && err.name === 'AbortError') throw err;
@@ -128,7 +133,9 @@ export async function callCouncilSeat(
       }
       lastStatus = res.status;
       await res.body?.cancel().catch(() => {});
-      if (res.status !== 429 && res.status < 500) break;
+      // Retry on 402 (free-tier quota) / 429 (rate limit) / 5xx; other 4xx are
+      // fatal for this request and propagate.
+      if (res.status !== 402 && res.status !== 429 && res.status < 500) break;
     } catch (err) {
       // Timeout (AbortError from our own ctrl) → try next model; other errors propagate.
       if (err instanceof Error && err.name !== 'AbortError') throw err;
