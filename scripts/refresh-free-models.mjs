@@ -32,7 +32,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
-const CHAIN_SIZE = Number(process.env.MODEL_CHAIN_SIZE ?? 4);
+const envChainSize = Number(process.env.MODEL_CHAIN_SIZE);
+const CHAIN_SIZE = Number.isNaN(envChainSize) ? 4 : envChainSize;
 const MIN_WORKING = 1; // never write a chain that would strand the app with zero models
 const PROBE_TIMEOUT_MS = 15_000;
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -60,9 +61,14 @@ const PREFERRED = [
 ];
 
 function isFree(pricing) {
-  if (!pricing) return false;
-  const zero = (v) => Number(v ?? '0') === 0;
-  return zero(pricing.prompt) && zero(pricing.completion) && zero(pricing.request);
+  if (!pricing || typeof pricing !== 'object') return false;
+  // prompt/completion must be explicitly present and zero. `request` is
+  // commonly omitted by the API when zero/not-applicable, so its absence is
+  // not disqualifying — but if present, it must be zero too.
+  const isZero = (v) => Number(v) === 0;
+  const presentAndZero = (v) => v !== undefined && v !== null && isZero(v);
+  const zeroOrAbsent = (v) => v === undefined || v === null || isZero(v);
+  return presentAndZero(pricing.prompt) && presentAndZero(pricing.completion) && zeroOrAbsent(pricing.request);
 }
 
 function paramSize(id) {
@@ -85,9 +91,17 @@ function rank(a, b) {
 async function fetchFreeModels() {
   const res = await fetch(`${OR_BASE}/models`);
   if (!res.ok) throw new Error(`OpenRouter /models returned ${res.status}`);
-  const { data } = await res.json();
-  return data
-    .filter((m) => isFree(m.pricing) && m.id.endsWith(':free'))
+  let body;
+  try {
+    body = await res.json();
+  } catch {
+    throw new Error('Failed to parse OpenRouter /models response as JSON');
+  }
+  if (!body || !Array.isArray(body.data)) {
+    throw new Error('OpenRouter /models response is missing the "data" array');
+  }
+  return body.data
+    .filter((m) => m && isFree(m.pricing) && typeof m.id === 'string' && m.id.endsWith(':free'))
     .map((m) => m.id)
     .sort(rank);
 }
@@ -140,10 +154,11 @@ function renderChain(models) {
 async function rewriteTarget(models) {
   const src = await readFile(TARGET_FILE, 'utf8');
   const pattern = /export const FREE_MODEL_CHAIN = \[[\s\S]*?\] as const;/;
-  if (!pattern.test(src)) {
+  const match = src.match(pattern);
+  if (!match) {
     throw new Error(`FREE_MODEL_CHAIN block not found in ${TARGET_FILE}`);
   }
-  const current = src.match(pattern)[0];
+  const current = match[0];
   const next = renderChain(models);
   if (current === next) {
     console.log('\nNo change — chain already current.');
