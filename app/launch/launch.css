@@ -1,5 +1,5 @@
 .launch-page { }
-.launch-badge { display: inline-block; background: color-mix(in srgb, #f4b83f 18%, var(--surface)); color: #f4b83f; font-size: .85rem; font-weight: 600; padding: .35rem .85rem; border-radius: 20px; margin-bottom: 1rem; }
+.launch-badge { display: inline-block; background: color-mix(in srgb, var(--neon-yellow) 18%, var(--surface)); color: var(--neon-yellow); font-size: .85rem; font-weight: 600; padding: .35rem .85rem; border-radius: 20px; margin-bottom: 1rem; }
 .launch-hero { text-align: center; padding: 2.5rem 1rem 2rem; }
 .launch-ctas { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: .75rem; }
 .ph-btn { display: inline-flex; align-items: center; gap: .5rem; background: #ff6154; color: #fff; padding: .85rem 1.75rem; border-radius: 10px; font-size: 1rem; font-weight: 700; text-decoration: none; transition: box-shadow .15s; }

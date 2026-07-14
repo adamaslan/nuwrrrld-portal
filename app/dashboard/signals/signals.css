@@ -9,7 +9,7 @@
 .signal-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .375rem; gap: 1rem; }
 .signal-ticker { font-size: 1.2rem; font-weight: 700; color: var(--text); }
 .signal-direction { font-size: .875rem; font-weight: 600; text-transform: capitalize; }
-.signal-share-btn { background: color-mix(in srgb, var(--bull) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bull) 30%, var(--border)); color: var(--bull); padding: .375rem .75rem; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all .15s ease; white-space: nowrap; flex-shrink: 0; }
+.signal-share-btn { background: color-mix(in srgb, var(--bull) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bull) 30%, var(--border)); color: var(--bull); padding: .375rem .75rem; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: background .15s ease, box-shadow .15s ease; white-space: nowrap; flex-shrink: 0; }
 .signal-share-btn:hover { background: color-mix(in srgb, var(--bull) 22%, var(--surface)); }
 .signal-direction--bullish { color: var(--bull); }
 .signal-direction--bearish { color: var(--bear); }
@@ -28,7 +28,7 @@
 .signals-search { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; font-size: .9rem; outline: none; background: var(--surface); color: var(--text); }
 .signals-search:focus { border-color: var(--neon-blue); }
 .signals-filters { display: flex; gap: .35rem; flex-wrap: wrap; }
-.signals-filter-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 20px; padding: .35rem .75rem; font-size: .8rem; font-weight: 500; cursor: pointer; transition: all .15s; }
+.signals-filter-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 20px; padding: .35rem .75rem; font-size: .8rem; font-weight: 500; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .signals-filter-btn--active { background: var(--neon-blue); color: var(--bg); border-color: var(--neon-blue); }
 .signals-sort { border: 1px solid var(--border); border-radius: 8px; padding: .45rem .65rem; font-size: .85rem; background: var(--surface); color: var(--text); cursor: pointer; }
 .signals-no-results { text-align: center; color: var(--text-dim); padding: 2rem 0; }
