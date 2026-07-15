@@ -75,8 +75,12 @@ git commit -am "$commit_msg"
 git push -f origin "$PR_BRANCH"
 
 if command -v gh >/dev/null 2>&1; then
-  if gh pr view "$PR_BRANCH" --repo "$REPO" >/dev/null 2>&1; then
-    echo "==> PR already open for $PR_BRANCH — force-push updated it."
+  # `gh pr view` returns exit 0 even for a closed/merged PR on this branch,
+  # which would wrongly skip `gh pr create` on the next run after a merge.
+  # Only an *open* PR should be treated as "already exists".
+  open_pr="$(gh pr list --repo "$REPO" --head "$PR_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
+  if [[ -n "$open_pr" ]]; then
+    echo "==> PR #$open_pr already open for $PR_BRANCH — force-push updated it."
   else
     gh pr create --repo "$REPO" \
       --base "$BASE_BRANCH" --head "$PR_BRANCH" \

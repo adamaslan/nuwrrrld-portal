@@ -1,0 +1,7 @@
+# Builds the free-model-refresh image with the repo root as build context
+# (so Dockerfile can COPY scripts/run-refresh-remote.sh) while the Dockerfile
+# itself lives in this subdirectory. Invoked by deploy-gcp.sh.
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'deploy/free-model-refresh/Dockerfile', '-t', '${_IMAGE}', '.']
+images: ['${_IMAGE}']
