@@ -78,8 +78,8 @@ if command -v gh >/dev/null 2>&1; then
   # `gh pr view` returns exit 0 even for a closed/merged PR on this branch,
   # which would wrongly skip `gh pr create` on the next run after a merge.
   # Only an *open* PR should be treated as "already exists".
-  open_pr="$(gh pr list --repo "$REPO" --head "$PR_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
-  if [[ -n "$open_pr" ]]; then
+  open_pr="$(gh pr list --repo "$REPO" --head "$PR_BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+  if [[ -n "$open_pr" ]] && [[ "$open_pr" != "null" ]]; then
     echo "==> PR #$open_pr already open for $PR_BRANCH — force-push updated it."
   else
     gh pr create --repo "$REPO" \

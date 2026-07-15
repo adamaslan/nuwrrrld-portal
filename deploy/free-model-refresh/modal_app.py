@@ -50,8 +50,7 @@ app = modal.App("free-model-refresh")
 def _run_refresh() -> None:
     """Execute the wrapper baked into the image."""
     subprocess.run(
-        "bash /app/run-refresh-remote.sh",
-        shell=True,
+        ["/bin/bash", "/app/run-refresh-remote.sh"],
         check=True,
     )
 
