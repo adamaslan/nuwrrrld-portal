@@ -1,17 +1,17 @@
 .nwf-dash {
-  --bg: #08090c;
-  --ink: #f7f3ea;
-  --muted: #aba89e;
-  --dim: #747267;
-  --panel: rgba(18, 20, 25, 0.82);
-  --line: rgba(247, 243, 234, 0.14);
-  --green: #35d07f;
-  --amber: #f4b83f;
-  --cyan: #12c8d8;
-  --coral: #ff6b57;
-  --blue: #4f7cff;
+  /* — global token aliases — */
+  --ink:    var(--text);
+  --muted:  var(--text-dim);
+  --dim:    color-mix(in srgb, var(--text-dim) 70%, transparent);
+  --panel:  var(--surface);
+  --line:   var(--border);
+  --cyan:   var(--neon-blue);
+  --green:  #35d07f;
+  --amber:  var(--neon-yellow);
+  --coral:  var(--neon-red);
+  --blue:   var(--neon-blue);
   --radius: 8px;
-  --max: 1180px;
+  --max:    1180px;
 
   min-height: 100vh;
   width: 100%;
@@ -19,7 +19,7 @@
   background:
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(135deg, #08090c 0%, #0c0e12 60%, #071112 100%);
+    linear-gradient(135deg, var(--bg) 0%, var(--surface) 60%, var(--bg) 100%);
   background-size: 36px 36px, 36px 36px, auto;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.55;
@@ -326,9 +326,9 @@
 .cockpit-mover-conf { font-size: .65rem; color: currentcolor; opacity: .6; }
 
 /* Daily Brief cockpit */
-.cockpit-brief-btn { background: linear-gradient(135deg, #1e40af, #0369a1); color: #fff; border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.cockpit-brief-btn { background: var(--neon-blue); color: var(--bg); border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .cockpit-brief-btn:hover { opacity: .88; }
-.cockpit-brief-btn--locked { background: linear-gradient(135deg, #374151, #4b5563); }
+.cockpit-brief-btn--locked { background: var(--surface-2); }
 .cockpit-brief-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem; }
 .cockpit-brief-card--loading .cockpit-brief-text { opacity: .7; }
 .cockpit-brief-label { font-size: .72rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .5rem; }

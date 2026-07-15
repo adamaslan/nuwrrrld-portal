@@ -1,20 +1,20 @@
 .port-page {
-  --bg: #08090c;
-  --ink: #f7f3ea;
-  --muted: #aba89e;
-  --dim: #747267;
-  --line: rgba(247,243,234,0.12);
-  --green: #35d07f;
-  --amber: #f4b83f;
-  --cyan: #12c8d8;
-  --red: #f43f5e;
-  --blue: #4f7cff;
+  /* — global token aliases — */
+  --ink:    var(--text);
+  --muted:  var(--text-dim);
+  --dim:    color-mix(in srgb, var(--text-dim) 70%, transparent);
+  --line:   var(--border);
+  --cyan:   var(--neon-blue);
+  --green:  #35d07f;
+  --amber:  var(--neon-yellow);
+  --red:    var(--neon-red);
+  --blue:   var(--neon-blue);
 
   min-height: 100vh;
   background:
     linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(135deg, #08090c 0%, #0c0e12 60%, #07110f 100%);
+    linear-gradient(135deg, var(--bg) 0%, var(--surface) 60%, var(--bg) 100%);
   background-size: 36px 36px, 36px 36px, auto;
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -40,7 +40,7 @@
 .port-watch-input { flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 8px; padding: .45rem .75rem; color: var(--ink); font-size: .9rem; text-transform: uppercase; outline: none; }
 .port-watch-input::placeholder { text-transform: none; color: var(--dim); }
 .port-watch-input:focus { border-color: var(--cyan); }
-.port-watch-btn { background: var(--cyan); color: #08090c; border: none; border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; font-weight: 700; cursor: pointer; }
+.port-watch-btn { background: var(--cyan); color: var(--bg); border: none; border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; font-weight: 700; cursor: pointer; }
 .port-watch-btn:disabled { opacity: .5; cursor: not-allowed; }
 .port-watch-btn:hover:not(:disabled) { opacity: .88; }
 .port-watch-list { display: flex; flex-direction: column; gap: 6px; }
@@ -69,7 +69,7 @@
 .port-sector-badge--hold { background: rgba(244,184,63,.1); color: var(--amber); }
 
 /* Health check */
-.port-health-btn { background: linear-gradient(135deg, #065f46, #0369a1); color: #fff; border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; width: 100%; transition: opacity .15s; }
+.port-health-btn { background: var(--neon-blue); color: var(--bg); border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; width: 100%; transition: opacity .15s; }
 .port-health-btn:hover { opacity: .88; }
 .port-health-btn:disabled { opacity: .5; cursor: not-allowed; }
 .port-health-result { background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; margin-top: 12px; }

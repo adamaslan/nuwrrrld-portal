@@ -404,26 +404,19 @@ export default async function Home() {
 
           {(council?.shortTerm?.answer || council?.longTerm?.answer) && (
             <div className="council-layout" style={{ marginTop: "2rem" }}>
-              {council?.shortTerm?.answer && (
-                <article className="council-panel">
-                  <h3>T1 · Short-term · live sample</h3>
+              {[
+                { seat: "T1", horizon: "Short-term", answer: council?.shortTerm?.answer },
+                { seat: "T2", horizon: "Long-term",  answer: council?.longTerm?.answer },
+              ].map(({ seat, horizon, answer }) => answer && (
+                <article className="council-panel" key={seat}>
+                  <h3>{seat} · {horizon} · live sample</h3>
                   <p className="section-copy">SPY · council in session</p>
                   <div className="council-live-output">
-                    <div className="council-live-label">T1 seat · live</div>
-                    <p>{council.shortTerm.answer}</p>
+                    <div className="council-live-label">{seat} seat · live</div>
+                    <p>{answer}</p>
                   </div>
                 </article>
-              )}
-              {council?.longTerm?.answer && (
-                <article className="council-panel">
-                  <h3>T2 · Long-term · live sample</h3>
-                  <p className="section-copy">SPY · council in session</p>
-                  <div className="council-live-output">
-                    <div className="council-live-label">T2 seat · live</div>
-                    <p>{council.longTerm.answer}</p>
-                  </div>
-                </article>
-              )}
+              ))}
             </div>
           )}
         </div>
