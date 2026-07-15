@@ -16,7 +16,7 @@ async function fetchCouncilSample(): Promise<CouncilSample | null> {
   try {
     const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://financial.nuwrrrld.com";
     const res = await fetch(`${base}/api/council/sample`, {
-      next: { revalidate: 21600 }, // 6h — matches the route's in-memory TTL
+      next: { revalidate: 21600 },
     });
     if (!res.ok) return null;
     return await res.json() as CouncilSample;
@@ -54,8 +54,6 @@ async function fetchLandingData() {
   return { market, topSignals, council: councilData };
 }
 
-// Signed-out visitors get the marketing landing (mirrors
-// gcp3-mobile/landing/index3.html); signed-in users go straight to the tooling.
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
@@ -88,9 +86,9 @@ export default async function Home() {
             <span>NuWrrrld</span> <span>Financial</span>
           </h1>
           <p className="hero-copy">
-            The caring command center for active investors — market briefings, macro regime reads,
-            signal matrices, Hold/Fold trade verdicts, and an AI council that reasons across every
-            horizon from one day to five years.
+            The caring command center for active investors — live market briefings, macro regime reads,
+            signal matrices with data quality scores, per-signal Ask Anything chat, and a six-seat AI council
+            that reasons across every horizon from one day to five years.
           </p>
           <div className="hero-actions">
             <Link className="btn primary" href="/sign-up">Create your account</Link>
@@ -183,7 +181,7 @@ export default async function Home() {
                     </>
                   )}
                 </div>
-                <div className="council-bubble">Signal confidence compresses technical, macro, sector, sentiment, and event evidence.</div>
+                <div className="council-bubble">Signal quality scores compress technical, macro, sector, sentiment, and event evidence into a single 0–1 read.</div>
               </div>
             </div>
           </div>
@@ -191,10 +189,25 @@ export default async function Home() {
       </header>
 
       <div className="peek-band" aria-label="Key platform metrics">
-        <div className="metric"><strong>6</strong><span>AI council modes across short and long horizons.</span></div>
-        <div className="metric"><strong>138</strong><span>Signal outputs normalized into decisions.</span></div>
+        <div className="metric"><strong>6</strong><span>AI council seats — T1, T2, Risk, Macro, Quant, Chair.</span></div>
+        <div className="metric"><strong>138</strong><span>Signal outputs normalized into scored decisions.</span></div>
         <div className="metric"><strong>380+</strong><span>Data points compressed per symbol read.</span></div>
         <div className="metric"><strong>Live</strong><span>One account for web tools and the mobile app.</span></div>
+      </div>
+
+      {/* ── What's New banner ── */}
+      <div className="whats-new-band">
+        <div className="wrap whats-new-inner">
+          <span className="whats-new-label">What&apos;s new</span>
+          <div className="whats-new-items">
+            <span className="wn-chip">Six-seat AI council</span>
+            <span className="wn-chip">Ask Anything per signal</span>
+            <span className="wn-chip">Data quality scores</span>
+            <span className="wn-chip">Track-record &amp; backtest display</span>
+            <span className="wn-chip">Free-tier model chain</span>
+            <span className="wn-chip">Neon dark theme</span>
+          </div>
+        </div>
       </div>
 
       <section id="product">
@@ -205,8 +218,8 @@ export default async function Home() {
               <h2>From market state to trade decision without leaving the app.</h2>
             </div>
             <p className="section-copy">
-              One caring workflow for active investors: daily briefing, macro context, tactical signals,
-              Hold/Fold reads, and council chat — in the browser here, and in the NuWrrrld mobile app.
+              Daily briefing, macro context, scored signals, Hold/Fold reads, per-signal Ask Anything chat,
+              and full council deliberation — in the browser here, and in the NuWrrrld mobile app.
             </p>
           </div>
 
@@ -221,26 +234,27 @@ export default async function Home() {
             </article>
             <article className="surface">
               <h3>Signal Feed</h3>
-              <p>Ranked buy, sell, and hold outputs with confidence and rationale — the first pass before deeper analysis.</p>
+              <p>Ranked buy, sell, and hold outputs with confidence scores, data quality ratings, and rationale — backed by a rolling track record from the signals engine.</p>
               <ul className="feature-list">
-                <li>Normalized ticker decisions.</li>
-                <li>Confidence scores and reason snippets.</li>
+                <li>Data quality score (0–1) on every signal.</li>
+                <li>Backtest hit-rates from the signals-app engine.</li>
               </ul>
             </article>
             <article className="surface">
-              <h3>Hold/Fold</h3>
-              <p>Tactical verdicts for trades: bias, risk, volatility regime, primary signal, and supporting evidence.</p>
+              <h3>Ask Anything</h3>
+              <p className="new-badge-inline">New</p>
+              <p>Expand any signal and ask it a question. A tool-using agent grounded in that signal&apos;s live data answers with citations — no context switching required.</p>
               <ul className="feature-list">
-                <li>Verdict, confidence, and risk.</li>
-                <li>ATR, RSI, MACD, ADX context.</li>
+                <li>Per-signal streaming chat, abort-safe.</li>
+                <li>Grounded in the signal&apos;s own data — not generic AI.</li>
               </ul>
             </article>
             <article className="surface wide">
-              <h3>AI Council Chat</h3>
-              <p>Ask the app to reason like a council: short-term trader, long-term investor, or agreement synthesis across both — with exact data citations and horizon-specific invalidation levels required.</p>
+              <h3>Six-Seat AI Council</h3>
+              <p>The council expanded from two voices to six specialized seats. Each seat is required to cite exact data and name its invalidation point before a user can act on the synthesis.</p>
               <ul className="feature-list">
-                <li>Short term: 1 day to 60 days. Long term: 2 months to 5 years.</li>
-                <li>Conflicts named and resolved into sizing logic.</li>
+                <li>T1 (short-term) · T2 (long-term) · RISK (devil&apos;s advocate) · MACRO (rates &amp; rotation) · QUANT (data-only) · CHAIR (synthesis &amp; verdict).</li>
+                <li>Conflicts are named and resolved into a structured JSON verdict with direction, confidence, and invalidation level.</li>
               </ul>
             </article>
           </div>
@@ -262,8 +276,8 @@ export default async function Home() {
 
           <div className="matrix" role="img" aria-label="Example signal matrix with decisions across time horizons">
             <div className="matrix-head">
-              <strong>Signal Matrix - NVDA</strong>
-              <span className="pill">380+ inputs</span>
+              <strong>Signal Matrix — NVDA</strong>
+              <span className="pill">380+ inputs · quality score: 0.91</span>
             </div>
             <div className="matrix-scroll">
               <div className="matrix-grid">
@@ -321,7 +335,7 @@ export default async function Home() {
           <div className="moat-grid">
             <div className="moat-card">
               <h3>Robust by architecture</h3>
-              <p>138 signal outputs from 380+ data points per symbol, with confidence, horizon fit, and an explicit invalidation level on every verdict.</p>
+              <p>138 signal outputs from 380+ data points per symbol, each carrying a data quality score (0–1), confidence, horizon fit, and an explicit invalidation level. Backtest hit-rates surface directly on every signal card.</p>
               <ul className="feature-list">
                 <li>Five independent evidence families per decision.</li>
                 <li>Council answers must cite exact data before you act.</li>
@@ -329,7 +343,7 @@ export default async function Home() {
             </div>
             <div className="moat-card">
               <h3>A dataset nobody else has</h3>
-              <p>Every verdict, council reasoning chain, and daily regime score is logged into an append-only proprietary dataset that compounds with every market day.</p>
+              <p>Every verdict, council reasoning chain, daily regime score, and data quality rating is logged into an append-only proprietary dataset that compounds with every market day.</p>
               <ul className="feature-list">
                 <li>Verdict ledger → publishable rolling hit-rates.</li>
                 <li>Horizon-tagged council corpus and regime archive.</li>
@@ -343,52 +357,75 @@ export default async function Home() {
         <div className="wrap">
           <div className="section-head">
             <div>
-              <div className="kicker">AI council</div>
-              <h2>One question, multiple time horizons, explicit disagreement.</h2>
+              <div className="kicker">Six-seat AI council</div>
+              <h2>One question. Six specialized perspectives. One structured verdict.</h2>
             </div>
             <p className="section-copy">
-              The council does not just summarize. It forces the short-term and long-term views to cite data,
-              name invalidation points, and reconcile conflicts before a user acts.
+              The council does not summarize — it forces every seat to cite data, name its invalidation point,
+              and reconcile conflicts before the Chair issues a JSON verdict with direction, confidence, and horizon.
             </p>
           </div>
 
-          <div className="council-layout">
-            <article className="council-panel">
-              <h3>Short-term council</h3>
-              <p className="section-copy">For tactical trades: speed, range, catalyst timing, and technical invalidation.</p>
-              {council?.shortTerm?.answer ? (
-                <div className="council-live-output">
-                  <div className="council-live-label">SPY · live sample</div>
-                  <p>{council.shortTerm.answer}</p>
-                </div>
-              ) : (
-                <div className="horizon-grid">
-                  <div className="horizon"><b>1 day</b><span>Next-session momentum and range.</span></div>
-                  <div className="horizon"><b>2-5 days</b><span>Swing setup and catalyst timing.</span></div>
-                  <div className="horizon"><b>1-4 weeks</b><span>Trend strength and regime quality.</span></div>
-                  <div className="horizon"><b>30-60 days</b><span>Durability, volatility, and macro risk.</span></div>
-                </div>
-              )}
+          <div className="seat-grid">
+            <article className="seat-card">
+              <div className="seat-tag t1">T1</div>
+              <h3>Short-Term Trader</h3>
+              <p>Tactical trades, 1-day to 60-day horizons. Delivers outlook, key driver, entry/exit, and stop with exact data citations.</p>
             </article>
-
-            <article className="council-panel">
-              <h3>Long-term council</h3>
-              <p className="section-copy">For allocation decisions: earnings, trend, cycle, and structural horizons.</p>
-              {council?.longTerm?.answer ? (
-                <div className="council-live-output">
-                  <div className="council-live-label">SPY · live sample</div>
-                  <p>{council.longTerm.answer}</p>
-                </div>
-              ) : (
-                <div className="horizon-grid">
-                  <div className="horizon"><b>2-3 months</b><span>Tactical and earnings-cycle read.</span></div>
-                  <div className="horizon"><b>6-12 months</b><span>Sector rotation and trend regime.</span></div>
-                  <div className="horizon"><b>1-3 years</b><span>Business cycle and macro phase.</span></div>
-                  <div className="horizon"><b>3-5 years</b><span>Structural shift or cyclical noise.</span></div>
-                </div>
-              )}
+            <article className="seat-card">
+              <div className="seat-tag t2">T2</div>
+              <h3>Long-Term Investor</h3>
+              <p>Strategic positions, 2 months to 5 years. Secular thesis, risk/reward over 6–12m, key catalyst and invalidation.</p>
+            </article>
+            <article className="seat-card">
+              <div className="seat-tag risk">RISK</div>
+              <h3>Devil&apos;s Advocate</h3>
+              <p>Argues the case against the prevailing direction. Names failure modes, downside scenario, and how a position would be sized to survive being wrong.</p>
+            </article>
+            <article className="seat-card">
+              <div className="seat-tag macro">MACRO</div>
+              <h3>Macro Context</h3>
+              <p>Rates, dollar, liquidity, and sector rotation. Is the macro wind at this trade&apos;s back or in its face? What macro event would invalidate it?</p>
+            </article>
+            <article className="seat-card">
+              <div className="seat-tag quant">QUANT</div>
+              <h3>Quantitative</h3>
+              <p>Interprets only the numeric data — confluence score, per-indicator signals, historical hit-rates. No narrative; no outside knowledge.</p>
+            </article>
+            <article className="seat-card chair">
+              <div className="seat-tag chair-tag">CHAIR</div>
+              <h3>Chair — Synthesis</h3>
+              <p>Reads all five seats. States whether the council is in consensus or split, the strongest argument on each side, then issues a structured JSON verdict.</p>
+              <div className="verdict-example mono">
+                {`{"direction":"bullish","confidence":"high","horizon":"5-15d","invalidation":"<462"}`}
+              </div>
             </article>
           </div>
+
+          {(council?.shortTerm?.answer || council?.longTerm?.answer) && (
+            <div className="council-layout" style={{ marginTop: "2rem" }}>
+              {council?.shortTerm?.answer && (
+                <article className="council-panel">
+                  <h3>T1 · Short-term · live sample</h3>
+                  <p className="section-copy">SPY · council in session</p>
+                  <div className="council-live-output">
+                    <div className="council-live-label">T1 seat · live</div>
+                    <p>{council.shortTerm.answer}</p>
+                  </div>
+                </article>
+              )}
+              {council?.longTerm?.answer && (
+                <article className="council-panel">
+                  <h3>T2 · Long-term · live sample</h3>
+                  <p className="section-copy">SPY · council in session</p>
+                  <div className="council-live-output">
+                    <div className="council-live-label">T2 seat · live</div>
+                    <p>{council.longTerm.answer}</p>
+                  </div>
+                </article>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -398,7 +435,8 @@ export default async function Home() {
           <h2>Give every market question a council, not just a chart.</h2>
           <p>
             One account unlocks the web tools here and the NuWrrrld Financial mobile app — a repeatable
-            decision workflow for market state, signal evidence, horizon conflict, and a plan you can revisit.
+            decision workflow with signal quality scores, per-signal Ask Anything chat, six-seat council
+            deliberation, and a rolling verdict track record you can revisit.
           </p>
           <div className="hero-actions">
             <Link className="btn primary" href="/sign-up">Create your account</Link>
