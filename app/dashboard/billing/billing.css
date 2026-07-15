@@ -69,7 +69,7 @@
 }
 
 .billing-status--active { color: var(--bull); }
-.billing-status--trialing { color: #f4b83f; }
+.billing-status--trialing { color: var(--neon-yellow); }
 .billing-status--past_due { color: var(--bear); }
 .billing-status--canceled { color: var(--text-dim); }
 .billing-status--free { color: var(--text-dim); }

@@ -8,8 +8,9 @@
   --text-dim:  #9aa4bd;
   --border:    #212a3d;
 
-  --neon-blue: #2fd8ff;
-  --neon-red:  #ff3b5c;
+  --neon-blue:   #2fd8ff;
+  --neon-red:    #ff3b5c;
+  --neon-yellow: #f4b83f;
   --bull: var(--neon-blue);
   --bear: var(--neon-red);
 
@@ -34,6 +35,7 @@ body {
 
 body {
   position: relative;
+  isolation: isolate;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -56,6 +58,8 @@ body::after {
   filter: blur(120px);
   pointer-events: none;
   opacity: 0.18;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 body::before {
@@ -84,4 +88,18 @@ a {
 :focus-visible {
   outline: 2px solid var(--neon-blue);
   outline-offset: 2px;
+}
+
+/* Accessibility: honor reduced-motion — kill flare/glow animation + transitions,
+   keeping the static neon look. Required guardrail for the neon theme
+   (portal-10x-council-db-local.md, WS4). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
