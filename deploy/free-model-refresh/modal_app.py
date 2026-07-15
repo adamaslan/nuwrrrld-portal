@@ -17,42 +17,40 @@ Run once manually:
 """
 
 import subprocess
+from pathlib import Path
 
 import modal
 
-RUNNER_URL = (
-    "https://raw.githubusercontent.com/adamaslan/nuwrrrld-portal/"
-    "main/scripts/run-refresh-remote.sh"
-)
+# Baked into the image at build time rather than curled from GitHub `main` at
+# runtime — curling a remote script into a container on every scheduled run is
+# a supply-chain risk (a compromised or edited `main` gets executed with the
+# job's secrets) and makes it impossible to test changes on another branch.
+RUNNER_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "run-refresh-remote.sh"
 
 image = (
     modal.Image.debian_slim()
     .apt_install("git", "curl", "ca-certificates", "gnupg", "nodejs")
     # gh CLI for PR creation
     .run_commands(
+        "mkdir -p /usr/share/keyrings",
         "curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg "
-        "| dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg",
+        "-o /usr/share/keyrings/githubcli-archive-keyring.gpg",
         'echo "deb [arch=$(dpkg --print-architecture) '
         'signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] '
         'https://cli.github.com/packages stable main" '
         "> /etc/apt/sources.list.d/github-cli.list",
         "apt-get update && apt-get install -y gh",
     )
+    .add_local_file(str(RUNNER_SCRIPT), "/app/run-refresh-remote.sh")
 )
 
 app = modal.App("free-model-refresh")
 
 
 def _run_refresh() -> None:
-    """Fetch the wrapper from the repo and execute it."""
+    """Execute the wrapper baked into the image."""
     subprocess.run(
-        f'curl -fsSL "{RUNNER_URL}" -o /tmp/run-refresh-remote.sh',
-        shell=True,
-        check=True,
-    )
-    subprocess.run(
-        "bash /tmp/run-refresh-remote.sh",
-        shell=True,
+        ["/bin/bash", "/app/run-refresh-remote.sh"],
         check=True,
     )
 

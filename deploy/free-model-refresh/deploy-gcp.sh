@@ -18,11 +18,15 @@ JOB="${JOB:-free-model-refresh}"
 SCHEDULE="${SCHEDULE:-0 9 * * 1}"          # Mondays 09:00
 IMAGE="${IMAGE:-gcr.io/${PROJECT}/${JOB}:latest}"
 DOCKER_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$DOCKER_DIR/../.." && pwd)"
 
 echo "==> Project=$PROJECT Region=$REGION Job=$JOB Image=$IMAGE"
 
-echo "==> Building image with Cloud Build (context = deploy dir, Dockerfile is self-contained)"
-gcloud builds submit "$DOCKER_DIR" --tag "$IMAGE" --project "$PROJECT"
+echo "==> Building image with Cloud Build (context = repo root, so Dockerfile can COPY scripts/run-refresh-remote.sh)"
+gcloud builds submit "$REPO_ROOT" \
+  --config "$DOCKER_DIR/cloudbuild.yaml" \
+  --substitutions "_IMAGE=${IMAGE}" \
+  --project "$PROJECT"
 
 echo "==> Deploying Cloud Run Job"
 gcloud run jobs deploy "$JOB" \
@@ -35,6 +39,15 @@ gcloud run jobs deploy "$JOB" \
 echo "==> Creating/updating weekly Cloud Scheduler trigger"
 SA="$(gcloud run jobs describe "$JOB" --region "$REGION" --project "$PROJECT" \
         --format='value(template.template.serviceAccount)')"
+if [[ -z "$SA" ]]; then
+  # A Job deployed without an explicit --service-account uses the project's
+  # default compute SA, but `describe` returns an empty string for that case
+  # rather than the resolved email — resolve it ourselves or Scheduler
+  # creation below fails/misconfigures.
+  PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')"
+  SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+  echo "==> Job has no explicit service account; falling back to default compute SA: $SA"
+fi
 RUN_URI="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT}/jobs/${JOB}:run"
 
 if gcloud scheduler jobs describe "${JOB}-weekly" --location "$REGION" --project "$PROJECT" >/dev/null 2>&1; then
