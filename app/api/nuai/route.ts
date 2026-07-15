@@ -5,24 +5,51 @@ import type { SubscriptionStatus } from "@/lib/subscription";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
 import { fetchWithModelFallback } from "@/lib/openrouter";
+import { getUsedTokensToday, addTokenUsage } from "@/lib/nuai-db";
+import { getWatchlist } from "@/lib/watchlist-store";
+import { getOrFetchDigest } from "@/lib/digest-cache";
 
-// Simple per-user daily token counter (in-memory; resets on cold start).
-// For production this should be persisted in a KV store (e.g. Vercel KV).
-const dailyUsage = new Map<string, { tokens: number; resetAt: number }>();
+// Durable daily token budget: Neon is the source of truth (survives cold
+// starts); this Map is an in-process L1 in front of it, refreshed every 60s
+// per user so a burst of requests within a minute doesn't hammer the DB.
+const L1_TTL_MS = 60_000;
+const dailyUsageL1 = new Map<string, { tokens: number; expiresAt: number }>();
 
-function getRemainingBudget(userId: string): number {
+async function getRemainingBudget(userId: string): Promise<number> {
   const now = Date.now();
-  const rec = dailyUsage.get(userId);
-  if (!rec || rec.resetAt < now) {
-    dailyUsage.set(userId, { tokens: 0, resetAt: now + 86_400_000 });
-    return NU_AI_DAILY_TOKEN_BUDGET;
+  const cached = dailyUsageL1.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return NU_AI_DAILY_TOKEN_BUDGET - cached.tokens;
   }
-  return NU_AI_DAILY_TOKEN_BUDGET - rec.tokens;
+  const used = await getUsedTokensToday(userId);
+  dailyUsageL1.set(userId, { tokens: used, expiresAt: now + L1_TTL_MS });
+  return NU_AI_DAILY_TOKEN_BUDGET - used;
 }
 
-function recordUsage(userId: string, tokens: number) {
-  const rec = dailyUsage.get(userId);
-  if (rec) rec.tokens += tokens;
+async function recordUsage(userId: string, tokens: number) {
+  const cached = dailyUsageL1.get(userId);
+  if (cached) cached.tokens += tokens;
+  await addTokenUsage(userId, tokens);
+}
+
+// Per-minute rate limit — in-memory fixed-window counter, deliberately simple
+// (no external dependency) since it only needs to survive within one
+// serverless instance's lifetime to blunt a request burst; the daily budget
+// above is the durable backstop.
+const RATE_LIMIT_MAX_PER_MINUTE = 12;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitWindows = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const rec = rateLimitWindows.get(userId);
+  if (!rec || now - rec.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitWindows.set(userId, { count: 1, windowStart: now });
+    return true;
+  }
+  if (rec.count >= RATE_LIMIT_MAX_PER_MINUTE) return false;
+  rec.count += 1;
+  return true;
 }
 
 export async function POST(req: NextRequest) {
@@ -37,7 +64,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "upgrade_required", upgradeUrl: "/pricing?source=nuai" }, { status: 403 });
   }
 
-  if (getRemainingBudget(userId) <= 0) {
+  if (!checkRateLimit(userId)) {
+    return NextResponse.json({ error: "rate_limit_exceeded" }, { status: 429 });
+  }
+
+  if ((await getRemainingBudget(userId)) <= 0) {
     return NextResponse.json({ error: "daily_limit_reached" }, { status: 429 });
   }
 
@@ -67,6 +98,28 @@ export async function POST(req: NextRequest) {
     ? `The user currently holds: ${portfolioContext.join(", ")}.`
     : "The user has not connected a portfolio yet.";
 
+  // Give Nu AI access to the app's own data — the user's watchlist and the
+  // latest signals digest — so it can answer questions grounded in what the
+  // app is actually showing, not just generic knowledge. Both are best-effort:
+  // a watchlist/digest outage degrades to "unavailable" rather than failing
+  // the whole chat request.
+  const [watchlist, digest] = await Promise.all([
+    getWatchlist(userId).catch(() => []),
+    getOrFetchDigest(userId).catch(() => null),
+  ]);
+
+  const watchlistLine = watchlist.length > 0
+    ? `The user's watchlist: ${watchlist.map(w => w.ticker).join(", ")}.`
+    : "The user has not added any tickers to their watchlist yet.";
+
+  const digestLine = digest && digest.signals.length > 0
+    ? `Latest signals digest (generated ${digest.generatedAt}): ` +
+      digest.signals
+        .slice(0, 8)
+        .map(s => `${s.ticker} ${s.direction} (${s.confidence} confidence)`)
+        .join("; ") + "."
+    : "No live signals digest is currently available.";
+
   const systemPrompt = [
     "You are Nu AI, a financial information assistant for NuWrrrld Financial.",
     "You help users understand their portfolio, market signals, and financial concepts.",
@@ -74,6 +127,8 @@ export async function POST(req: NextRequest) {
     "Never provide specific buy/sell price targets or personalised trading advice.",
     "If you are uncertain, say so clearly rather than guessing.",
     contextLine,
+    watchlistLine,
+    digestLine,
   ].join("\n");
 
   const controller = new AbortController();
@@ -144,7 +199,7 @@ export async function POST(req: NextRequest) {
         }
       } finally {
         clearTimeout(timer);
-        recordUsage(userId, tokenCount);
+        void recordUsage(userId, tokenCount);
         reader.cancel().catch(() => {});
       }
       return NextResponse.json({
@@ -178,7 +233,7 @@ export async function POST(req: NextRequest) {
           ctrl.error(err);
         } finally {
           clearTimeout(timer);
-          recordUsage(userId, tokenCount);
+          void recordUsage(userId, tokenCount);
         }
       },
       cancel() {

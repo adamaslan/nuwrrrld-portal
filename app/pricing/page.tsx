@@ -1,5 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { CheckoutButton } from "./CheckoutButton";
 import "./pricing.css";
@@ -14,14 +12,13 @@ export default async function PricingPage({
 }: {
   searchParams: Promise<{ checkout?: string }>;
 }) {
-  const { userId } = await auth();
   const params = await searchParams;
 
-  // Redirect signed-out visitors to sign-up with pricing as the destination
-  if (!userId) {
-    redirect("/sign-up?redirect_url=/pricing");
-  }
-
+  // Pricing is viewable by anyone — signed-out visitors previously got
+  // redirected to /sign-up?redirect_url=/pricing, which lands back on /pricing
+  // after signing up, forming a redirect loop with no way to see plans first.
+  // Auth is now only required at the checkout action itself; CheckoutButton
+  // sends unauthenticated clicks to sign-in instead.
   const cancelled = params.checkout === "cancelled";
 
   return (

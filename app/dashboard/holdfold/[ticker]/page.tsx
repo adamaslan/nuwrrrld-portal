@@ -5,6 +5,7 @@ import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import type { HoldFoldVerdict } from "@/app/api/holdfold/route";
+import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 import "../holdfold.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
@@ -185,6 +186,11 @@ export default async function TickerDetailPage(
             <p className="hf-outlook-text">{v.aiOutlook}</p>
           </div>
         )}
+
+        <div className="hf-backtest-link">
+          <p className="hf-section-label">TRACK RECORD</p>
+          <TrackRecordBadge symbol={v.ticker} strength={v.confidenceLabel} />
+        </div>
 
         <div className="hf-detail-footer">
           <Link href="/dashboard/holdfold" className="hf-back" style={{ margin: 0 }}>

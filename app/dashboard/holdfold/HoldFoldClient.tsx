@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { HoldFoldPayload, HoldFoldVerdict } from "@/app/api/holdfold/route";
 
 interface Props {
@@ -9,13 +10,27 @@ interface Props {
 
 type CouncilSeat = "T1" | "T2";
 
+interface StructuredVerdict {
+  outlook: string;
+  keyDriver: string;
+  invalidationLevel: string;
+  entry: string;
+  exit: string;
+  stop: string;
+}
+
 interface CouncilState {
   status: "idle" | "loading" | "ok" | "error";
-  answer?: string;
+  verdict?: StructuredVerdict;
   model?: string;
   error?: string;
-  seat?: CouncilSeat;
 }
+
+const COUNCIL_ERROR_MESSAGES: Record<string, string> = {
+  council_response_invalid:
+    "The council's response didn't come back in a usable format — please try again.",
+  upgrade_required: "Upgrade to Pro to consult the AI council.",
+};
 
 function buildCouncilPrompt(v: HoldFoldVerdict, seat: CouncilSeat): string {
   const fmt = (n: number | null) => (n == null ? "n/a" : n.toFixed(2));
@@ -60,24 +75,72 @@ function StrengthBadge({ strength }: { strength: string }) {
   return <span className={cls}>{strength}</span>;
 }
 
-function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void }) {
+function CouncilSeatPanel({
+  seat,
+  label,
+  v,
+}: {
+  seat: CouncilSeat;
+  label: string;
+  v: HoldFoldVerdict;
+}) {
   const [council, setCouncil] = useState<CouncilState>({ status: "idle" });
 
-  async function askCouncil(seat: CouncilSeat) {
-    setCouncil({ status: "loading", seat });
+  async function askCouncil() {
+    setCouncil({ status: "loading" });
     try {
       const res = await fetch("/api/council", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildCouncilPrompt(v, seat), seat }),
+        body: JSON.stringify({ prompt: buildCouncilPrompt(v, seat), seat, ticker: v.ticker }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setCouncil({ status: "ok", answer: data.answer, model: data.model, seat });
-    } catch (err) {
-      setCouncil({ status: "error", error: err instanceof Error ? err.message : "Council unavailable", seat });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = COUNCIL_ERROR_MESSAGES[data.error] ?? `Council unavailable (HTTP ${res.status}).`;
+        setCouncil({ status: "error", error: message });
+        return;
+      }
+      setCouncil({ status: "ok", verdict: data.verdict, model: data.model });
+    } catch {
+      setCouncil({ status: "error", error: "Network error — council unavailable." });
     }
   }
+
+  return (
+    <div className="hf-council-seat-panel">
+      <button
+        className="hf-seat-btn"
+        onClick={askCouncil}
+        disabled={council.status === "loading"}
+      >
+        {council.status === "loading" ? "Consulting…" : council.status === "idle" ? label : `↺ ${label}`}
+      </button>
+
+      {council.status === "ok" && council.verdict && (
+        <div className="hf-council-answer">
+          <p className="hf-council-seat-label">
+            {label.toUpperCase()}
+            {council.model && <span className="hf-council-model"> · {council.model.split("/").pop()}</span>}
+          </p>
+          <dl className="hf-council-fields">
+            <dt>Outlook</dt><dd>{council.verdict.outlook}</dd>
+            <dt>Key driver</dt><dd>{council.verdict.keyDriver}</dd>
+            <dt>Invalidation</dt><dd>{council.verdict.invalidationLevel}</dd>
+            <dt>Entry</dt><dd>{council.verdict.entry}</dd>
+            <dt>Exit</dt><dd>{council.verdict.exit}</dd>
+            <dt>Stop</dt><dd>{council.verdict.stop}</dd>
+          </dl>
+        </div>
+      )}
+
+      {council.status === "error" && (
+        <p className="hf-council-error">{council.error}</p>
+      )}
+    </div>
+  );
+}
+
+function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void }) {
 
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
   const verdictCls = v.verdict === "HOLD EM" ? "hf-verdict--hold" : v.verdict === "FOLD EM" ? "hf-verdict--fold" : "hf-verdict--neutral";
@@ -125,38 +188,18 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
         </div>
       )}
 
+      <div className="hf-backtest-link">
+        <Link href={`/dashboard/holdfold/${encodeURIComponent(v.ticker)}`} className="hf-back">
+          View full ticker page &amp; backtest track record →
+        </Link>
+      </div>
+
       <div className="hf-council">
-        <p className="hf-section-label">AI COUNCIL</p>
-        <div className="hf-council-seats">
-          <button
-            className={`hf-seat-btn${council.seat === "T1" ? " hf-seat-btn--active" : ""}`}
-            onClick={() => askCouncil("T1")}
-            disabled={council.status === "loading"}
-          >
-            {council.status === "loading" && council.seat === "T1" ? "Consulting…" : "Short-Term (T1)"}
-          </button>
-          <button
-            className={`hf-seat-btn${council.seat === "T2" ? " hf-seat-btn--active" : ""}`}
-            onClick={() => askCouncil("T2")}
-            disabled={council.status === "loading"}
-          >
-            {council.status === "loading" && council.seat === "T2" ? "Consulting…" : "Long-Term (T2)"}
-          </button>
+        <p className="hf-section-label">AI COUNCIL — SHORT-TERM &amp; LONG-TERM</p>
+        <div className="hf-council-grid">
+          <CouncilSeatPanel seat="T1" label="Short-Term (T1)" v={v} />
+          <CouncilSeatPanel seat="T2" label="Long-Term (T2)" v={v} />
         </div>
-
-        {council.status === "ok" && council.answer && (
-          <div className="hf-council-answer">
-            <p className="hf-council-seat-label">
-              {council.seat === "T1" ? "SHORT-TERM" : "LONG-TERM"} COUNCIL
-              {council.model && <span className="hf-council-model"> · {council.model.split("/").pop()}</span>}
-            </p>
-            <p className="hf-council-text">{council.answer}</p>
-          </div>
-        )}
-
-        {council.status === "error" && (
-          <p className="hf-council-error">{council.error}</p>
-        )}
       </div>
     </div>
   );

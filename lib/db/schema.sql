@@ -88,3 +88,35 @@ CREATE TABLE IF NOT EXISTS council_usage (
   deliberations int NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, usage_date)
 );
+
+-- ── Watchlist persistence (audit 2026-07-15: replaces the in-memory Map in
+--    lib/watchlist-store.ts — every deploy previously wiped every user's list) ──
+
+CREATE TABLE IF NOT EXISTS watchlist_items (
+  user_id  text        NOT NULL,      -- Clerk userId
+  ticker   text        NOT NULL,
+  added_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, ticker)
+);
+CREATE INDEX IF NOT EXISTS watchlist_items_user_idx ON watchlist_items (user_id);
+
+-- ── Nu AI daily token budget (audit 2026-07-15: replaces the in-memory Map in
+--    app/api/nuai/route.ts — budget previously reset on every cold start) ────
+
+CREATE TABLE IF NOT EXISTS nuai_usage (
+  user_id    text NOT NULL,
+  usage_date date NOT NULL,
+  tokens     int  NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, usage_date)
+);
+
+-- ── Hold/Fold verdict cache (audit 2026-07-15: replaces the in-memory `cached`
+--    module variable in app/api/holdfold/route.ts) ───────────────────────────
+
+CREATE TABLE IF NOT EXISTS holdfold_cache (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  payload      jsonb       NOT NULL,
+  generated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS holdfold_cache_generated_at_idx
+  ON holdfold_cache (generated_at DESC);

@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { store } from "@/lib/watchlist-store";
+import { getWatchlist } from "@/lib/watchlist-store";
 import { PortfolioClient } from "./PortfolioClient";
 import "./portfolio.css";
 
@@ -64,8 +64,13 @@ export default async function PortfolioPage() {
     redirect("/pricing?source=portfolio");
   }
 
-  const [industryData] = await Promise.all([fetchIndustryData()]);
-  const watchlist = store.get(userId) ?? [];
+  const [industryData, watchlist] = await Promise.all([
+    fetchIndustryData(),
+    getWatchlist(userId).catch((err) => {
+      console.error("Watchlist read failed", err);
+      return [];
+    }),
+  ]);
 
   return (
     <main className="port-page">

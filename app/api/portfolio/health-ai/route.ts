@@ -2,7 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { store } from "@/lib/watchlist-store";
+import { getWatchlist } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
 import { fetchWithModelFallback } from "@/lib/openrouter";
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
-  const watchlist = (store.get(userId) ?? []).map(i => i.ticker);
+  const watchlist = await getWatchlist(userId).catch(() => []).then(list => list.map(i => i.ticker));
   const token = await getToken().catch(() => null);
   const health = token ? await fetchHealth(userId, token) : null;
   const prompt = buildHealthPrompt(watchlist, health);

@@ -15,7 +15,17 @@ export async function POST(req: NextRequest) {
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret || webhookSecret.startsWith('whsec_placeholder')) {
-    console.error("STRIPE_WEBHOOK_SECRET not configured");
+    // Structured, loud failure: this is a config error, not a transient one — every
+    // Stripe event (subscription created/updated/canceled, checkout completed) is
+    // silently dropped until a real secret is set. Surface it clearly in logs/monitoring
+    // rather than a generic 500 so it isn't mistaken for a signature-verification bug.
+    console.error(
+      "[stripe-webhook] CONFIG_ERROR: STRIPE_WEBHOOK_SECRET is unset or still the placeholder value. " +
+      "Billing sync (subscription create/update/cancel, checkout completion) is broken until this is fixed. " +
+      "Manual action required: create the webhook endpoint in the Stripe dashboard " +
+      "(Developers → Webhooks → Add endpoint, pointing at /api/webhooks/stripe) and set the " +
+      "resulting signing secret as STRIPE_WEBHOOK_SECRET in Vercel project env vars. See .env.example.",
+    );
     return NextResponse.json({ error: "webhook not configured" }, { status: 500 });
   }
 

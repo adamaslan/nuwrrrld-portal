@@ -12,6 +12,12 @@ export function CheckoutButton({ plan, label }: { plan: "monthly" | "annual"; la
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
+      if (res.status === 401) {
+        // Auth is only required at the actual checkout action — send the
+        // user to sign in and bring them right back to pricing afterward.
+        window.location.href = "/sign-in?redirect_url=/pricing";
+        return;
+      }
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
