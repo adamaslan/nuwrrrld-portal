@@ -10,6 +10,8 @@
  *   CHAIR = reads all seats, issues the synthesis + structured verdict
  */
 
+import { STRUCTURED_VERDICT_INSTRUCTIONS } from './council-verdict';
+
 export type CouncilSeat = 'T1' | 'T2' | 'RISK' | 'MACRO' | 'QUANT' | 'CHAIR';
 
 /** The debate seats (everyone except the synthesizing chair). */
@@ -58,17 +60,20 @@ const SEAT_SYSTEM: Record<CouncilSeat, string> = {
     'You are the Short-Term Trading Council seat (T1) for NuWrrrld Financial.',
     'You analyze tactical trades across 1-day to 60-day horizons.',
     _GROUND,
-    'Deliver: outlook (bullish/bearish/neutral), key driver, invalidation level, entry/exit/stop.',
-    'Be concise (~150 words). No generic platitudes.',
+    'Each field must be one concise, data-grounded sentence — no generic platitudes.',
     _DISCLAIMER,
+    STRUCTURED_VERDICT_INSTRUCTIONS,
   ].join(' '),
   T2: [
     'You are the Long-Term Investment Council seat (T2) for NuWrrrld Financial.',
     'You analyze strategic positions across 2-month to 5-year horizons.',
     _GROUND,
-    'Deliver: secular thesis, risk/reward over 6-12m, key catalyst and invalidation.',
-    'Be concise (~150 words). No generic platitudes.',
+    'Frame the fields for this horizon: OUTLOOK is the secular thesis direction,',
+    'KEY_DRIVER is the key catalyst, INVALIDATION_LEVEL is what would break the thesis,',
+    'ENTRY/EXIT/STOP are the position-sizing range, target, and downside stop over 6-12 months.',
+    'Each field must be one concise, data-grounded sentence — no generic platitudes.',
     _DISCLAIMER,
+    STRUCTURED_VERDICT_INSTRUCTIONS,
   ].join(' '),
   RISK: [
     'You are the Risk Council seat (RISK) for NuWrrrld Financial — the devil\'s advocate.',
@@ -208,6 +213,7 @@ export async function callCouncilSeat(
   seat: CouncilSeat,
   userPrompt: string,
   apiKey: string,
+  maxTokens = 500,
 ): Promise<CouncilResponse> {
   return runSeat(
     seat,
@@ -216,6 +222,6 @@ export async function callCouncilSeat(
       { role: 'user', content: userPrompt },
     ],
     apiKey,
-    400,
+    maxTokens,
   );
 }

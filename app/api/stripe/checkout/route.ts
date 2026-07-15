@@ -16,7 +16,13 @@ export async function POST(req: NextRequest) {
   const plan: 'monthly' | 'annual' = body.plan === 'annual' ? 'annual' : 'monthly';
   const priceId = PRICES[plan];
 
-  if (!priceId) {
+  if (!priceId || priceId.includes('placeholder')) {
+    // Config error, not a transient failure — surface it loudly so a bad price ID
+    // doesn't read as a generic Stripe outage. See .env.example for the fix.
+    console.error(
+      `[stripe-checkout] CONFIG_ERROR: STRIPE_PRICE_${plan.toUpperCase()} is unset or still a placeholder value. ` +
+      `Checkout for the ${plan} plan will 400/500 until a real Stripe price ID is set in Vercel env vars.`,
+    );
     return NextResponse.json({ error: `price not configured for plan: ${plan}` }, { status: 500 });
   }
 

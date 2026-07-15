@@ -174,6 +174,7 @@ export default async function Home() {
                     );
                   }) : (
                     <>
+                      <p className="sample-data-tag">Sample data — live backend unavailable</p>
                       <div className="signal-row"><b>NVDA</b><div className="bar"><span style={{ width: "91%" }} /></div><span className="up">BUY</span></div>
                       <div className="signal-row"><b>MSFT</b><div className="bar"><span style={{ width: "74%" }} /></div><span className="up">BUY</span></div>
                       <div className="signal-row"><b>TSLA</b><div className="bar"><span style={{ width: "58%" }} /></div><span className="flat">HOLD</span></div>

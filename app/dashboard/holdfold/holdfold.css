@@ -427,6 +427,41 @@
   margin: 0;
 }
 
+/* Side-by-side T1 (short-term) + T2 (long-term) council panels */
+.hf-council-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .hf-council-grid { grid-template-columns: 1fr; }
+}
+
+.hf-council-seat-panel .hf-seat-btn { width: 100%; margin-bottom: 10px; }
+
+.hf-council-fields {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.hf-council-fields dt {
+  color: var(--dim);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+.hf-council-fields dt:first-child { margin-top: 0; }
+.hf-council-fields dd {
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+.hf-backtest-link {
+  margin-bottom: 18px;
+}
+
 .hf-empty {
   text-align: center;
   padding: 60px 20px;

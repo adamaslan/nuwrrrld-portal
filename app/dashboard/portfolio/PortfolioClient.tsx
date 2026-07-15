@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import type { WatchlistItem } from "@/lib/portfolio";
+import { useState, useEffect, useCallback } from "react";
+import type { WatchlistItem, PortfolioHealth, OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
 interface SectorEntry {
@@ -71,6 +71,55 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   const [healthStatus, setHealthStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [healthText, setHealthText] = useState("");
   const [healthError, setHealthError] = useState("");
+
+  // Portfolio Health Score — the numeric score from /api/portfolio/health,
+  // distinct from the AI narrative health-ai panel above. Previously fetched
+  // by nothing: the audit found this button permanently disabled and the
+  // result never rendered.
+  const [scoreStatus, setScoreStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [score, setScore] = useState<PortfolioHealth | null>(null);
+  const [scoreError, setScoreError] = useState("");
+
+  const runScoreCheck = useCallback(async () => {
+    setScoreStatus("loading");
+    setScoreError("");
+    try {
+      const res = await fetch("/api/portfolio/health");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setScoreStatus("error");
+        setScoreError(data.error === "MCP_BACKEND_URL not configured"
+          ? "Health score backend not configured."
+          : "Health score unavailable — try again shortly.");
+        return;
+      }
+      const data = await res.json() as PortfolioHealth;
+      setScore(data);
+      setScoreStatus("ok");
+    } catch {
+      setScoreStatus("error");
+      setScoreError("Network error — could not load health score.");
+    }
+  }, []);
+
+  // Portfolio Suggestions — /api/portfolio/suggestions existed but nothing
+  // called it from the UI. Fetched alongside the score check.
+  const [suggestions, setSuggestions] = useState<OptimizerSuggestion[] | null>(null);
+  const [suggestionsStatus, setSuggestionsStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  useEffect(() => {
+    setSuggestionsStatus("loading");
+    fetch("/api/portfolio/suggestions")
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch suggestions");
+        return res.json();
+      })
+      .then((data: OptimizerSuggestion[]) => {
+        setSuggestions(data);
+        setSuggestionsStatus("ok");
+      })
+      .catch(() => setSuggestionsStatus("error"));
+  }, []);
 
   async function addTicker() {
     const ticker = tickerInput.trim().toUpperCase();
@@ -171,6 +220,76 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
                 <span className="port-watch-ticker">{item.ticker}</span>
                 <span className="port-watch-date">{new Date(item.addedAt).toLocaleDateString()}</span>
                 <button className="port-watch-remove" onClick={() => removeTicker(item.ticker)} aria-label={`Remove ${item.ticker} from watchlist`}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Portfolio Health Score — numeric score from /api/portfolio/health */}
+      <div className="port-panel">
+        <p className="port-panel-title">Portfolio Health Score</p>
+        {scoreStatus === "idle" && (
+          <button className="port-health-btn" onClick={runScoreCheck}>
+            Run health score
+          </button>
+        )}
+        {scoreStatus === "loading" && (
+          <button className="port-health-btn" disabled>Analyzing…</button>
+        )}
+        {scoreStatus === "ok" && score && (
+          <div className="port-health-result">
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "2rem", fontWeight: 900 }}>{score.score}</span>
+              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--cyan)" }}>Grade {score.grade}</span>
+            </div>
+            {score.summary && <p className="port-health-text">{score.summary}</p>}
+            {score.factors.length > 0 && (
+              <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                {score.factors.map(f => (
+                  <div key={f.name} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem" }}>
+                    <span>{f.name}</span>
+                    <span className={f.impact === "positive" ? "port-sector-change--up" : f.impact === "negative" ? "port-sector-change--down" : ""}>
+                      {f.score}/100
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button className="port-health-regen" onClick={runScoreCheck}>↺ Refresh</button>
+          </div>
+        )}
+        {scoreStatus === "error" && (
+          <>
+            <p className="port-health-error">{scoreError}</p>
+            <button className="port-health-regen" onClick={runScoreCheck}>Try again</button>
+          </>
+        )}
+      </div>
+
+      {/* Portfolio Suggestions — /api/portfolio/suggestions, previously unwired */}
+      <div className="port-panel">
+        <p className="port-panel-title">Optimizer Suggestions</p>
+        {suggestionsStatus === "loading" && (
+          <p className="port-health-loading">Loading suggestions…</p>
+        )}
+        {suggestionsStatus === "error" && (
+          <p className="port-health-error">Suggestions unavailable — try again shortly.</p>
+        )}
+        {suggestionsStatus === "ok" && suggestions && suggestions.length === 0 && (
+          <p className="port-watch-empty">No suggestions right now — check back after adding tickers.</p>
+        )}
+        {suggestionsStatus === "ok" && suggestions && suggestions.length > 0 && (
+          <div className="port-watch-list">
+            {suggestions.map(s => (
+              <div key={s.id} className="port-watch-item" style={{ alignItems: "flex-start", flexDirection: "column", gap: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                  <span className="port-watch-ticker">{s.ticker ?? s.title}</span>
+                  <span className={`port-sector-badge ${s.priority === "high" ? "port-sector-badge--sell" : s.priority === "low" ? "port-sector-badge--hold" : "port-sector-badge--buy"}`}>
+                    {s.priority}
+                  </span>
+                </div>
+                <p style={{ fontSize: ".82rem", color: "var(--muted)", margin: 0 }}>{s.rationale}</p>
               </div>
             ))}
           </div>

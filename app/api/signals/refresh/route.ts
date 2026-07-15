@@ -14,8 +14,18 @@ export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization") ?? "";
   const secret = process.env.PORTAL_PUSH_SECRET;
 
-  // If no secret is configured, block all pushes to prevent unauthorized cache poisoning.
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!secret) {
+    // Config error, not an auth failure — the local refresh-signals.py script has
+    // nowhere to push to until this is set, and will silently fail every push
+    // without this log line. See .env.example for what to set.
+    console.error(
+      "[signals/refresh] CONFIG_ERROR: PORTAL_PUSH_SECRET is not set — this endpoint " +
+      "rejects all requests until it is configured (Vercel project env vars). See .env.example.",
+    );
+    return NextResponse.json({ error: "PORTAL_PUSH_SECRET not configured" }, { status: 503 });
+  }
+
+  if (auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

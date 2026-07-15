@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { getLatestHoldFoldCache, saveHoldFoldCache } from "@/lib/holdfold-cache-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
@@ -65,15 +66,23 @@ async function fetchSignals(): Promise<unknown> {
   }
 }
 
-// Cache for 15 minutes to avoid hammering the backend on every page load.
-let cached: { payload: HoldFoldPayload; expiresAt: number } | null = null;
+// In-process L1 cache (15 min) in front of the durable Neon cache — survives
+// within one serverless instance's lifetime; Neon survives cold starts.
+const L1_TTL_MS = 15 * 60 * 1000;
+let l1Cache: { payload: HoldFoldPayload; expiresAt: number } | null = null;
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload);
+  if (l1Cache && l1Cache.expiresAt > Date.now()) {
+    return NextResponse.json(l1Cache.payload);
+  }
+
+  const dbCached = await getLatestHoldFoldCache();
+  if (dbCached) {
+    l1Cache = { payload: dbCached, expiresAt: Date.now() + L1_TTL_MS };
+    return NextResponse.json(dbCached);
   }
 
   const raw = await fetchSignals();
@@ -143,6 +152,7 @@ export async function GET() {
     updatedAt,
   };
 
-  cached = { payload, expiresAt: Date.now() + 15 * 60 * 1000 };
+  l1Cache = { payload, expiresAt: Date.now() + L1_TTL_MS };
+  await saveHoldFoldCache(payload);
   return NextResponse.json(payload);
 }

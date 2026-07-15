@@ -1,12 +1,18 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import type { WatchlistItem } from "@/lib/portfolio";
-import { store } from "@/lib/watchlist-store";
+import { getWatchlist, addToWatchlist } from "@/lib/watchlist-store";
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  return NextResponse.json(store.get(userId) ?? []);
+  try {
+    const list = await getWatchlist(userId);
+    return NextResponse.json(list);
+  } catch (err) {
+    console.error("Watchlist read failed", err);
+    return NextResponse.json({ error: "watchlist unavailable" }, { status: 503 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -17,11 +23,14 @@ export async function POST(req: NextRequest) {
   const ticker = typeof body.ticker === 'string' ? body.ticker.toUpperCase().trim() : '';
   if (!ticker) return NextResponse.json({ error: "ticker required" }, { status: 400 });
 
-  const list = store.get(userId) ?? [];
-  if (list.some(i => i.ticker === ticker)) {
-    return NextResponse.json({ error: "already in watchlist" }, { status: 409 });
+  try {
+    const result = await addToWatchlist(userId, ticker);
+    if (result === "exists") {
+      return NextResponse.json({ error: "already in watchlist" }, { status: 409 });
+    }
+    return NextResponse.json(result satisfies WatchlistItem, { status: 201 });
+  } catch (err) {
+    console.error("Watchlist add failed", err);
+    return NextResponse.json({ error: "watchlist unavailable" }, { status: 503 });
   }
-  const item: WatchlistItem = { ticker, addedAt: new Date().toISOString() };
-  store.set(userId, [...list, item]);
-  return NextResponse.json(item, { status: 201 });
 }

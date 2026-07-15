@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/watchlist-store";
+import { removeFromWatchlist } from "@/lib/watchlist-store";
 
 export async function DELETE(
   _req: NextRequest,
@@ -11,7 +11,11 @@ export async function DELETE(
 
   const { ticker } = await params;
   const upper = ticker.toUpperCase();
-  const list = store.get(userId) ?? [];
-  store.set(userId, list.filter(i => i.ticker !== upper));
-  return NextResponse.json({ removed: upper });
+  try {
+    await removeFromWatchlist(userId, upper);
+    return NextResponse.json({ removed: upper });
+  } catch (err) {
+    console.error("Watchlist remove failed", err);
+    return NextResponse.json({ error: "watchlist unavailable" }, { status: 503 });
+  }
 }
