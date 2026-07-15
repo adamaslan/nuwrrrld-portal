@@ -326,7 +326,7 @@
 .cockpit-mover-conf { font-size: .65rem; color: currentcolor; opacity: .6; }
 
 /* Daily Brief cockpit */
-.cockpit-brief-btn { background: var(--neon-blue); color: #fff; border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.cockpit-brief-btn { background: var(--neon-blue); color: var(--bg); border: none; border-radius: 10px; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .cockpit-brief-btn:hover { opacity: .88; }
 .cockpit-brief-btn--locked { background: var(--surface-2); }
 .cockpit-brief-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem; }
