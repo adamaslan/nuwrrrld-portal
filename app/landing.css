@@ -768,6 +768,134 @@
   font-size: 0.86rem;
 }
 
+/* ── What's New band ── */
+.nwf-landing .whats-new-band {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgba(18, 200, 216, 0.04);
+  padding: 14px clamp(18px, 4vw, 44px);
+}
+
+.nwf-landing .whats-new-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nwf-landing .whats-new-label {
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+.nwf-landing .whats-new-items {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nwf-landing .wn-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(18, 200, 216, 0.28);
+  background: rgba(18, 200, 216, 0.07);
+  color: #a8f0f7;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Inline "New" badge ── */
+.nwf-landing .new-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(53, 208, 127, 0.14);
+  border: 1px solid rgba(53, 208, 127, 0.32);
+  color: #35d07f;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* ── Six-seat council grid ── */
+.nwf-landing .seat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.nwf-landing .seat-card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nwf-landing .seat-card.chair {
+  border-color: rgba(155, 114, 255, 0.35);
+  background: linear-gradient(180deg, rgba(155, 114, 255, 0.07), rgba(18, 20, 25, 0.82));
+}
+
+.nwf-landing .seat-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  width: fit-content;
+}
+
+.nwf-landing .seat-tag.t1    { background: rgba(18, 200, 216, 0.12); border: 1px solid rgba(18, 200, 216, 0.3); color: var(--cyan); }
+.nwf-landing .seat-tag.t2    { background: rgba(53, 208, 127, 0.12); border: 1px solid rgba(53, 208, 127, 0.3); color: var(--green); }
+.nwf-landing .seat-tag.risk  { background: rgba(255, 107, 87, 0.12); border: 1px solid rgba(255, 107, 87, 0.3); color: var(--coral); }
+.nwf-landing .seat-tag.macro { background: rgba(244, 184, 63, 0.12); border: 1px solid rgba(244, 184, 63, 0.3); color: var(--amber); }
+.nwf-landing .seat-tag.quant { background: rgba(79, 124, 255, 0.12); border: 1px solid rgba(79, 124, 255, 0.3); color: var(--blue); }
+.nwf-landing .seat-tag.chair-tag { background: rgba(155, 114, 255, 0.14); border: 1px solid rgba(155, 114, 255, 0.35); color: var(--violet); }
+
+.nwf-landing .seat-card h3 {
+  font-size: 1.05rem;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.nwf-landing .seat-card p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  flex: 1;
+}
+
+.nwf-landing .verdict-example {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(155, 114, 255, 0.08);
+  border: 1px solid rgba(155, 114, 255, 0.22);
+  color: #c8baf8;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nwf-landing *,
   .nwf-landing *::before,
@@ -788,7 +916,8 @@
     order: -1;
   }
 
-  .nwf-landing .surface-grid {
+  .nwf-landing .surface-grid,
+  .nwf-landing .seat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -819,8 +948,14 @@
     grid-template-columns: 1fr;
   }
 
-  .nwf-landing .horizon-grid {
+  .nwf-landing .horizon-grid,
+  .nwf-landing .seat-grid {
     grid-template-columns: 1fr;
+  }
+
+  .nwf-landing .whats-new-inner {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .nwf-landing section {
