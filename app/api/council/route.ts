@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "Council not configured" }, { status: 503 });
 
   const body = await req.json().catch(() => ({}));
-  const { prompt, seat = "T1", ticker = null } = body as {
+  const { prompt, seat = "T1", ticker = null } = (body || {}) as {
     prompt?: string;
     seat?: CouncilSeat;
     ticker?: string | null;

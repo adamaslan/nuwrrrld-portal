@@ -21,7 +21,13 @@ if (!process.env.DATABASE_URL) {
     const envLocal = readFileSync(join(process.cwd(), ".env.local"), "utf8");
     for (const line of envLocal.split("\n")) {
       const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+      if (m && !process.env[m[1]]) {
+        let val = m[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        process.env[m[1]] = val;
+      }
     }
   } catch {
     // .env.local doesn't exist (e.g. on Vercel) — process.env is the only source.

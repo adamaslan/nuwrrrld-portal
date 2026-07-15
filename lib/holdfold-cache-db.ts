@@ -18,7 +18,7 @@ export async function getLatestHoldFoldCache(): Promise<HoldFoldPayload | null> 
     const rows = await sql`
       SELECT payload
       FROM holdfold_cache
-      WHERE generated_at > now() - (${CACHE_TTL_MINUTES} || ' minutes')::interval
+      WHERE generated_at > now() - (${CACHE_TTL_MINUTES} * interval '1 minute')
       ORDER BY generated_at DESC
       LIMIT 1
     `;

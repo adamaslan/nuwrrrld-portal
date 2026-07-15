@@ -40,7 +40,8 @@ const FIELD_DEFS: Array<{ key: keyof StructuredVerdict; label: string }> = [
 export function stripReasoning(raw: string): string {
   let cleaned = raw
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, "");
+    .replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, "")
+    .replace(/\*/g, "");
 
   const firstLabel = cleaned.match(/OUTLOOK\s*:/i);
   if (firstLabel && firstLabel.index !== undefined && firstLabel.index > 0) {

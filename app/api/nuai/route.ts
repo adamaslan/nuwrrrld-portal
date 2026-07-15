@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     ? `The user's watchlist: ${watchlist.map(w => w.ticker).join(", ")}.`
     : "The user has not added any tickers to their watchlist yet.";
 
-  const digestLine = digest && digest.signals.length > 0
+  const digestLine = digest && Array.isArray(digest.signals) && digest.signals.length > 0
     ? `Latest signals digest (generated ${digest.generatedAt}): ` +
       digest.signals
         .slice(0, 8)

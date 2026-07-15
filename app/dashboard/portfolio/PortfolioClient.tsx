@@ -110,7 +110,10 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   useEffect(() => {
     setSuggestionsStatus("loading");
     fetch("/api/portfolio/suggestions")
-      .then(res => res.ok ? res.json() : [])
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch suggestions");
+        return res.json();
+      })
       .then((data: OptimizerSuggestion[]) => {
         setSuggestions(data);
         setSuggestionsStatus("ok");
