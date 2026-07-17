@@ -127,6 +127,17 @@ CREATE INDEX IF NOT EXISTS holdfold_cache_generated_at_idx
 --    embedding/ChromaDB retrieval with a pre-extracted, cited lookup table
 --    keyed on lib/grounding/taxonomy.ts's finite state-key space. ──────────
 
+-- Both to_tsvector(regconfig, text) AND array_to_string(anyarray, text) are
+-- STABLE, not IMMUTABLE, in Postgres — so Postgres refuses either one
+-- directly inside a GENERATED column, even with the config cast to
+-- regconfig. The fix is to wrap the *entire* expression (concat included)
+-- in one SQL function that Postgres will take our word is IMMUTABLE,
+-- since this repo never calls ALTER TEXT SEARCH CONFIGURATION on
+-- "english". Verified against the real Neon DB (see PR review notes).
+CREATE OR REPLACE FUNCTION immutable_corpus_tsvector(text, text[]) RETURNS tsvector AS $$
+  SELECT to_tsvector('english', $1 || ' ' || array_to_string($2, ' '))
+$$ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE;
+
 -- The curated trading-doc corpus, chunked the same way ai-text-opt-1024's
 -- ingest.py did (file-aware: prose vs. Q&A), now living in this repo's
 -- corpus/ directory instead of a separate ChromaDB-backed service.
@@ -138,7 +149,7 @@ CREATE TABLE IF NOT EXISTS corpus_chunks (
   body          text        NOT NULL,
   search_terms  text[]      NOT NULL DEFAULT '{}', -- doc2query: questions this chunk answers + synonyms
   tsv           tsvector GENERATED ALWAYS AS (
-                  to_tsvector('english', body || ' ' || array_to_string(search_terms, ' '))
+                  immutable_corpus_tsvector(body, search_terms)
                 ) STORED,
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
@@ -152,7 +163,7 @@ CREATE INDEX IF NOT EXISTS corpus_chunks_trader_filter_idx
 -- carries the evidence needed to render a [C·] citation.
 CREATE TABLE IF NOT EXISTS grounding_pack (
   id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  state_key        text        NOT NULL,     -- lib/grounding/taxonomy.ts toStateKeys()
+  state_key        text        NOT NULL,     -- lib/grounding/taxonomy.ts toStateKey()
   horizon          text        NOT NULL,     -- 't1' | 't2'
   direction        text        NOT NULL,     -- bullish | bearish | neutral
   rule_text        text        NOT NULL,
@@ -164,10 +175,12 @@ CREATE TABLE IF NOT EXISTS grounding_pack (
   corpus_version   text        NOT NULL,
   taxonomy_version text        NOT NULL,
   compiled_at      timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (state_key, horizon, chunk_id)
+  UNIQUE (state_key, chunk_id)
 );
-CREATE INDEX IF NOT EXISTS grounding_pack_state_horizon_idx
-  ON grounding_pack (state_key, horizon);
+CREATE INDEX IF NOT EXISTS grounding_pack_state_idx
+  ON grounding_pack (state_key);
+CREATE INDEX IF NOT EXISTS grounding_pack_chunk_id_idx
+  ON grounding_pack (chunk_id);
 
 -- Questions no pack tier (0/1/2) could answer — the curation queue that
 -- tells the corpus what to write next.

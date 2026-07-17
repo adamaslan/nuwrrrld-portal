@@ -101,6 +101,6 @@ function partsToKey(parts: StateKeyParts): string {
  * This is the exact key `grounding_pack.state_key` is compiled against and
  * `lib/grounding/resolve.ts` (PR 3) will join on.
  */
-export function toStateKeys(input: SignalStateInput, horizon: Horizon): string {
+export function toStateKey(input: SignalStateInput, horizon: Horizon): string {
   return partsToKey(toStateKeyParts(input, horizon));
 }
