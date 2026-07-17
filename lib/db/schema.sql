@@ -120,3 +120,76 @@ CREATE TABLE IF NOT EXISTS holdfold_cache (
 );
 CREATE INDEX IF NOT EXISTS holdfold_cache_generated_at_idx
   ON holdfold_cache (generated_at DESC);
+
+-- ── Compile-time grounding (docs/ai-council-timeline.html, PR 1 — "Contract").
+--    Ships dark: nothing reads these tables until PR 2 (compiler) fills the
+--    pack and PR 3 (runtime resolver) joins on it. Replaces the corpus's
+--    embedding/ChromaDB retrieval with a pre-extracted, cited lookup table
+--    keyed on lib/grounding/taxonomy.ts's finite state-key space. ──────────
+
+-- Both to_tsvector(regconfig, text) AND array_to_string(anyarray, text) are
+-- STABLE, not IMMUTABLE, in Postgres — so Postgres refuses either one
+-- directly inside a GENERATED column, even with the config cast to
+-- regconfig. The fix is to wrap the *entire* expression (concat included)
+-- in one SQL function that Postgres will take our word is IMMUTABLE,
+-- since this repo never calls ALTER TEXT SEARCH CONFIGURATION on
+-- "english". Verified against the real Neon DB (see PR review notes).
+CREATE OR REPLACE FUNCTION immutable_corpus_tsvector(text, text[]) RETURNS tsvector AS $$
+  SELECT to_tsvector('english', $1 || ' ' || array_to_string($2, ' '))
+$$ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE;
+
+-- The curated trading-doc corpus, chunked the same way ai-text-opt-1024's
+-- ingest.py did (file-aware: prose vs. Q&A), now living in this repo's
+-- corpus/ directory instead of a separate ChromaDB-backed service.
+CREATE TABLE IF NOT EXISTS corpus_chunks (
+  chunk_id      text        PRIMARY KEY,
+  source_file   text        NOT NULL,
+  trader_filter text,                       -- 'T1' | 'T2' | null (applies to both)
+  tags          text[]      NOT NULL DEFAULT '{}',
+  body          text        NOT NULL,
+  search_terms  text[]      NOT NULL DEFAULT '{}', -- doc2query: questions this chunk answers + synonyms
+  tsv           tsvector GENERATED ALWAYS AS (
+                  immutable_corpus_tsvector(body, search_terms)
+                ) STORED,
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS corpus_chunks_tsv_idx
+  ON corpus_chunks USING GIN (tsv);
+CREATE INDEX IF NOT EXISTS corpus_chunks_trader_filter_idx
+  ON corpus_chunks (trader_filter);
+
+-- Compiled, per-signal-state rules extracted from corpus_chunks once (the
+-- weekly compile job), looked up many times at zero model cost. Every row
+-- carries the evidence needed to render a [C·] citation.
+CREATE TABLE IF NOT EXISTS grounding_pack (
+  id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  state_key        text        NOT NULL,     -- lib/grounding/taxonomy.ts toStateKey()
+  horizon          text        NOT NULL,     -- 't1' | 't2'
+  direction        text        NOT NULL,     -- bullish | bearish | neutral
+  rule_text        text        NOT NULL,
+  quote            text        NOT NULL,     -- verbatim substring of the source chunk
+  chunk_id         text        NOT NULL REFERENCES corpus_chunks (chunk_id) ON DELETE CASCADE,
+  source_file      text        NOT NULL,
+  tags             text[]      NOT NULL DEFAULT '{}',
+  confidence       real        NOT NULL DEFAULT 1.0,
+  corpus_version   text        NOT NULL,
+  taxonomy_version text        NOT NULL,
+  compiled_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (state_key, chunk_id)
+);
+CREATE INDEX IF NOT EXISTS grounding_pack_state_idx
+  ON grounding_pack (state_key);
+CREATE INDEX IF NOT EXISTS grounding_pack_chunk_id_idx
+  ON grounding_pack (chunk_id);
+
+-- Questions no pack tier (0/1/2) could answer — the curation queue that
+-- tells the corpus what to write next.
+CREATE TABLE IF NOT EXISTS grounding_misses (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  question   text        NOT NULL,
+  ticker     text,
+  state_keys text[]      NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS grounding_misses_created_at_idx
+  ON grounding_misses (created_at DESC);
