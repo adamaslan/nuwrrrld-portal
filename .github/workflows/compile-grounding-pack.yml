@@ -1,0 +1,31 @@
+name: Compile grounding pack
+
+# Weekly, plus on any corpus edit and manual trigger. Runs
+# scripts/compile_grounding_pack.mjs against the Neon database — the
+# extraction is idempotent (ON CONFLICT upserts), so re-runs are safe.
+on:
+  schedule:
+    - cron: '23 6 * * 1' # Mondays 06:23 UTC (after the free-model refresh at 06:17)
+  push:
+    branches: [main]
+    paths:
+      - 'corpus/**'
+      - 'scripts/compile_grounding_pack.mjs'
+      - 'scripts/grounding-chunker.mjs'
+  workflow_dispatch: {}
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Compile grounding_pack from corpus/
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: node scripts/compile_grounding_pack.mjs
