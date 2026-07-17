@@ -96,7 +96,11 @@ function fieldToBaselineKey(vocab) {
   throw new Error("no baseline for this vocab");
 }
 
-/** Expand one extracted rule (with possible "any"/array fields) into concrete state keys. */
+/**
+ * Expand one extracted rule (with possible "any"/array fields) into concrete
+ * `{ stateKey, horizon }` pairs — horizon carried alongside instead of being
+ * re-parsed back out of the key string.
+ */
 function expandRule(rule) {
   const horizons = rule.horizon === "both" ? HORIZONS : [rule.horizon];
   const rsis = valuesFor(rule.rsi, RSI);
@@ -105,24 +109,23 @@ function expandRule(rule) {
   const vols = valuesFor(rule.vol, VOL);
   const confluences = valuesFor(rule.confluence, CONFLUENCE);
 
-  const keys = [];
+  const results = [];
   outer: for (const horizon of horizons) {
     for (const rsi of rsis) {
       for (const macd of macds) {
         for (const adx of adxs) {
           for (const vol of vols) {
             for (const confluence of confluences) {
-              keys.push(
-                buildStateKey({ rsi, macd, adx, vol, confluence, direction: rule.direction, horizon }),
-              );
-              if (keys.length >= MAX_EXPANDED_ROWS_PER_RULE) break outer;
+              const parts = { rsi, macd, adx, vol, confluence, direction: rule.direction, horizon };
+              results.push({ stateKey: buildStateKey(parts), horizon });
+              if (results.length >= MAX_EXPANDED_ROWS_PER_RULE) break outer;
             }
           }
         }
       }
     }
   }
-  return keys;
+  return results;
 }
 
 function extractionPrompt(chunk) {
@@ -175,8 +178,10 @@ async function extractRules(apiKey, chunk) {
     }
     const data = await res.json();
     const raw = data?.choices?.[0]?.message?.content ?? "[]";
-    const jsonText = raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1);
-    const parsed = JSON.parse(jsonText);
+    const start = raw.indexOf("[");
+    const end = raw.lastIndexOf("]");
+    if (start === -1 || end === -1 || start > end) return [];
+    const parsed = JSON.parse(raw.slice(start, end + 1));
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
     console.warn(`  extract error for ${chunk.chunkId}: ${err.message}`);
@@ -186,15 +191,53 @@ async function extractRules(apiKey, chunk) {
   }
 }
 
+/** A field is valid if it's "any"/absent (defaults to baseline), one vocab value, or an array of vocab values. */
+function isValidField(field, vocab) {
+  if (field === undefined || field === null || field === "any") return true;
+  if (Array.isArray(field)) return field.length > 0 && field.every((v) => vocab.includes(v));
+  return vocab.includes(field);
+}
+
 function isValidRule(rule, chunkBody) {
   if (!rule || typeof rule !== "object") return false;
   if (!["t1", "t2", "both"].includes(rule.horizon)) return false;
   if (!DIRECTIONS.includes(rule.direction)) return false;
   if (typeof rule.rule_text !== "string" || !rule.rule_text.trim()) return false;
   if (typeof rule.quote !== "string" || !rule.quote.trim()) return false;
+  // Reject hallucinated bucket values now — an invalid value here would silently
+  // expand into a state_key that no live signal can ever produce (dead evidence).
+  if (!isValidField(rule.rsi, RSI)) return false;
+  if (!isValidField(rule.macd, MACD)) return false;
+  if (!isValidField(rule.adx, ADX)) return false;
+  if (!isValidField(rule.vol, VOL)) return false;
+  if (!isValidField(rule.confluence, CONFLUENCE)) return false;
   // The anti-hallucination gate: the quote must appear verbatim in the chunk.
   if (!chunkBody.includes(rule.quote.trim())) return false;
   return true;
+}
+
+/**
+ * One multi-row INSERT ... ON CONFLICT for `rows.length` rows instead of one
+ * round trip per row — the @neondatabase/serverless HTTP client makes a
+ * separate network request per `sql\`...\`` call, so per-row inserts turn a
+ * modest corpus into thousands of sequential requests.
+ */
+async function batchUpsert(sql, table, columns, rows, conflictColumns, setClauses) {
+  if (!rows.length) return;
+  const values = [];
+  const rowPlaceholders = rows.map((row) => {
+    const placeholders = row.map((value) => {
+      values.push(value);
+      return `$${values.length}`;
+    });
+    return `(${placeholders.join(", ")})`;
+  });
+  const text = `
+    INSERT INTO ${table} (${columns.join(", ")})
+    VALUES ${rowPlaceholders.join(", ")}
+    ON CONFLICT (${conflictColumns.join(", ")}) DO UPDATE SET ${setClauses.join(", ")}
+  `;
+  await sql.query(text, values);
 }
 
 async function main() {
@@ -228,53 +271,69 @@ async function main() {
     const traderFilter = traderFilterForFile(sourceFile);
     totalChunks += chunks.length;
 
+    // Extract first (no DB dependency), then batch both tables' writes for
+    // the whole file into one INSERT each instead of one per chunk/rule.
+    const chunkResults = [];
     for (const chunk of chunks) {
-      if (!DRY_RUN) {
-        await sql`
-          INSERT INTO corpus_chunks (chunk_id, source_file, trader_filter, tags, body, search_terms)
-          VALUES (${chunk.chunkId}, ${chunk.sourceFile}, ${traderFilter}, ${[]}, ${chunk.body}, ${[]})
-          ON CONFLICT (chunk_id) DO UPDATE SET
-            body = EXCLUDED.body,
-            trader_filter = EXCLUDED.trader_filter,
-            updated_at = now()
-        `;
-      }
-
       const rules = DRY_RUN ? [] : await extractRules(apiKey, chunk);
       const validRules = rules.filter((r) => isValidRule(r, chunk.body));
       totalRejected += rules.length - validRules.length;
       totalRules += validRules.length;
+      chunkResults.push({ chunk, validRules });
+    }
 
-      for (const rule of validRules) {
-        const stateKeys = expandRule(rule);
-        for (const stateKey of stateKeys) {
-          const horizon = stateKey.match(/h:(t1|t2)/)[1];
-          if (!DRY_RUN) {
-            await sql`
-              INSERT INTO grounding_pack (
-                state_key, horizon, direction, rule_text, quote, chunk_id,
-                source_file, tags, confidence, corpus_version, taxonomy_version
-              ) VALUES (
-                ${stateKey}, ${horizon}, ${rule.direction}, ${rule.rule_text}, ${rule.quote},
-                ${chunk.chunkId}, ${chunk.sourceFile}, ${[]}, ${1.0}, ${version}, ${TAXONOMY_VERSION}
-              )
-              ON CONFLICT (state_key, horizon, chunk_id) DO UPDATE SET
-                rule_text = EXCLUDED.rule_text,
-                quote = EXCLUDED.quote,
-                corpus_version = EXCLUDED.corpus_version,
-                compiled_at = now()
-            `;
+    if (!DRY_RUN) {
+      const chunkRows = chunkResults.map(({ chunk, validRules }) => {
+        const searchTerms = validRules.flatMap((r) => r.search_terms ?? []);
+        return [chunk.chunkId, chunk.sourceFile, traderFilter, [], chunk.body, searchTerms];
+      });
+      await batchUpsert(
+        sql,
+        "corpus_chunks",
+        ["chunk_id", "source_file", "trader_filter", "tags", "body", "search_terms"],
+        chunkRows,
+        ["chunk_id"],
+        ["body = EXCLUDED.body", "trader_filter = EXCLUDED.trader_filter", "search_terms = EXCLUDED.search_terms", "updated_at = now()"],
+      );
+
+      // Keyed by (state_key, chunk_id) — the batch's own ON CONFLICT target —
+      // so two rules expanding to the same pair (e.g. both defaulting to the
+      // same baseline bucket) don't make Postgres see one INSERT try to
+      // "affect row a second time".
+      const packRowsByKey = new Map();
+      for (const { chunk, validRules } of chunkResults) {
+        for (const rule of validRules) {
+          for (const { stateKey, horizon } of expandRule(rule)) {
+            packRowsByKey.set(`${stateKey} ${chunk.chunkId}`, [
+              stateKey, horizon, rule.direction, rule.rule_text, rule.quote,
+              chunk.chunkId, chunk.sourceFile, [], 1.0, version, TAXONOMY_VERSION,
+            ]);
           }
-          totalRows++;
-        }
-        if (!DRY_RUN && rule.search_terms?.length) {
-          await sql`
-            UPDATE corpus_chunks SET search_terms = ${rule.search_terms}, updated_at = now()
-            WHERE chunk_id = ${chunk.chunkId}
-          `;
         }
       }
+      const packRows = [...packRowsByKey.values()];
+      totalRows += packRows.length;
+      await batchUpsert(
+        sql,
+        "grounding_pack",
+        [
+          "state_key", "horizon", "direction", "rule_text", "quote", "chunk_id",
+          "source_file", "tags", "confidence", "corpus_version", "taxonomy_version",
+        ],
+        packRows,
+        ["state_key", "chunk_id"],
+        ["rule_text = EXCLUDED.rule_text", "quote = EXCLUDED.quote", "corpus_version = EXCLUDED.corpus_version", "compiled_at = now()"],
+      );
+    } else {
+      const dryKeys = new Set();
+      for (const { chunk, validRules } of chunkResults) {
+        for (const rule of validRules) {
+          for (const { stateKey } of expandRule(rule)) dryKeys.add(`${stateKey} ${chunk.chunkId}`);
+        }
+      }
+      totalRows += dryKeys.size;
     }
+
     console.log(`  ${sourceFile}: ${chunks.length} chunk(s)`);
   }
 
