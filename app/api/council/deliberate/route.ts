@@ -2,10 +2,14 @@
  * POST /api/council/deliberate
  * The 10x council (WS2): a multi-seat debate, not a single-shot answer.
  *
- *   1. Ground   — assemble a factual brief (live signal + backtest hit-rates + prior verdicts)
- *   2. Round 1  — DEBATE_SEATS answer the same brief in parallel (per-seat isolated)
- *   3. Round 2  — each seat critiques the others' round-1 answers
- *   4. Synthesis — CHAIR issues consensus/split + a structured verdict
+ *   1. Ground   — per-seat brief: live signal + backtest hit-rates + prior
+ *                 verdicts + a slice of the compiled grounding pack (PR 3)
+ *   2. Round 1  — DEBATE_SEATS answer their own sliced brief in parallel
+ *   3. Round 2  — diff-shaped critique: code computes who actually disagrees
+ *                 on direction; only those seats get an arbitration prompt
+ *                 (docs/council-prompting-small-models.md §8)
+ *   4. Synthesis — CHAIR prose call, then a separate verdict-only call run
+ *                 3× with majority vote + minimum confidence (§9)
  *   5. Persist   — session, messages, verdict → Neon (non-fatal if unavailable)
  *
  * Free-tier models only, max_tokens capped, daily per-user quota — see WS2.6.
@@ -18,10 +22,15 @@ import {
   DEBATE_SEATS,
   runSeat,
   seatSystemPrompt,
+  CHAIR_VERDICT_SYSTEM,
+  SMALLEST_MODEL,
   type CouncilResponse,
   type CouncilSeat,
 } from "@/lib/openrouter";
 import { buildGroundedBrief } from "@/lib/council-grounding";
+import { computeDisagreements, type VerdictDirection } from "@/lib/council-critique";
+import { parseStructuredVerdict } from "@/lib/council-verdict";
+import { validateStructuredVerdict, buildRepairMessage } from "@/lib/council-validate";
 import {
   checkAndBumpQuota,
   createSession,
@@ -32,24 +41,103 @@ import {
 
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 25;
+const CHAIR_VERDICT_RUNS = 3;
 
-function parseVerdict(chairText: string): CouncilVerdict {
-  const empty: CouncilVerdict = { direction: null, confidence: null, horizon: null, invalidation: null };
-  // The chair is asked to end with a single-line JSON verdict; grab the last {...}.
-  const match = chairText.match(/\{[^{}]*"direction"[^{}]*\}/g);
-  if (!match?.length) return empty;
+interface ChairVerdictJson {
+  direction?: string;
+  confidence?: string;
+  horizon?: string;
+  invalidation?: string;
+}
+
+function parseVerdictJson(text: string): ChairVerdictJson | null {
+  // The verdict call is instructed to output ONLY `{...}` — no regex fishing
+  // through prose needed now that synthesis and verdict are separate calls.
   try {
-    const v = JSON.parse(match[match.length - 1]) as Partial<CouncilVerdict>;
-    const dir = v.direction;
-    const conf = v.confidence;
-    return {
-      direction: dir === "bullish" || dir === "bearish" || dir === "neutral" ? dir : null,
-      confidence: conf === "low" || conf === "medium" || conf === "high" ? conf : null,
-      horizon: typeof v.horizon === "string" ? v.horizon : null,
-      invalidation: typeof v.invalidation === "string" ? v.invalidation : null,
-    };
+    return JSON.parse(text.trim()) as ChairVerdictJson;
   } catch {
-    return empty;
+    return null;
+  }
+}
+
+const CONFIDENCE_RANK: Record<string, number> = { low: 0, medium: 1, high: 2 };
+
+/** Majority-vote direction and take the minimum confidence across N verdict
+ * samples — if the transcript can flip direction between samples, confidence
+ * was never "high" (docs/council-prompting-small-models.md §9). */
+function reconcileVerdicts(samples: ChairVerdictJson[]): CouncilVerdict {
+  const empty: CouncilVerdict = { direction: null, confidence: null, horizon: null, invalidation: null };
+  if (!samples.length) return empty;
+
+  const counts: Record<VerdictDirection, number> = { bullish: 0, bearish: 0, neutral: 0 };
+  for (const s of samples) {
+    if (s.direction === "bullish" || s.direction === "bearish" || s.direction === "neutral") {
+      counts[s.direction] += 1;
+    }
+  }
+  const ranked = (Object.entries(counts) as Array<[VerdictDirection, number]>).sort((a, b) => b[1] - a[1]);
+  const direction = ranked[0][1] > 0 ? ranked[0][0] : null;
+
+  let confidence: "low" | "medium" | "high" | null = null;
+  for (const s of samples) {
+    if (s.confidence === "low" || s.confidence === "medium" || s.confidence === "high") {
+      if (confidence === null || CONFIDENCE_RANK[s.confidence] < CONFIDENCE_RANK[confidence]) {
+        confidence = s.confidence;
+      }
+    }
+  }
+
+  // Horizon/invalidation: take the first sample's values — they're
+  // descriptive text, not something to vote on the way direction is.
+  const first = samples.find((s) => s.direction) ?? samples[0];
+  return {
+    direction,
+    confidence,
+    horizon: typeof first.horizon === "string" ? first.horizon : null,
+    invalidation: typeof first.invalidation === "string" ? first.invalidation : null,
+  };
+}
+
+function extractEvidenceId(text: string): string | null {
+  const match = text.match(/\[C\d+\]/);
+  return match ? match[0] : null;
+}
+
+/**
+ * The repair loop (docs/council-prompting-small-models.md §7), applied to
+ * T1/T2 only — they're the only round-1 seats with a numeric EXECUTION field
+ * to validate. One mechanical retry, then accept-with-flags: the flagged
+ * answer is still used if the repair doesn't parse, since a `[UNVERIFIED]`
+ * answer beats no answer for that seat.
+ */
+async function answerWithRepair(
+  seat: CouncilSeat,
+  brief: string,
+  apiKey: string,
+): Promise<CouncilResponse> {
+  const first = await runSeat(seat, [
+    { role: "system", content: seatSystemPrompt(seat) },
+    { role: "user", content: brief },
+  ], apiKey);
+
+  if (seat !== "T1" && seat !== "T2") return first;
+
+  const verdict = parseStructuredVerdict(first.answer);
+  if (!verdict) return first;
+
+  const flags = validateStructuredVerdict(verdict, brief);
+  if (!flags.length) return first;
+
+  try {
+    const repaired = await runSeat(seat, [
+      { role: "system", content: seatSystemPrompt(seat) },
+      { role: "user", content: brief },
+      { role: "assistant", content: first.answer },
+      { role: "user", content: buildRepairMessage(flags) },
+    ], apiKey, 500);
+    return parseStructuredVerdict(repaired.answer) ? repaired : first;
+  } catch {
+    return first;
   }
 }
 
@@ -83,17 +171,16 @@ export async function POST(req: NextRequest) {
   }
 
   const cleanTicker = ticker ? ticker.trim().toUpperCase() : null;
-  const brief = await buildGroundedBrief(question.trim(), cleanTicker);
   const sessionId = await createSession(userId, cleanTicker ?? question.trim().slice(0, 80));
 
-  // ── Round 1: independent answers, per-seat isolated ──────────────────────
+  // ── Ground + Round 1: each seat gets its own sliced brief ────────────────
+  const briefBySeat = new Map<CouncilSeat, string>();
   const round1 = await Promise.allSettled(
-    DEBATE_SEATS.map((seat) =>
-      runSeat(seat, [
-        { role: "system", content: seatSystemPrompt(seat) },
-        { role: "user", content: brief },
-      ], apiKey),
-    ),
+    DEBATE_SEATS.map(async (seat) => {
+      const brief = await buildGroundedBrief(question.trim(), cleanTicker, seat);
+      briefBySeat.set(seat, brief);
+      return answerWithRepair(seat, brief, apiKey);
+    }),
   );
 
   const answers: Partial<Record<CouncilSeat, CouncilResponse>> = {};
@@ -109,55 +196,82 @@ export async function POST(req: NextRequest) {
   });
 
   const answeredSeats = DEBATE_SEATS.filter((s) => answers[s]);
-  const peerBlock = answeredSeats
-    .map((s) => `[${s}]: ${answers[s]!.answer}`)
-    .join("\n\n");
 
-  // ── Round 2: critique — each seat responds to the others ─────────────────
-  const round2 = await Promise.allSettled(
-    answeredSeats.map((seat) =>
-      runSeat(seat, [
-        { role: "system", content: seatSystemPrompt(seat) },
-        { role: "user", content: brief },
-        { role: "assistant", content: answers[seat]!.answer },
-        {
-          role: "user",
-          content:
-            `Here are the other seats' answers:\n\n${peerBlock}\n\n` +
-            `State specifically where you disagree with them and what evidence would change your mind. ~100 words.`,
-        },
-      ], apiKey, 350),
-    ),
+  // ── Round 2: diff-shaped critique — code decides who actually disagrees ──
+  const { majority, directions, disagreeing } = computeDisagreements(
+    answeredSeats.map((seat) => ({ seat, answer: answers[seat]!.answer })),
   );
 
   const critiques: Partial<Record<CouncilSeat, string>> = {};
-  round2.forEach((r, i) => {
-    const seat = answeredSeats[i];
-    if (r.status === "fulfilled" && r.value.answer.trim()) {
-      critiques[seat] = r.value.answer;
-      if (sessionId) void saveMessage(sessionId, { seat, round: 2, role: "critique", model: r.value.model, content: r.value.answer, latencyMs: r.value.latencyMs });
-    }
-  });
+  if (majority && disagreeing.length) {
+    const majoritySeat = answeredSeats.find((s) => directions[s] === majority);
+    const majorityAnswer = majoritySeat ? answers[majoritySeat]!.answer : "";
+    const evidenceId = extractEvidenceId(majorityAnswer);
 
-  // ── Synthesis: the chair reads everything ────────────────────────────────
+    const round2 = await Promise.allSettled(
+      disagreeing.map((seat) => {
+        const ownDirection = directions[seat] ?? "its own direction";
+        const prompt =
+          `You said: ${ownDirection}. ${majoritySeat ?? "The majority"} said: ${majority}` +
+          `${evidenceId ? `, citing ${evidenceId}` : ""}.\n\n` +
+          `Answer in 3 lines:\n` +
+          `DECIDER: the single data point that settles this disagreement\n` +
+          `IF_RIGHT: what happens to ${evidenceId ?? "their argument"} if your ${ownDirection} call is right\n` +
+          `CHANGE_MY_MIND: the one number that would flip you to ${majority}`;
+        return runSeat(seat, [
+          { role: "system", content: seatSystemPrompt(seat) },
+          { role: "user", content: briefBySeat.get(seat) ?? "" },
+          { role: "assistant", content: answers[seat]!.answer },
+          { role: "user", content: prompt },
+        ], apiKey, 200);
+      }),
+    );
+    round2.forEach((r, i) => {
+      const seat = disagreeing[i];
+      if (r.status === "fulfilled" && r.value.answer.trim()) {
+        critiques[seat] = r.value.answer;
+        if (sessionId) void saveMessage(sessionId, { seat, round: 2, role: "critique", model: r.value.model, content: r.value.answer, latencyMs: r.value.latencyMs });
+      }
+    });
+  }
+
+  // ── Synthesis: the chair reads everything, then a separate verdict call ──
   const transcript = answeredSeats
-    .map((s) => `[${s}] answer: ${answers[s]!.answer}${critiques[s] ? `\n[${s}] critique: ${critiques[s]}` : ""}`)
+    .map((s) => `[${s}] answer: ${answers[s]!.answer}${critiques[s] ? `\n[${s}] critique (disagrees with ${majority}): ${critiques[s]}` : "\n(agrees with the majority — no round 2)"}`)
     .join("\n\n");
+  const chairBrief = await buildGroundedBrief(question.trim(), cleanTicker, "CHAIR");
 
   let chairText = "";
   let chairModel = "";
   try {
     const chair = await runSeat("CHAIR", [
       { role: "system", content: seatSystemPrompt("CHAIR") },
-      { role: "user", content: `${brief}\n\n=== COUNCIL TRANSCRIPT ===\n${transcript}\n\n${emptySeats.length ? `(Seats unavailable this run: ${emptySeats.join(", ")}.)` : ""}` },
-    ], apiKey, 500);
+      { role: "user", content: `${chairBrief}\n\n=== COUNCIL TRANSCRIPT ===\n${transcript}\n\n${emptySeats.length ? `(Seats unavailable this run: ${emptySeats.join(", ")}.)` : ""}` },
+    ], apiKey, 400);
     chairText = chair.answer;
     chairModel = chair.model;
   } catch {
     return NextResponse.json({ error: "Council synthesis unavailable" }, { status: 503 });
   }
 
-  const verdict = parseVerdict(chairText);
+  // Seat-to-model assignment (docs/council-prompting-small-models.md §10):
+  // the verdict is an 80-token JSON classification task, not the hard job —
+  // run it on the smallest model in the chain, 3x, instead of CHAIR's
+  // primary (best free) model that synthesis just used.
+  const verdictSamples = await Promise.allSettled(
+    Array.from({ length: CHAIR_VERDICT_RUNS }, () =>
+      runSeat("CHAIR", [
+        { role: "system", content: CHAIR_VERDICT_SYSTEM },
+        { role: "user", content: `${chairText}\n\n=== COUNCIL TRANSCRIPT ===\n${transcript}` },
+      ], apiKey, 100, 0.7, SMALLEST_MODEL),
+    ),
+  );
+  const parsedSamples = verdictSamples
+    .filter((r): r is PromiseFulfilledResult<CouncilResponse> => r.status === "fulfilled")
+    .map((r) => parseVerdictJson(r.value.answer))
+    .filter((v): v is ChairVerdictJson => v !== null);
+
+  const verdict = reconcileVerdicts(parsedSamples);
   if (sessionId) {
     void saveMessage(sessionId, { seat: "CHAIR", round: 3, role: "synthesis", model: chairModel, content: chairText });
     void saveVerdict(sessionId, cleanTicker, verdict);
