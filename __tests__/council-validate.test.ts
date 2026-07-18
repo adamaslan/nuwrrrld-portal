@@ -59,6 +59,18 @@ describe("numericCrossCheck", () => {
     expect(flags).toEqual([]);
   });
 
+  it("regression: treats a comma thousands-separator as one number, not two (PR #37 review)", () => {
+    const grounded = verdict({
+      because: '[C1] says "target 18,500.00 aligns with the range"',
+      invalidation: "confluence score below 72",
+      execution: "entry n/a / stop n/a / target 18,500.00",
+    });
+    const briefWithLargeNumber = `${BRIEF}\nTarget zone: 18500.00`;
+    // If the comma split "18,500" into "18" and "500", "500" would be an
+    // orphan flag even though the intended number (18500.00) is grounded.
+    expect(numericCrossCheck(grounded, briefWithLargeNumber)).toEqual([]);
+  });
+
   it("does not flag the id inside [C1] as an invented number", () => {
     const groundedOnly = verdict({
       because: '[C1] says "RSI 28.40 with rising volume signals a bounce"',

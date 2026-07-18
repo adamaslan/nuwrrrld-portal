@@ -67,7 +67,13 @@ async function fetchSignalData(ticker: string): Promise<SignalData | null> {
     if (typeof entry.confluence_score === "number") lines.push(`Confluence score: ${entry.confluence_score}`);
     if (entry.ai_summary) lines.push(`Summary: ${entry.ai_summary}`);
     const signals = Array.isArray(entry.signals) ? (entry.signals as Record<string, unknown>[]) : [];
-    const reasons = signals.map((s) => String(s.detail ?? s.signal ?? "")).filter(Boolean).slice(0, 6);
+    // Guard against non-object/null entries in an externally-supplied array
+    // (flagged in PR #37 review) — a malformed element would otherwise throw
+    // on `s.detail` and crash the whole signal fetch.
+    const reasons = signals
+      .map((s) => (s && typeof s === "object" ? String(s.detail ?? s.signal ?? "") : ""))
+      .filter(Boolean)
+      .slice(0, 6);
     if (reasons.length) lines.push(`Signals:\n- ${reasons.join("\n- ")}`);
     if (!lines.length) return null;
 

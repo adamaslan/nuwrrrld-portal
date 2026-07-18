@@ -20,8 +20,11 @@ const NUMERIC_TOLERANCE = 0.01; // ±1%
 
 function extractNumbers(text: string): number[] {
   // Strip evidence ids like [C1] first — the "1" is a reference, not data.
+  // Then strip thousands-separator commas (e.g. "18,500.00") so they aren't
+  // split into two numbers (flagged in PR #37 review).
   const withoutIds = text.replace(/\[C\d+\]/g, "");
-  const matches = withoutIds.match(NUMBER_RE) ?? [];
+  const withoutCommas = withoutIds.replace(/(\d),(?=\d{3}(?:\D|$))/g, "$1");
+  const matches = withoutCommas.match(NUMBER_RE) ?? [];
   return matches.map(Number).filter((n) => !Number.isNaN(n));
 }
 

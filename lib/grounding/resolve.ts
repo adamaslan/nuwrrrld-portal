@@ -50,55 +50,40 @@ async function resolveTier0(
   directionFilter: "bullish" | "bearish" | "neutral" | null = null,
 ): Promise<GroundingResult | null> {
   try {
+    // Joins corpus_chunks in the same query so trader_filter is available
+    // for the in-memory filter below without a per-row follow-up query.
     const rows = directionFilter
       ? await sql`
           SELECT
-            rule_text,
-            quote,
-            chunk_id,
-            source_file,
-            tags,
-            confidence,
-            direction,
-            corpus_version,
-            taxonomy_version
-          FROM grounding_pack
-          WHERE state_key = ${stateKey}
-            AND horizon = ${horizon}
-            AND direction = ${directionFilter}
+            gp.rule_text, gp.quote, gp.chunk_id, gp.source_file, gp.tags,
+            gp.confidence, gp.direction, gp.corpus_version, gp.taxonomy_version,
+            cc.trader_filter
+          FROM grounding_pack gp
+          LEFT JOIN corpus_chunks cc ON cc.chunk_id = gp.chunk_id
+          WHERE gp.state_key = ${stateKey}
+            AND gp.horizon = ${horizon}
+            AND gp.direction = ${directionFilter}
         `
       : await sql`
           SELECT
-            rule_text,
-            quote,
-            chunk_id,
-            source_file,
-            tags,
-            confidence,
-            direction,
-            corpus_version,
-            taxonomy_version
-          FROM grounding_pack
-          WHERE state_key = ${stateKey}
-            AND horizon = ${horizon}
+            gp.rule_text, gp.quote, gp.chunk_id, gp.source_file, gp.tags,
+            gp.confidence, gp.direction, gp.corpus_version, gp.taxonomy_version,
+            cc.trader_filter
+          FROM grounding_pack gp
+          LEFT JOIN corpus_chunks cc ON cc.chunk_id = gp.chunk_id
+          WHERE gp.state_key = ${stateKey}
+            AND gp.horizon = ${horizon}
         `;
 
     if (!rows.length) return null;
 
-    // Filter by trader_filter if specified (T1 or T2)
-    const filtered = await Promise.all(
-      rows.map(async (row) => {
-        const chunk = await sql`
-          SELECT trader_filter FROM corpus_chunks WHERE chunk_id = ${row.chunk_id}
-        `;
-        if (!chunk.length) return null;
-        const chunkTraderFilter = chunk[0].trader_filter as string | null;
-        if (traderFilter && chunkTraderFilter && chunkTraderFilter !== traderFilter) return null;
-        return row;
-      }),
-    );
-
-    const validRows = filtered.filter((r) => r !== null);
+    // Filter by trader_filter if specified (T1 or T2) — trader_filter came
+    // back on the same joined row above, so this is an in-memory filter, not
+    // a second query per row (that N+1 pattern was flagged in PR #37 review).
+    const validRows = rows.filter((row) => {
+      const chunkTraderFilter = row.trader_filter as string | null;
+      return !(traderFilter && chunkTraderFilter && chunkTraderFilter !== traderFilter);
+    });
     if (validRows.length < TIER0_MIN_RULES) return null;
 
     // Check source file diversity
@@ -138,19 +123,20 @@ async function resolveTier1(
   traderFilter: string | null,
 ): Promise<GroundingResult | null> {
   try {
-    // websearch_to_tsquery requires PG 11+ and allows OR/AND/NOT syntax
-    const tsQuery = `websearch_to_tsquery('english', ${question})`;
-
-    const rows = await sql.unsafe(`
+    // websearch_to_tsquery requires PG 11+ and allows OR/AND/NOT syntax.
+    // `question` and `traderFilter` come from user input — use the
+    // parameterized `sql` tag (not sql.unsafe with string interpolation,
+    // which was a SQL injection vector flagged in PR #37 review).
+    const rows = (await sql`
       SELECT
         chunk_id,
         source_file,
         tags,
         body,
-        ts_rank(tsv, ${tsQuery}) as rank
+        ts_rank(tsv, websearch_to_tsquery('english', ${question})) as rank
       FROM corpus_chunks
-      WHERE tsv @@ ${tsQuery}
-        AND (trader_filter IS NULL OR trader_filter = '${traderFilter}' OR trader_filter = 'ALL')
+      WHERE tsv @@ websearch_to_tsquery('english', ${question})
+        AND (trader_filter IS NULL OR trader_filter = ${traderFilter} OR trader_filter = 'ALL')
       ORDER BY rank DESC
       LIMIT 6
     `) as unknown as Array<{
@@ -197,18 +183,17 @@ async function resolveTier2(
   traderFilter: string | null,
 ): Promise<GroundingResult | null> {
   try {
-    const tsQuery = `websearch_to_tsquery('english', ${question})`;
-
-    const rows = await sql.unsafe(`
+    // Same injection fix as Tier 1 — parameterized `sql` tag, not sql.unsafe.
+    const rows = (await sql`
       SELECT
         chunk_id,
         source_file,
         tags,
         body,
-        ts_rank(tsv, ${tsQuery}) as rank
+        ts_rank(tsv, websearch_to_tsquery('english', ${question})) as rank
       FROM corpus_chunks
-      WHERE (${tsQuery} @@ to_tsvector('english', array_to_string(search_terms, ' ')))
-        AND (trader_filter IS NULL OR trader_filter = '${traderFilter}' OR trader_filter = 'ALL')
+      WHERE (websearch_to_tsquery('english', ${question}) @@ to_tsvector('english', array_to_string(search_terms, ' ')))
+        AND (trader_filter IS NULL OR trader_filter = ${traderFilter} OR trader_filter = 'ALL')
       ORDER BY rank DESC
       LIMIT 6
     `) as unknown as Array<{
