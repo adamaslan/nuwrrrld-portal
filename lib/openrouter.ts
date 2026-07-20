@@ -52,64 +52,82 @@ const SEAT_MODELS: Record<CouncilSeat, string> = {
   CHAIR: 'qwen/qwen3-next-80b-a3b-instruct:free',
 };
 
+// Seat-to-model assignment (docs/council-prompting-small-models.md §10):
+// spend the best free model on the one irreducibly hard job (CHAIR
+// synthesis) and the smallest on tasks reduced to pure classification (CHAIR
+// verdict, run 3x). QUANT already carries the smallest model in the chain.
+export const SMALLEST_MODEL = SEAT_MODELS.QUANT;
+
+// Prompt contract (docs/council-prompting-small-models.md): ≤5 directives per
+// call, checklist over prose, positive constraints only (small models handle
+// "do X" far better than "don't do Y"), and the critical constraint repeated
+// last — recency wins in small models. Every fallback model in
+// FREE_MODEL_CHAIN is a 7B-30B class model, so these prompts are written for
+// the worst model in the chain, not the best.
 const _DISCLAIMER = 'You provide informational analysis only — not personalised financial advice.';
-const _GROUND = 'Ground every claim in the exact data provided. Cite specific numbers.';
+const _GROUND = 'Ground every claim in DATA. If RULES are listed, pick 2-3 that apply — never invent evidence.';
 
 const SEAT_SYSTEM: Record<CouncilSeat, string> = {
   T1: [
-    'You are the Short-Term Trading Council seat (T1) for NuWrrrld Financial.',
-    'You analyze tactical trades across 1-day to 60-day horizons.',
+    'You are T1, the short-term trader (1-60 days) for NuWrrrld Financial.',
     _GROUND,
-    'Each field must be one concise, data-grounded sentence — no generic platitudes.',
     _DISCLAIMER,
     STRUCTURED_VERDICT_INSTRUCTIONS,
   ].join(' '),
   T2: [
-    'You are the Long-Term Investment Council seat (T2) for NuWrrrld Financial.',
-    'You analyze strategic positions across 2-month to 5-year horizons.',
+    'You are T2, the long-term investor (2 months-5 years) for NuWrrrld Financial.',
+    // 3-12 months matches the "3-12m" horizon persisted in app/api/council/route.ts —
+    // keep this in sync with that literal (flagged as an inconsistency in PR #34 review).
+    'OUTLOOK is the secular thesis direction; EXECUTION covers a 3-12 month entry range, target, and downside stop.',
     _GROUND,
-    'Frame the fields for this horizon: OUTLOOK is the secular thesis direction,',
-    'KEY_DRIVER is the key catalyst, INVALIDATION_LEVEL is what would break the thesis,',
-    'ENTRY/EXIT/STOP are the position-sizing range, target, and downside stop over 6-12 months.',
-    'Each field must be one concise, data-grounded sentence — no generic platitudes.',
     _DISCLAIMER,
     STRUCTURED_VERDICT_INSTRUCTIONS,
   ].join(' '),
   RISK: [
-    'You are the Risk Council seat (RISK) for NuWrrrld Financial — the devil\'s advocate.',
-    'Argue the case AGAINST the prevailing direction. Name the specific failure modes,',
-    'the downside scenario, and how a position would be sized to survive being wrong.',
+    'You are RISK, the devil\'s advocate for NuWrrrld Financial.',
+    'Argue the case AGAINST the prevailing direction: name the failure mode, the downside scenario,',
+    'and a position size that survives being wrong.',
+    'If RULES are listed, they already oppose the majority — cite 1-2 by id instead of inventing dissent.',
     _GROUND,
-    'Be concise (~150 words). Do not hedge into neutrality — your job is the bear/bull opposite case.',
-    _DISCLAIMER,
+    `Be concise (~150 words); stay in the bear/bull opposite case. ${_DISCLAIMER}`,
   ].join(' '),
   MACRO: [
-    'You are the Macro Council seat (MACRO) for NuWrrrld Financial.',
-    'Frame the setup in rates, the dollar, liquidity, and sector rotation. Is the macro',
-    'wind at this trade\'s back or in its face? What macro event would invalidate it?',
+    'You are MACRO for NuWrrrld Financial.',
+    'Frame the setup in rates, the dollar, liquidity, and sector rotation — state whether the macro wind',
+    'favors or opposes this trade, and the macro event that would invalidate it.',
+    'If RULES are listed, cite the ones that apply by id.',
     _GROUND,
-    'Be concise (~150 words).',
-    _DISCLAIMER,
+    `Be concise (~150 words). ${_DISCLAIMER}`,
   ].join(' '),
   QUANT: [
-    'You are the Quant Council seat (QUANT) for NuWrrrld Financial.',
-    'Interpret ONLY the numeric data in the brief: confluence score, per-indicator',
-    'signals, and historical hit-rates. State what the numbers support, with no',
-    'narrative or outside knowledge. If the data is thin, say so plainly.',
-    'Be concise (~130 words).',
-    _DISCLAIMER,
+    'You are QUANT for NuWrrrld Financial.',
+    'Interpret only the numeric DATA: confluence score, per-indicator signals, historical hit-rates.',
+    'State plainly what the numbers support; say so plainly when the data is thin.',
+    'Use numbers only, no outside knowledge and no prose rules.',
+    `Be concise (~130 words). ${_DISCLAIMER}`,
   ].join(' '),
+  // Synthesis only — prose, no JSON. The verdict is a separate, tiny call
+  // (see CHAIR_VERDICT_SYSTEM) so a malformed JSON line can never corrupt
+  // the synthesis and vice versa (docs/council-prompting-small-models.md §6).
   CHAIR: [
     'You are the Chair of the NuWrrrld Financial AI Council.',
-    'You have read every seat\'s answer and critique. Synthesize: state whether the',
-    'council is in consensus or split, the strongest argument on each side, and your',
-    'call. Then, on the FINAL line, output a single-line JSON verdict:',
-    '{"direction":"bullish|bearish|neutral","confidence":"low|medium|high","horizon":"e.g. 1-5d","invalidation":"the level/condition that voids the call"}',
+    'Read every seat\'s answer and critique, then synthesize: state whether the council is in',
+    'consensus or split, and the strongest argument on each side.',
     _GROUND,
-    'Prose ~180 words, then the JSON line.',
-    _DISCLAIMER,
+    `Prose only, ~180 words — no JSON, no verdict line. ${_DISCLAIMER}`,
   ].join(' '),
 };
+
+/**
+ * The CHAIR's second call: verdict only, nothing else. Kept separate from
+ * synthesis so it can run at max_tokens≈80 and be JSON.parse'd directly —
+ * no regex fishing through prose for a stray `{...}` line.
+ */
+export const CHAIR_VERDICT_SYSTEM = [
+  'Output ONLY a single-line JSON object matching this schema, nothing else:',
+  '{"direction":"bullish|bearish|neutral","confidence":"low|medium|high","horizon":"e.g. 1-5d","invalidation":"the level/condition that voids the call"}',
+  'No prose, no markdown, no explanation. Output must start with { and end with }.',
+].join(' ');
 
 /**
  * Try each model in FREE_MODEL_CHAIN until one returns 2xx.
@@ -162,8 +180,10 @@ export async function runSeat(
   messages: CouncilMessage[],
   apiKey: string,
   maxTokens = 500,
+  temperature = 0.4,
+  modelOverride?: string,
 ): Promise<CouncilResponse> {
-  const primaryModel = SEAT_MODELS[seat];
+  const primaryModel = modelOverride ?? SEAT_MODELS[seat];
   const modelChain = [primaryModel, ...FREE_MODEL_CHAIN.filter(m => m !== primaryModel)];
 
   const started = Date.now();
@@ -181,7 +201,7 @@ export async function runSeat(
           'HTTP-Referer': 'https://financial.nuwrrrld.com',
           'X-Title': 'NuWrrrld Financial AI Council',
         },
-        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.4 }),
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
       });
       if (res.ok) {
         const data = await res.json();

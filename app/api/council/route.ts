@@ -4,6 +4,7 @@ import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { callCouncilSeat, type CouncilSeat } from "@/lib/openrouter";
 import { parseStructuredVerdict, directionFromOutlook } from "@/lib/council-verdict";
+import { validateStructuredVerdict, buildRepairMessage } from "@/lib/council-validate";
 import { createSession, saveMessage, saveVerdict } from "@/lib/council-db";
 
 /**
@@ -36,9 +37,9 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "Council not configured" }, { status: 503 });
 
   const body = await req.json().catch(() => ({}));
-  const { prompt, seat = "T1", ticker = null } = (body || {}) as {
+  const { prompt, seat: rawSeat = "T1", ticker = null } = (body || {}) as {
     prompt?: string;
-    seat?: CouncilSeat;
+    seat?: string;
     ticker?: string | null;
   };
 
@@ -46,8 +47,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "prompt required" }, { status: 400 });
   }
 
+  // This route's contract is T1/T2 only (the 4-field structured format);
+  // the other seats' prompts are free prose and would never parse here.
+  if (rawSeat !== "T1" && rawSeat !== "T2") {
+    return NextResponse.json({ error: "seat must be T1 or T2" }, { status: 400 });
+  }
+  const seat: CouncilSeat = rawSeat;
+
   try {
-    let result = await callCouncilSeat(seat as CouncilSeat, prompt, apiKey);
+    let result = await callCouncilSeat(seat, prompt, apiKey);
     let verdict = parseStructuredVerdict(result.answer);
 
     if (!verdict) {
@@ -56,9 +64,9 @@ export async function POST(req: NextRequest) {
       const retryPrompt =
         `${prompt}\n\n` +
         `Your previous response did not follow the required format. ` +
-        `Respond again using ONLY the six required labeled fields (OUTLOOK, KEY_DRIVER, ` +
-        `INVALIDATION_LEVEL, ENTRY, EXIT, STOP) — no other text.`;
-      result = await callCouncilSeat(seat as CouncilSeat, retryPrompt, apiKey);
+        `Respond again using ONLY the four required labeled fields (OUTLOOK, BECAUSE, ` +
+        `INVALIDATION, EXECUTION) — no other text.`;
+      result = await callCouncilSeat(seat, retryPrompt, apiKey);
       verdict = parseStructuredVerdict(result.answer);
     }
 
@@ -72,11 +80,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // The repair loop (docs/council-prompting-small-models.md §7): the format
+    // parsed, but the model may still have invented a number or misordered
+    // entry/stop/target. One mechanical, specific repair retry — never
+    // "please improve" — then accept-with-flags either way.
+    const flags = validateStructuredVerdict(verdict, prompt);
+    if (flags.length) {
+      const repaired = await callCouncilSeat(
+        seat,
+        `${prompt}\n\nYour previous response:\n${result.answer}\n\n${buildRepairMessage(flags)}`,
+        apiKey,
+      );
+      const repairedVerdict = parseStructuredVerdict(repaired.answer);
+      // Parsing alone doesn't prove the flagged numbers/ordering were fixed —
+      // re-run the same checks against the repaired verdict before trusting
+      // it (flagged in PR #37 review).
+      if (repairedVerdict && validateStructuredVerdict(repairedVerdict, prompt).length === 0) {
+        result = repaired;
+        verdict = repairedVerdict;
+      }
+    }
+
     const cleanTicker = ticker ? ticker.trim().toUpperCase() : null;
     const sessionId = await createSession(userId, cleanTicker ?? prompt.trim().slice(0, 80));
     if (sessionId) {
       void saveMessage(sessionId, {
-        seat: seat as CouncilSeat,
+        seat,
         round: 1,
         role: "answer",
         model: result.model,
@@ -87,7 +116,7 @@ export async function POST(req: NextRequest) {
         direction: directionFromOutlook(verdict.outlook),
         confidence: null,
         horizon: seat === "T1" ? "1-5d" : "3-12m",
-        invalidation: verdict.invalidationLevel,
+        invalidation: verdict.invalidation,
       });
     }
 

@@ -12,11 +12,9 @@ type CouncilSeat = "T1" | "T2";
 
 interface StructuredVerdict {
   outlook: string;
-  keyDriver: string;
-  invalidationLevel: string;
-  entry: string;
-  exit: string;
-  stop: string;
+  because: string;
+  invalidation: string;
+  execution: string;
 }
 
 interface CouncilState {
@@ -124,11 +122,9 @@ function CouncilSeatPanel({
           </p>
           <dl className="hf-council-fields">
             <dt>Outlook</dt><dd>{council.verdict.outlook}</dd>
-            <dt>Key driver</dt><dd>{council.verdict.keyDriver}</dd>
-            <dt>Invalidation</dt><dd>{council.verdict.invalidationLevel}</dd>
-            <dt>Entry</dt><dd>{council.verdict.entry}</dd>
-            <dt>Exit</dt><dd>{council.verdict.exit}</dd>
-            <dt>Stop</dt><dd>{council.verdict.stop}</dd>
+            <dt>Because</dt><dd>{council.verdict.because}</dd>
+            <dt>Invalidation</dt><dd>{council.verdict.invalidation}</dd>
+            <dt>Execution</dt><dd>{council.verdict.execution}</dd>
           </dl>
         </div>
       )}
