@@ -175,14 +175,13 @@ export async function buildGroundedBrief(
 ): Promise<string> {
   const parts: string[] = [`QUESTION: ${question}`];
 
-  if (!ticker) return parts.join("\n\n");
+  const [signalData, hitRates, priors] = ticker
+    ? await Promise.all([fetchSignalData(ticker), fetchHitRates(ticker), fetchPriorVerdicts(ticker)])
+    : [null, null, null];
 
-  const [signalData, hitRates, priors] = await Promise.all([
-    fetchSignalData(ticker),
-    fetchHitRates(ticker),
-    fetchPriorVerdicts(ticker),
-  ]);
-
+  // Free-form questions (no ticker) skip the ticker-specific fetches above
+  // but still run through the corpus resolver — Tier 1/2 FTS need no
+  // ticker, only Tier 0's state-key lookup does (flagged in PR #37 review).
   let compiled: string | null = null;
   if (seat !== "QUANT") {
     const { horizon, traderFilter, directionFilter, useTier0 } = slicingForSeat(
@@ -192,7 +191,7 @@ export async function buildGroundedBrief(
     try {
       const result = await resolveGrounding(
         question,
-        useTier0 ? signalData?.structured ?? null : null,
+        ticker && useTier0 ? signalData?.structured ?? null : null,
         horizon,
         ticker,
         traderFilter,
@@ -204,6 +203,11 @@ export async function buildGroundedBrief(
     } catch {
       compiled = null;
     }
+  }
+
+  if (!ticker) {
+    if (compiled) parts.push(compiled);
+    return parts.join("\n\n");
   }
 
   if (signalData?.text) parts.push(`=== LIVE SIGNAL DATA (${ticker}) ===\n${signalData.text}`);

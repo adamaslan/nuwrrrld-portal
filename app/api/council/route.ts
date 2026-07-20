@@ -92,7 +92,10 @@ export async function POST(req: NextRequest) {
         apiKey,
       );
       const repairedVerdict = parseStructuredVerdict(repaired.answer);
-      if (repairedVerdict) {
+      // Parsing alone doesn't prove the flagged numbers/ordering were fixed —
+      // re-run the same checks against the repaired verdict before trusting
+      // it (flagged in PR #37 review).
+      if (repairedVerdict && validateStructuredVerdict(repairedVerdict, prompt).length === 0) {
         result = repaired;
         verdict = repairedVerdict;
       }
