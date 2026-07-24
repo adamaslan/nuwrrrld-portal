@@ -4,6 +4,22 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {su
 
 ---
 
+## [2026-07-24] sync | PR #40 parity recompute — portal pulled ahead on the signal data plane | pages touched: 3
+
+Per the mobile↔web wiki-sync rule, recomputed parity after PR #40. Headline
+dropped ~65% → **~62%**: feature-domain parity held at ~82% (no new *shared*
+domain) but single-source parity fell ~44% → ~38% because the PR added a whole
+portal-only real-time signal tier (`signal-queue`, `signal-policy`, read-through
+`signal_cache`, `live-price` + `live-price-db`, `/api/signals/drain` + `/live`)
+with no mobile counterpart — two of those modules (`signal-policy.ts`,
+`live-price.ts`) even sit in `lib/shared/` yet are portal-only (new share-debt).
+Updated `concept-mobile-web-parity.md` (headline + matrix rows + tension) and
+`concept-sync-requirements.md` (de-drift + port tables flag the two new shared
+candidates). Mobile mirror (`gcp3-mobile/docs/wiki-mobile/`) updated in the same
+turn.
+
+---
+
 ## [2026-07-24] ingest | TODO4 — ship the 3 deferred items (drain cron, Finnhub WS tier, CI Neon branch) | pages touched: 4
 
 Shipped everything TODO3 left deferred. (1) `homebase/modal_drain.py` — a

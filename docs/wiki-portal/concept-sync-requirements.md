@@ -7,7 +7,7 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens]
 
 # Concept — What Each Surface Needs to Sync
 
-Companion page: [[concept-mobile-web-parity]] — the current ~65% measurement this
+Companion page: [[concept-mobile-web-parity]] — the current ~62% measurement this
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
@@ -35,6 +35,8 @@ subtree, or the `nuwrrrld-fullstack` skill's single-sourcing workflow).
 |--------|---------------|
 | `lib/shared/prefs.ts` | Diff the two copies; reconcile to one. Already lives in `shared/` on both sides, so it should be the *easiest* to fix and is the most embarrassing to leave drifted. |
 | `lib/shared/signalFilters.ts` | Same — reconcile filter predicates so a "watchlist"/"muted" filter means the same thing on both surfaces. |
+| `lib/shared/signal-policy.ts` | New (PR #40), portal-only. Pure ticker validation / cache-freshness / backoff — no mobile copy yet. **Promote to shared before mobile grows its own**, so it never drifts in the first place. |
+| `lib/shared/live-price.ts` | New (PR #40), portal-only. Pure live-price parse/validate. Share if mobile ever consumes `/api/signals/live`. |
 | `lib/digest.ts` | Resolve the `adaptLiveSignals` error-handling split (throw vs. null) and field mappings flagged in mobile `overview.md` #6. Pick one adapter; move it to `lib/shared/`. |
 | `lib/signalCard.ts` | Reconcile card-shape derivation so a signal renders identically. Move to `lib/shared/`. |
 | `lib/nuai.ts` | Reconcile chat contract (token budget, refusal guardrails, prompt-chip grounding). Portal drives `/api/nuai`; ensure the request/response types match mobile's `useNuAI`. |
@@ -49,8 +51,10 @@ gate).
 | Feature | To sync mobile needs… |
 |---------|----------------------|
 | **Backtest** ([[entity-backtest-engine]]) | A mobile screen + a `clients/` call hitting `/api/backtest/[symbol]`. Or a decision that backtest stays web-only (heavier UI, desktop-first). |
-| **Watchlist store** (`watchlist-store.ts`) | Confirm mobile's `usePortfolio` watchlist and portal's `watchlist-store.ts` agree on shape and persistence; ideally share the store logic. |
+| **Watchlist store** (`watchlist-store.ts`) | Confirm mobile's `usePortfolio` watchlist and portal's `watchlist-store.ts` agree on shape and persistence; ideally share the store logic. Note: portal's watchlist-add now **enqueues a signal refresh** (PR #40) — mobile's does not. |
 | **Hold/Fold cache** ([[entity-holdfold-cache]]) | Decide whether mobile should read the same cached verdicts or keep calling the backend live. Today portal caches; mobile does not. |
+| **Signal cache/queue + drain** ([[decision-pending-signals-queue]]) | New in PR #40: `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain`. `signal-policy.ts` (ticker validation, cache-freshness, backoff) is a **prime de-drift candidate to promote to shared** — mobile has the same needs. |
+| **Real-time price tier** ([[entity-live-price-tier]]) | New in PR #40: Finnhub WS → `/api/signals/live` → `live_prices`. Mobile needs either to read `GET /api/signals/live` or a decision that live quotes stay web-only. `lib/shared/live-price.ts` parsing is reusable as-is. |
 
 ### Mobile has, portal lacks
 | Feature | To sync portal needs… |

@@ -26,19 +26,24 @@ holding platform-agnostic modules meant to be identical. Where a module lives in
 Where the same filename exists in both `lib/` roots but has drifted, the surfaces
 agree in intent but not in code.
 
-## Headline: ~65% synced (2026-07-24)
+## Headline: ~62% synced (2026-07-24, after PR #40)
 
 Two different denominators, deliberately kept separate:
 
 - **Feature-domain parity ≈ 82%** — 9 of 11 shared product domains exist and
   work on both surfaces; only the AI Council is architecturally divergent, and
-  two domains (Signals/Digest, Nu AI) have drifted implementations.
-- **Single-source (code-identical) parity ≈ 44%** — of the modules duplicated
-  by filename across both repos, only 4 of 9 are byte-identical. The rest have
-  been edited on one side without back-porting.
+  two domains (Signals/Digest, Nu AI) have drifted implementations. Unchanged by
+  PR #40 (which added depth, not a new shared domain).
+- **Single-source (code-identical) parity ≈ 38%** (was ~44%) — PR #40 added a
+  whole portal-only real-time signal tier (`signal-queue`, `signal-policy`,
+  `signal-cache` read-through, `live-price` + `live-price-db`, `/api/signals/drain`
+  + `/live`) with **no mobile counterpart**. Two of those new modules
+  (`lib/shared/signal-policy.ts`, `lib/shared/live-price.ts`) even sit in the
+  supposedly-shared `lib/shared/` folder yet are portal-only — new share-debt.
 
-The blended ~65% reflects that the product *looks* synced to a user far more than
-its code *is* synced. The risk lives in the gap between those two numbers.
+The blended **~62%** (down from ~65%) reflects the portal pulling further ahead
+on the signal data plane: the product still *looks* synced to a user, but the
+code gap widened. The risk lives in the gap between those two numbers.
 
 ## Domain parity matrix
 
@@ -49,7 +54,9 @@ its code *is* synced. The risk lives in the gap between those two numbers.
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
 | **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
-| **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **diverged** | 🟡 Partial — adapters drifted ([[entity-signal-data-plane]]) |
+| **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **diverged** | 🟡 Partial — adapters drifted; portal now much deeper ([[entity-signal-data-plane]]) |
+| **Signal cache / queue** | — | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
+| **Real-time price tier** | — | `live-price.ts`, `live-price-db.ts`, `live_prices`, `/api/signals/live` ([[entity-live-price-tier]]) | `live-price.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
 | **Nu AI chat** | `nuai.ts`, `NuAIScreen`, `useNuAI` | `nuai.ts`, `/api/nuai`, `dashboard/nuai` | `nuai.ts` **diverged** | 🟡 Partial |
 | **Hold/Fold** | `clients/holdfold.ts`, `HoldFoldScreen` | `/api/holdfold`, `dashboard/holdfold`, `holdfold-cache` | none (portal adds cache layer) | 🟡 Partial — portal has cache ([[entity-holdfold-cache]]) |
 | **Shared prefs** | `shared/prefs.ts` | `shared/prefs.ts` | **diverged** | 🟡 Partial |
@@ -70,8 +77,10 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 
 > ⚠️ Contradiction: `lib/shared/` is meant to be the single source of truth, but
 > `prefs.ts` and `signalFilters.ts` already differ between repos *inside that very
-> folder*. A "shared" module that isn't byte-identical is worse than an obviously
-> per-platform one, because it hides drift. See [[concept-sync-requirements]].
+> folder* — and PR #40 added `signal-policy.ts` + `live-price.ts` there with no
+> mobile counterpart at all. A "shared" module that only one surface has is a
+> standing invitation to drift the moment mobile grows its own copy. See
+> [[concept-sync-requirements]].
 
 > ⚠️ Contradiction: the mobile wiki's [[concept-backend-is-source-of-truth]]
 > argues for one canonical adapter, yet `digest.ts` / `signalCard.ts` exist as two
