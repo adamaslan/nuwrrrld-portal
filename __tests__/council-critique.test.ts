@@ -34,6 +34,11 @@ describe("extractDirection", () => {
     expect(extractDirection("QUANT", "Confluence score is 45, no strong signal either way.")).toBeNull();
     expect(extractDirection("RISK", "bullish case here, but also a bearish case here.")).toBeNull();
   });
+
+  it("recognizes an explicit neutral conclusion from a free-prose seat", () => {
+    expect(extractDirection("QUANT", "Signal is neutral — no clear direction, sit this one out.")).toBe("neutral");
+    expect(extractDirection("MACRO", "Rates backdrop is neutral this cycle, hold current position.")).toBe("neutral");
+  });
 });
 
 describe("computeDisagreements", () => {

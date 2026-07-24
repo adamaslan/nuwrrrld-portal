@@ -50,14 +50,29 @@ interface ChairVerdictJson {
   invalidation?: string;
 }
 
+const VALID_DIRECTIONS = new Set(["bullish", "bearish", "neutral"]);
+const VALID_CONFIDENCES = new Set(["low", "medium", "high"]);
+
 function parseVerdictJson(text: string): ChairVerdictJson | null {
   // The verdict call is instructed to output ONLY `{...}` — no regex fishing
   // through prose needed now that synthesis and verdict are separate calls.
+  // A sample with an invalid/missing direction or confidence is dropped
+  // entirely rather than allowed to vote or supply metadata (flagged in
+  // PR #37 review) — schema compliance is checked here, not left to the
+  // reconciliation step.
+  let parsed: unknown;
   try {
-    return JSON.parse(text.trim()) as ChairVerdictJson;
+    parsed = JSON.parse(text.trim());
   } catch {
     return null;
   }
+  if (!parsed || typeof parsed !== "object") return null;
+  const v = parsed as ChairVerdictJson;
+  if (typeof v.direction !== "string" || !VALID_DIRECTIONS.has(v.direction)) return null;
+  if (typeof v.confidence !== "string" || !VALID_CONFIDENCES.has(v.confidence)) return null;
+  if (typeof v.horizon !== "string" || !v.horizon.trim()) return null;
+  if (typeof v.invalidation !== "string" || !v.invalidation.trim()) return null;
+  return v;
 }
 
 const CONFIDENCE_RANK: Record<string, number> = { low: 0, medium: 1, high: 2 };
@@ -69,32 +84,38 @@ function reconcileVerdicts(samples: ChairVerdictJson[]): CouncilVerdict {
   const empty: CouncilVerdict = { direction: null, confidence: null, horizon: null, invalidation: null };
   if (!samples.length) return empty;
 
+  // parseVerdictJson already rejects incomplete/invalid samples, so every
+  // entry here has a valid direction/confidence/horizon/invalidation.
   const counts: Record<VerdictDirection, number> = { bullish: 0, bearish: 0, neutral: 0 };
   for (const s of samples) {
-    if (s.direction === "bullish" || s.direction === "bearish" || s.direction === "neutral") {
-      counts[s.direction] += 1;
-    }
+    counts[s.direction as VerdictDirection] += 1;
   }
   const ranked = (Object.entries(counts) as Array<[VerdictDirection, number]>).sort((a, b) => b[1] - a[1]);
-  const direction = ranked[0][1] > 0 ? ranked[0][0] : null;
+  const topCount = ranked[0][1];
+  const tiedForTop = ranked.filter(([, n]) => n === topCount);
+  // Require a unique strict majority — a tie (e.g. 1 bullish / 1 bearish)
+  // must not silently resolve to whichever key sorts first (flagged in
+  // PR #37 review).
+  const direction = topCount > 0 && tiedForTop.length === 1 ? tiedForTop[0][0] : null;
 
   let confidence: "low" | "medium" | "high" | null = null;
   for (const s of samples) {
-    if (s.confidence === "low" || s.confidence === "medium" || s.confidence === "high") {
-      if (confidence === null || CONFIDENCE_RANK[s.confidence] < CONFIDENCE_RANK[confidence]) {
-        confidence = s.confidence;
-      }
+    const c = s.confidence as "low" | "medium" | "high";
+    if (confidence === null || CONFIDENCE_RANK[c] < CONFIDENCE_RANK[confidence]) {
+      confidence = c;
     }
   }
 
-  // Horizon/invalidation: take the first sample's values — they're
-  // descriptive text, not something to vote on the way direction is.
-  const first = samples.find((s) => s.direction) ?? samples[0];
+  // Horizon/invalidation must come from a sample that actually agrees with
+  // the winning direction — otherwise a dissenting sample's rationale could
+  // be attached to the majority's call (flagged in PR #37 review).
+  const matching = direction ? samples.find((s) => s.direction === direction) : undefined;
+  const source = matching ?? samples[0];
   return {
     direction,
     confidence,
-    horizon: typeof first.horizon === "string" ? first.horizon : null,
-    invalidation: typeof first.invalidation === "string" ? first.invalidation : null,
+    horizon: source.horizon ?? null,
+    invalidation: source.invalidation ?? null,
   };
 }
 
@@ -115,15 +136,37 @@ async function answerWithRepair(
   brief: string,
   apiKey: string,
 ): Promise<CouncilResponse> {
-  const first = await runSeat(seat, [
+  let first = await runSeat(seat, [
     { role: "system", content: seatSystemPrompt(seat) },
     { role: "user", content: brief },
   ], apiKey);
 
   if (seat !== "T1" && seat !== "T2") return first;
 
-  const verdict = parseStructuredVerdict(first.answer);
-  if (!verdict) return first;
+  let verdict = parseStructuredVerdict(first.answer);
+  if (!verdict) {
+    // A malformed T1/T2 answer must not flow into direction computation,
+    // the transcript, persistence, or the API response — retry once for
+    // format compliance the same way the quick-ask route does (flagged in
+    // PR #37 review) before giving up on this seat for the round.
+    const retryPrompt =
+      `${brief}\n\n` +
+      `Your previous response did not follow the required format. ` +
+      `Respond again using ONLY the four required labeled fields (OUTLOOK, BECAUSE, ` +
+      `INVALIDATION, EXECUTION) — no other text.`;
+    try {
+      const retried = await runSeat(seat, [
+        { role: "system", content: seatSystemPrompt(seat) },
+        { role: "user", content: retryPrompt },
+      ], apiKey);
+      const retriedVerdict = parseStructuredVerdict(retried.answer);
+      if (!retriedVerdict) return { ...first, answer: "" };
+      first = retried;
+      verdict = retriedVerdict;
+    } catch {
+      return { ...first, answer: "" };
+    }
+  }
 
   const flags = validateStructuredVerdict(verdict, brief);
   if (!flags.length) return first;
@@ -135,7 +178,13 @@ async function answerWithRepair(
       { role: "assistant", content: first.answer },
       { role: "user", content: buildRepairMessage(flags) },
     ], apiKey, 500);
-    return parseStructuredVerdict(repaired.answer) ? repaired : first;
+    const repairedVerdict = parseStructuredVerdict(repaired.answer);
+    // As in the quick-ask route: a parseable repair isn't necessarily a
+    // correct one — re-run the checks before trusting it.
+    if (repairedVerdict && validateStructuredVerdict(repairedVerdict, brief).length === 0) {
+      return repaired;
+    }
+    return first;
   } catch {
     return first;
   }
@@ -237,7 +286,14 @@ export async function POST(req: NextRequest) {
 
   // ── Synthesis: the chair reads everything, then a separate verdict call ──
   const transcript = answeredSeats
-    .map((s) => `[${s}] answer: ${answers[s]!.answer}${critiques[s] ? `\n[${s}] critique (disagrees with ${majority}): ${critiques[s]}` : "\n(agrees with the majority — no round 2)"}`)
+    .map((s) => {
+      if (critiques[s]) return `[${s}] answer: ${answers[s]!.answer}\n[${s}] critique (disagrees with ${majority}): ${critiques[s]}`;
+      // Only claim agreement when a majority actually exists — otherwise
+      // every seat would be falsely annotated as agreeing (flagged in
+      // PR #37 review).
+      const note = majority ? "(agrees with the majority — no round 2)" : "(no majority determined)";
+      return `[${s}] answer: ${answers[s]!.answer}\n${note}`;
+    })
     .join("\n\n");
   const chairBrief = await buildGroundedBrief(question.trim(), cleanTicker, "CHAIR");
 

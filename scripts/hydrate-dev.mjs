@@ -104,7 +104,7 @@ const sql = neon(url);
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 export const DEV_USER_ID = "user_devlocal000000000000000";
-const DEV_SESSION_ID = "00000000-0000-4000-8000-00000000dev1"; // fixed → idempotent
+const DEV_SESSION_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"; // fixed, all-hex sentinel → idempotent
 const DEV_DIGEST_LABEL = "DEV (local hydrate)";
 const DEV_SOURCE = "dev-hydrate"; // sentinel written into cache payloads for cleanup
 const nowIso = new Date().toISOString();
@@ -247,10 +247,13 @@ async function resetDevRows() {
 }
 
 async function seed() {
-  // 1) global signals digest (delete dev label first → idempotent)
+  // 1) global signals digest (delete dev label first → idempotent).
+  // generated_at is passed explicitly: the live table predates schema.sql's
+  // DEFAULT now(), and CREATE TABLE IF NOT EXISTS never back-fills a default —
+  // so omitting it hits a NOT NULL violation (matches lib/digest-cache-db.ts).
   await sql`DELETE FROM signal_digest_cache WHERE period_label = ${DEV_DIGEST_LABEL}`;
-  await sql`INSERT INTO signal_digest_cache (period_label, payload)
-            VALUES (${DEV_DIGEST_LABEL}, ${JSON.stringify(digestPayload())})`;
+  await sql`INSERT INTO signal_digest_cache (period_label, payload, generated_at)
+            VALUES (${DEV_DIGEST_LABEL}, ${JSON.stringify(digestPayload())}, ${nowIso})`;
 
   // 2) per-user digest cache (24h window)
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -258,9 +261,11 @@ async function seed() {
             VALUES (${DEV_USER_ID}, ${JSON.stringify(digestPayload())}, ${expires})
             ON CONFLICT (user_id) DO UPDATE SET payload = excluded.payload, expires_at = excluded.expires_at`;
 
-  // 3) Hold/Fold cache (delete dev-sentinel rows first → idempotent, non-destructive to real rows)
+  // 3) Hold/Fold cache (delete dev-sentinel rows first → idempotent, non-destructive
+  //    to real rows). generated_at passed explicitly for the same reason as above.
   await sql`DELETE FROM holdfold_cache WHERE payload->>'_source' = ${DEV_SOURCE}`;
-  await sql`INSERT INTO holdfold_cache (payload) VALUES (${JSON.stringify(holdFoldPayload())})`;
+  await sql`INSERT INTO holdfold_cache (payload, generated_at)
+            VALUES (${JSON.stringify(holdFoldPayload())}, ${nowIso})`;
 
   // 4) per-ticker signal_cache (upsert) + backtest_hit_rates (upsert)
   for (const t of TICKERS) {
@@ -288,7 +293,10 @@ async function seed() {
               ON CONFLICT (user_id, ticker) DO NOTHING`;
   }
 
-  // 6) pending_signals — exercise all three states (respect one-pending-per-ticker)
+  // 6) pending_signals — exercise all three states (respect one-pending-per-ticker).
+  // Clear this dev user's rows first so done/error seeds stay idempotent across
+  // re-runs (only the 'pending' insert is naturally dedup'd by the unique index).
+  await sql`DELETE FROM pending_signals WHERE requested_by = ${DEV_USER_ID}`;
   const pendingSeed = [
     { ticker: "AMD", status: "pending", attempts: 0, error: null },
     { ticker: "GOOG", status: "done", attempts: 0, error: null },

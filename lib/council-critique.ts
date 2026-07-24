@@ -15,6 +15,7 @@ export type VerdictDirection = "bullish" | "bearish" | "neutral";
 
 const BULLISH_RE = /\bbullish\b|\bbuy\b|\blong\b/gi;
 const BEARISH_RE = /\bbearish\b|\bsell\b|\bshort\b/gi;
+const NEUTRAL_RE = /\bneutral\b|\bhold\b|\bno[\s-]?edge\b|\bno[\s-]?clear\s+direction\b/gi;
 
 /**
  * Extract a seat's direction from its round-1 answer. T1/T2 use the
@@ -30,6 +31,12 @@ export function extractDirection(seat: CouncilSeat, answerText: string): Verdict
   }
   const bullishHits = (answerText.match(BULLISH_RE) ?? []).length;
   const bearishHits = (answerText.match(BEARISH_RE) ?? []).length;
+  const neutralHits = (answerText.match(NEUTRAL_RE) ?? []).length;
+  // Explicit "neutral"/"hold"/"no clear direction" conclusions must be
+  // recognized as a real vote, not lumped in with genuinely ambiguous text
+  // (flagged in PR #37 review) — free-prose seats otherwise have no way to
+  // cast a neutral vote.
+  if (neutralHits > 0 && neutralHits >= bullishHits && neutralHits >= bearishHits) return "neutral";
   if (bullishHits === 0 && bearishHits === 0) return null;
   if (bullishHits === bearishHits) return null;
   return bullishHits > bearishHits ? "bullish" : "bearish";
