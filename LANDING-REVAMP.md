@@ -26,8 +26,13 @@ The new theme **has no green at all**. The landing's primary CTA is
 and `.nav-action` is solid `--green` (line 97/226). So the first thing a visitor
 sees is off-brand relative to every screen behind the login.
 
-**Fix:** delete the landing's local palette; consume `globals.css` tokens. Green
-becomes `--neon-blue` (bull) / `--neon-red` (bear). One source of truth.
+**Fix (implemented):** keep the landing's local `:root` (it also carries
+layout/typography tokens unrelated to color), but repoint its accent
+variables onto the app's palette — `--green: var(--neon-blue)`, `--amber: var(--neon-yellow)`,
+`--coral: var(--neon-red)` — plus replacing ~17 raw rgba literals that
+referenced the old green/coral hex directly. Same one-source-of-truth result
+as deleting the palette outright, with a much smaller diff (the ~60 existing
+`var(--green)` references throughout the file didn't need touching).
 
 ### 0.2 Market data: the endpoint is LIVE — our parser reads the wrong path
 `curl /market-overview` → **200 in 1.8s**, real data (`SPY 738.93`). The panel still
@@ -162,7 +167,7 @@ SEO stay server-rendered.
 
 ## 5. New page structure
 
-```
+```text
 1  Nav          logo · Product · Council · Pricing · [Sign in] [Start free →]
 2  HERO         "Should I buy it, or not?"  + live council demo + parallax
 3  Ticker strip demoted market data (§0.3), ambient
@@ -180,16 +185,16 @@ SEO stay server-rendered.
 
 ## 6. Phases
 
-**Phase 1 — Truth & brand (highest ROI, no new deps)**
-- [ ] Fix the market-data path bug (§0.2) — read `brief.indices`, key by `.symbol`.
-- [ ] Delete `landing.css`'s local `:root`; adopt `globals.css` tokens; green → neon-blue (§0.1).
-- [ ] Rewrite hero + eyebrow + footer copy per the §0.4 table.
-- [ ] Upgrade both auth CTAs (§3), add "free · no card".
+**Phase 1 — Truth & brand (highest ROI, no new deps) — done, PR #42**
+- [x] Fix the market-data path bug (§0.2) — read `brief.indices`, key by `.symbol`.
+- [x] Repoint `landing.css`'s local `:root` accent tokens onto `globals.css`'s neon tokens; green → neon-blue (§0.1).
+- [x] Rewrite hero + eyebrow + footer copy per the §0.4 table.
+- [x] Upgrade both auth CTAs (§3), add "free · no card".
 
-**Phase 2 — Motion**
-- [ ] Add `framer-motion`, `lenis`, `react-intersection-observer`, `lucide-react`.
-- [ ] `<Hero3D/>` parallax stack + magnetic CTA + reduced-motion fallbacks.
-- [ ] Scroll-reveal sections; stat counters.
+**Phase 2 — Motion — done, PR #42**
+- [x] Add `framer-motion`, `lenis`, `react-intersection-observer`, `lucide-react`.
+- [x] Parallax stack (`ParallaxStage`/`ParallaxLayer`, depth-aware, context-based — no separate `<Hero3D/>` component) + magnetic CTA + reduced-motion fallbacks.
+- [x] Scroll-reveal sections (`Reveal`); stat counters (`StatCounter`).
 
 **Phase 3 — Sell the core features**
 - [ ] Sticky scroll-through council debate (replaces the three static phones).
