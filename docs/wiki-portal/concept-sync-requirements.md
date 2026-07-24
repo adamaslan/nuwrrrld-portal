@@ -59,7 +59,7 @@ gate).
 ### Mobile has, portal lacks
 | Feature | To sync portal needs… |
 |---------|----------------------|
-| **Onboarding** (`OnboardingScreen`) | A first-run/onboarding flow in the portal, or a decision that web onboarding is handled by the marketing/landing site instead. |
+| **Onboarding** (`OnboardingScreen`) | A first-run/onboarding flow in the portal, or a decision that web onboarding is handled by the marketing/landing site instead — PR #42 substantially strengthened that landing site (plain-language copy, brand-aligned tokens, a fixed market-data bug, scroll/parallax motion), making "the landing page is portal's onboarding" a more credible answer than before, though still undecided. |
 | **Analytics + Sentry** (`analytics.ts`, `sentry.ts`) | Portal has no client analytics or error reporting module found. Add equivalents (or wire Vercel Analytics + a Sentry Next.js SDK) for observability parity. |
 | **Schwab health** (`schwab-health.ts`) | A portal health check for the Schwab integration, if that integration is meant to surface on web. |
 

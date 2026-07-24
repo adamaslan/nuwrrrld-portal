@@ -26,6 +26,14 @@ holding platform-agnostic modules meant to be identical. Where a module lives in
 Where the same filename exists in both `lib/` roots but has drifted, the surfaces
 agree in intent but not in code.
 
+> ℹ️ **PR #42 (2026-07-24) assessed, no change.** A signed-out landing-page
+> revamp (`app/page.tsx`, `app/landing.css`, new `components/landing/*` motion
+> primitives) — copy, brand-token alignment, a market-data parsing bug fix, and
+> Framer Motion/Lenis polish. Touches no `lib/shared/` module and no
+> cross-surface business logic; mobile has no directly analogous public
+> marketing surface (its nearest equivalent, `OnboardingScreen`, is already
+> tracked below as mobile-only). Headline and matrix are unchanged by this PR.
+
 ## Headline: ~62% synced (2026-07-24, after PR #40)
 
 Two different denominators, deliberately kept separate:
