@@ -8,8 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "prepare": "git config core.hooksPath .githooks || true",
     "test": "vitest run",
-    "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs"
+    "test:integration": "vitest run __tests__/signal-queue.integration.test.ts",
+    "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
+    "db:hydrate:dev": "node --env-file=.env.local scripts/hydrate-dev.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

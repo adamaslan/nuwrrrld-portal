@@ -20,9 +20,7 @@ import { recentVerdicts } from "@/lib/council-db";
 import { resolveGrounding, type GroundingRule } from "@/lib/grounding/resolve";
 import type { Horizon, SignalStateInput } from "@/lib/grounding/taxonomy";
 import type { CouncilSeat } from "@/lib/openrouter";
-
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-const FETCH_TIMEOUT_MS = 8_000;
+import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup";
 
 type VerdictDirection = "bullish" | "bearish" | "neutral";
 
@@ -51,48 +49,23 @@ interface SignalData {
  * lookup — avoids a second network round-trip for the same data.
  */
 async function fetchSignalData(ticker: string): Promise<SignalData | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${MCP_URL}/signals?symbol=${encodeURIComponent(ticker)}`, {
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { symbols?: Record<string, Record<string, unknown>> };
-    const entry = data.symbols?.[ticker] ?? Object.values(data.symbols ?? {})[0];
-    if (!entry) return null;
+  const entry = await fetchTickerEntry(ticker);
+  if (!entry) return null;
+  const text = formatTickerBrief(entry);
+  if (!text) return null;
 
-    const lines: string[] = [];
-    if (entry.ai_action) lines.push(`Action: ${entry.ai_action}`);
-    if (typeof entry.confluence_score === "number") lines.push(`Confluence score: ${entry.confluence_score}`);
-    if (entry.ai_summary) lines.push(`Summary: ${entry.ai_summary}`);
-    const signals = Array.isArray(entry.signals) ? (entry.signals as Record<string, unknown>[]) : [];
-    // Guard against non-object/null entries in an externally-supplied array
-    // (flagged in PR #37 review) — a malformed element would otherwise throw
-    // on `s.detail` and crash the whole signal fetch.
-    const reasons = signals
-      .map((s) => (s && typeof s === "object" ? String(s.detail ?? s.signal ?? "") : ""))
-      .filter(Boolean)
-      .slice(0, 6);
-    if (reasons.length) lines.push(`Signals:\n- ${reasons.join("\n- ")}`);
-    if (!lines.length) return null;
+  // Best-effort structured fields — gcp3's `indicators` field exists but is
+  // currently null for every tracked symbol (backend gap, see
+  // homebase/nuai-live-data-optimization.md §2.2), so those buckets default
+  // to their taxonomy-neutral value (see taxonomy.ts bucketRsi/bucketAdx/bucketVol).
+  // Tier 0 still keys correctly on confluence + direction and degrades
+  // gracefully to Tier 1/2 when that's not enough to match a pack row.
+  const structured: SignalStateInput = {
+    confluenceScore: typeof entry.confluence_score === "number" ? entry.confluence_score : null,
+    direction: directionFromAction(entry.ai_action),
+  };
 
-    // Best-effort structured fields — gcp3's payload doesn't expose raw
-    // RSI/MACD/ADX/volatility today, so those buckets default to their
-    // taxonomy-neutral value (see taxonomy.ts bucketRsi/bucketAdx/bucketVol).
-    // Tier 0 still keys correctly on confluence + direction and degrades
-    // gracefully to Tier 1/2 when that's not enough to match a pack row.
-    const structured: SignalStateInput = {
-      confluenceScore: typeof entry.confluence_score === "number" ? entry.confluence_score : null,
-      direction: directionFromAction(entry.ai_action),
-    };
-
-    return { text: lines.join("\n"), structured };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  return { text, structured };
 }
 
 async function fetchHitRates(ticker: string): Promise<string | null> {

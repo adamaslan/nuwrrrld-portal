@@ -1,0 +1,36 @@
+# Gitleaks config for nuwrrrld-portal.
+# Used by the pre-commit hook (.githooks/pre-commit) and any CI gitleaks run.
+# Extends the built-in rule set; the allowlist below whitelists the documented
+# wiki placeholders (docs/wiki-portal/SCHEMA.md "Secret Policy") so they never
+# false-positive.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders and safe references that must not trip the scanner"
+
+# SCHEMA-defined wiki placeholders — these are intentional, not leaks.
+regexes = [
+  '''\{gcp3-backend-url\}''',
+  '''\{openrouter-api-key\}''',
+  '''\{database-url\}''',
+  '''\{clerk-publishable-key\}''',
+  '''\{stripe-secret-key\}''',
+  # Redacted host form the wiki uses in place of a real Cloud Run hostname.
+  '''https://…run\.app''',
+  # The gcp3 backend's public Cloud Run host is already the hardcoded fallback in
+  # ~7 tracked files (holdfold/route.ts, council-grounding.ts, digest-cache.ts,
+  # signal-lookup.ts, …). A public default endpoint, not a secret; documented as
+  # an open question in docs/wiki-portal/overview.md.
+  '''gcp3-backend-cif7ppahzq-uc\.a\.run\.app''',
+  # Env-var *names* referenced in prose are fine (OPENROUTER_API_KEY, DATABASE_URL);
+  # only assignments with real values should trip. The default rules already
+  # target values, not bare identifiers.
+]
+
+# Example/sample corpus and lockfiles are noise sources, not secret stores.
+paths = [
+  '''package-lock\.json''',
+  '''corpus/sample/.*''',
+]

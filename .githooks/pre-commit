@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+#
+# Pre-commit secret guard for nuwrrrld-portal.
+#
+# Blocks a commit if any STAGED change contains a credential — anywhere in the
+# repo, not just the wiki. Keeps the docs/wiki-*/ pages (and everything else)
+# free of API keys, tokens, database URLs, and Cloud Run hostnames.
+#
+# Strategy: prefer gitleaks (best-in-class detection, honors .gitleaks.toml and
+# its placeholder allowlist). If gitleaks isn't installed, fall back to a
+# built-in pattern scan so protection works out of the box.
+#
+# Install (one-time, per clone):  git config core.hooksPath .githooks
+# Best detection (optional):      brew install gitleaks
+# Bypass in a true emergency:     git commit --no-verify   (discouraged)
+
+set -euo pipefail
+
+RED='\033[0;31m'; YEL='\033[0;33m'; GRN='\033[0;32m'; NC='\033[0m'
+
+# Two complementary layers run when both are available — not one instead of the
+# other. gitleaks catches realistic, high-entropy keys the pattern list would
+# miss; the pattern list catches known-prefix shapes (sk-, whsec_, *.run.app)
+# even at low entropy, which gitleaks' entropy filter can skip. Either layer
+# failing blocks the commit.
+
+# --- Layer 1: gitleaks (if installed) ----------------------------------------
+if command -v gitleaks >/dev/null 2>&1; then
+  # `gitleaks git --staged` scans the staged diff. The "0 commits scanned"
+  # log line is expected — it inspects staged changes, not commit history.
+  if ! gitleaks git --staged --no-banner --redact --config .gitleaks.toml . ; then
+    echo -e "${RED}✖ gitleaks found a secret in your staged changes (redacted above).${NC}"
+    echo -e "${YEL}  Remove it or replace it with a placeholder from docs/wiki-portal/SCHEMA.md.${NC}"
+    echo -e "${YEL}  Emergency bypass (discouraged): git commit --no-verify${NC}"
+    exit 1
+  fi
+else
+  echo -e "${YEL}⚠ gitleaks not installed — relying on the built-in pattern scan only.${NC}"
+  echo -e "${YEL}  For stronger (entropy-based) detection: brew install gitleaks${NC}"
+fi
+
+# --- Layer 2: built-in pattern scan (always runs) ----------------------------
+# Only scan the added lines of staged, non-deleted files.
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged_files" ] && exit 0
+
+# Placeholder allowlist — mirrors .gitleaks.toml so intentional refs pass.
+allowlist='\{gcp3-backend-url\}|\{openrouter-api-key\}|\{database-url\}|\{clerk-publishable-key\}|\{stripe-secret-key\}|https://…run\.app|gcp3-backend-cif7ppahzq-uc\.a\.run\.app'
+
+# High-signal credential patterns (values, not bare identifier names).
+# Key bodies allow [A-Za-z0-9_-] so dashed/underscored forms like sk-proj-...
+# are matched in full rather than truncated at the first separator.
+patterns=(
+  'sk-[A-Za-z0-9_-]{16,}'                     # OpenAI/OpenRouter secret keys (incl. sk-proj-)
+  'sk_live_[A-Za-z0-9_-]{16,}'                # Stripe live secret
+  'sk_test_[A-Za-z0-9_-]{16,}'                # Stripe test secret
+  'pk_live_[A-Za-z0-9_-]{16,}'                # Clerk/Stripe live publishable
+  'rk_live_[A-Za-z0-9_-]{16,}'                # Stripe restricted key
+  'whsec_[A-Za-z0-9_-]{16,}'                  # Stripe/Clerk webhook secret
+  'postgres(ql)?://[^ \n"'"'"']*:[^ \n"'"'"']*@'  # DB URL with embedded creds
+  '[a-z0-9-]+\.[a-z0-9-]+\.run\.app'          # real Cloud Run hostname
+  'AIza[0-9A-Za-z_-]{35}'                     # Google API key
+  'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'  # JWT
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'        # private key block
+)
+
+found=0
+for f in $staged_files; do
+  # Skip binary, lockfiles, and sample corpus (matches .gitleaks.toml paths).
+  case "$f" in
+    package-lock.json|corpus/sample/*) continue ;;
+  esac
+
+  added=$(git diff --cached -U0 -- "$f" | grep '^+' | grep -v '^+++' || true)
+  [ -z "$added" ] && continue
+
+  for pat in "${patterns[@]}"; do
+    # Use -e so patterns beginning with '-' (e.g. PRIVATE KEY blocks) aren't
+    # parsed as grep options and silently skipped.
+    hits=$(printf '%s\n' "$added" | grep -nEi -e "$pat" | grep -vE -e "$allowlist" || true)
+    if [ -n "$hits" ]; then
+      if [ "$found" -eq 0 ]; then
+        echo -e "${RED}✖ Possible secret(s) in staged changes:${NC}"
+      fi
+      found=1
+      echo -e "${RED}  $f${NC} — pattern: ${pat}"
+    fi
+  done
+done
+
+if [ "$found" -eq 1 ]; then
+  echo -e "${YEL}Remove the value or use a placeholder from docs/wiki-portal/SCHEMA.md.${NC}"
+  echo -e "${YEL}False positive? Add it to the allowlist in .gitleaks.toml (and the hook).${NC}"
+  echo -e "${YEL}Emergency bypass (discouraged): git commit --no-verify${NC}"
+  exit 1
+fi
+
+echo -e "${GRN}✓ No secrets detected in staged changes.${NC}"
+exit 0

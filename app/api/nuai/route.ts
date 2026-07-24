@@ -8,6 +8,10 @@ import { fetchWithModelFallback } from "@/lib/openrouter";
 import { getUsedTokensToday, addTokenUsage } from "@/lib/nuai-db";
 import { getWatchlist } from "@/lib/watchlist-store";
 import { getOrFetchDigest } from "@/lib/digest-cache";
+import { fetchTickerSignalBrief } from "@/lib/shared/signal-lookup";
+
+// Matches a bare uppercase ticker-like token (2-5 letters) in free text.
+const TICKER_TOKEN_RE = /\b[A-Z]{2,5}\b/g;
 
 // Durable daily token budget: Neon is the source of truth (survives cold
 // starts); this Map is an in-process L1 in front of it, refreshed every 60s
@@ -120,15 +124,34 @@ export async function POST(req: NextRequest) {
         .join("; ") + "."
     : "No live signals digest is currently available.";
 
+  // If the user's question names a ticker we actually track (watchlist or
+  // digest), fetch that ticker's REAL DATA brief — same grounding pattern as
+  // "Go deeper" (lib/shared/prompts.ts) — so Nu AI can cite live signal
+  // detail instead of falling back to generic knowledge for tracked tickers.
+  const trackedTickers = new Set([
+    ...watchlist.map(w => w.ticker),
+    ...(digest?.signals ?? []).map(s => s.ticker),
+  ]);
+  const mentionedTicker = lastUserMessage?.role === "user"
+    ? (lastUserMessage.content.match(TICKER_TOKEN_RE) ?? []).find(t => trackedTickers.has(t))
+    : undefined;
+  const tickerBrief = mentionedTicker
+    ? await fetchTickerSignalBrief(mentionedTicker).catch(() => null)
+    : null;
+  const tickerLine = tickerBrief ? `=== REAL DATA: ${mentionedTicker} ===\n${tickerBrief}` : null;
+
   const systemPrompt = [
     "You are Nu AI, a financial information assistant for NuWrrrld Financial.",
     "You help users understand their portfolio, market signals, and financial concepts.",
     NU_AI_DISCLAIMER,
     "Never provide specific buy/sell price targets or personalised trading advice.",
     "If you are uncertain, say so clearly rather than guessing.",
+    "This app tracks sector/industry ETFs and the user's own watchlist, not individual stocks in general — " +
+      "if asked about a ticker outside that scope, say so plainly rather than apologizing as if something is broken.",
     contextLine,
     watchlistLine,
     digestLine,
+    ...(tickerLine ? [tickerLine] : []),
   ].join("\n");
 
   const controller = new AbortController();

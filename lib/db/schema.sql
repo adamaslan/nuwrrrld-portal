@@ -100,6 +100,53 @@ CREATE TABLE IF NOT EXISTS watchlist_items (
 );
 CREATE INDEX IF NOT EXISTS watchlist_items_user_idx ON watchlist_items (user_id);
 
+-- ── Pending-signal queue (closes the "add stock → cache → run signals" loop:
+--    a watchlist add enqueues here; an external scheduled job — Modal/Zo cron,
+--    outside this repo — drains it via POST /api/signals/drain) ─────────────
+
+CREATE TABLE IF NOT EXISTS pending_signals (
+  id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ticker         text        NOT NULL,
+  requested_by   text        NOT NULL,   -- Clerk userId that triggered this
+  status         text        NOT NULL DEFAULT 'pending',  -- pending | processing | done | error
+  attempts       int         NOT NULL DEFAULT 0,          -- failed drain attempts (retry cap)
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),     -- earliest a drain may (re)claim this row (backoff)
+  claimed_at     timestamptz,                             -- when the current drain leased it (stale-lease recovery)
+  error          text,
+  requested_at   timestamptz NOT NULL DEFAULT now(),
+  processed_at   timestamptz
+);
+-- Idempotent adds for deployments created before these columns existed.
+ALTER TABLE pending_signals ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0;
+ALTER TABLE pending_signals ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE pending_signals ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
+-- Claim scan filters on (status, next_attempt_at); keep the index aligned.
+CREATE INDEX IF NOT EXISTS pending_signals_status_idx
+  ON pending_signals (status, next_attempt_at);
+-- At most one live 'pending' row per ticker (enqueue dedup is also enforced in
+-- lib/signal-queue.ts via WHERE NOT EXISTS; this is the DB-level backstop).
+CREATE UNIQUE INDEX IF NOT EXISTS pending_signals_one_pending_per_ticker
+  ON pending_signals (ticker) WHERE status = 'pending';
+
+-- Per-ticker signal cache (L2 for lib/shared/signal-lookup.ts — lets a single
+-- ticker be upserted without rewriting the whole holdfold/digest payload).
+CREATE TABLE IF NOT EXISTS signal_cache (
+  ticker       text        PRIMARY KEY,
+  payload      jsonb       NOT NULL,
+  generated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Real-time last price, pushed by the Finnhub WebSocket tier (an external Modal
+-- worker in homebase/modal_finnhub_ws.py) via POST /api/signals/live. This is
+-- the low-latency "quote" lane that sits in front of the slower signal cache.
+CREATE TABLE IF NOT EXISTS live_prices (
+  ticker     text        PRIMARY KEY,
+  price      numeric     NOT NULL,
+  volume     bigint,
+  traded_at  timestamptz NOT NULL,          -- exchange trade timestamp (from Finnhub)
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- ── Nu AI daily token budget (audit 2026-07-15: replaces the in-memory Map in
 --    app/api/nuai/route.ts — budget previously reset on every cold start) ────
 

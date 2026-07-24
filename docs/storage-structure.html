@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Storage &amp; DB Structure</title>
+<style>
+  :root {
+    --bg: #0a0e14; --panel: #111823; --panel-2: #0d141d; --line: #1e2a3a;
+    --ink: #d7e2f0; --muted: #7d8da0; --cyan: #35e0d8;
+    --cyan-dim: #1a9d98; --amber: #ffcc66; --pink: #ff6b9d; --green: #57d38c;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h1 .accent { color: var(--cyan); }
+  .sub { color: var(--muted); font-size: 14px; }
+  .meta { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font: 12px/1 var(--mono); color: var(--cyan); background: rgba(53,224,216,.08);
+    border: 1px solid var(--cyan-dim); border-radius: 999px; padding: 6px 11px;
+  }
+  h2 {
+    font-size: 19px; margin: 44px 0 14px; padding-left: 12px;
+    border-left: 3px solid var(--cyan); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 15px; margin: 26px 0 10px; color: var(--amber); font-family: var(--mono); }
+  p { color: #c2cfe0; }
+  a { color: var(--cyan); }
+  code { font-family: var(--mono); font-size: 12.5px; color: var(--cyan); background: rgba(53,224,216,.07); padding: 1px 5px; border-radius: 4px; }
+  .note {
+    background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--amber);
+    border-radius: 6px; padding: 12px 16px; margin: 16px 0; color: #c9d6e6; font-size: 13.5px;
+  }
+  .note.cyan { border-left-color: var(--cyan); }
+  .note b { color: var(--ink); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 18px; margin: 12px 0;
+  }
+  .card h4 {
+    margin: 0 0 4px; font: 600 14px var(--mono); color: var(--cyan);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .card .tag {
+    font: 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .05em;
+    padding: 3px 7px; border-radius: 4px;
+  }
+  .tag.cache { color: var(--amber); border: 1px solid #5a4a20; background: rgba(255,204,102,.07); }
+  .tag.data  { color: var(--green); border: 1px solid #2a5a3e; background: rgba(87,211,140,.08); }
+  .tag.quota { color: var(--pink);  border: 1px solid #5a2a3e; background: rgba(255,107,157,.08); }
+  .tag.ground{ color: #9d8bff; border: 1px solid #3a2f6a; background: rgba(157,139,255,.08); }
+  .card p { margin: 6px 0 10px; font-size: 13px; color: #aebdc9; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; font-size: 12.5px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font: 600 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+  td.col { font-family: var(--mono); color: var(--ink); white-space: nowrap; }
+  td.type { font-family: var(--mono); color: var(--cyan-dim); font-size: 11.5px; }
+  .pk { color: var(--amber); }
+  .fk { color: var(--pink); }
+  ul { padding-left: 20px; }
+  li { margin: 5px 0; color: #c2cfe0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
+  .legend span b { color: var(--amber); } .legend span.fkk b { color: var(--pink); }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  .flow { font-family: var(--mono); font-size: 12px; color: #aebdc9; background: var(--panel-2);
+          border: 1px solid var(--line); border-radius: 8px; padding: 16px; overflow-x: auto; white-space: pre; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>NuWrrrld Portal — <span class="accent">Storage &amp; DB Structure</span></h1>
+  <div class="sub">How the Next.js web portal persists state: server-side Neon Postgres + client-side browser storage.</div>
+  <div class="meta">
+    <span class="chip">Next.js 16 · App Router</span>
+    <span class="chip">Neon Postgres (serverless)</span>
+    <span class="chip">Clerk auth</span>
+    <span class="chip">13 tables · 1 function</span>
+    <span class="chip">generated 2026-07-24</span>
+  </div>
+</header>
+
+<div class="note cyan">
+  <b>One-paragraph summary.</b> All durable state lives in a single <b>Neon Postgres</b> database,
+  reached through one serverless client (<code>lib/db.ts</code> → <code>DATABASE_URL</code>). The schema
+  (<code>lib/db/schema.sql</code>) is idempotent and applied at build time. Most tables exist because a
+  <b>2026-07-15 audit</b> replaced in-memory <code>Map</code>s that were silently wiped on every serverless
+  cold start. The <b>only</b> client-side storage is browser <code>localStorage</code>, used for exactly one
+  non-critical UI preference. Auth sessions are held by Clerk, not by app-owned cookies.
+</div>
+
+<h2>1 · The database connection</h2>
+<div class="card">
+  <h4>lib/db.ts <span class="tag data">singleton</span></h4>
+  <p>A single Neon HTTP client shared by every server module. There is no ORM and no connection pool object — <code>@neondatabase/serverless</code> issues tagged-template SQL over HTTP, which suits serverless/edge cold starts.</p>
+  <div class="flow">import { neon } from "@neondatabase/serverless";
+const sql = neon(process.env.DATABASE_URL!);
+export default sql;</div>
+</div>
+<div class="grid">
+  <div class="card">
+    <h4>Migrations</h4>
+    <p>Schema is applied by <code>scripts/db-migrate.mjs</code>, wired two ways in <code>package.json</code>:</p>
+    <ul>
+      <li><code>prebuild</code> → runs automatically before every <code>next build</code></li>
+      <li><code>npm run db:migrate</code> → manual, loads <code>.env.local</code></li>
+    </ul>
+    <p>Every statement is <code>CREATE … IF NOT EXISTS</code>, so re-running is safe.</p>
+  </div>
+  <div class="card">
+    <h4>Identity &amp; tenancy</h4>
+    <p>User-scoped rows key on <code>user_id text</code> = the <b>Clerk userId</b>. There are no <code>users</code> / <code>accounts</code> tables in the portal — Clerk is the system of record for identity and entitlements (<code>publicMetadata.subscription_status</code>).</p>
+  </div>
+</div>
+
+<h2>2 · Table catalog</h2>
+<div class="legend">
+  <span><b>PK</b> primary key</span>
+  <span class="fkk"><b>FK</b> foreign key</span>
+  <span class="tag cache" style="padding:2px 6px">CACHE</span> ephemeral, degrades silently
+  <span class="tag data" style="padding:2px 6px">USER DATA</span> primary — errors propagate (503)
+  <span class="tag quota" style="padding:2px 6px">QUOTA</span> per-day counters
+  <span class="tag ground" style="padding:2px 6px">GROUNDING</span> compile-time knowledge
+</div>
+
+<h3>Caches — replaced in-memory Maps (2026-07-15 audit)</h3>
+
+<div class="card">
+  <h4>signal_digest_cache <span class="tag cache">cache</span></h4>
+  <p>Global signals digest pushed by the local refresh script / warmed from the live backend. Read fresh within a <b>15-minute TTL</b> (<code>lib/digest-cache-db.ts</code>).</p>
+  <table>
+    <tr><th>column</th><th>type</th><th>notes</th></tr>
+    <tr><td class="col pk">id</td><td class="type">bigint</td><td>identity PK</td></tr>
+    <tr><td class="col">period_label</td><td class="type">text</td><td>e.g. period bucket</td></tr>
+    <tr><td class="col">payload</td><td class="type">jsonb</td><td>the digest</td></tr>
+    <tr><td class="col">generated_at</td><td class="type">timestamptz</td><td>indexed DESC; TTL basis</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h4>user_digest_cache <span class="tag cache">cache</span></h4>
+  <p>Per-user digest (was the <code>userCache</code> Map). Explicit <code>expires_at</code> rather than a TTL window.</p>
+  <table>
+    <tr><th>column</th><th>type</th><th>notes</th></tr>
+    <tr><td class="col pk">user_id</td><td class="type">text</td><td>PK · Clerk userId</td></tr>
+    <tr><td class="col">payload</td><td class="type">jsonb</td><td>upserted</td></tr>
+    <tr><td class="col">expires_at</td><td class="type">timestamptz</td><td>read only while &gt; now()</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h4>holdfold_cache <span class="tag cache">cache</span></h4>
+  <p>Hold/Fold verdict cache — replaced the in-memory <code>cached</code> module variable in <code>app/api/holdfold/route.ts</code>. <b>15-minute TTL</b> (<code>lib/holdfold-cache-db.ts</code>).</p>
+  <table>
+    <tr><th>column</th><th>type</th><th>notes</th></tr>
+    <tr><td class="col pk">id</td><td class="type">bigint</td><td>identity PK</td></tr>
+    <tr><td class="col">payload</td><td class="type">jsonb</td><td>verdict blob</td></tr>
+    <tr><td class="col">generated_at</td><td class="type">timestamptz</td><td>indexed DESC; TTL basis</td></tr>
+  </table>
+</div>
+
+<h3>AI Council</h3>
+
+<div class="card">
+  <h4>council_sessions <span class="tag data">user data</span></h4>
+  <p>One row per deliberation the user opens.</p>
+  <table>
+    <tr><th>column</th><th>type</th><th>notes</th></tr>
+    <tr><td class="col pk">id</td><td class="type">uuid</td><td>PK · gen_random_uuid()</td></tr>
+    <tr><td class="col">user_id</td><td class="type">text</td><td>Clerk userId · indexed</td></tr>
+    <tr><td class="col">topic</td><td class="type">text</td><td>ticker or free-form question</td></tr>
+    <tr><td class="col">created_at</td><td class="type">timestamptz</td><td></td></tr>
+  </table>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h4>council_messages <span class="tag data">user data</span></h4>
+    <p>Every seat's turn. <span class="fk">FK</span> → <code>council_sessions.id</code> <b>ON DELETE CASCADE</b>.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">id</td><td class="type">uuid</td></tr>
+      <tr><td class="col fk">session_id</td><td class="type">uuid → sessions</td></tr>
+      <tr><td class="col">seat</td><td class="type">text (T1·T2·RISK·MACRO·QUANT·CHAIR)</td></tr>
+      <tr><td class="col">round</td><td class="type">int</td></tr>
+      <tr><td class="col">role</td><td class="type">answer·critique·synthesis</td></tr>
+      <tr><td class="col">model</td><td class="type">text</td></tr>
+      <tr><td class="col">content</td><td class="type">text</td></tr>
+      <tr><td class="col">latency_ms</td><td class="type">int</td></tr>
+      <tr><td class="col">created_at</td><td class="type">timestamptz</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>council_verdicts <span class="tag data">user data</span></h4>
+    <p>The 4-field verdict scaffold. <span class="fk">FK</span> → <code>council_sessions.id</code> <b>CASCADE</b>. Indexed by session and by <code>(ticker, created_at DESC)</code>.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">id</td><td class="type">uuid</td></tr>
+      <tr><td class="col fk">session_id</td><td class="type">uuid → sessions</td></tr>
+      <tr><td class="col">ticker</td><td class="type">text</td></tr>
+      <tr><td class="col">direction</td><td class="type">bullish·bearish·neutral</td></tr>
+      <tr><td class="col">confidence</td><td class="type">low·medium·high</td></tr>
+      <tr><td class="col">horizon</td><td class="type">text (e.g. 1-5d)</td></tr>
+      <tr><td class="col">invalidation</td><td class="type">text</td></tr>
+      <tr><td class="col">created_at</td><td class="type">timestamptz</td></tr>
+    </table>
+  </div>
+</div>
+
+<h3>Quotas &amp; usage (per-day counters)</h3>
+<div class="grid">
+  <div class="card">
+    <h4>council_usage <span class="tag quota">quota</span></h4>
+    <p>Daily deliberation cap (WS2.6 cost control).</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">user_id</td><td class="type">text · PK part</td></tr>
+      <tr><td class="col pk">usage_date</td><td class="type">date · PK part</td></tr>
+      <tr><td class="col">deliberations</td><td class="type">int</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>nuai_usage <span class="tag quota">quota</span></h4>
+    <p>Nu AI daily token budget — replaced the in-memory Map in <code>app/api/nuai/route.ts</code> that reset on cold start.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">user_id</td><td class="type">text · PK part</td></tr>
+      <tr><td class="col pk">usage_date</td><td class="type">date · PK part</td></tr>
+      <tr><td class="col">tokens</td><td class="type">int</td></tr>
+    </table>
+  </div>
+</div>
+
+<h3>Primary user data &amp; signals</h3>
+<div class="grid">
+  <div class="card">
+    <h4>watchlist_items <span class="tag data">user data</span></h4>
+    <p>Composite PK <code>(user_id, ticker)</code>. This is <b>primary data, not a cache</b> — <code>lib/watchlist-store.ts</code> propagates errors (503) instead of degrading. Replaced an in-memory Map that wiped every user's list on each deploy.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">user_id</td><td class="type">text · PK part</td></tr>
+      <tr><td class="col pk">ticker</td><td class="type">text · PK part</td></tr>
+      <tr><td class="col">added_at</td><td class="type">timestamptz</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>backtest_hit_rates <span class="tag data">signals-app</span></h4>
+    <p>Nightly push target from the signals app (WS0.4). PK <code>(ticker, bucket_kind, bucket_key)</code>.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">ticker</td><td class="type">text · PK part</td></tr>
+      <tr><td class="col pk">bucket_kind</td><td class="type">category·strength</td></tr>
+      <tr><td class="col pk">bucket_key</td><td class="type">text (MA_CROSS…)</td></tr>
+      <tr><td class="col">hits / total</td><td class="type">int</td></tr>
+      <tr><td class="col">hit_rate</td><td class="type">real</td></tr>
+      <tr><td class="col">computed_at</td><td class="type">timestamptz</td></tr>
+    </table>
+  </div>
+</div>
+
+<h3>Compile-time grounding</h3>
+<div class="note">
+  Ships "dark": nothing reads these until the weekly compiler fills the pack and the runtime resolver joins on it.
+  Replaces the old ChromaDB/embedding retrieval with a pre-extracted, cited lookup keyed on the finite state-key space in
+  <code>lib/grounding/taxonomy.ts</code>.
+</div>
+<div class="card">
+  <h4>corpus_chunks <span class="tag ground">grounding</span></h4>
+  <p>The curated trading-doc corpus, file-aware chunked. A generated <code>tsv</code> column (via the <code>immutable_corpus_tsvector(body, search_terms)</code> IMMUTABLE wrapper function) is <b>GIN-indexed</b> for full-text search.</p>
+  <table>
+    <tr><th>column</th><th>type</th><th>notes</th></tr>
+    <tr><td class="col pk">chunk_id</td><td class="type">text</td><td>PK</td></tr>
+    <tr><td class="col">source_file</td><td class="type">text</td><td></td></tr>
+    <tr><td class="col">trader_filter</td><td class="type">text</td><td>T1 · T2 · null</td></tr>
+    <tr><td class="col">tags / search_terms</td><td class="type">text[]</td><td>doc2query terms</td></tr>
+    <tr><td class="col">body</td><td class="type">text</td><td></td></tr>
+    <tr><td class="col">tsv</td><td class="type">tsvector</td><td>GENERATED · GIN index</td></tr>
+    <tr><td class="col">updated_at</td><td class="type">timestamptz</td><td></td></tr>
+  </table>
+</div>
+<div class="grid">
+  <div class="card">
+    <h4>grounding_pack <span class="tag ground">grounding</span></h4>
+    <p>Compiled per-signal-state rules (one weekly write, many zero-cost reads). <span class="fk">FK</span> → <code>corpus_chunks.chunk_id</code> <b>CASCADE</b>. <code>UNIQUE(state_key, chunk_id)</code>; indexed on <code>state_key</code> and <code>chunk_id</code>.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">id</td><td class="type">bigint</td></tr>
+      <tr><td class="col">state_key</td><td class="type">text (taxonomy)</td></tr>
+      <tr><td class="col">horizon</td><td class="type">t1·t2</td></tr>
+      <tr><td class="col">direction</td><td class="type">bullish·bearish·neutral</td></tr>
+      <tr><td class="col">rule_text / quote</td><td class="type">text</td></tr>
+      <tr><td class="col fk">chunk_id</td><td class="type">text → corpus_chunks</td></tr>
+      <tr><td class="col">source_file / tags</td><td class="type">text · text[]</td></tr>
+      <tr><td class="col">confidence</td><td class="type">real</td></tr>
+      <tr><td class="col">corpus_version</td><td class="type">text</td></tr>
+      <tr><td class="col">taxonomy_version</td><td class="type">text</td></tr>
+      <tr><td class="col">compiled_at</td><td class="type">timestamptz</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>grounding_misses <span class="tag ground">grounding</span></h4>
+    <p>Questions no pack tier (0/1/2) could answer — the curation queue telling the corpus what to write next.</p>
+    <table>
+      <tr><th>column</th><th>type</th></tr>
+      <tr><td class="col pk">id</td><td class="type">bigint</td></tr>
+      <tr><td class="col">question</td><td class="type">text</td></tr>
+      <tr><td class="col">ticker</td><td class="type">text</td></tr>
+      <tr><td class="col">state_keys</td><td class="type">text[]</td></tr>
+      <tr><td class="col">created_at</td><td class="type">timestamptz · indexed DESC</td></tr>
+    </table>
+  </div>
+</div>
+
+<h2>3 · Client-side / local storage</h2>
+<div class="note cyan">
+  The portal stores almost nothing in the browser. There is <b>one</b> <code>localStorage</code> touchpoint and
+  <b>no</b> app-owned cookies (<code>cookies()</code> is never called; sessions are Clerk-managed).
+</div>
+<div class="card">
+  <h4>lib/shared/prefs.ts → window.localStorage</h4>
+  <p>A tiny cross-platform persistence seam: <code>getPref(key)</code> / <code>setPref(key, value)</code>, async-shaped so shared logic doesn't care whether it runs on web (<code>localStorage</code>) or mobile (<code>expo-secure-store</code>). SSR-guarded (<code>typeof window === "undefined"</code>) and fully best-effort — a failed read/write returns <code>null</code> / no-ops rather than throwing.</p>
+  <table>
+    <tr><th>key</th><th>written by</th><th>value</th></tr>
+    <tr><td class="col">signals-filter</td><td>app/dashboard/signals/SignalsClient.tsx</td><td class="type">JSON <code>{ direction, sort }</code></td></tr>
+  </table>
+  <p style="margin-top:10px">This mirrors <code>gcp3-mobile/lib/shared/prefs.ts</code> (same get/set signature). Because it is non-critical UI state, losing it degrades to "filters reset to default" — never an error.</p>
+</div>
+
+<h2>4 · Design principles the schema encodes</h2>
+<ul>
+  <li><b>No durable state in process memory.</b> Serverless cold starts wipe module-level Maps; the 2026-07-15 audit moved every such Map into Neon. Comments in <code>schema.sql</code> name each Map it replaced.</li>
+  <li><b>Cache vs. data split.</b> Cache tables (<code>*_cache</code>) degrade silently on read failure; primary data (<code>watchlist_items</code>) surfaces a 503. The distinction is deliberate and enforced in the store modules, not just convention.</li>
+  <li><b>Clerk owns identity.</b> No user table; everything foreign-keys conceptually to a Clerk <code>user_id text</code>.</li>
+  <li><b>Grounding is compile-time, not request-time.</b> <code>corpus_chunks</code> + <code>grounding_pack</code> replace live RAG with a pre-compiled, citable lookup — written weekly, read at zero model cost.</li>
+  <li><b>Idempotent, build-time migration.</b> One <code>schema.sql</code>, applied via <code>prebuild</code>; no migration history table, no down-migrations.</li>
+</ul>
+
+<footer>
+  Sources: <code>lib/db/schema.sql</code>, <code>lib/db.ts</code>, <code>lib/{digest-cache,holdfold-cache,nuai,council}-db.ts</code>,
+  <code>lib/watchlist-store.ts</code>, <code>lib/shared/prefs.ts</code>, <code>app/dashboard/signals/SignalsClient.tsx</code>,
+  <code>package.json</code>. &nbsp;·&nbsp; Static snapshot generated 2026-07-24 — re-derive from source before relying on it.
+</footer>
+
+</div>
+</body>
+</html>
