@@ -178,3 +178,5 @@ _Decisions (4):_
 - The rest of the portal (Stripe, retention, portfolio, Hold/Fold, nuai) remains un-ingested — listed in `overview.md`.
 
 ## [2026-07-24] sync | cross-surface parity analysis | pages touched: 4 (concept-mobile-web-parity, concept-sync-requirements, index; mobile mirror)
+
+## [2026-07-24] ingest | PR #41 dev financial-data hydration seeder | pages touched: 1 (log only — dev tooling, no mobile↔web parity change; ynced unaffected)
