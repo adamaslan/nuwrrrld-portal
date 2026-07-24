@@ -4,6 +4,24 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {su
 
 ---
 
+## [2026-07-24] sync | PR #42 parity check (landing revamp) — no change | pages touched: 3
+
+PR #42 (`feat/landing-revamp-phase1-2`) rewrote the signed-out landing page:
+copy simplified to plain language, `landing.css`'s local green palette
+repointed onto the app's neon tokens, a market-data shape bug fixed
+(`brief.indices` keyed by display name, not a top-level `.indices` keyed by
+ticker), and `framer-motion`/`lenis`/`react-intersection-observer`/
+`lucide-react` added for scroll-reveal, parallax, and a magnetic CTA. Assessed
+against the mobile↔web parity rule: touches no `lib/shared/` module and no
+cross-surface business logic — it's the portal's public marketing surface,
+which mobile has no direct analog for (nearest equivalent, `OnboardingScreen`,
+already tracked as mobile-only). Headline (~62%) and matrix left unchanged;
+added a dated assessment note to `concept-mobile-web-parity.md` and updated the
+Onboarding row in `concept-sync-requirements.md` to reflect the strengthened
+landing page. Mirrored in `gcp3-mobile/docs/wiki-mobile/`.
+
+---
+
 ## [2026-07-24] sync | PR #40 parity recompute — portal pulled ahead on the signal data plane | pages touched: 3
 
 Per the mobile↔web wiki-sync rule, recomputed parity after PR #40. Headline
