@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dev Data Hydration — Run Findings</title>
+<style>
+  :root {
+    --bg: #0a0e14; --panel: #111823; --panel-2: #0d141d; --line: #1e2a3a;
+    --ink: #d7e2f0; --muted: #7d8da0; --cyan: #35e0d8; --cyan-dim: #1a9d98;
+    --amber: #ffcc66; --pink: #ff6b9d; --green: #57d38c; --red: #ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 28px; }
+  h1 { font-size: 27px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h1 .accent { color: var(--cyan); }
+  .sub { color: var(--muted); font-size: 14px; }
+  .meta { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font: 12px/1 var(--mono); color: var(--cyan); background: rgba(53,224,216,.08);
+    border: 1px solid var(--cyan-dim); border-radius: 999px; padding: 6px 11px; }
+  h2 { font-size: 18px; margin: 40px 0 12px; padding-left: 12px; border-left: 3px solid var(--cyan); }
+  p { color: #c2cfe0; }
+  code { font-family: var(--mono); font-size: 12.5px; color: var(--cyan); background: rgba(53,224,216,.07); padding: 1px 5px; border-radius: 4px; }
+  pre { font-family: var(--mono); font-size: 12.5px; color: #cfe; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+  .verdict { border-radius: 10px; padding: 18px 22px; margin: 8px 0 4px; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+  .verdict.green { background: rgba(87,211,140,.10); border: 1px solid #2a5a3e; color: var(--green); }
+  .verdict .big { font: 700 22px var(--mono); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font: 600 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+  td.mono { font-family: var(--mono); font-size: 12px; }
+  .ok { color: var(--green); } .warn { color: var(--amber); } .bad { color: var(--red); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+  .card h3 { margin: 0 0 6px; font: 600 14px var(--mono); color: var(--amber); }
+  .note { background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--cyan);
+    border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 13.5px; color: #c9d6e6; }
+  footer { margin-top: 52px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><span class="accent">Dev Data Hydration</span> — Run Findings</h1>
+  <div class="sub">Result of running & testing <code>scripts/hydrate-dev.mjs</code> against a dev Neon branch.</div>
+  <div class="meta">
+    <span class="chip">2026-07-24 22:43–22:46 CEST</span>
+    <span class="chip">host: {neon-dev-host}</span>
+    <span class="chip">NODE_ENV: unset (dev)</span>
+    <span class="chip">3 bugs found &amp; fixed</span>
+    <span class="chip">verdict: GREEN</span>
+  </div>
+</header>
+
+<div class="verdict green">
+  <span class="big">✓ GREEN</span>
+  <span>After fixes, every financial-data table hydrated and all six frontend features have enough data to render. The seeder is idempotent (re-runs converge to identical counts).</span>
+</div>
+
+<h2>Environment</h2>
+<table>
+  <tr><th>property</th><th>value</th></tr>
+  <tr><td>Target DB</td><td class="mono">{neon-dev-host} (cloud Neon, <span class="ok">no prod marker</span>)</td></tr>
+  <tr><td>Safety gate</td><td>Non-local host → required <code>--force</code> + <code>DEV_HYDRATE_CONFIRM=&lt;host&gt;</code> (explicit opt-in honored)</td></tr>
+  <tr><td>NODE_ENV</td><td class="mono">unset → not production (guard passed)</td></tr>
+  <tr><td>Schema migration</td><td class="ok">✓ 34 statements applied (<code>npm run db:migrate</code>)</td></tr>
+</table>
+
+<h2>Commands run</h2>
+<pre>npm run db:migrate                                            # 34 statements applied
+npm run test                                                  # 66 passed, 4 skipped
+npm run test:integration                                      # 4 skipped (env-gated)
+DEV_HYDRATE_CONFIRM=&lt;host&gt; npm run db:hydrate:dev -- --force            # seed
+DEV_HYDRATE_CONFIRM=&lt;host&gt; npm run db:hydrate:dev -- --force --reset    # idempotency proof
+DEV_HYDRATE_CONFIRM=&lt;host&gt; npm run db:hydrate:dev -- --verify --force   # readiness report</pre>
+
+<h2>Test results</h2>
+<table>
+  <tr><th>suite</th><th>result</th></tr>
+  <tr><td class="mono">vitest run (unit)</td><td class="ok">✓ 6 files passed, 1 skipped · 66 tests passed, 4 skipped · 241ms</td></tr>
+  <tr><td class="mono">signal-queue.integration</td><td class="warn">4 skipped — env-gated (needs live DB fixture); belongs to the signal-loop branch, not this change</td></tr>
+</table>
+
+<h2>Bugs found &amp; fixed</h2>
+<div class="note">All three were caught by <em>running</em> the seeder against the real dev DB — none would surface from a
+dry-run or syntax check. This is why the run step matters.</div>
+
+<div class="card">
+  <h3>Bug 1 — NOT NULL violation on <code>signal_digest_cache.generated_at</code></h3>
+  <p><b>Symptom:</b> <code>null value in column "generated_at" ... violates not-null constraint</code>.</p>
+  <p><b>Cause:</b> the live table predates <code>schema.sql</code>'s <code>DEFAULT now()</code>, and
+  <code>CREATE TABLE IF NOT EXISTS</code> never back-fills a default onto an existing column — so the column is
+  <code>NOT NULL</code> with <em>no</em> default. The production code (<code>lib/digest-cache-db.ts</code>) already
+  works around this by always passing <code>generated_at</code> explicitly.</p>
+  <p><b>Fix:</b> pass <code>generated_at</code> explicitly on the <code>signal_digest_cache</code> <em>and</em>
+  <code>holdfold_cache</code> inserts (same latent risk).</p>
+</div>
+
+<div class="card">
+  <h3>Bug 2 — invalid UUID for the fixed dev council session</h3>
+  <p><b>Symptom:</b> <code>invalid input syntax for type uuid: "00000000-0000-4000-8000-00000000dev1"</code>.</p>
+  <p><b>Cause:</b> the sentinel ended in <code>dev1</code> — <code>v</code> is not a hex digit, so it isn't a valid UUID.</p>
+  <p><b>Fix:</b> switched to an all-hex sentinel <code>dddddddd-dddd-4ddd-8ddd-dddddddddddd</code> (valid v4 shape, obviously synthetic).</p>
+</div>
+
+<div class="card">
+  <h3>Bug 3 — <code>pending_signals</code> not idempotent (5/3 drift)</h3>
+  <p><b>Symptom:</b> after two partial runs + one full run, <code>pending_signals</code> held 5 rows where 3 were expected.</p>
+  <p><b>Cause:</b> only the <code>pending</code> insert was dedup'd (by the one-pending-per-ticker unique index); the
+  <code>done</code>/<code>error</code> inserts appended on every run.</p>
+  <p><b>Fix:</b> delete this dev user's <code>pending_signals</code> rows before seeding the state fixtures, so re-runs
+  converge to exactly 3. Verified: reset→3/3, plain re-run→still 3/3.</p>
+</div>
+
+<h2>Verify output — per-table hydration</h2>
+<pre>── Per-table hydration ──────────────────────────────
+  ✓ signal_digest_cache  1/1
+  ✓ user_digest_cache    1/1
+  ✓ holdfold_cache       1/1
+  ✓ signal_cache         5/5
+  ✓ backtest_hit_rates   10/10
+  ✓ watchlist_items      5/5
+  ✓ pending_signals      3/3
+  ✓ council_verdicts     2/2</pre>
+<p class="sub">Counts are freshness-aware: <code>holdfold_cache</code> only counts within its 15-min TTL and
+<code>user_digest_cache</code> only while <code>expires_at &gt; now()</code> — matching the real read paths.</p>
+
+<h2>Verify output — per-frontend-feature readiness</h2>
+<pre>── Per-frontend-feature readiness ───────────────────
+  ✓ READY  Signals dashboard (/dashboard/signals)
+  ✓ READY  Hold/Fold (/dashboard/holdfold)
+  ✓ READY  Portfolio (/dashboard/portfolio)
+  ✓ READY  Watchlist → pending-signals loop
+  ✓ READY  Council verdicts
+  ✓ READY  Per-ticker signal lookup (Nu AI / grounding)
+
+✓ ALL GREEN — every dashboard has enough data to render.</pre>
+
+<h2>Is the hydration robust enough for the frontend?</h2>
+<table>
+  <tr><th>Feature</th><th>Reads</th><th>Enough to render?</th></tr>
+  <tr><td>Signals dashboard</td><td class="mono">signal_digest_cache, user_digest_cache</td><td class="ok">✓ 5 signals, all optional fields set, isStale=false</td></tr>
+  <tr><td>Hold/Fold</td><td class="mono">holdfold_cache</td><td class="ok">✓ 5 verdicts across HOLD/FOLD/NEUTRAL, within TTL</td></tr>
+  <tr><td>Portfolio</td><td class="mono">watchlist_items (+ signal_cache, backtest_hit_rates)</td><td class="ok">✓ inputs present; health score derived at request time</td></tr>
+  <tr><td>Watchlist → pending-signals</td><td class="mono">watchlist_items, pending_signals</td><td class="ok">✓ watchlist + all 3 queue states</td></tr>
+  <tr><td>Council verdicts</td><td class="mono">council_verdicts (FK council_sessions)</td><td class="ok">✓ session + 2 verdicts</td></tr>
+  <tr><td>Per-ticker lookup (Nu AI / grounding)</td><td class="mono">signal_cache</td><td class="ok">✓ 5 fresh entries, isCacheFresh true</td></tr>
+</table>
+
+<footer>
+  Generated 2026-07-24 by the hydration run pipeline. Real DB host redacted to <code>{neon-dev-host}</code>.
+  Companion docs: <code>docs/dev-data-hydration.md</code> (how-to) · <code>docs/storage-structure.html</code> (DB map).
+</footer>
+
+</div>
+</body>
+</html>
