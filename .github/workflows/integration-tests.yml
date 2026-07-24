@@ -1,0 +1,68 @@
+name: Integration tests (Neon branch)
+
+# Spins up an ephemeral Neon branch, migrates the schema onto it, runs the
+# DB-touching integration test (__tests__/signal-queue.integration.test.ts),
+# then deletes the branch. This closes the gap TODO2/TODO3 called out: the
+# enqueue → claim → drain → cache path was type-checked but never exercised
+# against a real Postgres.
+#
+# Required repo secrets:
+#   NEON_API_KEY      — a Neon API key (Account settings → API keys)
+#   NEON_PROJECT_ID   — the Neon project that holds the portal database
+#
+# The default unit suite (npm test) still runs everywhere and needs none of
+# this; the integration test self-skips when DATABASE_URL is unset.
+
+on:
+  pull_request:
+    paths:
+      - 'lib/signal-queue.ts'
+      - 'lib/shared/signal-lookup.ts'
+      - 'lib/shared/signal-policy.ts'
+      - 'lib/live-price-db.ts'
+      - 'lib/db/schema.sql'
+      - '__tests__/signal-queue.integration.test.ts'
+      - '.github/workflows/integration-tests.yml'
+  workflow_dispatch: {}
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # Skip cleanly on forks / when Neon secrets aren't configured, rather than
+    # failing red for contributors who can't hold the secret.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.repository_owner != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Create ephemeral Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch_name: ci-integration-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Migrate schema onto the branch
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: node scripts/db-migrate.mjs
+
+      - name: Run integration test
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: npm run test:integration
+
+      - name: Delete the Neon branch
+        if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch: ci-integration-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}

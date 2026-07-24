@@ -268,6 +268,20 @@
   gap: 12px;
 }
 
+.hf-watchlist-btn {
+  margin-left: auto;
+  background: var(--surface-2, #1a1a1a);
+  border: 1px solid var(--border, #333);
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hf-watchlist-btn:hover:not(:disabled) { background: var(--border, #333); }
+.hf-watchlist-btn:disabled { opacity: 0.7; cursor: default; }
+
 .hf-detail-ticker {
   font-size: 1.8rem;
   font-weight: 900;

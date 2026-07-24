@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Signal Loop Hardening Findings</title>
+<style>
+  :root { --bg:#0b0e13; --card:#141922; --border:#232b38; --ink:#e6edf3; --mut:#8b98a9; --ok:#3fb950; --warn:#d29922; --accent:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:32px 0 12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  .sub { color:var(--mut); margin:0 0 24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat b { display:block; font-size:1.6rem; }
+  .stat span { color:var(--mut); font-size:.82rem; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 4px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  code { background:#1c2230; padding:1px 6px; border-radius:5px; font-size:.86em; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .accent { color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:12px 0; }
+  ul { margin:6px 0 6px; padding-left:20px; } li { margin:4px 0; }
+  .pill { display:inline-block; font-size:.72rem; padding:2px 8px; border-radius:99px; border:1px solid var(--border); color:var(--mut); }
+  footer { color:var(--mut); font-size:.8rem; margin-top:40px; border-top:1px solid var(--border); padding-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Signal Loop Hardening — Findings</h1>
+  <p class="sub">nuwrrrld-portal · the <code>pending_signals</code> "add stock → cache → run signals" loop, from first cut to real-time · 2026-07-24</p>
+
+  <div class="grid">
+    <div class="stat"><b class="ok">70</b><span>tests (66 pass · 4 skip)</span></div>
+    <div class="stat"><b class="ok">0</b><span>tsc errors</span></div>
+    <div class="stat"><b>4</b><span>TODO phases shipped</span></div>
+    <div class="stat"><b>2</b><span>repos touched</span></div>
+  </div>
+
+  <h2>What was built, in four passes</h2>
+  <table>
+    <tr><th>Pass</th><th>Goal</th><th>Delivered</th></tr>
+    <tr><td>TODO.md</td><td>Make the loop <em>work</em></td><td><code>pending_signals</code> + <code>signal_cache</code> tables; <code>enqueueSignalRefresh</code> on watchlist-add; <code>POST /api/signals/drain</code>; "+ Watchlist" buttons</td></tr>
+    <tr><td>TODO2.md</td><td>Make it <em>survive</em> (+75%)</td><td>read-through L2; ticker validation; enqueue dedup; retry-under-cap; purge hygiene; drain time budget; pure logic extracted &amp; unit-tested</td></tr>
+    <tr><td>TODO3.md</td><td>Make it <em>concurrent-safe</em> (+50%)</td><td><code>FOR UPDATE SKIP LOCKED</code> atomic claim; stale-lease crash recovery; exponential backoff; volatility-aware cache TTL; cache-miss-vs-broken telemetry; queue-stats healthcheck; guarded integration test</td></tr>
+    <tr><td>TODO4.md</td><td>Ship the deferred items</td><td>Modal drain cron; Finnhub WebSocket live-price tier; CI Neon-branch integration workflow</td></tr>
+  </table>
+
+  <h2>Architecture as it stands now</h2>
+  <div class="card">
+    <pre style="margin:0; overflow-x:auto; color:var(--ink)">
+watchlist add ──▶ enqueueSignalRefresh ──▶ pending_signals (dedup, backoff)
+                                                  │
+homebase/modal_drain.py  ──(*/5 mkt hrs)──▶ POST /api/signals/drain
+   (Modal cron, httpx only)                       │ atomic claim (SKIP LOCKED)
+                                                  ▼
+                                      fetchTickerEntry ──▶ gcp3 /signals
+                                                  │  (read-through: fresh L2
+                                                  │   → live → stale-on-outage)
+                                                  ▼
+                                            signal_cache  (volatility TTL)
+
+homebase/modal_finnhub_ws.py ──(WS trades, 5s debounce)──▶ POST /api/signals/live
+   (persistent Modal container)                             ▼
+                                                       live_prices (quote lane)</pre>
+  </div>
+
+  <h2>Test evidence</h2>
+  <ul>
+    <li><span class="ok">✔</span> <code>npx tsc --noEmit</code> — clean</li>
+    <li><span class="ok">✔</span> <code>npx vitest run</code> — 66 passed, 4 skipped (the DB integration test self-skips without <code>DATABASE_URL</code>)</li>
+    <li><span class="ok">✔</span> unit coverage: <code>normalizeTicker</code>, <code>isCacheFresh</code>, <code>shouldRetry</code>, <code>backoffSeconds</code>, <code>cacheTtlMinutes</code>, <code>parseLivePriceRow</code>, <code>parseLivePriceBatch</code></li>
+    <li><span class="ok">✔</span> <code>python -m py_compile</code> — <code>modal_drain.py</code>, <code>modal_finnhub_ws.py</code></li>
+  </ul>
+
+  <h2>Robustness properties gained</h2>
+  <table>
+    <tr><th>Property</th><th>Before</th><th>Now</th></tr>
+    <tr><td>Concurrent drains</td><td class="warn">double-process a ticker</td><td class="ok">atomic claim, SKIP LOCKED</td></tr>
+    <tr><td>Transient backend blip</td><td class="warn">row dead forever</td><td class="ok">retry w/ exponential backoff</td></tr>
+    <tr><td>Crashed drain</td><td class="warn">rows orphaned</td><td class="ok">120s lease reclaim</td></tr>
+    <tr><td>Backend outage on read</td><td class="warn">empty feed</td><td class="ok">serve stale real data</td></tr>
+    <tr><td>Cache broken vs cold</td><td class="warn">indistinguishable null</td><td class="ok">discriminated + <code>cache_broken</code> log</td></tr>
+    <tr><td>Cache freshness</td><td class="warn">flat 15 min</td><td class="ok">5/15/30 by volatility</td></tr>
+    <tr><td>Real-time price</td><td class="warn">none</td><td class="ok">Finnhub WS lane</td></tr>
+    <tr><td>DB path validation</td><td class="warn">tsc only</td><td class="ok">Neon-branch integration test in CI</td></tr>
+  </table>
+
+  <h2>Known gaps &amp; next steps</h2>
+  <ul>
+    <li><span class="warn">◐</span> <code>live_prices</code> is written but no dashboard component reads it yet (plumbed, not surfaced).</li>
+    <li><span class="warn">◐</span> WS symbol set is hardcoded; should subscribe to the union of live <code>watchlist_items</code>.</li>
+    <li><span class="warn">◐</span> No freshness/staleness badge on the live price or the stale-served signal cache.</li>
+    <li><span class="warn">◐</span> Integration workflow needs <code>NEON_API_KEY</code> / <code>NEON_PROJECT_ID</code> repo secrets to run.</li>
+  </ul>
+
+  <footer>
+    Generated for the signal-loop-hardening PR. Full detail in
+    <code>docs/wiki-portal/</code> (entity-live-price-tier, decision-pending-signals-queue,
+    entity-signal-data-plane, concept-cache-then-degrade) and <code>TODO.md</code>–<code>TODO4.md</code>.
+  </footer>
+</div>
+</body>
+</html>

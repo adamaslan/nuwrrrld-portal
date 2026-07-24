@@ -4,13 +4,15 @@ import type { SignalPayload } from "@/lib/digest";
 import { SignalShareButton } from "@/components/SignalShareButton";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 import { SignalAskAnything } from "@/components/SignalAskAnything";
+import { filterSignals, sortSignals, type Direction, type SortKey } from "@/lib/shared/signalFilters";
+import { buildSignalPrompt } from "@/lib/shared/prompts";
+import { getPref, setPref } from "@/lib/shared/prefs";
+
+const FILTER_PREF_KEY = "signals-filter";
 
 interface Props {
   signals: SignalPayload[];
 }
-
-type Direction = "all" | "bullish" | "bearish" | "neutral";
-type SortKey = "confidence" | "ticker" | "timeframe";
 
 interface GoDeeper {
   status: "idle" | "loading" | "ok" | "error";
@@ -18,21 +20,10 @@ interface GoDeeper {
   error?: string;
 }
 
-function buildSignalPrompt(sig: SignalPayload): string {
-  return [
-    `=== REAL DATA: ${sig.ticker} signal ===`,
-    `Direction: ${sig.direction} | Confidence: ${sig.confidence} | Timeframe: ${sig.timeframe}`,
-    `Title: ${sig.title}`,
-    `Explanation: ${sig.explanation}`,
-    `Indicators: ${sig.indicators.join(", ") || "none"}`,
-    `Generated: ${sig.generatedAt}`,
-    ``,
-    `Using ONLY the exact data above, provide a 1–5 day trade framing for ${sig.ticker}.`,
-    `Cover: entry thesis, key risk, invalidation level, and how the indicators confirm the signal. (~150 words)`,
-  ].join("\n");
+interface WatchlistAdd {
+  status: "idle" | "loading" | "ok" | "error";
+  error?: string;
 }
-
-const CONFIDENCE_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 export function SignalsClient({ signals }: Props) {
   const [search, setSearch] = useState("");
@@ -40,38 +31,33 @@ export function SignalsClient({ signals }: Props) {
   const [sort, setSort] = useState<SortKey>("confidence");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [goDeeper, setGoDeeper] = useState<Record<string, GoDeeper>>({});
+  const [watchlist, setWatchlist] = useState<Record<string, WatchlistAdd>>({});
 
   // Load saved filter once on mount; suppress the save effect until after load.
   const [filterReady, setFilterReady] = useState(false);
   useEffect(() => {
-    const saved = localStorage.getItem("signals-filter");
-    if (saved) {
-      try {
-        const { direction: d, sort: s } = JSON.parse(saved) as { direction: Direction; sort: SortKey };
-        if (d) setDirection(d);
-        if (s) setSort(s);
-      } catch { /* ignore */ }
-    }
-    setFilterReady(true);
+    (async () => {
+      const saved = await getPref(FILTER_PREF_KEY);
+      if (saved) {
+        try {
+          const { direction: d, sort: s } = JSON.parse(saved) as { direction: Direction; sort: SortKey };
+          if (d) setDirection(d);
+          if (s) setSort(s);
+        } catch { /* ignore */ }
+      }
+      setFilterReady(true);
+    })();
   }, []);
 
   useEffect(() => {
     if (!filterReady) return;
-    localStorage.setItem("signals-filter", JSON.stringify({ direction, sort }));
+    setPref(FILTER_PREF_KEY, JSON.stringify({ direction, sort }));
   }, [direction, sort, filterReady]);
 
-  const filtered = useMemo(() => {
-    let list = signals;
-    if (direction !== "all") list = list.filter(s => s.direction === direction);
-    const q = search.trim().toLowerCase();
-    if (q) list = list.filter(s => s.ticker.toLowerCase().includes(q) || s.title.toLowerCase().includes(q));
-    list = [...list].sort((a, b) => {
-      if (sort === "confidence") return (CONFIDENCE_RANK[b.confidence] ?? 0) - (CONFIDENCE_RANK[a.confidence] ?? 0);
-      if (sort === "ticker") return a.ticker.localeCompare(b.ticker);
-      return 0;
-    });
-    return list;
-  }, [signals, search, direction, sort]);
+  const filtered = useMemo(
+    () => sortSignals(filterSignals(signals, search, direction), sort),
+    [signals, search, direction, sort],
+  );
 
   async function handleGoDeeper(sig: SignalPayload) {
     if (goDeeper[sig.id]?.status === "loading") return;
@@ -97,6 +83,27 @@ export function SignalsClient({ signals }: Props) {
       setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "ok", answer } }));
     } catch (err) {
       setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "error", error: err instanceof Error ? err.message : "Failed" } }));
+    }
+  }
+
+  async function handleAddToWatchlist(ticker: string) {
+    if (watchlist[ticker]?.status === "loading" || watchlist[ticker]?.status === "ok") return;
+    setWatchlist(prev => ({ ...prev, [ticker]: { status: "loading" } }));
+    try {
+      const res = await fetch("/api/portfolio/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      });
+      if (!res.ok && res.status !== 409) {
+        const data = await res.json().catch(() => ({}));
+        setWatchlist(prev => ({ ...prev, [ticker]: { status: "error", error: data?.error ?? `Error ${res.status}` } }));
+        return;
+      }
+      // 409 (already in watchlist) is treated as success — the ticker is watched either way.
+      setWatchlist(prev => ({ ...prev, [ticker]: { status: "ok" } }));
+    } catch {
+      setWatchlist(prev => ({ ...prev, [ticker]: { status: "error", error: "Network error" } }));
     }
   }
 
@@ -152,6 +159,16 @@ export function SignalsClient({ signals }: Props) {
                 </div>
                 <div className="signal-card-actions">
                   <SignalShareButton signal={sig} />
+                  <button
+                    className="signals-watchlist-btn"
+                    onClick={() => handleAddToWatchlist(sig.ticker)}
+                    disabled={watchlist[sig.ticker]?.status === "loading" || watchlist[sig.ticker]?.status === "ok"}
+                    title={watchlist[sig.ticker]?.status === "error" ? watchlist[sig.ticker]?.error : undefined}
+                  >
+                    {watchlist[sig.ticker]?.status === "ok" ? "✓ Watching" :
+                     watchlist[sig.ticker]?.status === "loading" ? "Adding…" :
+                     watchlist[sig.ticker]?.status === "error" ? "↺ Retry" : "+ Watchlist"}
+                  </button>
                   <button
                     className="signals-expand-btn"
                     onClick={() => setExpandedId(isExpanded ? null : sig.id)}

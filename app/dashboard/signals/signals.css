@@ -38,6 +38,9 @@
 .signal-card-actions { display: flex; gap: .5rem; align-items: center; }
 .signals-expand-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: .3rem .65rem; font-size: .78rem; font-weight: 600; cursor: pointer; }
 .signals-expand-btn:hover { background: var(--border); }
+.signals-watchlist-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: .3rem .65rem; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.signals-watchlist-btn:hover:not(:disabled) { background: var(--border); }
+.signals-watchlist-btn:disabled { opacity: .7; cursor: default; }
 .signal-detail { border-top: 1px solid var(--border); padding-top: .75rem; margin-top: .5rem; }
 .signal-stale-badge { font-size: .8rem; color: var(--text); background: color-mix(in srgb, var(--neon-red) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--neon-red) 30%, var(--border)); border-radius: 6px; padding: .25rem .6rem; display: inline-block; margin-bottom: .5rem; }
 .signal-score { font-size: .8rem; color: var(--text-dim); margin-top: .5rem; }
