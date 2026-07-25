@@ -55,6 +55,7 @@ gate).
 | **Hold/Fold cache** ([[entity-holdfold-cache]]) | Decide whether mobile should read the same cached verdicts or keep calling the backend live. Today portal caches; mobile does not. |
 | **Signal cache/queue + drain** ([[decision-pending-signals-queue]]) | New in PR #40: `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain`. `signal-policy.ts` (ticker validation, cache-freshness, backoff) is a **prime de-drift candidate to promote to shared** — mobile has the same needs. |
 | **Real-time price tier** ([[entity-live-price-tier]]) | New in PR #40: Finnhub WS → `/api/signals/live` → `live_prices`. Mobile needs either to read `GET /api/signals/live` or a decision that live quotes stay web-only. `lib/shared/live-price.ts` parsing is reusable as-is. |
+| **Public council demo + share cards** | New in PR #43: `/api/council/public` (no-login, ticker-only, 1/day/IP), `/api/og/verdict/[ticker]`, `/verdict/[ticker]`. Portal-only by nature (a growth/marketing surface, not core product), but if mobile ever wants an app-store-listing teaser or a deep-link share flow, this is the pattern to copy — same fail-closed-quota / server-built-prompt safety rules should apply. |
 
 ### Mobile has, portal lacks
 | Feature | To sync portal needs… |
