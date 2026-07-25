@@ -61,6 +61,20 @@ function indexBySymbol(market: MarketOverviewResponse | null): Record<string, In
   return out;
 }
 
+/**
+ * Bounds a promise that has no native cancellation (e.g. the Neon track-record
+ * query, unlike the MCP fetches above which use AbortController) so the
+ * landing page's Promise.allSettled can never wait indefinitely on it. This
+ * doesn't cancel the underlying request — Neon's HTTP driver has no signal
+ * param — it just stops the render path from waiting past `ms`.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 async function fetchLandingData() {
   const fetchWithTimeout = async (url: string, cache: number) => {
     const controller = new AbortController();
@@ -74,7 +88,7 @@ async function fetchLandingData() {
     fetchWithTimeout(`${MCP_URL}/market-overview`, 3600),
     fetchWithTimeout(`${MCP_URL}/signals`, 3600),
     fetchCouncilSample(),
-    getAggregateTrackRecord(),
+    withTimeout(getAggregateTrackRecord(), 5_000),
   ]);
   const market: MarketOverviewResponse | null = mktRes.status === "fulfilled" && mktRes.value.ok
     ? await mktRes.value.json().catch(() => null)

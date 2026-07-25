@@ -74,6 +74,30 @@ infra (`lib/openrouter.ts` `callCouncilSeat`, $0/call) and Neon (`lib/db.ts`).
   bypasses the model entirely), and the 429 daily-limit path — all via direct
   SQL + curl, not just code review.
 
+### Findings from CodeRabbit review (PR #43), all fixed
+1. **IP-spoofing quota bypass (Major, real vulnerability — I had reproduced it
+   myself during manual testing without realizing it).** `clientIpFromHeaders`
+   trusted client-supplied `x-forwarded-for`, so any caller could set that
+   header to rotate their apparent identity and get unlimited free demo
+   questions. Fixed: switched to `@vercel/functions`'s `ipAddress()`, which
+   reads `x-real-ip` — set by Vercel's edge proxy and not spoofable by the
+   client. Re-verified: two requests with different fake `X-Forwarded-For`
+   values now correctly share one quota bucket instead of bypassing it.
+2. **Reversible IP hash (Major).** Plain SHA-256 over an IPv4 address is
+   trivially reversible — the ~4B address space can be fully precomputed in
+   minutes. Switched to HMAC-SHA256 keyed by a new server-only
+   `IP_HASH_SECRET` env var (documented in `.env.example`); the endpoint
+   returns 503 "Demo not configured" rather than falling back to an unkeyed
+   hash if the secret is unset.
+3. **Unbounded DB call in the landing render path (Major).** `Promise.allSettled`
+   included the Neon track-record aggregate alongside the MCP fetches (which
+   all have a 5 s `AbortController` timeout), so a slow/hung Neon connection
+   could stall the whole landing page. Added a `withTimeout()` race (Neon's
+   HTTP driver has no signal/cancel, so this bounds the *wait*, not the
+   underlying request) matching the same 5 s budget.
+4. **Missing accessible label on the ticker input (Minor).** Added
+   `aria-label="Ticker symbol"`.
+
 ## Guardrails (unchanged from LANDING-REVAMP.md §7)
 - No secrets in copy or committed code.
 - Every new cache/quota read-write is try/catch-guarded — a DB hiccup

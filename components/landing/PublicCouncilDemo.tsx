@@ -55,6 +55,7 @@ export function PublicCouncilDemo() {
         <input
           className="public-demo-input"
           type="text"
+          aria-label="Ticker symbol"
           placeholder="Ticker, e.g. NVDA"
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}

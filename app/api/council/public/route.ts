@@ -30,7 +30,8 @@ function buildDemoPrompt(ticker: string, brief: string | null): string {
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
+  const ipHashSecret = process.env.IP_HASH_SECRET;
+  if (!apiKey || !ipHashSecret) {
     return NextResponse.json({ error: "Demo not configured" }, { status: 503 });
   }
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   // Cache miss — consume one of this caller's daily quota slots. Fails
   // closed: a DB outage here means the demo is unavailable, not free-for-all.
-  const ipHash = hashIp(clientIpFromHeaders(req.headers));
+  const ipHash = hashIp(clientIpFromHeaders(req.headers), ipHashSecret);
   const allowed = await checkAndIncrementDemoQuota(ipHash);
   if (!allowed) {
     return NextResponse.json(

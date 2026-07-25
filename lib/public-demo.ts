@@ -3,7 +3,7 @@
  * the landing page (app/api/council/public). Two halves:
  *
  *  - Quota: 1 fresh model call per IP-hash per day. Raw IPs are never stored —
- *    `hashIp` (pure, sha256) is the only thing that touches Postgres.
+ *    `hashIp` (pure, keyed HMAC-SHA256) is the only thing that touches Postgres.
  *  - Cache: keyed by (ticker, date, seat), so once anyone has asked about a
  *    ticker today, every subsequent visitor gets the cached answer for free
  *    and without counting against their own quota.
