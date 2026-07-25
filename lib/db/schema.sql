@@ -240,3 +240,25 @@ CREATE TABLE IF NOT EXISTS grounding_misses (
 );
 CREATE INDEX IF NOT EXISTS grounding_misses_created_at_idx
   ON grounding_misses (created_at DESC);
+
+-- ── Public council demo (unauthenticated landing-page "ask the council") ────
+-- ip_hash is a sha256 of the caller's IP (lib/public-demo.ts hashIp) — raw IPs
+-- are never stored. One fresh model call per hash per day; a cache hit on a
+-- ticker someone else already asked about today is unlimited and free.
+
+CREATE TABLE IF NOT EXISTS public_demo_usage (
+  ip_hash    text NOT NULL,
+  usage_date date NOT NULL,
+  count      int  NOT NULL DEFAULT 0,
+  PRIMARY KEY (ip_hash, usage_date)
+);
+
+CREATE TABLE IF NOT EXISTS public_demo_cache (
+  ticker       text        NOT NULL,
+  usage_date   date        NOT NULL,
+  seat         text        NOT NULL,
+  answer       text        NOT NULL,
+  model        text        NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (ticker, usage_date, seat)
+);

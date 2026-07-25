@@ -34,6 +34,18 @@ agree in intent but not in code.
 > marketing surface (its nearest equivalent, `OnboardingScreen`, is already
 > tracked below as mobile-only). Headline and matrix are unchanged by this PR.
 
+> ℹ️ **PR #43 (2026-07-24) assessed, minor matrix addition, headline unchanged.**
+> Phase 3+4 of the landing revamp: a sticky scrollytelling council demo, a
+> RISK-seat spotlight, a "how it works" section, and — the one piece with
+> real backend — a no-login "ask the council" public demo
+> (`POST /api/council/public`, `public_demo_usage`/`public_demo_cache` tables)
+> plus shareable OG verdict cards (`/api/og/verdict/[ticker]`) and public
+> `/verdict/[ticker]` pages. This reuses the *existing* portal-only AI Council
+> stack (`lib/openrouter.ts`) rather than adding a new shared module — no
+> `lib/shared/` file touched — so it doesn't move single-source parity. Added
+> a matrix row below since it's a real, if portal-only, extension of the AI
+> Council domain (unauthenticated growth/demo surface, not full deliberation).
+
 ## Headline: ~62% synced (2026-07-24, after PR #40)
 
 Two different denominators, deliberately kept separate:
@@ -73,6 +85,7 @@ code gap widened. The risk lives in the gap between those two numbers.
 | **Push** | `pushNotifications.ts` | `/api/push` | none | 🟡 Present both, unshared |
 | **Referral / share** | `shareSheet.ts` | `/api/referral`, `dashboard/share` | none | 🟡 Present both, unshared |
 | **AI Council** | `clients/council.ts` composer → ai-text RAG backend | 6-seat OpenRouter deliberation, server-side ([[entity-ai-council]]) | none | 🔴 Divergent architectures |
+| **Public council demo + share cards** | — | `/api/council/public`, `/api/og/verdict/[ticker]`, `/verdict/[ticker]` (PR #43) | none (reuses `lib/openrouter.ts`) | ⬅️ Portal-only, unauthenticated growth surface |
 | **Backtest** | — | `/api/backtest`, `backtest.ts` ([[entity-backtest-engine]]) | — | ⬅️ Portal-only |
 | **Watchlist store** | (folded into `usePortfolio`) | `watchlist-store.ts` | — | ⬅️ Portal-only |
 | **Onboarding** | `OnboardingScreen` | — | — | ➡️ Mobile-only |

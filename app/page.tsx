@@ -2,11 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
+import { getAggregateTrackRecord } from "@/lib/track-record";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
 import { StatCounter } from "@/components/landing/StatCounter";
 import { MagneticCTA } from "@/components/landing/MagneticCTA";
 import { ParallaxStage, ParallaxLayer } from "@/components/landing/ParallaxStage";
+import { CouncilScrollDebate } from "@/components/landing/CouncilScrollDebate";
+import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
 import "./landing.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
@@ -56,6 +61,20 @@ function indexBySymbol(market: MarketOverviewResponse | null): Record<string, In
   return out;
 }
 
+/**
+ * Bounds a promise that has no native cancellation (e.g. the Neon track-record
+ * query, unlike the MCP fetches above which use AbortController) so the
+ * landing page's Promise.allSettled can never wait indefinitely on it. This
+ * doesn't cancel the underlying request — Neon's HTTP driver has no signal
+ * param — it just stops the render path from waiting past `ms`.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 async function fetchLandingData() {
   const fetchWithTimeout = async (url: string, cache: number) => {
     const controller = new AbortController();
@@ -65,10 +84,11 @@ async function fetchLandingData() {
     } finally { clearTimeout(timer); }
   };
 
-  const [mktRes, sigRes, council] = await Promise.allSettled([
+  const [mktRes, sigRes, council, trackRecord] = await Promise.allSettled([
     fetchWithTimeout(`${MCP_URL}/market-overview`, 3600),
     fetchWithTimeout(`${MCP_URL}/signals`, 3600),
     fetchCouncilSample(),
+    withTimeout(getAggregateTrackRecord(), 5_000),
   ]);
   const market: MarketOverviewResponse | null = mktRes.status === "fulfilled" && mktRes.value.ok
     ? await mktRes.value.json().catch(() => null)
@@ -84,14 +104,22 @@ async function fetchLandingData() {
       }).slice(0, 4)
     : null;
   const councilData: CouncilSample | null = council.status === "fulfilled" ? council.value : null;
-  return { market, marketSummary: market?.brief?.summary, indices: indexBySymbol(market), topSignals, council: councilData };
+  const trackRecordData = trackRecord.status === "fulfilled" ? trackRecord.value : null;
+  return {
+    market,
+    marketSummary: market?.brief?.summary,
+    indices: indexBySymbol(market),
+    topSignals,
+    council: councilData,
+    trackRecord: trackRecordData,
+  };
 }
 
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  const { marketSummary, indices, topSignals, council } = await fetchLandingData();
+  const { marketSummary, indices, topSignals, council, trackRecord } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
@@ -381,13 +409,19 @@ export default async function Home() {
               <h3>It gets smarter every day</h3>
               <p>Every call we make and every argument the council has is logged for good — so our track record only gets longer, and harder for anyone else to catch up to.</p>
               <ul className="feature-list">
-                <li>A running, checkable record of every call.</li>
+                <li>
+                  {trackRecord
+                    ? `${trackRecord.hitRatePct}% rolling hit-rate across ${trackRecord.totalCalls.toLocaleString()} recorded calls.`
+                    : "Building our public track record — check back soon."}
+                </li>
                 <li>A growing archive of market days and council arguments.</li>
               </ul>
             </Reveal>
           </div>
         </div>
       </section>
+
+      <RiskSpotlight />
 
       <section id="council">
         <div className="wrap">
@@ -401,6 +435,8 @@ export default async function Home() {
               what would change its mind, before the Chair gives you one clear, final call.
             </p>
           </Reveal>
+
+          <CouncilScrollDebate />
 
           <div className="seat-grid">
             <Reveal delay={0} as="article" className="seat-card seat-card--risk">
@@ -458,6 +494,8 @@ export default async function Home() {
         </div>
       </section>
 
+      <HowItWorks />
+
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
@@ -471,6 +509,8 @@ export default async function Home() {
             <Link className="btn secondary" href="/sign-in">Sign in</Link>
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
+
+          <PublicCouncilDemo />
         </Reveal>
       </section>
 

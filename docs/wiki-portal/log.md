@@ -4,6 +4,26 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {su
 
 ---
 
+## [2026-07-24] sync | PR #43 parity check (landing Phase 3+4) — +1 matrix row | pages touched: 3
+
+PR #43 (`feat/landing-phase3-4-viral-loop`) added a sticky-scroll council
+demo, a RISK-seat spotlight, a "how it works" section, and — the one piece
+with real backend — a no-login public council demo (`/api/council/public`,
+new `public_demo_usage`/`public_demo_cache` tables), shareable OG verdict
+cards (`/api/og/verdict/[ticker]`), and public `/verdict/[ticker]` pages.
+Assessed against the mobile↔web parity rule: reuses the existing portal-only
+`lib/openrouter.ts` AI Council stack rather than adding a new shared module —
+no `lib/shared/` file touched — so single-source parity is unchanged.
+Feature-domain parity also holds (this isn't a new *shared* domain). Added one
+new matrix row ("Public council demo + share cards", portal-only) since it's
+a real extension of the AI Council surface worth tracking, even though it
+doesn't move the headline. Updated `concept-mobile-web-parity.md` (assessment
+note + matrix row) and `concept-sync-requirements.md` (noted as a pattern
+mobile could copy for an app-store teaser, if ever wanted). Mirrored in
+`gcp3-mobile/docs/wiki-mobile/`.
+
+---
+
 ## [2026-07-24] sync | PR #42 parity check (landing revamp) — no change | pages touched: 3
 
 PR #42 (`feat/landing-revamp-phase1-2`) rewrote the signed-out landing page:

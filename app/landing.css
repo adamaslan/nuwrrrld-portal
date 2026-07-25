@@ -215,6 +215,108 @@
   letter-spacing: 0.02em;
 }
 
+/* ── Public "ask the council" demo (no login) ── */
+.nwf-landing .public-demo {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.nwf-landing .public-demo-label {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.nwf-landing .public-demo-form {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.nwf-landing .public-demo-input {
+  flex: 1 1 200px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nwf-landing .public-demo-input::placeholder {
+  color: var(--dim);
+  font-weight: 500;
+}
+
+.nwf-landing .public-demo-input:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+.nwf-landing .public-demo-btn {
+  min-height: 48px;
+  white-space: nowrap;
+}
+
+.nwf-landing .public-demo-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.nwf-landing .public-demo-result {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 59, 92, 0.3);
+  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(18, 20, 25, 0.82));
+  text-align: left;
+}
+
+.nwf-landing .public-demo-result-label {
+  color: var(--coral);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.nwf-landing .public-demo-cached {
+  color: var(--dim);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.nwf-landing .public-demo-result-text {
+  color: var(--ink);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.nwf-landing .public-demo-limited,
+.nwf-landing .public-demo-error {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.nwf-landing .public-demo-limited a {
+  color: var(--green);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
 .nwf-landing .btn {
   display: inline-flex;
   align-items: center;
@@ -849,6 +951,209 @@
   margin-bottom: 8px;
 }
 
+/* ── Sticky scroll-through council debate ── */
+.nwf-landing .council-debate {
+  position: relative;
+  width: 100%;
+}
+
+.nwf-landing .council-debate-sticky {
+  position: sticky;
+  top: 90px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 4px;
+}
+
+.nwf-landing .council-debate--static .council-debate-sticky {
+  position: static;
+}
+
+.nwf-landing .council-debate-ticker {
+  color: var(--dim);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.nwf-landing .council-debate-line {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 4px;
+  opacity: 0.18;
+  filter: blur(1px);
+  transform: translateY(6px);
+  transition: opacity 0.35s ease, transform 0.35s ease, filter 0.35s ease;
+}
+
+.nwf-landing .council-debate-line.is-revealed {
+  opacity: 0.55;
+  filter: none;
+  transform: translateY(0);
+}
+
+.nwf-landing .council-debate-line.is-active {
+  opacity: 1;
+}
+
+.nwf-landing .council-debate-label {
+  color: var(--dim);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.nwf-landing .council-debate-text {
+  color: var(--ink);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nwf-landing .council-debate-line {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+/* ── How it works (3 steps) ── */
+.nwf-landing .how-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.nwf-landing .how-step {
+  position: relative;
+  padding: 26px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.nwf-landing .how-step-number {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  font-size: 2.2rem;
+  font-weight: 950;
+  letter-spacing: -0.06em;
+  color: rgba(247, 243, 234, 0.08);
+}
+
+.nwf-landing .how-step-icon {
+  color: var(--green);
+  margin-bottom: 14px;
+}
+
+.nwf-landing .how-step h3 {
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+
+.nwf-landing .how-step p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* ── RISK spotlight section ── */
+.nwf-landing .risk-spotlight {
+  background:
+    linear-gradient(180deg, rgba(255, 59, 92, 0.05), rgba(255, 59, 92, 0)),
+    #0a0b0f;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.nwf-landing .risk-spotlight-inner {
+  max-width: 780px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.nwf-landing .risk-kicker {
+  color: var(--coral);
+  text-align: center;
+}
+
+.nwf-landing .risk-spotlight h2 {
+  max-width: 100%;
+  margin: 0 auto 18px;
+  text-align: center;
+}
+
+.nwf-landing .risk-copy {
+  text-align: center;
+  margin: 0 auto 32px;
+}
+
+.nwf-landing .risk-exchange {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.nwf-landing .risk-line {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.nwf-landing .risk-line p {
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.nwf-landing .risk-line-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.7rem;
+  font-weight: 900;
+  background: rgba(18, 200, 216, 0.12);
+  border: 1px solid rgba(18, 200, 216, 0.3);
+  color: var(--cyan);
+}
+
+.nwf-landing .risk-line-tag--risk {
+  background: rgba(255, 59, 92, 0.14);
+  border: 1px solid rgba(255, 59, 92, 0.35);
+  color: var(--coral);
+}
+
+.nwf-landing .risk-line--risk {
+  border-color: rgba(255, 59, 92, 0.3);
+  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(18, 20, 25, 0.82));
+}
+
+.nwf-landing .risk-footer {
+  color: var(--dim);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 /* ── Six-seat council grid ── */
 .nwf-landing .seat-grid {
   display: grid;
@@ -975,7 +1280,8 @@
   }
 
   .nwf-landing .horizon-grid,
-  .nwf-landing .seat-grid {
+  .nwf-landing .seat-grid,
+  .nwf-landing .how-steps {
     grid-template-columns: 1fr;
   }
 

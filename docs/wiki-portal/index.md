@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-07-24 (PR #42 landing-page revamp; parity assessed, unchanged)_
+_Last updated: 2026-07-24 (PR #43 landing Phase 3+4; parity assessed, +1 matrix row)_
 
 Catalog is organized by page type. Read `index.md` first on any query to find relevant pages, then drill in. This wiki is portal-only; cross-repo references link by path (see [[SCHEMA]] → Cross-Repo Boundary).
 
