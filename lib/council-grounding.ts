@@ -180,8 +180,8 @@ export async function buildGroundedBrief(
   }
 
   if (signalData?.text) parts.push(`=== LIVE SIGNAL DATA (${ticker}) ===\n${signalData.text}`);
-  if (hitRates) parts.push(`=== ${hitRates}`);
-  if (priors) parts.push(`=== ${priors}`);
+  if (hitRates) parts.push(hitRates);
+  if (priors) parts.push(priors);
   if (compiled) parts.push(compiled);
   if (!signalData?.text && !hitRates && !priors && !compiled) {
     parts.push(`(No grounding data available for ${ticker} — reason from general knowledge and say so.)`);
