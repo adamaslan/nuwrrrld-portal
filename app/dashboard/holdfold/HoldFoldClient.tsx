@@ -23,6 +23,48 @@ interface CouncilState {
   error?: string;
 }
 
+interface WatchlistAdd {
+  status: "idle" | "loading" | "ok" | "error";
+  error?: string;
+}
+
+function WatchlistButton({ ticker }: { ticker: string }) {
+  const [state, setState] = useState<WatchlistAdd>({ status: "idle" });
+
+  async function add() {
+    if (state.status === "loading" || state.status === "ok") return;
+    setState({ status: "loading" });
+    try {
+      const res = await fetch("/api/portfolio/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      });
+      if (!res.ok && res.status !== 409) {
+        const data = await res.json().catch(() => ({}));
+        setState({ status: "error", error: data?.error ?? `Error ${res.status}` });
+        return;
+      }
+      setState({ status: "ok" });
+    } catch {
+      setState({ status: "error", error: "Network error" });
+    }
+  }
+
+  return (
+    <button
+      className="hf-watchlist-btn"
+      onClick={add}
+      disabled={state.status === "loading" || state.status === "ok"}
+      title={state.status === "error" ? state.error : undefined}
+    >
+      {state.status === "ok" ? "✓ Watching" :
+       state.status === "loading" ? "Adding…" :
+       state.status === "error" ? "↺ Retry" : "+ Watchlist"}
+    </button>
+  );
+}
+
 const COUNCIL_ERROR_MESSAGES: Record<string, string> = {
   council_response_invalid:
     "The council's response didn't come back in a usable format — please try again.",
@@ -113,6 +155,7 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
         <div className="hf-detail-title">
           <span className="hf-detail-ticker">{v.ticker}</span>
           <span className={`hf-verdict-badge ${verdictCls}`}>{v.verdict}</span>
+          <WatchlistButton ticker={v.ticker} />
         </div>
         <p className="hf-detail-industry">{v.industry}</p>
       </div>

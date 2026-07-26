@@ -20,6 +20,24 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Secret-scanning pre-commit hook
+
+This repo blocks commits that contain credentials (API keys, tokens, database
+URLs, Cloud Run hostnames) — including in the `docs/wiki-*/` pages. The hook
+lives in [`.githooks/pre-commit`](.githooks/pre-commit) and is wired
+automatically on `npm install` (via the `prepare` script). To enable it
+manually:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+It prefers [`gitleaks`](https://github.com/gitleaks/gitleaks) if installed
+(`brew install gitleaks`), honoring the allowlist in
+[`.gitleaks.toml`](.gitleaks.toml); otherwise it runs a built-in pattern scan.
+Documented wiki placeholders (`{gcp3-backend-url}`, etc.) are allowlisted. In a
+true emergency, `git commit --no-verify` bypasses it (discouraged).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

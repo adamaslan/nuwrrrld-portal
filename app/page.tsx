@@ -2,6 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
+import { getAggregateTrackRecord } from "@/lib/track-record";
+import { SmoothScroll } from "@/components/landing/SmoothScroll";
+import { Reveal } from "@/components/landing/Reveal";
+import { StatCounter } from "@/components/landing/StatCounter";
+import { MagneticCTA } from "@/components/landing/MagneticCTA";
+import { ParallaxStage, ParallaxLayer } from "@/components/landing/ParallaxStage";
+import { CouncilScrollDebate } from "@/components/landing/CouncilScrollDebate";
+import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
 import "./landing.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
@@ -23,6 +33,48 @@ async function fetchCouncilSample(): Promise<CouncilSample | null> {
   } catch { return null; }
 }
 
+interface IndexEntry {
+  symbol?: string;
+  price?: number;
+  change_pct?: number;
+}
+
+interface MarketOverviewResponse {
+  brief?: {
+    summary?: string;
+    indices?: Record<string, IndexEntry>;
+  };
+}
+
+/**
+ * The backend nests index quotes under `brief.indices`, keyed by display name
+ * ("S&P 500"), not ticker. Re-key by `.symbol` so the rest of the page can look
+ * up `bySymbol.SPY` the way it always assumed it could.
+ */
+function indexBySymbol(market: MarketOverviewResponse | null): Record<string, IndexEntry> {
+  const indices = market?.brief?.indices;
+  if (!indices) return {};
+  const out: Record<string, IndexEntry> = {};
+  for (const entry of Object.values(indices)) {
+    if (entry?.symbol) out[entry.symbol] = entry;
+  }
+  return out;
+}
+
+/**
+ * Bounds a promise that has no native cancellation (e.g. the Neon track-record
+ * query, unlike the MCP fetches above which use AbortController) so the
+ * landing page's Promise.allSettled can never wait indefinitely on it. This
+ * doesn't cancel the underlying request — Neon's HTTP driver has no signal
+ * param — it just stops the render path from waiting past `ms`.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 async function fetchLandingData() {
   const fetchWithTimeout = async (url: string, cache: number) => {
     const controller = new AbortController();
@@ -32,12 +84,13 @@ async function fetchLandingData() {
     } finally { clearTimeout(timer); }
   };
 
-  const [mktRes, sigRes, council] = await Promise.allSettled([
+  const [mktRes, sigRes, council, trackRecord] = await Promise.allSettled([
     fetchWithTimeout(`${MCP_URL}/market-overview`, 3600),
     fetchWithTimeout(`${MCP_URL}/signals`, 3600),
     fetchCouncilSample(),
+    withTimeout(getAggregateTrackRecord(), 5_000),
   ]);
-  const market = mktRes.status === "fulfilled" && mktRes.value.ok
+  const market: MarketOverviewResponse | null = mktRes.status === "fulfilled" && mktRes.value.ok
     ? await mktRes.value.json().catch(() => null)
     : null;
   const sigRaw = sigRes.status === "fulfilled" && sigRes.value.ok
@@ -51,17 +104,26 @@ async function fetchLandingData() {
       }).slice(0, 4)
     : null;
   const councilData: CouncilSample | null = council.status === "fulfilled" ? council.value : null;
-  return { market, topSignals, council: councilData };
+  const trackRecordData = trackRecord.status === "fulfilled" ? trackRecord.value : null;
+  return {
+    market,
+    marketSummary: market?.brief?.summary,
+    indices: indexBySymbol(market),
+    topSignals,
+    council: councilData,
+    trackRecord: trackRecordData,
+  };
 }
 
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  const { market, topSignals, council } = await fetchLandingData();
+  const { marketSummary, indices, topSignals, council, trackRecord } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
+      <SmoothScroll />
       <nav className="topbar" aria-label="Primary navigation">
         <Link className="brand" href="/">
           <span className="brand-mark" aria-hidden="true">NWF</span>
@@ -74,64 +136,64 @@ export default async function Home() {
           <Link href="/ai-assistant">Nu AI</Link>
           <a href="#council">Council</a>
           <Link className="nav-keep" href="/sign-in">Sign in</Link>
-          <Link className="nav-action" href="/sign-up">Create account</Link>
+          <Link className="nav-action" href="/sign-up">Start free →</Link>
         </div>
       </nav>
 
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
         <div className="hero-inner">
-          <div className="eyebrow">Advanced AI-Native Financial Tools</div>
+          <div className="eyebrow">Six AI analysts. One straight answer.</div>
           <h1>
-            <span>NuWrrrld</span> <span>Financial</span>
+            <span>Should I buy it,</span> <span>or not?</span>
           </h1>
           <p className="hero-copy">
-            The caring command center for active investors — live market briefings, macro regime reads,
-            signal matrices with data quality scores, per-signal Ask Anything chat, and a six-seat AI council
-            that reasons across every horizon from one day to five years.
+            Ask any ticker. Six AI analysts argue it out — including one whose whole job is to talk you
+            out of the trade — until they agree on a call, and exactly what price would prove them wrong.
           </p>
           <div className="hero-actions">
-            <Link className="btn primary" href="/sign-up">Create your account</Link>
-            <a className="btn secondary" href="#engine">Explore the engine</a>
+            <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
+            <a className="btn secondary" href="#council">See the council argue</a>
           </div>
+          <p className="hero-subtext">Free to start · no card required</p>
 
-          <div className="product-stage" aria-label="NuWrrrld Financial product preview">
-            <div className="phone side">
+          <ParallaxStage className="product-stage" aria-label="NuWrrrld Financial product preview">
+            <ParallaxLayer depth={10} className="phone side">
               <div className="screen">
                 <div className="statusbar"><span>9:41</span><span>Briefing</span></div>
-                <div className="app-title"><strong>Macro Pulse</strong><span className="pill">Bullish</span></div>
+                <div className="app-title"><strong>Market mood</strong><span className="pill">Risk-on</span></div>
                 <div className="brief-card">
-                  <div className="label">Regime score</div>
-                  <div className="big-number up">+0.42</div>
-                  <p className="brief-text">Risk appetite is improving as breadth expands and volatility cools.</p>
+                  <div className="label">Today&apos;s read</div>
+                  <div className="big-number up">Bullish</div>
+                  <p className="brief-text">Stocks are broadly rising and volatility is cooling off.</p>
                 </div>
                 <div className="mini-grid">
-                  <div className="mini-card"><strong className="up">72%</strong><span>Breadth</span></div>
-                  <div className="mini-card"><strong className="down">-3.1%</strong><span>VIX</span></div>
-                  <div className="mini-card"><strong className="up">+18</strong><span>McClellan</span></div>
-                  <div className="mini-card"><strong className="flat">Neutral</strong><span>Rates</span></div>
+                  <div className="mini-card"><strong className="up">72%</strong><span>Stocks rising</span></div>
+                  <div className="mini-card"><strong className="down">-3.1%</strong><span>Fear index</span></div>
+                  <div className="mini-card"><strong className="up">Calmer</strong><span>Volatility</span></div>
+                  <div className="mini-card"><strong className="flat">Steady</strong><span>Interest rates</span></div>
                 </div>
               </div>
-            </div>
+            </ParallaxLayer>
 
-            <div className="phone main">
+            <ParallaxLayer depth={16} className="phone main">
               <div className="screen">
                 <div className="statusbar"><span>9:41</span><span>NuWrrrld Financial</span></div>
-                <div className="app-title"><strong>Market Briefing</strong><span className="pill">Live</span></div>
-                {market?.indices?.SPY != null ? (
+                <div className="app-title"><strong>Market snapshot</strong><span className="pill">Live</span></div>
+                {indices.SPY != null ? (
                   <>
                     <div className="brief-card">
-                      <div className="label">S&P 500</div>
-                      <div className={`big-number ${(market.indices.SPY.change_pct ?? 0) >= 0 ? "up" : "down"}`}>
-                        {market.indices.SPY.price?.toLocaleString() ?? "—"}
+                      <div className="label">S&amp;P 500</div>
+                      <div className={`big-number ${(indices.SPY.change_pct ?? 0) >= 0 ? "up" : "down"}`}>
+                        {indices.SPY.price?.toLocaleString() ?? "—"}
                       </div>
-                      {market?.brief?.summary && (
-                        <p className="brief-text">{market.brief.summary}</p>
+                      {marketSummary && (
+                        <p className="brief-text">{marketSummary}</p>
                       )}
                     </div>
                     <div className="mini-grid">
                       {["QQQ", "DIA", "IWM"].map((sym) => {
-                        const idx = market?.indices?.[sym];
+                        const idx = indices[sym];
                         return (
                           <div key={sym} className="mini-card">
                             <strong>{sym}</strong>
@@ -147,13 +209,13 @@ export default async function Home() {
                   </>
                 ) : (
                   <div className="brief-card">
-                    <p className="brief-text">Market data loading…</p>
+                    <p className="brief-text">Market snapshot loading…</p>
                   </div>
                 )}
               </div>
-            </div>
+            </ParallaxLayer>
 
-            <div className="phone side right">
+            <ParallaxLayer depth={10} className="phone side right">
               <div className="screen">
                 <div className="statusbar"><span>9:41</span><span>Signals</span></div>
                 <div className="app-title">
@@ -182,18 +244,18 @@ export default async function Home() {
                     </>
                   )}
                 </div>
-                <div className="council-bubble">Signal quality scores compress technical, macro, sector, sentiment, and event evidence into a single 0–1 read.</div>
+                <div className="council-bubble">Every call comes with a trust score, so you know how much to lean on it.</div>
               </div>
-            </div>
-          </div>
+            </ParallaxLayer>
+          </ParallaxStage>
         </div>
       </header>
 
       <div className="peek-band" aria-label="Key platform metrics">
-        <div className="metric"><strong>6</strong><span>AI council seats — T1, T2, Risk, Macro, Quant, Chair.</span></div>
-        <div className="metric"><strong>138</strong><span>Signal outputs normalized into scored decisions.</span></div>
-        <div className="metric"><strong>380+</strong><span>Data points compressed per symbol read.</span></div>
-        <div className="metric"><strong>Live</strong><span>One account for web tools and the mobile app.</span></div>
+        <div className="metric"><StatCounter value={6} /><span>AI analysts arguing every call — including one against you.</span></div>
+        <div className="metric"><StatCounter value={138} /><span>Things we check before we tell you buy, sell, or hold.</span></div>
+        <div className="metric"><StatCounter value={380} suffix="+" /><span>Data points behind every single ticker.</span></div>
+        <div className="metric"><strong>Live</strong><span>One account for the web and the mobile app.</span></div>
       </div>
 
       {/* ── What's New banner ── */}
@@ -202,83 +264,84 @@ export default async function Home() {
           <span className="whats-new-label">What&apos;s new</span>
           <div className="whats-new-items">
             <span className="wn-chip">Six-seat AI council</span>
-            <span className="wn-chip">Ask Anything per signal</span>
-            <span className="wn-chip">Data quality scores</span>
-            <span className="wn-chip">Track-record &amp; backtest display</span>
-            <span className="wn-chip">Free-tier model chain</span>
-            <span className="wn-chip">Neon dark theme</span>
+            <span className="wn-chip">Ask Anything, per ticker</span>
+            <span className="wn-chip">Trust score on every call</span>
+            <span className="wn-chip">Checkable track record</span>
+            <span className="wn-chip">Free to start</span>
+            <span className="wn-chip">New dark theme</span>
           </div>
         </div>
       </div>
 
       <section id="product">
         <div className="wrap">
-          <div className="section-head">
+          <Reveal className="section-head">
             <div>
               <div className="kicker">One workflow, web and mobile</div>
-              <h2>From market state to trade decision without leaving the app.</h2>
+              <h2>From &quot;what&apos;s happening&quot; to &quot;what should I do&quot; — without leaving the app.</h2>
             </div>
             <p className="section-copy">
-              Daily briefing, macro context, scored signals, Hold/Fold reads, per-signal Ask Anything chat,
-              and full council deliberation — in the browser here, and in the NuWrrrld mobile app.
+              A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you're
+              looking at, and a full argument between six AI analysts — on the web here, and in
+              the NuWrrrld mobile app.
             </p>
-          </div>
+          </Reveal>
 
           <div className="surface-grid">
-            <article className="surface wide">
-              <h3>Market Briefing</h3>
-              <p>Start with the state of the tape: index levels, macro regime, sector leadership, sentiment, and an AI-written briefing grounded in live backend data.</p>
+            <Reveal delay={0} as="article" className="surface wide">
+              <h3>Morning Briefing</h3>
+              <p>Start each day knowing the mood of the market in one glance — is it a good day to be aggressive, or a good day to sit on your hands.</p>
               <ul className="feature-list">
-                <li>Regime score and AI summary before the open.</li>
-                <li>Sector leadership and breadth at a glance.</li>
+                <li>Plain-English summary before the open.</li>
+                <li>Which sectors are leading, at a glance.</li>
               </ul>
-            </article>
-            <article className="surface">
+            </Reveal>
+            <Reveal delay={0.05} as="article" className="surface">
               <h3>Signal Feed</h3>
-              <p>Ranked buy, sell, and hold outputs with confidence scores, data quality ratings, and rationale — backed by a rolling track record from the signals engine.</p>
+              <p>Ranked buy, sell, and hold calls with a trust score and the reasoning behind each one — backed by a track record you can check.</p>
               <ul className="feature-list">
-                <li>Data quality score (0–1) on every signal.</li>
-                <li>Backtest hit-rates from the signals-app engine.</li>
+                <li>A trust score on every single call.</li>
+                <li>See how often this exact call has been right before.</li>
               </ul>
-            </article>
-            <article className="surface">
+            </Reveal>
+            <Reveal delay={0.1} as="article" className="surface">
               <h3>Ask Anything</h3>
               <p className="new-badge-inline">New</p>
-              <p>Expand any signal and ask it a question. A tool-using agent grounded in that signal&apos;s live data answers with citations — no context switching required.</p>
+              <p>Open any call and just ask it a question, like "why now?" or "what would change your mind?" — it answers using that ticker's real, live data.</p>
               <ul className="feature-list">
-                <li>Per-signal streaming chat, abort-safe.</li>
-                <li>Grounded in the signal&apos;s own data — not generic AI.</li>
+                <li>Live, streaming chat per ticker.</li>
+                <li>Answers grounded in real data — not a generic chatbot.</li>
               </ul>
-            </article>
-            <article className="surface wide">
+            </Reveal>
+            <Reveal delay={0.15} as="article" className="surface wide">
               <h3>Six-Seat AI Council</h3>
-              <p>The council expanded from two voices to six specialized seats. Each seat is required to cite exact data and name its invalidation point before a user can act on the synthesis.</p>
+              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Nothing reaches you until they've named the exact price that would prove them wrong.</p>
               <ul className="feature-list">
-                <li>T1 (short-term) · T2 (long-term) · RISK (devil&apos;s advocate) · MACRO (rates &amp; rotation) · QUANT (data-only) · CHAIR (synthesis &amp; verdict).</li>
-                <li>Conflicts are named and resolved into a structured JSON verdict with direction, confidence, and invalidation level.</li>
+                <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
+                <li>Every disagreement gets named, not smoothed over, before you get a final answer.</li>
               </ul>
-            </article>
+            </Reveal>
           </div>
         </div>
       </section>
 
       <section id="engine" className="engine">
         <div className="wrap">
-          <div className="section-head">
+          <Reveal className="section-head">
             <div>
-              <div className="kicker">Robust signals · proprietary data</div>
-              <h2>A decision layer built from many independent reads, not one loud indicator.</h2>
+              <div className="kicker">Built to be wrong less often</div>
+              <h2>No single indicator ever gets the final word.</h2>
             </div>
             <p className="section-copy">
-              Five independent evidence families back every verdict — technicals, volatility, macro regime,
-              sector rotation, and events — so any single read can fail and the decision still holds.
+              Five completely independent checks back every call — price action, volatility, the macro
+              backdrop, sector rotation, and news events — so one bad signal can't fool the whole system.
             </p>
-          </div>
+          </Reveal>
 
-          <div className="matrix" role="img" aria-label="Example signal matrix with decisions across time horizons">
+          <Reveal className="matrix" role="img" aria-label="Example signal matrix with decisions across time horizons">
             <div className="matrix-head">
-              <strong>Signal Matrix — NVDA</strong>
-              <span className="pill">380+ inputs · quality score: 0.91</span>
+              <strong>Example — NVDA</strong>
+              <span className="pill">380+ inputs · trust score 0.91</span>
             </div>
             <div className="matrix-scroll">
               <div className="matrix-grid">
@@ -331,76 +394,84 @@ export default async function Home() {
                 <div className="matrix-cell mono">0.69</div>
               </div>
             </div>
-          </div>
+          </Reveal>
 
           <div className="moat-grid">
-            <div className="moat-card">
-              <h3>Robust by architecture</h3>
-              <p>138 signal outputs from 380+ data points per symbol, each carrying a data quality score (0–1), confidence, horizon fit, and an explicit invalidation level. Backtest hit-rates surface directly on every signal card.</p>
+            <Reveal delay={0} className="moat-card">
+              <h3>Built to catch its own mistakes</h3>
+              <p>Every call carries a trust score, a confidence level, and the exact price that would prove it wrong — and we show you the track record, not just the pitch.</p>
               <ul className="feature-list">
-                <li>Five independent evidence families per decision.</li>
-                <li>Council answers must cite exact data before you act.</li>
+                <li>Five independent checks behind every call.</li>
+                <li>The council can't answer without pointing to real data.</li>
               </ul>
-            </div>
-            <div className="moat-card">
-              <h3>A dataset nobody else has</h3>
-              <p>Every verdict, council reasoning chain, daily regime score, and data quality rating is logged into an append-only proprietary dataset that compounds with every market day.</p>
+            </Reveal>
+            <Reveal delay={0.08} className="moat-card">
+              <h3>It gets smarter every day</h3>
+              <p>Every call we make and every argument the council has is logged for good — so our track record only gets longer, and harder for anyone else to catch up to.</p>
               <ul className="feature-list">
-                <li>Verdict ledger → publishable rolling hit-rates.</li>
-                <li>Horizon-tagged council corpus and regime archive.</li>
+                <li>
+                  {trackRecord
+                    ? `${trackRecord.hitRatePct}% rolling hit-rate across ${trackRecord.totalCalls.toLocaleString()} recorded calls.`
+                    : "Building our public track record — check back soon."}
+                </li>
+                <li>A growing archive of market days and council arguments.</li>
               </ul>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
+      <RiskSpotlight />
+
       <section id="council">
         <div className="wrap">
-          <div className="section-head">
+          <Reveal className="section-head">
             <div>
               <div className="kicker">Six-seat AI council</div>
-              <h2>One question. Six specialized perspectives. One structured verdict.</h2>
+              <h2>One question. Six arguments. One answer you can trust.</h2>
             </div>
             <p className="section-copy">
-              The council does not summarize — it forces every seat to cite data, name its invalidation point,
-              and reconcile conflicts before the Chair issues a JSON verdict with direction, confidence, and horizon.
+              The council doesn't just summarize — every seat has to point to real data and say exactly
+              what would change its mind, before the Chair gives you one clear, final call.
             </p>
-          </div>
+          </Reveal>
+
+          <CouncilScrollDebate />
 
           <div className="seat-grid">
-            <article className="seat-card">
-              <div className="seat-tag t1">T1</div>
-              <h3>Short-Term Trader</h3>
-              <p>Tactical trades, 1-day to 60-day horizons. Delivers outlook, key driver, entry/exit, and stop with exact data citations.</p>
-            </article>
-            <article className="seat-card">
-              <div className="seat-tag t2">T2</div>
-              <h3>Long-Term Investor</h3>
-              <p>Strategic positions, 2 months to 5 years. Secular thesis, risk/reward over 6–12m, key catalyst and invalidation.</p>
-            </article>
-            <article className="seat-card">
+            <Reveal delay={0} as="article" className="seat-card seat-card--risk">
               <div className="seat-tag risk">RISK</div>
-              <h3>Devil&apos;s Advocate</h3>
-              <p>Argues the case against the prevailing direction. Names failure modes, downside scenario, and how a position would be sized to survive being wrong.</p>
-            </article>
-            <article className="seat-card">
+              <h3>The one who argues against you</h3>
+              <p>Its whole job is to talk you out of the trade — naming exactly how it could go wrong, and how bad it could get, before anyone gets to say "buy."</p>
+            </Reveal>
+            <Reveal delay={0.05} as="article" className="seat-card">
+              <div className="seat-tag t1">T1</div>
+              <h3>The short-term trader</h3>
+              <p>Thinks in days and weeks. Gives you a clear entry, exit, and stop — with the real data behind each one.</p>
+            </Reveal>
+            <Reveal delay={0.1} as="article" className="seat-card">
+              <div className="seat-tag t2">T2</div>
+              <h3>The long-term investor</h3>
+              <p>Thinks in months and years. What's the case for holding this for the long haul, and what would break it?</p>
+            </Reveal>
+            <Reveal delay={0.15} as="article" className="seat-card">
               <div className="seat-tag macro">MACRO</div>
-              <h3>Macro Context</h3>
-              <p>Rates, dollar, liquidity, and sector rotation. Is the macro wind at this trade&apos;s back or in its face? What macro event would invalidate it?</p>
-            </article>
-            <article className="seat-card">
+              <h3>The big-picture watcher</h3>
+              <p>Is the wider economy helping this trade or fighting it? What headline would flip that overnight?</p>
+            </Reveal>
+            <Reveal delay={0.2} as="article" className="seat-card">
               <div className="seat-tag quant">QUANT</div>
-              <h3>Quantitative</h3>
-              <p>Interprets only the numeric data — confluence score, per-indicator signals, historical hit-rates. No narrative; no outside knowledge.</p>
-            </article>
-            <article className="seat-card chair">
+              <h3>The numbers-only skeptic</h3>
+              <p>Trusts nothing but the raw data — no story, no vibes, just what the numbers actually say.</p>
+            </Reveal>
+            <Reveal delay={0.25} as="article" className="seat-card chair">
               <div className="seat-tag chair-tag">CHAIR</div>
-              <h3>Chair — Synthesis</h3>
-              <p>Reads all five seats. States whether the council is in consensus or split, the strongest argument on each side, then issues a structured JSON verdict.</p>
+              <h3>The one who calls it</h3>
+              <p>Weighs all five arguments, says plainly whether they agree or clash, and hands you one final call.</p>
               <div className="verdict-example mono">
                 {`{"direction":"bullish","confidence":"high","horizon":"5-15d","invalidation":"<462"}`}
               </div>
-            </article>
+            </Reveal>
           </div>
 
           {(council?.shortTerm?.answer || council?.longTerm?.answer) && (
@@ -423,25 +494,29 @@ export default async function Home() {
         </div>
       </section>
 
+      <HowItWorks />
+
       <section id="access" className="cta">
-        <div className="wrap">
+        <Reveal className="wrap">
           <div className="kicker">Start today</div>
-          <h2>Give every market question a council, not just a chart.</h2>
+          <h2>Stop asking a chart. Start asking a council.</h2>
           <p>
-            One account unlocks the web tools here and the NuWrrrld Financial mobile app — a repeatable
-            decision workflow with signal quality scores, per-signal Ask Anything chat, six-seat council
-            deliberation, and a rolling verdict track record you can revisit.
+            One account gets you the daily briefing, ranked calls, Ask Anything chat, and the
+            full six-seat council — on the web here and in the mobile app.
           </p>
           <div className="hero-actions">
-            <Link className="btn primary" href="/sign-up">Create your account</Link>
+            <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
             <Link className="btn secondary" href="/sign-in">Sign in</Link>
           </div>
-        </div>
+          <p className="hero-subtext">Free to start · no card required</p>
+
+          <PublicCouncilDemo />
+        </Reveal>
       </section>
 
       <footer>
         <span>NWF · NuWrrrld Financial</span>
-        <span>Advanced AI-Native Financial Tools · Smart · Avant-garde · Caring</span>
+        <span>Six AI analysts. One straight answer.</span>
       </footer>
     </div>
   );
