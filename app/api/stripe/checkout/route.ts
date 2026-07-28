@@ -50,7 +50,15 @@ export async function POST(req: NextRequest) {
     sessionParams.customer_email = user?.emailAddresses?.[0]?.emailAddress;
   }
 
-  const session = await stripe.checkout.sessions.create(sessionParams);
-
-  return NextResponse.json({ url: session.url });
+  try {
+    const session = await stripe.checkout.sessions.create(sessionParams);
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    // Stripe SDK/connection failures (bad key, malformed header, network) land
+    // here — surface a real error message instead of an unhandled 500 with no
+    // body, which the frontend can't distinguish from "server unreachable."
+    console.error("[stripe-checkout] Stripe request failed:", err);
+    const message = err instanceof Error ? err.message : "unknown error";
+    return NextResponse.json({ error: `checkout failed: ${message}` }, { status: 502 });
+  }
 }

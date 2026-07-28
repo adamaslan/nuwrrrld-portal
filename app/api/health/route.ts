@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
+import { PRICES } from "@/lib/stripe";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 5_000;
@@ -45,9 +46,26 @@ async function checkNeon(): Promise<DepResult> {
 async function checkStripe(): Promise<DepResult> {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return { status: "not_configured", latencyMs: null, error: "STRIPE_SECRET_KEY not set" };
+
+  // Checkout can't complete without real price IDs — catch this before a user
+  // hits the "price not configured" 500 in app/api/stripe/checkout/route.ts.
+  const missingPrice = (["monthly", "annual"] as const).find(
+    (plan) => !PRICES[plan] || PRICES[plan].includes("placeholder"),
+  );
+  if (missingPrice) {
+    return {
+      status: "not_configured",
+      latencyMs: null,
+      error: `STRIPE_PRICE_${missingPrice.toUpperCase()} is unset or a placeholder`,
+    };
+  }
+
   const start = Date.now();
   try {
     // Lightweight, cheap call just to confirm the key is valid and Stripe is reachable.
+    // A malformed key (e.g. stray newline from a copy-paste) throws here with
+    // something like "Invalid character in header content [\"Authorization\"]" —
+    // surfaced via err.message below rather than a generic "unreachable".
     const res = await withTimeout((signal) =>
       fetch("https://api.stripe.com/v1/balance", {
         headers: { Authorization: `Bearer ${key}` },
@@ -58,6 +76,24 @@ async function checkStripe(): Promise<DepResult> {
   } catch (err) {
     return { status: "down", latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
   }
+}
+
+async function checkClerk(): Promise<DepResult> {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!key) return { status: "not_configured", latencyMs: null, error: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY not set" };
+
+  // A Clerk Development instance key (pk_test_...) backing a live production
+  // domain has MAU/sign-up caps and isn't meant for this — flag it loudly
+  // instead of letting it silently cap or break sign-up.
+  if (process.env.VERCEL_ENV === "production" && key.startsWith("pk_test_")) {
+    return {
+      status: "degraded",
+      latencyMs: null,
+      error: "using a Clerk Development instance key (pk_test_...) in production",
+    };
+  }
+
+  return { status: "ok", latencyMs: null };
 }
 
 async function checkOpenRouter(): Promise<DepResult> {
@@ -78,14 +114,15 @@ async function checkOpenRouter(): Promise<DepResult> {
 }
 
 export async function GET() {
-  const [mcp, neon, stripe, openrouter] = await Promise.all([
+  const [mcp, neon, stripe, openrouter, clerk] = await Promise.all([
     checkMcp(),
     checkNeon(),
     checkStripe(),
     checkOpenRouter(),
+    checkClerk(),
   ]);
 
-  const deps = { mcp, neon, stripe, openrouter };
+  const deps = { mcp, neon, stripe, openrouter, clerk };
   // Neon down is a hard failure (every persisted feature breaks); Stripe/OpenRouter
   // not_configured is expected in some previews, so only "down" counts against them.
   const anyDown = Object.values(deps).some((d) => d.status === "down");

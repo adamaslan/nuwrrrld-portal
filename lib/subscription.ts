@@ -105,5 +105,43 @@ export function isTrialExpired(trialEndSeconds: number | undefined): boolean {
   return Date.now() / 1000 > trialEndSeconds;
 }
 
+const VALID_STATUSES: readonly SubscriptionStatus[] = [
+  'free',
+  'trialing',
+  'active',
+  'past_due',
+  'canceled',
+  'paused',
+];
+
+function isSubscriptionStatus(value: unknown): value is SubscriptionStatus {
+  return typeof value === 'string' && (VALID_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * Parse Clerk `publicMetadata` into a SubscriptionState, tolerating malformed
+ * or partially-written metadata (e.g. a hand-edited `clerk api PATCH`, or a
+ * webhook write that landed mid-migration). Unrecognized status strings and
+ * non-numeric timestamps degrade to the safe default rather than propagating
+ * garbage — this is the single place all 5 call sites should read metadata
+ * through instead of ad-hoc `as` casts.
+ */
+export function parseSubscriptionMetadata(
+  raw: Record<string, unknown> | null | undefined,
+): SubscriptionState {
+  const rawStatus = raw?.subscription_status;
+  const status = isSubscriptionStatus(rawStatus) ? rawStatus : 'free';
+
+  const rawTrialEnd = raw?.trial_end;
+  const trialEndSeconds = typeof rawTrialEnd === 'number' ? rawTrialEnd : undefined;
+
+  return {
+    status,
+    tier: tierFromStatus(status),
+    trialEnd: trialEndSeconds ? new Date(trialEndSeconds * 1000).toISOString() : undefined,
+    isLoading: false,
+  };
+}
+
 /** Trial duration in days. */
 export const TRIAL_DAYS = 7;

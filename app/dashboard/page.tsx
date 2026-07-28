@@ -2,8 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
-import { tierFromStatus } from "@/lib/subscription";
-import type { SubscriptionStatus } from "@/lib/subscription";
+import { parseSubscriptionMetadata } from "@/lib/subscription";
 import { DashboardCockpit } from "./DashboardCockpit";
 import type { IndexChip, MoverChip } from "./DashboardCockpit";
 import "./dashboard.css";
@@ -82,8 +81,7 @@ export default async function Dashboard({
 
   const user = await currentUser();
   const firstName = user?.firstName ?? "investor";
-  const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = tierFromStatus(status);
+  const { status, tier } = parseSubscriptionMetadata(user?.publicMetadata);
   const isPro = tier === "pro";
 
   const params = await searchParams;
