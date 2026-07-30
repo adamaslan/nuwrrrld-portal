@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
       stripeCustomerId = customer.id;
     } catch (err) {
       console.error("Failed to create Stripe customer for", userId, err);
-      return NextResponse.json({ error: "billing setup failed" }, { status: 500 });
+      const message = err instanceof Error ? err.message : "unknown error";
+      return NextResponse.json({ error: `billing setup failed: ${message}` }, { status: 502 });
     }
 
     try {
@@ -43,10 +44,17 @@ export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
   const stripe = getStripe();
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: stripeCustomerId,
-    return_url: `${origin}/dashboard/billing`,
-  });
-
-  return NextResponse.json({ url: session.url });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: `${origin}/dashboard/billing`,
+    });
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    // Same class of failure as checkout: bad key, malformed header, network —
+    // surface it instead of an unhandled 500 with no body.
+    console.error("[stripe-portal] Stripe request failed:", err);
+    const message = err instanceof Error ? err.message : "unknown error";
+    return NextResponse.json({ error: `billing portal failed: ${message}` }, { status: 502 });
+  }
 }

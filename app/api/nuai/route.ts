@@ -1,7 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
-import type { SubscriptionStatus } from "@/lib/subscription";
+import { hasEntitlement, parseSubscriptionMetadata } from "@/lib/subscription";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
 import { fetchWithModelFallback } from "@/lib/openrouter";
@@ -61,8 +60,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const user = await currentUser();
-  const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = tierFromStatus(status);
+  const { tier } = parseSubscriptionMetadata(user?.publicMetadata);
 
   if (!hasEntitlement("nu_ai", tier)) {
     return NextResponse.json({ error: "upgrade_required", upgradeUrl: "/pricing?source=nuai" }, { status: 403 });

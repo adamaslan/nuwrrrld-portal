@@ -8,11 +8,11 @@ export function ManageBillingButton() {
     setLoading(true);
     try {
       const res = await fetch("/api/stripe/portal", { method: "POST" });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert("Could not open billing portal. Please try again.");
+        alert(data.error ? `Could not open billing portal: ${data.error}` : "Could not open billing portal. Please try again.");
       }
     } catch {
       alert("Could not open billing portal. Please try again.");

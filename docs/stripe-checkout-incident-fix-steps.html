@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Stripe Checkout Incident: Fix Steps</title>
+<style>
+  :root { --bg:#0b0e13; --card:#141922; --border:#232b38; --ink:#e6edf3; --mut:#8b98a9; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --accent:#58a6ff; --purple:#bc8cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:1000px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:34px 0 12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  h3 { font-size:.98rem; margin:20px 0 8px; color:var(--accent); }
+  .sub { color:var(--mut); margin:0 0 24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat b { display:block; font-size:1.6rem; }
+  .stat span { color:var(--mut); font-size:.82rem; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 4px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  code { background:#1c2230; padding:1px 6px; border-radius:5px; font-size:.86em; }
+  pre { background:#10151f; border:1px solid var(--border); border-radius:8px; padding:14px 16px; overflow-x:auto; margin:10px 0; font-size:.84rem; line-height:1.5; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); } .accent { color:var(--accent); } .purple { color:var(--purple); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:12px 0; }
+  .card.bad { border-left:3px solid var(--bad); }
+  .card.warn { border-left:3px solid var(--warn); }
+  .card.ok { border-left:3px solid var(--ok); }
+  ul { margin:6px 0 6px; padding-left:20px; } li { margin:5px 0; }
+  ol { margin:6px 0 6px; padding-left:22px; } ol li { margin:8px 0; }
+  .pill { display:inline-block; font-size:.7rem; padding:2px 8px; border-radius:99px; border:1px solid var(--border); color:var(--mut); }
+  .pill.p0 { border-color:var(--bad); color:var(--bad); }
+  .pill.p1 { border-color:var(--warn); color:var(--warn); }
+  .pill.p2 { border-color:var(--mut); }
+  .step-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:var(--accent); color:#0b0e13; font-size:.78rem; font-weight:700; margin-right:8px; flex:none; }
+  .step { display:flex; align-items:flex-start; margin:10px 0; }
+  .step .body { flex:1; }
+  .done { text-decoration: none; }
+  .done .step-num { background:var(--ok); }
+  footer { color:var(--mut); font-size:.8rem; margin-top:44px; border-top:1px solid var(--border); padding-top:16px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Stripe Checkout Incident — Fix Steps</h1>
+  <p class="sub">nuwrrrld-portal · "still can't actually sign up via Stripe" · 2026-07-28</p>
+
+  <div class="grid">
+    <div class="stat"><b class="bad">2</b><span>confirmed root causes</span></div>
+    <div class="stat"><b class="ok">4</b><span>code phases shipped</span></div>
+    <div class="stat"><b class="warn">2</b><span>manual steps still open</span></div>
+    <div class="stat"><b>170</b><span>tests passing</span></div>
+  </div>
+
+  <div class="card bad">
+    <b>Root causes (confirmed from production telemetry, not guessed).</b>
+    <ol>
+      <li><b>Malformed <code>STRIPE_SECRET_KEY</code> in Vercel production.</b> Vercel
+        runtime error on <code>/api/stripe/checkout</code>: <code>StripeConnectionError</code> →
+        <code>TypeError: Invalid character in header content ["Authorization"]</code>
+        (<code>ERR_INVALID_CHAR</code>). Classic signature of a stray trailing
+        newline/whitespace pasted into the Vercel env var value. Because the
+        Stripe call wasn't wrapped in try/catch, this became an unhandled 500
+        with no JSON body — the checkout button's <code>fetch(...).json()</code>
+        failed silently and showed a generic "Could not start checkout" alert.</li>
+      <li><b>Clerk is serving a Development instance on the production domain.</b>
+        <code>curl https://financial.nuwrrrld.com/sign-in</code> returns a
+        <code>pk_test_...</code> publishable key (a <code>*.clerk.accounts.dev</code>
+        dev instance), not a <code>pk_live_...</code> production instance. Dev
+        instances have MAU/sign-up caps and cookie/domain restrictions not meant
+        for a live custom domain.</li>
+    </ol>
+  </div>
+
+  <h2>Part A — Code fixes already shipped</h2>
+  <p class="sub">Done in this repo. Verified with <code>npx vitest run --project unit</code> (170 passed) and <code>npx tsc --noEmit</code> (clean).</p>
+
+  <div class="step done">
+    <span class="step-num">1</span>
+    <div class="body">
+      <b>Defensive error handling on Stripe call sites.</b>
+      <code>app/api/stripe/checkout/route.ts</code> and
+      <code>app/api/stripe/portal/route.ts</code> now wrap every Stripe SDK
+      call in try/catch and return <code>502</code> with a real
+      <code>{ error: "..." }</code> body instead of an unhandled 500 with no
+      body. <code>CheckoutButton.tsx</code> / <code>ManageBillingButton.tsx</code>
+      now show that message in the alert instead of a generic "try again."
+    </div>
+  </div>
+
+  <div class="step done">
+    <span class="step-num">2</span>
+    <div class="body">
+      <b>Extended <code>/api/health</code></b> to catch both failure classes
+      before a user hits them: <code>checkStripe()</code> now flags unset/placeholder
+      <code>STRIPE_PRICE_MONTHLY</code>/<code>STRIPE_PRICE_ANNUAL</code> as
+      <code>not_configured</code>, and a new <code>checkClerk()</code> flags
+      a <code>pk_test_...</code> key running with <code>VERCEL_ENV=production</code>
+      as <code>degraded</code>.
+    </div>
+  </div>
+
+  <div class="step done">
+    <span class="step-num">3</span>
+    <div class="body">
+      <b>Hardened <code>publicMetadata</code> reads.</b> Added
+      <code>parseSubscriptionMetadata()</code> to <code>lib/subscription.ts</code> —
+      validates <code>subscription_status</code> against the known enum
+      (falls back to <code>free</code>) and validates numeric timestamps.
+      Replaced ad-hoc <code>as</code> casts in
+      <code>app/api/stripe/subscription/route.ts</code>,
+      <code>app/api/nuai/route.ts</code>, and <code>app/dashboard/page.tsx</code>.
+    </div>
+  </div>
+
+  <div class="step done">
+    <span class="step-num">4</span>
+    <div class="body">
+      <b>Regression tests added.</b> <code>__tests__/subscription.test.ts</code>
+      (pure-function coverage for <code>tierFromStatus</code>,
+      <code>hasEntitlement</code>, <code>isTrialExpired</code>,
+      <code>parseSubscriptionMetadata</code>) and
+      <code>__tests__/stripe-checkout.test.ts</code> (pins the incident: a
+      mocked Stripe SDK throw must come back as <code>502</code> JSON, never
+      an unhandled crash).
+    </div>
+  </div>
+
+  <h2>Part B — Manual steps still required</h2>
+  <p class="sub">These need account access I don't have (the real Stripe key value, and your Clerk Dashboard). Do these to actually restore checkout in production.</p>
+
+  <h3>B1. Rotate <code>STRIPE_SECRET_KEY</code> in Vercel</h3>
+  <div class="card warn">
+    <ol>
+      <li>Open the <a href="https://dashboard.stripe.com/apikeys">Stripe Dashboard → Developers → API keys</a> and copy the <b>Secret key</b> (starts with <code>sk_live_</code> for production).</li>
+      <li>Run <code>vercel env rm STRIPE_SECRET_KEY production</code> to remove the current (malformed) value.</li>
+      <li>Run <code>vercel env add STRIPE_SECRET_KEY production</code> and paste the key <b>without a trailing newline</b> — if pasting from a terminal, use
+        <pre>printf '%s' "sk_live_xxxxxxxx" | vercel env add STRIPE_SECRET_KEY production</pre>
+        which avoids the trailing <code>\n</code> that <code>echo</code>/copy-paste commonly adds.</li>
+      <li>Repeat for <code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_MONTHLY</code>, and <code>STRIPE_PRICE_ANNUAL</code> if there's any doubt they were pasted the same way.</li>
+      <li>Redeploy: <code>vercel --prod</code> (or push to <code>main</code> if auto-deploy is configured).</li>
+      <li>Verify: <code>curl https://financial.nuwrrrld.com/api/health | jq '.stripe'</code> should show <code>"status": "ok"</code>.</li>
+    </ol>
+  </div>
+
+  <h3>B2. Promote a Clerk Production instance</h3>
+  <div class="card warn">
+    <ol>
+      <li>Open the <a href="https://dashboard.clerk.com">Clerk Dashboard</a> for the NuWrrrld application.</li>
+      <li>Go to <b>Deploy → Production</b> (or the environment switcher) and follow the prompt to create/promote a Production instance.</li>
+      <li>Add and verify the production domain <code>financial.nuwrrrld.com</code> (Clerk will ask you to add DNS TXT/CNAME records for domain verification).</li>
+      <li>Once verified, copy the new <code>pk_live_...</code> and <code>sk_live_...</code> keys from <b>Production → API Keys</b>.</li>
+      <li>Update Vercel:
+        <pre>vercel env rm NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production
+vercel env rm CLERK_SECRET_KEY production
+vercel env add CLERK_SECRET_KEY production</pre>
+      </li>
+      <li>Redeploy: <code>vercel --prod</code>.</li>
+      <li>Verify: <code>curl https://financial.nuwrrrld.com/api/health | jq '.clerk'</code> should show <code>"status": "ok"</code> with no <code>pk_test_</code> warning.</li>
+    </ol>
+  </div>
+
+  <h2>Part C — End-to-end verification</h2>
+  <div class="card ok">
+    <ol>
+      <li><code>curl https://financial.nuwrrrld.com/api/health | jq</code> — confirm <code>stripe.status</code> and <code>clerk.status</code> are both <code>"ok"</code>, and overall <code>status</code> is <code>"ok"</code>.</li>
+      <li>In a browser, visit <code>/pricing</code> signed out → sign up → click a checkout button.</li>
+      <li>Confirm you land on Stripe's hosted checkout page (not an alert).</li>
+      <li>Complete a test-mode purchase (or use <code>stripe trigger checkout.session.completed</code> against the webhook) and confirm
+        <code>clerk api GET /users/USER_ID | jq '.public_metadata'</code> shows <code>subscription_tier: "pro"</code>.</li>
+    </ol>
+  </div>
+
+  <footer>
+    See <a href="clerk-stripe-auth.md">clerk-stripe-auth.md</a> for the full architecture writeup (metadata schema, status→tier mapping, CLI debugging commands).
+  </footer>
+
+</div>
+</body>
+</html>

@@ -18,11 +18,11 @@ export function CheckoutButton({ plan, label }: { plan: "monthly" | "annual"; la
         window.location.href = "/sign-in?redirect_url=/pricing";
         return;
       }
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert("Could not start checkout. Please try again.");
+        alert(data.error ? `Could not start checkout: ${data.error}` : "Could not start checkout. Please try again.");
       }
     } catch {
       alert("Could not start checkout. Please try again.");
