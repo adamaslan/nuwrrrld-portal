@@ -59,7 +59,34 @@ agree in intent but not in code.
 > on both surfaces); single-source parity nudges down slightly. See
 > [[concept-sync-requirements]] §1 for the de-drift task this adds.
 
-## Headline: ~61% synced (2026-07-27, after PR #45)
+> ⚠️ **PR #46 (2026-07-30) assessed — new portal-only `lib/shared/` module, same
+> pattern as PR #40.** Fixed `/api/brief`: it was calling a nonexistent
+> `/holdfold` endpoint (always 404→null) and fetching `/market-overview`
+> without `sections=brief` (16.4s against a 6s timeout, always null) — so on
+> every request it silently fell back to a prompt that told the model to
+> "cite specific indices, percentages, or verdicts" with none actually
+> fetched, and the model dutifully wrote a brief narrating its own missing
+> data. Fix extracts the `/signals`→verdict mapping out of
+> `app/api/holdfold/route.ts` into **`lib/shared/holdfold-map.ts`** — but
+> mobile's own Hold/Fold client (`clients/holdfold.ts`) hits a *different*
+> backend entirely (`EXPO_PUBLIC_HOLDFOLD_BACKEND_URL`, not gcp3) with an
+> incompatible verdict shape (`symbol`/`risk_level`/`volatility_regime`/`atr`
+> vs. portal's `ticker`/`confidenceLabel`/`bias`), so this isn't portable to
+> mobile as-is — it just adds a fourth `lib/shared/` file with no mobile
+> counterpart (after `signal-policy.ts`, `live-price.ts`; see the
+> contradiction below). Separately, mobile's `BriefingScreen` has its own
+> independent long-term-brief implementation (`buildLongTermPrompt` composing
+> live `getMarketOverview()` + `getMacroPulse()` + `getSignals()` into a
+> council prompt) that was never in this matrix — added as its own row since
+> it's architecturally divergent from portal's one-shot `/api/brief`, not a
+> feature gap. Also notable: mobile's `getMarketOverview()` still fetches the
+> **unscoped** `/market-overview` (no `sections=` param) on every
+> `BriefingScreen` load — the same ~16s-vs-~0.5s cost this PR just fixed on
+> the portal side, but for mobile's full-section long-term-brief use case
+> that may be closer to intentional than a bug (see
+> [[concept-sync-requirements]] §2).
+
+## Headline: ~60% synced (2026-07-30, after PR #46)
 
 Two different denominators, deliberately kept separate:
 
@@ -67,21 +94,24 @@ Two different denominators, deliberately kept separate:
   work on both surfaces; only the AI Council is architecturally divergent, and
   two domains (Signals/Digest, Nu AI) have drifted implementations. Unchanged by
   PR #40 (which added depth, not a new shared domain).
-- **Single-source (code-identical) parity ≈ 37%** (was ~38%) — PR #40 added a
+- **Single-source (code-identical) parity ≈ 36%** (was ~37%) — PR #40 added a
   whole portal-only real-time signal tier (`signal-queue`, `signal-policy`,
   `signal-cache` read-through, `live-price` + `live-price-db`, `/api/signals/drain`
   + `/live`) with **no mobile counterpart**. Two of those new modules
   (`lib/shared/signal-policy.ts`, `lib/shared/live-price.ts`) even sit in the
   supposedly-shared `lib/shared/` folder yet are portal-only — new share-debt.
-  PR #45 shaves a further point off: `lib/subscription.ts`, previously one of
+  PR #45 shaved a further point off: `lib/subscription.ts`, previously one of
   only four truly identical modules, now carries a portal-only
-  `parseSubscriptionMetadata()`.
+  `parseSubscriptionMetadata()`. PR #46 adds a fourth portal-only file to
+  `lib/shared/` (`holdfold-map.ts`) — same share-debt pattern, not portable
+  as-is since mobile's Hold/Fold client targets a different backend with an
+  incompatible verdict shape.
 
-The blended **~61%** (down from ~62%) reflects both the portal pulling further
-ahead on the signal data plane and a small, easily-reversible regression in a
-module that was already solved — the product still *looks* synced to a user,
-but the code gap widened again. The risk lives in the gap between those two
-numbers.
+The blended **~60%** (down from ~61%) reflects the portal continuing to pull
+ahead on the signal/Hold-Fold data plane while `lib/shared/` keeps
+accumulating portal-only files — the product still *looks* synced to a user,
+but the code gap widens with each PR that adds to `lib/shared/` without a
+mobile counterpart. The risk lives in the gap between those two numbers.
 
 ## Domain parity matrix
 
@@ -96,7 +126,8 @@ numbers.
 | **Signal cache / queue** | — | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
 | **Real-time price tier** | — | `live-price.ts`, `live-price-db.ts`, `live_prices`, `/api/signals/live` ([[entity-live-price-tier]]) | `live-price.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
 | **Nu AI chat** | `nuai.ts`, `NuAIScreen`, `useNuAI` | `nuai.ts`, `/api/nuai`, `dashboard/nuai` | `nuai.ts` **diverged** | 🟡 Partial |
-| **Hold/Fold** | `clients/holdfold.ts`, `HoldFoldScreen` | `/api/holdfold`, `dashboard/holdfold`, `holdfold-cache` | none (portal adds cache layer) | 🟡 Partial — portal has cache ([[entity-holdfold-cache]]) |
+| **Hold/Fold** | `clients/holdfold.ts`, `HoldFoldScreen` — different backend, incompatible verdict shape | `/api/holdfold`, `dashboard/holdfold`, `holdfold-cache`, `/api/brief` (PR #46) | `lib/shared/holdfold-map.ts` in `lib/shared/` but portal-only (PR #46) | 🟡 Partial — portal has cache + shared mapper ([[entity-holdfold-cache]]) |
+| **Daily Brief / Market Briefing** | `BriefingScreen` — live council prompt from `getMarketOverview()` + `getMacroPulse()` + `getSignals()` | `/api/brief` — one-shot LLM completion grounded on scoped market data + Hold/Fold verdicts (PR #46) | none | 🔴 Divergent — different data (mobile: full sections + macro; portal: brief-only + verdicts), different output shape (council prose vs. 4-sentence structured brief) |
 | **Shared prefs** | `shared/prefs.ts` | `shared/prefs.ts` | **diverged** | 🟡 Partial |
 | **Shared signal filters** | `shared/signalFilters.ts` | `shared/signalFilters.ts` | **diverged** | 🟡 Partial |
 | **Feedback** | `feedback.ts` | `/api/feedback`, `lib/feedback` | none | 🟡 Present both, unshared |
@@ -116,10 +147,12 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 
 > ⚠️ Contradiction: `lib/shared/` is meant to be the single source of truth, but
 > `prefs.ts` and `signalFilters.ts` already differ between repos *inside that very
-> folder* — and PR #40 added `signal-policy.ts` + `live-price.ts` there with no
-> mobile counterpart at all. A "shared" module that only one surface has is a
-> standing invitation to drift the moment mobile grows its own copy. See
-> [[concept-sync-requirements]].
+> folder* — and PR #40 added `signal-policy.ts` + `live-price.ts`, PR #46 added
+> `holdfold-map.ts`, all three portal-only with no mobile counterpart. A
+> "shared" module that only one surface has is a standing invitation to drift
+> the moment mobile grows its own copy — and in `holdfold-map.ts`'s case,
+> mobile can't even adopt it without first switching its Hold/Fold backend and
+> verdict schema to match portal's. See [[concept-sync-requirements]].
 
 > ⚠️ Contradiction: the mobile wiki's [[concept-backend-is-source-of-truth]]
 > argues for one canonical adapter, yet `digest.ts` / `signalCard.ts` exist as two
@@ -144,5 +177,6 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-billing]]
 - [[entity-ai-council]] — the divergent flagship
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — the PR #45 incident that introduced the `lib/subscription.ts` drift
+- [[entity-openrouter-client]] — PR #46's account-wide free-tier quota finding, relevant to any future council-based mobile brief work
 - `gcp3-mobile/docs/wiki-mobile/overview.md` — open-issue #6 (adapter divergence)
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`

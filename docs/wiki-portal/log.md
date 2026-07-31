@@ -4,6 +4,29 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {su
 
 ---
 
+## [2026-07-30] ingest | PR #46 ground /api/brief in real market data | pages touched: 3 (concept-mobile-web-parity, concept-sync-requirements, index; mobile mirror)
+
+`/api/brief` had two dead upstream calls — a nonexistent `/holdfold` endpoint
+(404→null) and an unscoped `/market-overview` fetch that took 16.4s against a
+6s client timeout (always null) — so the prompt always fell back to
+placeholder text while still instructing the model to cite specifics; it
+dutifully wrote briefs narrating their own missing data. Fixed by deriving
+verdicts from `/signals` via a new `lib/shared/holdfold-map.ts` (shared
+between `/api/brief` and `/api/holdfold`, which previously had its own
+private copy of this mapping) and scoping the overview fetch to
+`?sections=brief` (16.4s → ~0.5s).
+
+Parity impact: `holdfold-map.ts` is a fourth portal-only `lib/shared/` file
+(after `signal-policy.ts`, `live-price.ts` from PR #40) — not portable to
+mobile as-is since mobile's Hold/Fold client hits a different backend with an
+incompatible verdict shape. Also surfaced that mobile's `BriefingScreen` has
+its own independent long-term-brief implementation, never previously tracked
+in the parity matrix — added as a new 🔴 Divergent row alongside AI Council,
+plus a performance note that mobile's own `getMarketOverview()` call has the
+same unscoped-fetch cost this PR just fixed on the portal side. Headline
+~61%→~60% (single-source ~37%→~36%; feature-domain ~82% unchanged — Daily
+Brief already existed on both sides, just newly tracked as a row).
+
 ## [2026-07-30] ingest | PR #44 refresh FREE_MODEL_CHAIN (automated) | pages touched: 3
 
 Routine weekly chain refresh (`gemma-4-31b-it` → `nemotron-3-nano-omni-30b-a3b-reasoning`)

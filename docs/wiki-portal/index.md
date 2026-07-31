@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-07-30 (PR #44 FREE_MODEL_CHAIN refresh; account-wide daily quota exhaustion found live, entity-openrouter-client + decision-free-tier-model-chain updated)_
+_Last updated: 2026-07-30 (PR #46 /api/brief grounding fix; new lib/shared/holdfold-map.ts, parity matrix gets a Daily Brief row, headline ~60%)_
 
 Catalog is organized by page type. Read `index.md` first on any query to find relevant pages, then drill in. This wiki is portal-only; cross-repo references link by path (see [[SCHEMA]] → Cross-Repo Boundary).
 
