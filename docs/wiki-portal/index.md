@@ -48,6 +48,8 @@ Cross-cutting patterns and design choices.
 - [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~65%, 2026-07-24) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
+- [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
+- [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 
 ---
 

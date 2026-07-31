@@ -4,6 +4,38 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {su
 
 ---
 
+## [2026-07-30] ingest | testing + free-tier robustness pages | pages touched: 6 (4 new, 2 index; both wikis)
+
+Added a documented home for two subjects that were load-bearing but unwritten:
+how each surface tests itself, and how each stays reliable on a free tier.
+
+**Pages created (2 per wiki):**
+- `concept-test-strategy.md` — portal: the three vitest projects (unit /
+  components / live), why `live` is quarantined from the default suite
+  (external quota makes it legitimately flaky, not badly written), and a
+  ranked list of what would actually raise confidence.
+- `concept-free-tier-resilience.md` — portal: the five layers keeping $0
+  inference reliable (in-request chain fallthrough, weekly refresh cron,
+  `MIN_WORKING` refuse-to-worsen guard, honest degradation, capability
+  budgeting) and the account-wide quota ceiling none of them address.
+
+Findings that changed the picture rather than just describing it:
+- **Nothing runs the unit suite in CI.** `integration-tests.yml:13` asserts
+  "the default unit suite (npm test) still runs everywhere" — no workflow
+  does. 180 unit + component tests are local-only. Recorded as a contradiction.
+- **19 of 29 portal test files are untracked** — including all three live
+  tests and every landing component test. Same written-but-never-committed
+  failure that repeatedly lost wiki content.
+- **`npm run lint` crashes repo-wide** (ESLint flat/eslintrc circular config),
+  so lint enforces nothing.
+- **The refresh-free-models cron has failed both recent scheduled runs**
+  (07-20, 07-27) — a weekly 14-model probe against a 50/day account budget is
+  plausibly self-inflicted; pre-flighting `GET /api/v1/key` would fix the red.
+- Mobile has **no test framework at all** (no jest/vitest/testing-library/detox
+  in package.json) — its page documents that absence honestly and argues the
+  first tests should target the modules parity claims are byte-identical, so
+  tests double as drift detection.
+
 ## [2026-07-30] ingest | PR #46 ground /api/brief in real market data | pages touched: 3 (concept-mobile-web-parity, concept-sync-requirements, index; mobile mirror)
 
 `/api/brief` had two dead upstream calls — a nonexistent `/holdfold` endpoint
