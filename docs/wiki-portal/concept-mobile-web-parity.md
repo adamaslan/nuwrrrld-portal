@@ -154,7 +154,8 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > mobile can't even adopt it without first switching its Hold/Fold backend and
 > verdict schema to match portal's. See [[concept-sync-requirements]].
 
-> ⚠️ Contradiction: the mobile wiki's [[concept-backend-is-source-of-truth]]
+> ⚠️ Contradiction: the mobile wiki's
+> `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`
 > argues for one canonical adapter, yet `digest.ts` / `signalCard.ts` exist as two
 > independently-evolved copies. Mobile's `overview.md` open-issue #6 flags exactly
 > this divergence.
