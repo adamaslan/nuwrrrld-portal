@@ -46,7 +46,20 @@ agree in intent but not in code.
 > a matrix row below since it's a real, if portal-only, extension of the AI
 > Council domain (unauthenticated growth/demo surface, not full deliberation).
 
-## Headline: ~62% synced (2026-07-24, after PR #40)
+> ⚠️ **PR #45 (2026-07-27) assessed — new drift in a previously-identical
+> module.** A Stripe checkout production incident fix
+> ([[incident-2026-07-27-stripe-checkout-invalid-header]]): defensive
+> try/catch on the Stripe SDK calls, `/api/health` checks for a malformed
+> Stripe key and a Clerk dev-instance key in production, and a new
+> `parseSubscriptionMetadata()` in `lib/subscription.ts`. That last change was
+> added **only to the portal's copy** — `lib/subscription.ts` was previously
+> byte-identical with mobile's (per the matrix row below), so this PR quietly
+> creates new single-source drift in a module that was supposed to be the
+> easy, already-solved case. No feature-domain change (billing already worked
+> on both surfaces); single-source parity nudges down slightly. See
+> [[concept-sync-requirements]] §1 for the de-drift task this adds.
+
+## Headline: ~61% synced (2026-07-27, after PR #45)
 
 Two different denominators, deliberately kept separate:
 
@@ -54,23 +67,28 @@ Two different denominators, deliberately kept separate:
   work on both surfaces; only the AI Council is architecturally divergent, and
   two domains (Signals/Digest, Nu AI) have drifted implementations. Unchanged by
   PR #40 (which added depth, not a new shared domain).
-- **Single-source (code-identical) parity ≈ 38%** (was ~44%) — PR #40 added a
+- **Single-source (code-identical) parity ≈ 37%** (was ~38%) — PR #40 added a
   whole portal-only real-time signal tier (`signal-queue`, `signal-policy`,
   `signal-cache` read-through, `live-price` + `live-price-db`, `/api/signals/drain`
   + `/live`) with **no mobile counterpart**. Two of those new modules
   (`lib/shared/signal-policy.ts`, `lib/shared/live-price.ts`) even sit in the
   supposedly-shared `lib/shared/` folder yet are portal-only — new share-debt.
+  PR #45 shaves a further point off: `lib/subscription.ts`, previously one of
+  only four truly identical modules, now carries a portal-only
+  `parseSubscriptionMetadata()`.
 
-The blended **~62%** (down from ~65%) reflects the portal pulling further ahead
-on the signal data plane: the product still *looks* synced to a user, but the
-code gap widened. The risk lives in the gap between those two numbers.
+The blended **~61%** (down from ~62%) reflects both the portal pulling further
+ahead on the signal data plane and a small, easily-reversible regression in a
+module that was already solved — the product still *looks* synced to a user,
+but the code gap widened again. The risk lives in the gap between those two
+numbers.
 
 ## Domain parity matrix
 
 | Domain | Mobile | Portal | Shared module | Status |
 |--------|--------|--------|---------------|--------|
 | **Auth (Clerk)** | `@clerk/clerk-expo` | `@clerk/nextjs` | — (SDK differs by design) | ✅ Aligned — same provider + entitlement key |
-| **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` | `lib/subscription.ts` **identical** | ✅ Synced |
+| **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **diverged (PR #45)** — mobile lacks `parseSubscriptionMetadata()` | 🟡 Partial — was ✅ Synced until PR #45 |
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
 | **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
@@ -123,7 +141,8 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 ## See also
 
 - [[concept-sync-requirements]] — the checklist to raise the number
-- [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]]
+- [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-billing]]
 - [[entity-ai-council]] — the divergent flagship
+- [[incident-2026-07-27-stripe-checkout-invalid-header]] — the PR #45 incident that introduced the `lib/subscription.ts` drift
 - `gcp3-mobile/docs/wiki-mobile/overview.md` — open-issue #6 (adapter divergence)
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`

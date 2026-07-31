@@ -34,6 +34,18 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 
 > ❓ Open question: silent degradation optimizes for availability. For a financial-advice-adjacent product, is "always answer, even ungrounded" the right default, or should a total grounding miss surface a visible "low-confidence, ungrounded" banner to the user rather than only logging it?
 
+### Counterexample — Portfolio Health (2026-07-26)
+
+The first observed case where the pattern **failed as designed**, turning the open question above from theory into a shipped harm. See
+[[incident-2026-07-26-portfolio-health-endpoint-missing]].
+
+Two distinct breakdowns, worth separating:
+
+- **Degradation without a floor.** [[entity-portfolio-intelligence]] recorded the obligation that `health-ai` should fall back to the deterministic `health` score rather than error. But both depend on the *same* missing upstream route, so the fallback target was never healthier than the thing falling back to it. "Fall back to X" is not a resilience property unless X has an independent failure mode — a degradation chain is only as good as its terminal state.
+- **Silent degradation that should have been loud.** `fetchHealth()` catches everything and returns `null`, flipping the prompt to "Portfolio health data: unavailable" and letting the model narrate a portfolio it was handed no data about. Unlike the council's `degradedSeats`, there is no field that could even carry the signal — the council tells CHAIR which seats were missing; nothing tells the user their health check was ungrounded.
+
+The sharpened rule: **degrade to a lesser state, never to a plausible-looking fabrication.** The council degrades to "reason from general knowledge *and say so*." This path degraded to "reason from nothing, silently." The `and say so` clause is the part that carries the honesty, and it's exactly what was missing.
+
 ## See also
 
 - [[entity-grounding-tier-ladder]] — the miss/degraded mechanics

@@ -4,7 +4,7 @@
  * pattern) rather than letting the model improvise from memory.
  */
 import type { SignalPayload } from "@/lib/digest";
-import type { HoldFoldVerdict } from "@/app/api/holdfold/route";
+import type { HoldFoldVerdict } from "@/lib/shared/holdfold-map";
 
 export function buildSignalPrompt(sig: SignalPayload): string {
   return [

@@ -33,6 +33,7 @@ subtree, or the `nuwrrrld-fullstack` skill's single-sourcing workflow).
 
 | Module | What's needed |
 |--------|---------------|
+| `lib/subscription.ts` | New (PR #45), portal-only. Was byte-identical with mobile until this PR added `parseSubscriptionMetadata()` (validates `publicMetadata.subscription_status` against the known enum, degrades to `free` on malformed data) to the portal copy only. Lowest-effort de-drift on this whole list — port the same function verbatim to mobile's `lib/subscription.ts` to restore identical status. See [[entity-billing]] and [[incident-2026-07-27-stripe-checkout-invalid-header]]. |
 | `lib/shared/prefs.ts` | Diff the two copies; reconcile to one. Already lives in `shared/` on both sides, so it should be the *easiest* to fix and is the most embarrassing to leave drifted. |
 | `lib/shared/signalFilters.ts` | Same — reconcile filter predicates so a "watchlist"/"muted" filter means the same thing on both surfaces. |
 | `lib/shared/signal-policy.ts` | New (PR #40), portal-only. Pure ticker validation / cache-freshness / backoff — no mobile copy yet. **Promote to shared before mobile grows its own**, so it never drifts in the first place. |
@@ -82,11 +83,12 @@ parity" is undefined and should not be counted for or against the sync %.
 
 ## Priority order (highest ROI first)
 
-1. `lib/shared/prefs.ts` + `signalFilters.ts` de-drift — already in `shared/`, low effort, high symbolic value.
-2. `digest.ts` + `signalCard.ts` de-drift — resolves a standing cross-wiki open issue (mobile #6).
-3. Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.
-4. Record the AI Council convergence decision.
-5. Port observability (analytics/Sentry) to portal; port backtest to mobile (or decide against).
+1. `lib/subscription.ts` de-drift — port `parseSubscriptionMetadata()` to mobile; one function, restores a previously-solved module to identical (PR #45 regression).
+2. `lib/shared/prefs.ts` + `signalFilters.ts` de-drift — already in `shared/`, low effort, high symbolic value.
+3. `digest.ts` + `signalCard.ts` de-drift — resolves a standing cross-wiki open issue (mobile #6).
+4. Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.
+5. Record the AI Council convergence decision.
+6. Port observability (analytics/Sentry) to portal; port backtest to mobile (or decide against).
 
 ## Contradictions / tensions
 
@@ -98,6 +100,6 @@ parity" is undefined and should not be counted for or against the sync %.
 ## See also
 
 - [[concept-mobile-web-parity]] — the measurement this page targets
-- [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-ai-council]]
+- [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-ai-council]] · [[entity-billing]]
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md` — the principle behind §1
 - `gcp3-mobile/docs/wiki-mobile/overview.md` — open-issue #6 (adapter divergence)

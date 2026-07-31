@@ -1,10 +1,10 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-07-24 (PR #43 landing Phase 3+4; parity assessed, +1 matrix row)_
+_Last updated: 2026-07-30 (PR #44 FREE_MODEL_CHAIN refresh; account-wide daily quota exhaustion found live, entity-openrouter-client + decision-free-tier-model-chain updated)_
 
 Catalog is organized by page type. Read `index.md` first on any query to find relevant pages, then drill in. This wiki is portal-only; cross-repo references link by path (see [[SCHEMA]] → Cross-Repo Boundary).
 
-**Scope today:** the AI Council + grounding subsystem *and* the signal/data plane (Signals, Hold/Fold, backtest, caching, portfolio). Still pending: Stripe billing, retention, and nuai internals — see [[overview]] "Not yet documented."
+**Scope today:** the AI Council + grounding subsystem, the signal/data plane (Signals, Hold/Fold, backtest, caching, portfolio), and Clerk auth + Stripe billing. Still pending: retention and nuai internals — see [[overview]] "Not yet documented."
 
 ---
 
@@ -27,11 +27,14 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-grounding-compiler]] — `scripts/compile_grounding_pack.mjs` + `corpus/`; the one place a model reads the corpus
 
 **Signal Data Plane**
-- [[entity-signal-data-plane]] — `lib/shared/signal-lookup.ts` + `signalFilters.ts`; the gcp3 fetch-and-shape read path
+- [[entity-signal-data-plane]] — **canonical signals doc**; `lib/shared/signal-lookup.ts` + `signalFilters.ts`, the gcp3 fetch-and-shape read path
 - [[entity-backtest-engine]] — `lib/backtest.ts`; the *separate* hit-rate engine, disabled by default
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
 - [[entity-live-price-tier]] — `/api/signals/live` + `live_prices`; Finnhub WS lane + the Modal drain cron
+
+**Billing / Auth**
+- [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
 
 ---
 
@@ -62,7 +65,10 @@ Recorded design decisions — the *why* behind the architecture.
 
 ## Incidents
 
-_None recorded yet._ The 2026-07-15 chain-of-thought leak is documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone incident page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
+- [[incident-2026-07-26-portfolio-health-endpoint-missing]] — both Portfolio Health panels dead on web *and* mobile; the gcp3 route they call was never implemented, and the two sides share no field names
+- [[incident-2026-07-27-stripe-checkout-invalid-header]] — production checkout silently failing; a malformed `STRIPE_SECRET_KEY` + a Clerk dev-instance key on the production domain, both root-caused via Vercel telemetry
+
+The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 
 ---
 

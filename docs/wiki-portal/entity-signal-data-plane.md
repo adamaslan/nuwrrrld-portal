@@ -7,6 +7,13 @@ sources: [../../lib/shared/signal-lookup.ts, ../../lib/holdfold-cache-db.ts, ../
 
 # Entity — Signal Data Plane
 
+> **Canonical signals doc.** Start here for anything signal-related. The
+> narrower pages ([[decision-pending-signals-queue]], [[entity-live-price-tier]],
+> [[entity-holdfold-cache]]) cover one lane each and link back here;
+> `../findings-signal-loop-hardening.html` is a point-in-time snapshot of the
+> PR #40 hardening pass, not a living doc; `../live-data-wiring.md` (2026-06-28)
+> predates the cache/queue architecture and is an archive candidate.
+
 ## What it is
 
 The read path that turns the **gcp3 backend** signal digest into everything the
@@ -80,4 +87,7 @@ Three moving parts:
 - [[entity-backtest-engine]] — the *separate* engine for historical hit-rates
 - [[entity-grounding-tier-ladder]] — consumes the per-ticker brief as Tier 1
 - [[concept-cache-then-degrade]] — the resilience pattern this plane follows
+- [[decision-pending-signals-queue]] — how a watchlist-add reaches `signal_cache`
+- [[entity-live-price-tier]] — the Finnhub live-price lane + Modal drain cron
+- `../findings-signal-loop-hardening.html` — snapshot of the four hardening passes
 - `gcp3/docs/wiki-gcp3/overview.md` — the backend that bakes the signals
