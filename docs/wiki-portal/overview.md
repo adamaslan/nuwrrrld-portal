@@ -12,9 +12,9 @@ The **web portal** for NuWrrrld Financial — a Next.js 16 app that puts the AI 
 ## Stack
 
 - **Framework**: Next.js `16.2.9`, React `19.2.4` (App Router; `app/api/*` route handlers)
-- **Auth**: Clerk (`@clerk/nextjs ^7.5.2`) — entitlements via `publicMetadata.subscription_status`
+- **Auth**: Clerk (`@clerk/nextjs ^7.5.2`) — entitlements via `publicMetadata.subscription_status` ([[entity-billing]])
 - **DB**: Neon Postgres (`@neondatabase/serverless ^1.1.0`) — council sessions/verdicts, grounding pack, caches
-- **Billing**: Stripe (`^22.2.1`) — checkout, portal, webhooks
+- **Billing**: Stripe (`^22.2.1`) — checkout, portal, webhooks ([[entity-billing]])
 - **LLM**: OpenRouter, free-tier only ([[decision-free-tier-model-chain]])
 
 > ⚠️ This repo pins a Next.js version with breaking changes from common training data — consult `node_modules/next/dist/docs/` before writing framework code (per `AGENTS.md`).
@@ -55,6 +55,10 @@ CI (GitHub Actions, weekly)
 - ✅ Historical hit-rate backtest client (separate engine, disabled by default) — [[entity-backtest-engine]]
 - ✅ Portfolio health / optimizer / watchlist type contract — [[entity-portfolio-intelligence]]
 
+**Wired and documented (billing / auth):**
+
+- ✅ Clerk auth + entitlement source of truth, Stripe checkout/portal/webhook sync — [[entity-billing]]
+
 **Known gaps / risks:**
 
 - ⚠️ **Production corpus not migrated** — `corpus/` holds sample files only; the compiled pack is a placeholder ([[entity-grounding-compiler]] #1).
@@ -67,9 +71,13 @@ CI (GitHub Actions, weekly)
 - ⚠️ **Backtest engine dark by default** — the track-record UI is invisible unless `SIGNALS_ENGINE_URL` is set ([[entity-backtest-engine]] #1).
 - ⚠️ **Per-ticker lookup is uncached** — N Council briefs = N backend round-trips ([[entity-signal-data-plane]]).
 
+**Known gaps / risks (billing):**
+
+- ⚠️ **Production checkout was silently broken** — [[incident-2026-07-27-stripe-checkout-invalid-header]]; code-side fix shipped (PR #45), two manual dashboard steps still outstanding as of this ingest.
+- ⚠️ **`lib/subscription.ts` newly drifted from mobile** — PR #45 added `parseSubscriptionMetadata()` to the portal copy only, breaking a previously byte-identical shared module ([[concept-mobile-web-parity]]).
+
 **Not yet documented in this wiki** (awaits future ingest):
 
-- `/api/stripe/*`, `/api/webhooks/*` — billing
 - `/api/retention/*`, `/api/nuai` — engagement internals
 
 ## See also

@@ -36,7 +36,7 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 
 ## `runSeat` — the fallback primitive
 
-`runSeat(seat, messages, apiKey, maxTokens, temperature, modelOverride?)` builds `[primaryModel, ...FREE_MODEL_CHAIN]` (deduped) and tries each in order, falling through on **402 / 429 / 5xx** with a **20 s per-model timeout**. All models are `:free`, so a full ~11-call deliberation costs **$0** — the WS2.6 cost-control constraint.
+`runSeat(seat, messages, apiKey, maxTokens, temperature, modelOverride?)` builds `[primaryModel, ...FREE_MODEL_CHAIN]` (deduped) and tries each in order, falling through on **402 / 429 / 5xx** with a **20 s per-model timeout**. Five of six seats use `:free` models; T1 (`cohere/command-r7b-12-2024`) is a paid model chosen for structured output quality. A full ~11-call deliberation costs **~$0.20–$0.50** (primarily from T1), not quite meeting the WS2.6 $0 intent but balancing output reliability. See [[decision-free-tier-model-chain]] "Consequences" for cost implications.
 
 ## Where used
 
@@ -46,8 +46,9 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 ## Known failures
 
 1. **Whole chain exhausted.** If every model in `[primary, ...FREE_MODEL_CHAIN]` fails, `runSeat` throws. `deliberate` isolates this per-seat via `Promise.allSettled`; a failed CHAIR synthesis, however, returns a route-level 503.
-2. **Free models rotate / disappear.** OpenRouter's free roster churns. `scripts/refresh-free-models.mjs` (cron, Mondays 06:17 UTC) refreshes `FREE_MODEL_CHAIN`; the grounding compile runs at 06:23, after it, deliberately.
-3. **Chain-of-thought leak.** Reasoning-style free models emit `<think>` blocks. This client doesn't strip them — [[entity-ai-council]]'s `stripReasoning` does, downstream.
+2. **Free models rotate / disappear.** OpenRouter's free roster churns. `scripts/refresh-free-models.mjs` (cron, Mondays 06:17 UTC) refreshes `FREE_MODEL_CHAIN`; the grounding compile runs at 06:23, after it, deliberately. PR #44 (2026-07-27) swapped `google/gemma-4-31b-it:free` for `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` — routine churn, not an incident.
+3. **Account-wide daily quota, not per-model.** OpenRouter's free tier caps the whole API key at **50 requests/day** (not per-model) unless ≥10 credits are added, which raises it to 1000/day. When exhausted, *every* model in `[primary, ...FREE_MODEL_CHAIN]` 429s simultaneously — `refresh-free-models.mjs`'s live probe (and any caller) sees "0 working models" and can't tell that apart from an actual dead roster. Observed 2026-07-30: the refresh script's own probe run burned into this ceiling. `X-RateLimit-Reset` on the 429 response headers gives the exact reset timestamp (UTC midnight, key-specific). See [[decision-free-tier-model-chain]] "Validated by" — this is the concurrency risk that section flagged as unvalidated.
+4. **Chain-of-thought leak.** Reasoning-style free models emit `<think>` blocks. This client doesn't strip them — [[entity-ai-council]]'s `stripReasoning` does, downstream.
 
 ## Open questions
 

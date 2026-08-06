@@ -4,6 +4,130 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {su
 
 ---
 
+## [2026-07-30] ingest | testing + free-tier robustness pages | pages touched: 6 (4 new, 2 index; both wikis)
+
+Added a documented home for two subjects that were load-bearing but unwritten:
+how each surface tests itself, and how each stays reliable on a free tier.
+
+**Pages created (2 per wiki):**
+- `concept-test-strategy.md` — portal: the three vitest projects (unit /
+  components / live), why `live` is quarantined from the default suite
+  (external quota makes it legitimately flaky, not badly written), and a
+  ranked list of what would actually raise confidence.
+- `concept-free-tier-resilience.md` — portal: the five layers keeping $0
+  inference reliable (in-request chain fallthrough, weekly refresh cron,
+  `MIN_WORKING` refuse-to-worsen guard, honest degradation, capability
+  budgeting) and the account-wide quota ceiling none of them address.
+
+Findings that changed the picture rather than just describing it:
+- **Nothing runs the unit suite in CI.** `integration-tests.yml:13` asserts
+  "the default unit suite (npm test) still runs everywhere" — no workflow
+  does. 180 unit + component tests are local-only. Recorded as a contradiction.
+- **19 of 29 portal test files are untracked** — including all three live
+  tests and every landing component test. Same written-but-never-committed
+  failure that repeatedly lost wiki content.
+- **`npm run lint` crashes repo-wide** (ESLint flat/eslintrc circular config),
+  so lint enforces nothing.
+- **The refresh-free-models cron has failed both recent scheduled runs**
+  (07-20, 07-27) — a weekly 14-model probe against a 50/day account budget is
+  plausibly self-inflicted; pre-flighting `GET /api/v1/key` would fix the red.
+- Mobile has **no test framework at all** (no jest/vitest/testing-library/detox
+  in package.json) — its page documents that absence honestly and argues the
+  first tests should target the modules parity claims are byte-identical, so
+  tests double as drift detection.
+
+## [2026-07-30] ingest | PR #46 ground /api/brief in real market data | pages touched: 3 (concept-mobile-web-parity, concept-sync-requirements, index; mobile mirror)
+
+`/api/brief` had two dead upstream calls — a nonexistent `/holdfold` endpoint
+(404→null) and an unscoped `/market-overview` fetch that took 16.4s against a
+6s client timeout (always null) — so the prompt always fell back to
+placeholder text while still instructing the model to cite specifics; it
+dutifully wrote briefs narrating their own missing data. Fixed by deriving
+verdicts from `/signals` via a new `lib/shared/holdfold-map.ts` (shared
+between `/api/brief` and `/api/holdfold`, which previously had its own
+private copy of this mapping) and scoping the overview fetch to
+`?sections=brief` (16.4s → ~0.5s).
+
+Parity impact: `holdfold-map.ts` is a fourth portal-only `lib/shared/` file
+(after `signal-policy.ts`, `live-price.ts` from PR #40) — not portable to
+mobile as-is since mobile's Hold/Fold client hits a different backend with an
+incompatible verdict shape. Also surfaced that mobile's `BriefingScreen` has
+its own independent long-term-brief implementation, never previously tracked
+in the parity matrix — added as a new 🔴 Divergent row alongside AI Council,
+plus a performance note that mobile's own `getMarketOverview()` call has the
+same unscoped-fetch cost this PR just fixed on the portal side. Headline
+~61%→~60% (single-source ~37%→~36%; feature-domain ~82% unchanged — Daily
+Brief already existed on both sides, just newly tracked as a row).
+
+## [2026-07-30] ingest | PR #44 refresh FREE_MODEL_CHAIN (automated) | pages touched: 3
+
+Routine weekly chain refresh (`gemma-4-31b-it` → `nemotron-3-nano-omni-30b-a3b-reasoning`)
+merged after confirming CodeRabbit had no actionable comments and the only
+failing check (Cloudflare Pages) fails identically on `main` — pre-existing,
+unrelated (Vercel is the real deploy target and passed).
+
+While re-running `scripts/refresh-free-models.mjs --dry-run` to sanity-check
+the new chain, found every model in the live probe returning 429 — not a dead
+roster, but the OpenRouter key's **account-wide** free-tier daily cap (50
+req/day, shared across every model) fully exhausted, confirmed via
+`GET /api/v1/key` (`X-RateLimit-Remaining: 0`, reset at the next UTC
+midnight). This is the exact "concurrency against the free pool" risk
+[[decision-free-tier-model-chain]] had flagged as unvalidated — now refuted
+(it fails). Updated [[entity-openrouter-client]] ("Known failures") and
+[[decision-free-tier-model-chain]] ("Validated by") to document it, since a
+whole-chain 429 currently looks indistinguishable from "every free model
+died" to both the refresh script and any caller.
+
+Also merged PR #45's already-open fixes while investigating — no new wiki
+content needed there since PR #45 was fully ingested in the entry below on
+its own merge.
+
+## [2026-07-27] ingest | PR #45 Stripe checkout production incident | pages touched: 6
+
+Root-caused "still can't actually sign up via Stripe" via Vercel production
+telemetry (`get_runtime_errors` on `/api/stripe/checkout`) and a curl of the
+live `/sign-in` page: (1) a malformed `STRIPE_SECRET_KEY` threw an unhandled
+`ERR_INVALID_CHAR` inside `stripe.checkout.sessions.create`, producing a
+bodyless 500 the frontend showed as a generic alert; (2) Clerk was serving a
+Development instance key (`pk_test_...`) on the production domain. Shipped:
+try/catch on both Stripe SDK call sites (`checkout`/`portal` routes) returning
+real `502` JSON errors, `/api/health` checks for both misconfig classes
+(price-ID placeholders, Clerk dev-key-in-production), and
+`parseSubscriptionMetadata()` in `lib/subscription.ts` replacing untyped casts
+at 3 call sites. `npm run build` clean, `npx vitest run --project unit` 170
+passed / 4 skipped (2 new test files), `tsc --noEmit` clean. Two manual steps
+(key rotation, Clerk production promotion) remain — owner-only, tracked as
+open items on the incident page.
+
+**First Stripe/Clerk billing documentation in this wiki** — `overview.md`
+previously listed `/api/stripe/*`, `/api/webhooks/*` as "not yet documented."
+
+**Pages created (2):**
+- `entity-billing.md` — Clerk (entitlement source of truth) + Stripe (checkout/portal/webhook sync); first billing entity page
+- `incident-2026-07-27-stripe-checkout-invalid-header.md` — the incident, root cause, resolution, open manual items
+
+**Pages updated (4):**
+- `concept-mobile-web-parity.md` — assessment note; headline ~62%→~61%; Subscription/billing matrix row downgraded from "✅ Synced… identical" to "🟡 Partial… diverged" (see below)
+- `concept-sync-requirements.md` — new top-priority de-drift row for `lib/subscription.ts`
+- `overview.md` — moved billing from "not yet documented" to documented; added two new known-gaps bullets
+- `index.md` — added the new entity + incident pages; refreshed scope line and last-updated
+
+**Cross-repo finding:** this PR's `parseSubscriptionMetadata()` was added to
+the portal's `lib/subscription.ts` only — confirmed via `diff` against
+`gcp3-mobile/lib/subscription.ts` that the two files were byte-identical
+before this change. This is new, real single-source drift in a module the
+parity matrix previously counted as one of only four fully-synced shared
+modules. Mirrored in `gcp3-mobile/docs/wiki-mobile/` (parity pages + index +
+log only — the incident/entity pages are portal-specific and referenced by
+path from mobile, not duplicated).
+
+**Schema compliance:** entity page has all 5 required sections; incident page
+has all 6; every new page has ≥3 cross-links; no secrets (Stripe/Clerk key
+prefixes shown are placeholders/format descriptions, never real values);
+cross-repo mobile reference uses a path-link, not a wikilink. ✅
+
+---
+
 ## [2026-07-24] sync | PR #43 parity check (landing Phase 3+4) — +1 matrix row | pages touched: 3
 
 PR #43 (`feat/landing-phase3-4-viral-loop`) added a sticky-scroll council
@@ -218,3 +342,51 @@ _Decisions (4):_
 ## [2026-07-24] sync | cross-surface parity analysis | pages touched: 4 (concept-mobile-web-parity, concept-sync-requirements, index; mobile mirror)
 
 ## [2026-07-24] ingest | PR #41 dev financial-data hydration seeder | pages touched: 1 (log only — dev tooling, no mobile↔web parity change; ynced unaffected)
+
+## [2026-07-26] investigation | Portfolio Health "unavailable" / "returned empty" | pages touched: 5 (incident-2026-07-26-portfolio-health-endpoint-missing [new], entity-portfolio-intelligence, concept-graceful-degradation, index, log)
+
+Traced both user-facing Portfolio Health failures to a single cause: the gcp3
+route `{MCP_BACKEND_URL}/api/portfolio/health` was never registered — the logic
+is orphaned in `portfolio_analyzer.py`. Findings that changed existing pages:
+
+- `entity-portfolio-intelligence` known-failure #2 ("verify the health-ai →
+  health fallback holds") **verified false in both directions** — health-ai
+  doesn't fall back, and its fallback target is itself broken.
+- Its open question "is the score from real holdings or the watchlist?"
+  **answered: neither** — no tickers are sent, so gcp3 would grade its hardcoded
+  `DEFAULT_PORTFOLIO`.
+- `concept-graceful-degradation` gains its first counterexample: degradation
+  with no floor, and silent degradation into plausible fabrication. Sharpened
+  rule recorded — the council's "*and say so*" clause is the load-bearing part.
+- Contract drift found: gcp3 emits `ai_grade`/`ai_*`; portal expects
+  `score`/`factors[]`/`summary`. Naive wiring would grade every user F silently.
+- Regression origin: `homebase/nuwrrrld-portal-audit.md` un-disabled the score
+  button on the assumption the route worked, surfacing a pre-existing break.
+
+Also produced `docs/portfolio-health-ai-workflow.html` (full-stack trace,
+11-defect catalogue, ranked causes for the empty-stream symptom). Mobile mirror
+updated — same route, same breakage.
+
+## [2026-07-26] implementation | Portfolio Health fix Phases 1-2 (code-complete, not deployed) | pages touched: 1 (incident-2026-07-26-portfolio-health-endpoint-missing)
+
+Implemented all Phase 1 and Phase 2 items from `docs/portfolio-health-fix-plan.md`:
+gcp3 `/api/portfolio/health` route + `to_health_contract` adapter, portal sends
+real watchlist tickers with a `204` empty-state, new opt-in
+`fetchWithModelFallbackChecked` (openrouter.ts) that treats empty completions
+as failures and primes each candidate model before flushing headers, raised
+`max_tokens`, `Accept`-negotiation on `health-ai`/`brief`, and a `grounded`
+signal surfaced in the UI instead of silent fabrication.
+
+`npx tsc --noEmit` and `npx vitest run` (137 passed) clean on portal; gcp3's
+two edited files pass `ast.parse` (no local env to run them live — deps like
+`google.cloud` aren't in the base mamba env). Caught and fixed two connected
+bugs while implementing: mobile's `usePortfolio.ts` would have thrown on the
+new `204` (res.ok is true for 204, `.json()` on empty body throws), and
+`PortfolioClient.tsx` never sent an `Accept` header, so enabling content
+negotiation on `health-ai` would have silently broken its own streaming UI.
+
+**Not deployed. Not verified live.** Acceptance checkboxes in the fix plan are
+intentionally left unchecked — this incident's own history (the 2026-07-21
+env-var fix that "looked ineffective" for five days) is the reason the plan
+requires a positive live observation, not passing typecheck, before calling
+anything fixed.
