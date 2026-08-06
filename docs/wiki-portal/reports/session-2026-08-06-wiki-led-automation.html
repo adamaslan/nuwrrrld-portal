@@ -1,0 +1,199 @@
+<title>Session changelog · Wiki-led automation layer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#faf9f6; --ink:#1a1d24; --ink-soft:#4a4f5a; --ink-faint:#767c88;
+    --rule:#e6e3dc; --card:#ffffff; --card-edge:#ece9e2;
+    --accent:#2f7d76; --accent-soft:#e3efed;
+    --new:#2f7d76; --new-soft:#e3efed;
+    --adj:#b7791f; --adj-soft:#f6ecd8;
+    --mono-bg:#f2f0ea;
+    --shadow:0 1px 2px rgba(26,29,36,.05),0 4px 14px rgba(26,29,36,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#14161b; --ink:#e9eaed; --ink-soft:#b0b4bd; --ink-faint:#7c828e;
+      --rule:#282b33; --card:#1b1e24; --card-edge:#2a2e37;
+      --accent:#5bb3aa; --accent-soft:#17322f;
+      --new:#5bb3aa; --new-soft:#17322f;
+      --adj:#d6a54a; --adj-soft:#332810;
+      --mono-bg:#20242b;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#faf9f6; --ink:#1a1d24; --ink-soft:#4a4f5a; --ink-faint:#767c88;
+    --rule:#e6e3dc; --card:#ffffff; --card-edge:#ece9e2;
+    --accent:#2f7d76; --accent-soft:#e3efed;
+    --new:#2f7d76; --new-soft:#e3efed; --adj:#b7791f; --adj-soft:#f6ecd8;
+    --mono-bg:#f2f0ea;
+    --shadow:0 1px 2px rgba(26,29,36,.05),0 4px 14px rgba(26,29,36,.05);
+  }
+  :root[data-theme="dark"]{
+    --paper:#14161b; --ink:#e9eaed; --ink-soft:#b0b4bd; --ink-faint:#7c828e;
+    --rule:#282b33; --card:#1b1e24; --card-edge:#2a2e37;
+    --accent:#5bb3aa; --accent-soft:#17322f;
+    --new:#5bb3aa; --new-soft:#17322f; --adj:#d6a54a; --adj-soft:#332810;
+    --mono-bg:#20242b;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:60rem; margin:0 auto; padding:clamp(1.5rem,4vw,3.5rem) clamp(1.1rem,4vw,2rem)}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  .eyebrow{
+    font-family:ui-monospace,monospace; font-size:.72rem; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 .9rem;
+  }
+  h1{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-weight:600; font-size:clamp(1.9rem,4.6vw,2.9rem); line-height:1.12;
+    letter-spacing:-.012em; text-wrap:balance; margin:0 0 .7rem;
+  }
+  .lede{font-size:1.12rem; color:var(--ink-soft); max-width:40ch; margin:0}
+  .meta{
+    display:flex; flex-wrap:wrap; gap:.5rem 1.4rem; margin:1.6rem 0 0;
+    font-size:.82rem; color:var(--ink-faint); font-family:ui-monospace,monospace;
+  }
+  .meta b{color:var(--ink-soft); font-weight:600}
+  hr.div{border:0; border-top:1px solid var(--rule); margin:2.6rem 0}
+  h2{
+    font-family:Georgia,serif; font-weight:600; font-size:1.35rem;
+    letter-spacing:-.01em; margin:0 0 .3rem; text-wrap:balance;
+  }
+  .sub{color:var(--ink-soft); font-size:.95rem; margin:0 0 1.4rem; max-width:62ch}
+  .num{color:var(--accent); font-family:ui-monospace,monospace; font-size:.8rem; margin-right:.5em}
+
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr)); gap:.9rem; margin:0 0 .4rem}
+  .stat{background:var(--card); border:1px solid var(--card-edge); border-radius:12px; padding:1rem 1.1rem; box-shadow:var(--shadow)}
+  .stat .n{font-family:Georgia,serif; font-size:2rem; font-weight:600; line-height:1; font-variant-numeric:tabular-nums}
+  .stat .l{font-size:.78rem; color:var(--ink-faint); margin-top:.45rem; line-height:1.4}
+
+  .loop{display:flex; flex-wrap:wrap; align-items:stretch; gap:.6rem; margin:.4rem 0}
+  .node{flex:1 1 8.5rem; background:var(--card); border:1px solid var(--card-edge); border-radius:11px; padding:.85rem .95rem; box-shadow:var(--shadow)}
+  .node .k{font-family:ui-monospace,monospace; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:.35rem}
+  .node .c{font-family:ui-monospace,monospace; font-size:.86rem; font-weight:600; color:var(--ink)}
+  .node .d{font-size:.78rem; color:var(--ink-soft); margin-top:.3rem; line-height:1.4}
+  .arrow{align-self:center; color:var(--ink-faint); font-size:1.1rem; flex:0 0 auto}
+  @media (max-width:640px){.arrow{transform:rotate(90deg)}}
+
+  .manifest{display:flex; flex-direction:column; gap:.55rem}
+  .grp-label{font-family:ui-monospace,monospace; font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin:1.3rem 0 .2rem}
+  .row{
+    display:grid; grid-template-columns:auto 1fr; gap:.4rem .9rem; align-items:baseline;
+    background:var(--card); border:1px solid var(--card-edge); border-radius:10px;
+    padding:.7rem .9rem; box-shadow:var(--shadow);
+  }
+  .row .path{font-family:ui-monospace,monospace; font-size:.86rem; color:var(--ink); font-weight:600; word-break:break-word}
+  .row .desc{grid-column:1/-1; font-size:.84rem; color:var(--ink-soft); line-height:1.5}
+  .chip{
+    font-family:ui-monospace,monospace; font-size:.66rem; letter-spacing:.06em; text-transform:uppercase;
+    padding:.16rem .5rem; border-radius:100px; font-weight:600; white-space:nowrap; align-self:center;
+  }
+  .chip.new{background:var(--new-soft); color:var(--new)}
+  .chip.adj{background:var(--adj-soft); color:var(--adj)}
+
+  ul.clean{margin:.3rem 0 0; padding-left:1.1rem}
+  ul.clean li{margin:.4rem 0; color:var(--ink-soft)}
+  ul.clean li b{color:var(--ink); font-weight:600}
+  code{background:var(--mono-bg); padding:.08em .38em; border-radius:5px; font-size:.86em}
+
+  .callout{border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 10px 10px 0; padding:.9rem 1.1rem; margin:.4rem 0; font-size:.92rem; color:var(--ink-soft)}
+  .callout b{color:var(--ink)}
+  footer{margin-top:3rem; padding-top:1.4rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--ink-faint); font-family:ui-monospace,monospace; line-height:1.6}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Session changelog · wiki-led dev</p>
+  <h1>An automation layer that grows and documents itself</h1>
+  <p class="lede">Three new commands, five new wiki pages, and an orient-first pass over the existing suite — wiring the portal's dev workflow into one self-improving, self-describing loop.</p>
+  <div class="meta">
+    <span><b>Repo</b> nuwrrrld-portal</span>
+    <span><b>Date</b> 2026-08-06</span>
+    <span><b>Focus</b> automation · bottleneck removal</span>
+    <span><b>Follows</b> build-process dossier (PRs #6–#47)</span>
+  </div>
+
+  <hr class="div">
+
+  <div class="stats">
+    <div class="stat"><div class="n">3</div><div class="l">new commands</div></div>
+    <div class="stat"><div class="n">5</div><div class="l">new wiki pages</div></div>
+    <div class="stat"><div class="n">4</div><div class="l">existing files adjusted</div></div>
+    <div class="stat"><div class="n">3</div><div class="l">dangling wiki links resolved</div></div>
+    <div class="stat"><div class="n">1</div><div class="l">new global rule</div></div>
+  </div>
+
+  <hr class="div">
+
+  <h2><span class="num">01</span>The self-improving loop</h2>
+  <p class="sub">The dossier's closing recommendation was to make the memory-to-command path explicit. These two commands do exactly that: pain gets logged, mined, and absorbed — and the next bottleneck is one you haven't seen yet.</p>
+  <div class="loop">
+    <div class="node"><div class="k">Signal</div><div class="c">/friction</div><div class="d">Log one bottleneck line to <code>log.md</code> the moment you hit it.</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k">Mine + propose</div><div class="c">/suggest-commands</div><div class="d">Tally log + incidents + PR comments vs. threshold; propose automation.</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k">Curate</div><div class="c">you adopt</div><div class="d">Vouch for it; write the command; add it to the suite.</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="k">Absorb</div><div class="c">suite grows</div><div class="d">The friction never recurs; the loop gets cheaper over time.</div></div>
+  </div>
+  <div class="callout"><b>Threshold to propose:</b> a bottleneck must recur ≥&nbsp;3 times — or ≥&nbsp;1 time if it caused or risks a production incident. Incident-cost friction jumps the queue. <code>/suggest-commands</code> proposes only; adoption is a human yes.</div>
+
+  <hr class="div">
+
+  <h2><span class="num">02</span>What was added</h2>
+  <p class="sub">New commands live in <code>.claude/commands/</code>; new pages in <code>docs/wiki-portal/</code>. Every command orients from the wiki before it changes code and ingests back into it when it ships.</p>
+
+  <div class="grp-label">Commands · .claude/commands/</div>
+  <div class="manifest">
+    <div class="row"><span class="path">friction.md</span><span class="chip new">new</span><span class="desc">The cheapest command in the suite: appends a <code>friction</code> line to the wiki log so a bottleneck is captured in the moment. Fuel for the miner.</span></div>
+    <div class="row"><span class="path">suggest-commands.md</span><span class="chip new">new</span><span class="desc">The bottleneck miner (dossier rec #8). Reads friction lines, incidents, recurring chore/fix shapes, and open-PR comments; proposes commands over threshold. Never adopts.</span></div>
+    <div class="row"><span class="path">resume-safe.md</span><span class="chip new">new</span><span class="desc">Checkpoints to the wiki log at a safe boundary near the token limit, schedules a resume, and emits an HTML summary (this page's pattern) when the run completes.</span></div>
+  </div>
+
+  <div class="grp-label">Wiki · docs/wiki-portal/</div>
+  <div class="manifest">
+    <div class="row"><span class="path">entity-dev-command-suite.md</span><span class="chip new">new</span><span class="desc">The command catalog hub — resolves a dangling link from the bugmerge1 incident. Every command links back here.</span></div>
+    <div class="row"><span class="path">concept-bottleneck-command-suggestion.md</span><span class="chip new">new</span><span class="desc">The self-improving loop, its threshold, and its history — evidenced by the six FREE_MODEL_CHAIN chore PRs and the two config/contract incidents.</span></div>
+    <div class="row"><span class="path">concept-global-automation-layer.md</span><span class="chip new">new</span><span class="desc">The <code>~/.claude/</code> global tier (rules, hooks, wiki-guard) that enforces above the project suite that executes.</span></div>
+    <div class="row"><span class="path">concept-wiki-led-development.md</span><span class="chip new">new</span><span class="desc">The orient → change → ship → ingest process, with an enforced orientation section closing the "assumes the reader" gap.</span></div>
+    <div class="row"><span class="path">START-HERE.md</span><span class="chip new">new</span><span class="desc">The single orientation entry point: a 60-second orient plus a task-routed reading order for cold-started agents.</span></div>
+  </div>
+
+  <hr class="div">
+
+  <h2><span class="num">03</span>What was adjusted</h2>
+  <p class="sub">The existing suite was brought onto the wiki-led loop, and stale wiki state was reconciled — a wrong headline poisons the orient step as surely as a missing page.</p>
+  <div class="manifest">
+    <div class="row"><span class="path">.claude/commands/pr.md</span><span class="chip adj">adjusted</span><span class="desc">Added a <code>0. Orient</code> step: read START-HERE and plan the wiki ingest before <code>gh pr create</code> fires the guard hook.</span></div>
+    <div class="row"><span class="path">.claude/commands/sync-pr.md</span><span class="chip adj">adjusted</span><span class="desc">Added an orient-both-wikis step and an explicit reminder to recompute the mobile↔web parity headline + matrix on both surfaces.</span></div>
+    <div class="row"><span class="path">docs/wiki-portal/START-HERE.md</span><span class="chip adj">adjusted</span><span class="desc">Added task-router rows for automation / bottleneck-removal and for long token-limited runs.</span></div>
+    <div class="row"><span class="path">docs/wiki-portal/index.md</span><span class="chip adj">adjusted</span><span class="desc">New "Dev tooling / automation" section; catalogued the bugmerge1 incident; reconciled the parity headline to ~60% (was a stale ~65%).</span></div>
+  </div>
+
+  <hr class="div">
+
+  <h2><span class="num">04</span>A new global rule</h2>
+  <p class="sub">One convention added at the <code>~/.claude/</code> tier — it applies to every project, not just this repo.</p>
+  <div class="callout"><b>artifact-and-local-html.md</b> — whenever an HTML page is requested, produce <em>both</em> a local <code>.html</code> file on disk <em>and</em> a published artifact, from one authoring pass. Each covers the other's gap: the file is durable and diffable, the artifact is shareable and previewable. This very page is the rule's first application.</div>
+
+  <hr class="div">
+
+  <h2><span class="num">05</span>Why it holds together</h2>
+  <ul class="clean">
+    <li><b>Self-documenting.</b> Every command orients from the wiki and ingests back into it; the suite has an entity page, and the loop has a concept page.</li>
+    <li><b>Self-improving.</b> <code>/friction</code> → <code>/suggest-commands</code> turns recurring pain into proposed automation, on a threshold you control.</li>
+    <li><b>Limit-resilient.</b> <code>/resume-safe</code> checkpoints into the wiki — the durable memory — so a long automated run survives the token wall instead of losing its place.</li>
+    <li><b>No dangling links.</b> The three pages the bugmerge1 incident and the dossier referenced now exist and cross-link into the graph.</li>
+  </ul>
+  <div class="callout" style="border-color:var(--adj);background:var(--adj-soft)"><b>Not yet committed.</b> All changes are local working-tree edits — no branch, commit, or PR was created, so the wiki-guard ingest hook has not fired. Ship them with <code>/pr</code> when ready; that PR will itself run the orient → ingest loop this session built.</div>
+
+  <footer>
+    nuwrrrld-portal · session changelog · 2026-08-06<br>
+    Follows the build-process dossier (PRs #6–#47). No secrets, keys, or hostnames reproduced — env vars referenced by name only.
+  </footer>
+</div>

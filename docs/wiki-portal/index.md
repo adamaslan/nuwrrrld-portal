@@ -39,6 +39,9 @@ One page per named component. These are the hubs — everything links to entitie
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
 
+**Dev tooling / automation**
+- [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`
+
 ---
 
 ## Concepts
@@ -54,6 +57,8 @@ Cross-cutting patterns and design choices.
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
+- [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation
+- [[concept-global-automation-layer]] — the `~/.claude/` global tier (rules, hooks, wiki-guard) above the project command suite
 
 ---
 

@@ -396,3 +396,6 @@ anything fixed.
 ## [2026-08-06] ingest | START-HERE orientation entry point + orient-first enforcement; catalogued bugmerge1 incident, reconciled parity headline to ~60% | pages touched: 5
 
 ## [2026-08-06] ingest | PR #48 feat(ci): env-schema validator, CI test job, lint fix | pages touched: 4
+
+## [2026-08-06] ingest | dev-command-suite + self-improving loop (/friction, /suggest-commands) + /resume-safe; orient-first on /pr + /sync-pr; global artifact-and-local-html rule | pages touched: 8
+## [2026-08-06] ingest | resume-safe run complete: HTML session summary (local + artifact) | pages touched: 1

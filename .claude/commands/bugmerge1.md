@@ -28,22 +28,31 @@ Web portal only. For a change that also touches the mobile app, coordinate via
 - If a conflict cannot be resolved mechanically (semantic conflict, or the fix
   needs a product decision), **stop and report** — do not guess.
 - Merge one PR at a time and re-sync the rest; do not batch-merge.
-- **Self-integrity check (before step 1 and after every checkout/rebase in
-  step 2)**: verify `.claude/commands/bugmerge1.md` still exists on disk
-  (`test -f .claude/commands/bugmerge1.md || echo "MISSING"`). This file has
-  been lost mid-run before (see
-  `docs/wiki-portal/incident-2026-08-06-bugmerge1-command-file-loss.md`) —
-  branch checkouts and `git stash -u` can drop it if it's untracked on the
-  branch being checked out. If it's missing, restore it immediately with
-  `git show origin/main:.claude/commands/bugmerge1.md > .claude/commands/bugmerge1.md`
-  (falling back to `git show main:...` if `origin/main` isn't fetched, or to
-  the pre-flight backup below) before continuing — do not proceed on missing
-  self-definition.
 - **Pre-flight backup (once, before step 1)**: copy this file out of the git
   tree entirely so no branch operation can touch it —
-  `cp .claude/commands/bugmerge1.md /tmp/bugmerge1.$(date +%s).bak`. If every
-  git-based restore path fails (e.g. the file was never committed on any
-  reachable ref), this backup is the last-resort recovery source.
+  ```bash
+  BUGMERGE1_BAK=/tmp/bugmerge1.$(date +%s).bak
+  cp .claude/commands/bugmerge1.md "$BUGMERGE1_BAK"
+  ```
+  Export `BUGMERGE1_BAK` so it is available throughout the session.
+- **Self-integrity check (before step 1 and after every checkout/rebase in
+  step 2)**: verify `.claude/commands/bugmerge1.md` still exists on disk. This
+  file has been lost mid-run before (see
+  `docs/wiki-portal/incident-2026-08-06-bugmerge1-command-file-loss.md`) —
+  branch checkouts and `git stash -u` can drop it if it was untracked on the
+  checked-out branch. If it is missing, attempt restore in order:
+  ```bash
+  if ! test -f .claude/commands/bugmerge1.md; then
+    git show origin/main:.claude/commands/bugmerge1.md \
+      > .claude/commands/bugmerge1.md 2>/dev/null \
+    || git show main:.claude/commands/bugmerge1.md \
+      > .claude/commands/bugmerge1.md 2>/dev/null \
+    || cp "$BUGMERGE1_BAK" .claude/commands/bugmerge1.md 2>/dev/null \
+    || { echo "❌ FATAL: bugmerge1.md unrecoverable — aborting"; exit 1; }
+    echo "✅ bugmerge1.md restored"
+  fi
+  ```
+  Do not proceed while the file is missing — there is no safe fallback.
 - Prefer `git stash -u -- <specific paths>` (pathspec-scoped) over a bare
   `git stash -u` when you must stash untracked changes mid-workflow — a bare
   `-u` sweeps every untracked file in the tree, including unrelated command
@@ -54,7 +63,7 @@ Web portal only. For a change that also touches the mobile app, coordinate via
 ### 1. Enumerate open PRs, oldest first (merge order = base-first)
 
 ```bash
-gh pr list --repo adamaslan/nuwrrrld-portal --state open \
+gh pr list --repo adamaslan/nuwrrrld-portal --state open --limit 1000 \
   --json number,title,headRefName,baseRefName,mergeable,updatedAt \
   --jq 'sort_by(.updatedAt)'
 ```
@@ -64,7 +73,7 @@ touch the fewest shared files go first. Identify overlap up front:
 
 ```bash
 # Files each open PR changes — spot overlaps before touching anything
-for pr in $(gh pr list --repo adamaslan/nuwrrrld-portal --state open --json number --jq '.[].number'); do
+for pr in $(gh pr list --repo adamaslan/nuwrrrld-portal --state open --limit 1000 --json number --jq '.[].number'); do
   echo "=== PR #$pr ==="
   gh pr diff "$pr" --repo adamaslan/nuwrrrld-portal --name-only
 done
@@ -77,7 +86,7 @@ PR=<number>
 
 # 2a. Read review + inline comments (the bug reports)
 gh pr view "$PR" --repo adamaslan/nuwrrrld-portal --comments
-gh api "repos/adamaslan/nuwrrrld-portal/pulls/$PR/comments" \
+gh api --paginate "repos/adamaslan/nuwrrrld-portal/pulls/$PR/comments?per_page=100" \
   --jq '.[] | {path, line, body}'
 
 # 2b. Check out the PR branch locally

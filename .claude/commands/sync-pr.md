@@ -7,6 +7,16 @@ security-scanned commits, a PR per repo against `main`, cross-linked via
 **Usage:** `/sync-pr <branch-name> "<short description>"`
 e.g. `/sync-pr feat/holdfold-on-web "expose holdfold analysis on web"`
 
+## 0. Orient (wiki-led dev — before you change or commit)
+
+Read `docs/wiki-portal/START-HERE.md` and its mobile twin
+`gcp3-mobile/docs/wiki-mobile/` for a cross-surface change. Both `gh pr create`
+calls fire the wiki-guard hook, which also checks the parity headline/matrix
+agree across the two wikis — so plan to **ingest into both wikis** (recompute
+`concept-mobile-web-parity` + `concept-sync-requirements`, update `index.md`,
+append a `log.md` line in each) per `~/.claude/rules/mobile-web-wiki-sync.md`
+before finishing. See `docs/wiki-portal/concept-wiki-led-development.md`.
+
 ## Repos
 
 | Surface | Path | Repo (gh `--repo`) | Base |

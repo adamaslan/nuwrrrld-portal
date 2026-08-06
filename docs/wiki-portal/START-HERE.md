@@ -31,7 +31,9 @@ That's enough to know the shape of the system. Then jump to the task-specific ro
 | **Billing / auth** (Clerk, Stripe, `app/api/stripe/*`, `app/api/webhooks/*`) | [[entity-billing]] → [[incident-2026-07-27-stripe-checkout-invalid-header]] | Clerk `publicMetadata.subscription_status` is the entitlement source of truth; a dev-instance key on prod silently killed checkout once |
 | **Anything that also exists in the mobile app** | [[concept-mobile-web-parity]] → [[concept-sync-requirements]] | recompute the parity matrix + headline % on both wikis (`~/.claude/rules/mobile-web-wiki-sync.md`) |
 | **Free-tier reliability / model chain** | [[concept-free-tier-resilience]] → [[decision-free-tier-model-chain]] → [[concept-graceful-degradation]] | every model is `:free`; the account-wide quota ceiling is the known gap |
-| **CLI commands / the dev workflow itself** | [[concept-wiki-led-development]] → [[incident-2026-08-06-bugmerge1-command-file-loss]] | `/bugmerge1` self-protects its own definition file during git plumbing |
+| **CLI commands / the dev workflow itself** | [[entity-dev-command-suite]] → [[concept-wiki-led-development]] → [[incident-2026-08-06-bugmerge1-command-file-loss]] | `/bugmerge1` self-protects its own definition file during git plumbing |
+| **Automation / removing a bottleneck** (full stack + admin local app) | [[concept-bottleneck-command-suggestion]] → [[concept-global-automation-layer]] → [[entity-dev-command-suite]] | log pain with `/friction`; mine it with `/suggest-commands`; it proposes, you adopt |
+| **A long automated run near the token limit** | [[concept-wiki-led-development]] (`/resume-safe`) | checkpoint to `log.md` at a safe boundary; resume re-orients from START-HERE |
 | **Tests / CI** | [[concept-test-strategy]] | three vitest projects; `live` is opt-in; nothing runs the suite in CI |
 
 ## Before you finish (the other half of the loop)

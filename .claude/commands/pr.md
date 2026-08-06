@@ -4,6 +4,15 @@ Branches the current changes, scans for secrets, commits, pushes, and opens a PR
 against `main` for **this repo only** (`adamaslan/nuwrrrld-portal`). For a change
 that also touches the mobile app, use `/sync-pr` instead.
 
+## 0. Orient (wiki-led dev — before you change or commit)
+
+Read `docs/wiki-portal/START-HERE.md` and let it route you to the entity/concept
+pages for the files this change touches. Opening a PR here fires the wiki-guard
+hook on `gh pr create`, which expects the wiki reconciled — so orient first, and
+plan to **ingest** the change per `docs/wiki-portal/SCHEMA.md` "On PR Creation"
+(update affected pages, `index.md`, append a `log.md` line) before finishing.
+See [[concept-wiki-led-development]] for the full loop.
+
 ## Security Checklist — scan BEFORE committing
 
 Never commit:
