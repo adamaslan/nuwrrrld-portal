@@ -390,3 +390,9 @@ intentionally left unchecked — this incident's own history (the 2026-07-21
 env-var fix that "looked ineffective" for five days) is the reason the plan
 requires a positive live observation, not passing typecheck, before calling
 anything fixed.
+
+## [2026-08-06] ingest | /postbugmergerev command + wiki-led-development concept | pages touched: 2
+
+## [2026-08-06] ingest | START-HERE orientation entry point + orient-first enforcement; catalogued bugmerge1 incident, reconciled parity headline to ~60% | pages touched: 5
+
+## [2026-08-06] ingest | PR #48 feat(ci): env-schema validator, CI test job, lint fix | pages touched: 4

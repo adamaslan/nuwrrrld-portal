@@ -1,15 +1,18 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-07-30 (PR #46 /api/brief grounding fix; new lib/shared/holdfold-map.ts, parity matrix gets a Daily Brief row, headline ~60%)_
+_Last updated: 2026-08-06 (added [[START-HERE]] orientation entry point + [[concept-wiki-led-development]]; catalogued the bugmerge1 incident; reconciled parity headline to ~60%)_
 
-Catalog is organized by page type. Read `index.md` first on any query to find relevant pages, then drill in. This wiki is portal-only; cross-repo references link by path (see [[SCHEMA]] → Cross-Repo Boundary).
+**New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
+
+Catalog is organized by page type. Read `index.md` (or [[START-HERE]]) first on any query to find relevant pages, then drill in. This wiki is portal-only; cross-repo references link by path (see [[SCHEMA]] → Cross-Repo Boundary).
 
 **Scope today:** the AI Council + grounding subsystem, the signal/data plane (Signals, Hold/Fold, backtest, caching, portfolio), and Clerk auth + Stripe billing. Still pending: retention and nuai internals — see [[overview]] "Not yet documented."
 
 ---
 
-## Overview
+## Start Here / Overview
 
+- [[START-HERE]] — **orient first**: the 60-second orient + a task-routed reading order for cold-started agents
 - [[overview]] — stack, system map, current health, what's documented vs. pending
 
 ---
@@ -45,11 +48,12 @@ Cross-cutting patterns and design choices.
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
-- [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~65%, 2026-07-24) + full parity matrix
+- [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~60%, 2026-07-30 after PR #46) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
+- [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 
 ---
 
@@ -69,6 +73,7 @@ Recorded design decisions — the *why* behind the architecture.
 
 - [[incident-2026-07-26-portfolio-health-endpoint-missing]] — both Portfolio Health panels dead on web *and* mobile; the gcp3 route they call was never implemented, and the two sides share no field names
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — production checkout silently failing; a malformed `STRIPE_SECRET_KEY` + a Clerk dev-instance key on the production domain, both root-caused via Vercel telemetry
+- [[incident-2026-08-06-bugmerge1-command-file-loss]] — `/bugmerge1`'s own command file vanished mid-run during git checkouts/stash; now guarded by a self-integrity check + out-of-tree backup ([[concept-wiki-led-development]] feedback-loop instance)
 
 The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 

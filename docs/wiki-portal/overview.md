@@ -7,6 +7,8 @@ sources: [../../package.json, ../../app, ../../lib, PR#35, PR#36, PR#37]
 
 # Overview — nuwrrrld-portal
 
+> 🧭 **Orienting for a task?** Start at [[START-HERE]] — it gives a 60-second orient and a task-routed reading order. This page is the system map it routes into.
+
 The **web portal** for NuWrrrld Financial — a Next.js 16 app that puts the AI Council, Hold/Fold signals, and portfolio intelligence in the browser. Sibling to the Expo mobile app (`gcp3-mobile`) and the gcp3 backend/pipeline. The AI Council originated in mobile and was ported here.
 
 ## Stack
