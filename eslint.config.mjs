@@ -1,15 +1,17 @@
-import nextPlugin from "@next/eslint-plugin-next";
+import { createRequire } from "module";
 import tseslint from "typescript-eslint";
 
-export default [
+const require = createRequire(import.meta.url);
+// eslint-config-next exports a flat-config array that bundles react,
+// react-hooks, import, jsx-a11y, and @next/next — more complete than
+// spreading @next/eslint-plugin-next directly.
+const nextConfig = require("eslint-config-next");
+
+const config = [
+  ...nextConfig,
   ...tseslint.configs.recommended,
   {
-    plugins: {
-      "@next/next": nextPlugin,
-    },
     rules: {
-      ...nextPlugin.configs.recommended.rules,
-      ...nextPlugin.configs["core-web-vitals"].rules,
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
@@ -17,3 +19,5 @@ export default [
     ignores: [".next/**", "node_modules/**", ".vercel/**", ".claude/**"],
   },
 ];
+
+export default config;

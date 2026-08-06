@@ -281,7 +281,7 @@ export default async function Home() {
               <h2>From &quot;what&apos;s happening&quot; to &quot;what should I do&quot; — without leaving the app.</h2>
             </div>
             <p className="section-copy">
-              A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you're
+              A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you&apos;re
               looking at, and a full argument between six AI analysts — on the web here, and in
               the NuWrrrld mobile app.
             </p>
@@ -307,7 +307,7 @@ export default async function Home() {
             <Reveal delay={0.1} as="article" className="surface">
               <h3>Ask Anything</h3>
               <p className="new-badge-inline">New</p>
-              <p>Open any call and just ask it a question, like "why now?" or "what would change your mind?" — it answers using that ticker's real, live data.</p>
+              <p>Open any call and just ask it a question, like &quot;why now?&quot; or &quot;what would change your mind?&quot; — it answers using that ticker&apos;s real, live data.</p>
               <ul className="feature-list">
                 <li>Live, streaming chat per ticker.</li>
                 <li>Answers grounded in real data — not a generic chatbot.</li>
@@ -315,7 +315,7 @@ export default async function Home() {
             </Reveal>
             <Reveal delay={0.15} as="article" className="surface wide">
               <h3>Six-Seat AI Council</h3>
-              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Nothing reaches you until they've named the exact price that would prove them wrong.</p>
+              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Nothing reaches you until they&apos;ve named the exact price that would prove them wrong.</p>
               <ul className="feature-list">
                 <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
                 <li>Every disagreement gets named, not smoothed over, before you get a final answer.</li>
@@ -334,7 +334,7 @@ export default async function Home() {
             </div>
             <p className="section-copy">
               Five completely independent checks back every call — price action, volatility, the macro
-              backdrop, sector rotation, and news events — so one bad signal can't fool the whole system.
+              backdrop, sector rotation, and news events — so one bad signal can&apos;t fool the whole system.
             </p>
           </Reveal>
 
@@ -402,7 +402,7 @@ export default async function Home() {
               <p>Every call carries a trust score, a confidence level, and the exact price that would prove it wrong — and we show you the track record, not just the pitch.</p>
               <ul className="feature-list">
                 <li>Five independent checks behind every call.</li>
-                <li>The council can't answer without pointing to real data.</li>
+                <li>The council can&apos;t answer without pointing to real data.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.08} className="moat-card">
@@ -431,7 +431,7 @@ export default async function Home() {
               <h2>One question. Six arguments. One answer you can trust.</h2>
             </div>
             <p className="section-copy">
-              The council doesn't just summarize — every seat has to point to real data and say exactly
+              The council doesn&apos;t just summarize — every seat has to point to real data and say exactly
               what would change its mind, before the Chair gives you one clear, final call.
             </p>
           </Reveal>
@@ -442,7 +442,7 @@ export default async function Home() {
             <Reveal delay={0} as="article" className="seat-card seat-card--risk">
               <div className="seat-tag risk">RISK</div>
               <h3>The one who argues against you</h3>
-              <p>Its whole job is to talk you out of the trade — naming exactly how it could go wrong, and how bad it could get, before anyone gets to say "buy."</p>
+              <p>Its whole job is to talk you out of the trade — naming exactly how it could go wrong, and how bad it could get, before anyone gets to say &quot;buy.&quot;</p>
             </Reveal>
             <Reveal delay={0.05} as="article" className="seat-card">
               <div className="seat-tag t1">T1</div>
@@ -452,7 +452,7 @@ export default async function Home() {
             <Reveal delay={0.1} as="article" className="seat-card">
               <div className="seat-tag t2">T2</div>
               <h3>The long-term investor</h3>
-              <p>Thinks in months and years. What's the case for holding this for the long haul, and what would break it?</p>
+              <p>Thinks in months and years. What&apos;s the case for holding this for the long haul, and what would break it?</p>
             </Reveal>
             <Reveal delay={0.15} as="article" className="seat-card">
               <div className="seat-tag macro">MACRO</div>
