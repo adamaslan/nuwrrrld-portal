@@ -72,10 +72,11 @@ export function buildBriefPrompt(
     if (b.market_tone) lines.push(`Market tone: ${b.market_tone}`);
     if (b.indices) {
       const indices = Object.entries(b.indices).slice(0, 4).map(([name, idx]) => {
+        if (idx == null || typeof idx !== "object") return null;
         const chg = idx.change_pct != null ? `${idx.change_pct >= 0 ? "+" : ""}${idx.change_pct.toFixed(2)}%` : "";
-        const price = idx.price != null ? idx.price.toLocaleString() : "n/a";
+        const price = idx.price != null ? idx.price.toLocaleString("en-US") : "n/a";
         return `${name} (${idx.symbol ?? name}): ${price} ${chg}`.trim();
-      }).join(", ");
+      }).filter((s): s is string => s != null).join(", ");
       if (indices) lines.push(`Indices: ${indices}`);
     }
     if (b.summary) lines.push(`AI summary: ${b.summary}`);
@@ -91,16 +92,21 @@ export function buildBriefPrompt(
   const available = [hasMarket && "index/market data", hasVerdicts && "Hold/Fold verdicts"]
     .filter(Boolean).join(" and ");
 
+  const formatPoints = [
+    hasMarket && "Market overview",
+    hasVerdicts ? "Standout verdict or signal" : hasMarket && "Standout index move",
+    "Key risk to watch",
+    "One actionable takeaway",
+  ].filter((p): p is string => Boolean(p));
+
   lines.push(
     `User tier: ${tier}`,
     ``,
     `You are Nu AI, a financial information assistant for NuWrrrld Financial.`,
-    `Write a personalized 4-sentence morning brief for this ${tier} user.`,
+    `Write a personalized ${formatPoints.length}-sentence morning brief for this ${tier} user.`,
     `Ground every sentence in the EXACT data above — cite only the ${available} shown.`,
     `Never mention missing, unavailable, or unknown data; write only about what is given.`,
-    hasVerdicts
-      ? `Format: 1) Market overview 2) Standout verdict or signal 3) Key risk to watch 4) One actionable takeaway.`
-      : `Format: 1) Market overview 2) Standout index move 3) Key risk to watch 4) One actionable takeaway.`,
+    `Format: ${formatPoints.map((p, i) => `${i + 1}) ${p}`).join(" ")}.`,
     `Do not give specific buy/sell price targets. This is informational only, not personalised financial advice.`,
   );
 
@@ -131,12 +137,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "market_data_unavailable" }, { status: 503 });
   }
 
-  const prompt = buildBriefPrompt(tier, market, verdicts);
-
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25_000);
 
   try {
+    const prompt = buildBriefPrompt(tier, market, verdicts);
     const { response } = await fetchWithModelFallback(
       apiKey,
       { max_tokens: 350, stream: true, messages: [{ role: "user", content: prompt }], temperature: 0.3 },

@@ -27,7 +27,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-grounding-compiler]] — `scripts/compile_grounding_pack.mjs` + `corpus/`; the one place a model reads the corpus
 
 **Signal Data Plane**
-- [[entity-signal-data-plane]] — **canonical signals doc**; `lib/shared/signal-lookup.ts` + `signalFilters.ts`, the gcp3 fetch-and-shape read path
+- [[entity-signal-data-plane]] — **canonical signals doc**; `lib/shared/signal-lookup.ts` for the gcp3 fetch-and-shape path and `lib/shared/signalFilters.ts` for shared client-side filtering and sorting
 - [[entity-backtest-engine]] — `lib/backtest.ts`; the *separate* hit-rate engine, disabled by default
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist

@@ -80,11 +80,13 @@ export function mapSignalsToHoldFold(raw: unknown): HoldFoldPayload | null {
   const updatedAt = String(r.updated ?? new Date().toISOString());
 
   const verdicts: HoldFoldVerdict[] = Object.entries(symbols).map(([key, s]) => {
-    const ticker = String(s.symbol ?? key).trim().toUpperCase();
-    const action = String(s.ai_action ?? "").toUpperCase();
-    const confLabel = String(s.ai_confidence ?? "LOW").toUpperCase();
-    const inds = (s.indicators ?? {}) as Record<string, number | null>;
-    const rawSignals = Array.isArray(s.signals) ? (s.signals as Record<string, unknown>[]) : [];
+    if (s == null || typeof s !== "object") return null;
+    const s_obj = s as Record<string, unknown>;
+    const ticker = String(s_obj.symbol ?? key).trim().toUpperCase();
+    const action = String(s_obj.ai_action ?? "").toUpperCase();
+    const confLabel = String(s_obj.ai_confidence ?? "LOW").toUpperCase();
+    const inds = (s_obj.indicators ?? {}) as Record<string, number | null>;
+    const rawSignals = Array.isArray(s_obj.signals) ? (s_obj.signals as Record<string, unknown>[]) : [];
 
     return {
       ticker,
@@ -92,25 +94,25 @@ export function mapSignalsToHoldFold(raw: unknown): HoldFoldPayload | null {
       confidence: confLabelToNum(confLabel),
       confidenceLabel: confLabel,
       bias: mapBias(action),
-      industry: String(s.industry ?? ""),
+      industry: String(s_obj.industry ?? ""),
       rsi: inds.rsi ?? null,
       macd: inds.macd ?? null,
       adx: inds.adx ?? null,
-      price: Number(s.price ?? 0),
-      high52w: Number(s["52w_high"] ?? 0),
-      low52w: Number(s["52w_low"] ?? 0),
-      returns: (s.returns ?? {}) as Record<string, number>,
+      price: Number(s_obj.price ?? 0),
+      high52w: Number(s_obj["52w_high"] ?? 0),
+      low52w: Number(s_obj["52w_low"] ?? 0),
+      returns: (s_obj.returns ?? {}) as Record<string, number>,
       signals: rawSignals.map(sig => ({
         signal: String(sig.signal ?? ""),
         strength: String(sig.strength ?? ""),
         detail: String(sig.detail ?? ""),
         category: String(sig.category ?? ""),
       })),
-      aiSummary: String(s.ai_summary ?? ""),
-      aiOutlook: String(s.ai_outlook ?? ""),
+      aiSummary: String(s_obj.ai_summary ?? ""),
+      aiOutlook: String(s_obj.ai_outlook ?? ""),
       updatedAt,
     };
-  });
+  }).filter((v): v is HoldFoldVerdict => v != null);
 
   verdicts.sort((a, b) => {
     const od = VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict];

@@ -35,7 +35,7 @@ The council is a per-user feature gated behind the `nu_ai` entitlement and a dai
 ## Validated by
 
 - The chain-refresh infra shipped and passed code review (PR #30); PR #44 is that infra's first routine weekly refresh actually merging (`gemma-4-31b-it` → `nemotron-3-nano-omni-30b-a3b-reasoning`).
-- The $0 claim follows from every model carrying the `:free` suffix in `SEAT_MODELS` and `FREE_MODEL_CHAIN`.
+- ⚠️ **The $0 claim is not accurate:** T1 uses `cohere/command-r7b-12-2024`, a paid model (~$0.20–$0.50 per deliberation), chosen for structured output quality. The other five seats use `:free` models. See [[entity-openrouter-client]] "Model assignment" table.
 - ❌ **Refuted, 2026-07-30:** the previously-unvalidated concurrency risk below is real. OpenRouter free tier caps the **key**, not per-model, at 50 req/day (1000/day at ≥10 credits). One key shared across the whole app means council calls, `/api/brief`, and the refresh script's own probes all draw from the same 50 — any combination can exhaust it, at which point every model 429s at once and looks identical to "the whole free roster is dead." See [[entity-openrouter-client]] "Known failures" #3.
 
 ## See also
