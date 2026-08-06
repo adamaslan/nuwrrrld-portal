@@ -69,7 +69,7 @@ export function TrackRecordBadge({ symbol, strength }: TrackRecordBadgeProps) {
   }
 
   if (status === 'error') {
-    return <p className="signal-score">Couldn't load track record for {symbol}.</p>;
+    return <p className="signal-score">{"Couldn't"} load track record for {symbol}.</p>;
   }
 
   if (!result) return null;
