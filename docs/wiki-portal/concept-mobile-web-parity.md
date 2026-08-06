@@ -59,6 +59,8 @@ agree in intent but not in code.
 > on both surfaces); single-source parity nudges down slightly. See
 > [[concept-sync-requirements]] §1 for the de-drift task this adds.
 
+> ℹ️ **PR #48 (2026-08-06) assessed — CI/lint infra only (env-schema validator, CI test job, eslint flat-config fix). No feature-domain or single-source code changes. Headline unchanged at ~60%.**
+
 > ⚠️ **PR #46 (2026-07-30) assessed — new portal-only `lib/shared/` module, same
 > pattern as PR #40.** Fixed `/api/brief`: it was calling a nonexistent
 > `/holdfold` endpoint (always 404→null) and fetching `/market-overview`

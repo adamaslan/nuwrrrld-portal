@@ -108,6 +108,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   const [suggestionsStatus, setSuggestionsStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSuggestionsStatus("loading");
     fetch("/api/portfolio/suggestions")
       .then(res => {

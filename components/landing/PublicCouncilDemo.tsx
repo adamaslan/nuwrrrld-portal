@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 interface DemoState {
   status: "idle" | "loading" | "ok" | "limited" | "error";
@@ -79,7 +80,7 @@ export function PublicCouncilDemo() {
 
       {state.status === "limited" && (
         <p className="public-demo-limited">
-          {state.error} <a href="/sign-up">Sign up for unlimited questions →</a>
+          {state.error} <Link href="/sign-up">Sign up for unlimited questions →</Link>
         </p>
       )}
 

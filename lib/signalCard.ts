@@ -18,7 +18,7 @@ export interface SignalCardData {
 export function buildSignalCard(
   signal: SignalPayload,
   basePortalUrl: string,
-  baseAppUrl: string,
+  _baseAppUrl: string,
 ): SignalCardData {
   // Normalize once — used for both imageUrl and shareUrl to avoid double-slash paths.
   const normalizedBase = basePortalUrl.endsWith('/') ? basePortalUrl.slice(0, -1) : basePortalUrl;
