@@ -50,10 +50,9 @@ git fetch origin main
 git checkout main
 git pull --ff-only origin main
 
-# The PRs /bugmerge1 just squash-merged (adjust the count/window to match the
-# step-5 report — here, the last N merges to main):
-git log origin/main --merges --oneline -n 20
-# …or, more precisely, list the squash commits by the PR numbers you merged:
+# The PRs /bugmerge1 just squash-merged. Note: squash merges are NOT true merge
+# commits — git log --merges will not find them. Use the PR numbers directly:
+# …list the squash commits by the PR numbers you merged:
 for PR in <merged PR numbers>; do
   echo "=== PR #$PR ==="
   gh pr view "$PR" --repo adamaslan/nuwrrrld-portal \
@@ -118,7 +117,25 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 git push -u origin HEAD
 ```
 
-### 4. Open the PR
+### 4. Update the wiki (committed on this branch, before `gh pr create`)
+
+If any improvement changed behavior tracked by `docs/wiki-portal/`, run the wiki
+ingest per that folder's `SCHEMA.md`:
+- Update the affected `entity-*` / `concept-*` / `decision-*` pages.
+- Update `index.md` if pages were added.
+- Append one line to `log.md`:
+  `## [{date}] ingest | PR #{number} post-/bugmerge1 review | pages touched: N`
+- If this session changed anything in the mobile↔web parity surface, recompute
+  the parity pages in **both** wikis per `~/.claude/rules/mobile-web-wiki-sync.md`.
+
+Never write real keys/tokens/URLs into wiki pages — use the SCHEMA placeholders.
+
+Commit wiki changes on this branch **before** running `gh pr create` below —
+the global wiki-guard hook fires on `gh pr create` and will flag uncommitted wiki
+edits, which is the recurring failure mode: wiki content left uncommitted and never
+shipped with the PR it documents.
+
+### 5. Open the PR
 
 ```bash
 gh pr create --base main \
@@ -149,13 +166,7 @@ patch was shallow.
 🔒 Security verified before commit"
 ```
 
-> ⚠️ Opening a PR here fires the global wiki-guard hook on `gh pr create`.
-> Make sure any wiki edits from step 6 are committed **on this branch before**
-> you run `gh pr create`, so they land in the same PR — the recurring failure
-> the guard exists to catch is wiki content left uncommitted and never shipped
-> with the PR it documents.
-
-### 5. Merge conflict-free
+### 6. Merge conflict-free
 
 ```bash
 gh pr view <this PR> --repo adamaslan/nuwrrrld-portal --json mergeable,mergeStateStatus
@@ -165,19 +176,6 @@ gh pr merge <this PR> --repo adamaslan/nuwrrrld-portal --squash --delete-branch
 If `mergeable` is not clean, rebase onto the current `main`
 (`git fetch origin main && git rebase origin/main`), rebuild, and re-check —
 same conflict discipline as `/bugmerge1` (mechanical only; semantic → stop).
-
-### 6. Update the wiki (before step 4's `gh pr create`, committed on this branch)
-
-If any improvement changed behavior tracked by `docs/wiki-portal/`, run the wiki
-ingest per that folder's `SCHEMA.md`:
-- Update the affected `entity-*` / `concept-*` / `decision-*` pages.
-- Update `index.md` if pages were added.
-- Append one line to `log.md`:
-  `## [{date}] ingest | PR #{number} post-/bugmerge1 review | pages touched: N`
-- If this session changed anything in the mobile↔web parity surface, recompute
-  the parity pages in **both** wikis per `~/.claude/rules/mobile-web-wiki-sync.md`.
-
-Never write real keys/tokens/URLs into wiki pages — use the SCHEMA placeholders.
 
 ### 7. Report
 
