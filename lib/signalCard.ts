@@ -33,7 +33,7 @@ export function buildSignalCard(
 
   // Deep link to signal — web-clickable URL with id anchor so the share scrolls to the right card.
   // Universal Links (iOS) + App Links (Android) on the domain route to native app if installed.
-  const shareUrl = `${normalizedBase}/dashboard/signals#signal-${signal.id}`;
+  const shareUrl = `${normalizedBase}/dashboard/signals#signal-${encodeURIComponent(signal.id)}`;
 
   return {
     signal,

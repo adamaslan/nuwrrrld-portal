@@ -81,62 +81,66 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
   if (!r.symbols || typeof r.symbols !== 'object' || Array.isArray(r.symbols)) {
     throw new Error('Invalid /signals response: symbols must be a plain object');
   }
-  const symbols = r.symbols as Record<string, Record<string, unknown>>;
+  const symbols = r.symbols as Record<string, unknown>;
   const fallbackDate = String(r.updated ?? new Date().toISOString());
 
   // Use Object.entries so the map key (authoritative ticker) is always available
   // even when the inner record omits the redundant `symbol` field.
-  const signals: SignalPayload[] = Object.entries(symbols).map(([symbolKey, s], i) => {
-    const ticker = String(s.symbol ?? symbolKey).trim().toUpperCase();
-    const action = String(s.ai_action ?? '').toUpperCase();
-    const direction: SignalDirection =
-      action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'neutral';
-    const rawConf = String(s.ai_confidence ?? '').toLowerCase();
-    const rawSignals = Array.isArray(s.signals)
-      ? (s.signals as unknown[]).filter(
-          (x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x),
-        )
-      : [];
-    const indicators: string[] = rawSignals.map(x => String(x.signal ?? ''));
-    const reasons: string[] = rawSignals.map(x => String(x.detail ?? '')).filter(Boolean);
-    const score = typeof s.confluence_score === 'number' ? s.confluence_score : undefined;
-    const bullish = typeof s.bull_count === 'number' ? s.bull_count : undefined;
-    const bearish = typeof s.bear_count === 'number' ? s.bear_count : undefined;
-    const total = typeof s.signal_count === 'number' ? s.signal_count : undefined;
-    const engineVersion = typeof s.engine_version === 'string' ? s.engine_version : undefined;
-    const rawDqScore = s.data_quality_score;
-    const dataQualityScore: SignalPayload['dataQualityScore'] =
-      rawDqScore === 'fresh' || rawDqScore === 'stale' || rawDqScore === 'unknown'
-        ? rawDqScore
-        : undefined;
-    // Prefer the backend's authoritative data_quality_score when present — it
-    // reflects the source industry_cache's true age, not just this signal's
-    // own generatedAt timestamp. Fall back to the client-side heuristic
-    // otherwise (e.g. older backend versions that don't emit the field yet).
-    const isStale = dataQualityScore
-      ? dataQualityScore !== 'fresh'
-      : computeIsStale(fallbackDate);
-    return {
-      id: ticker || `signal-${i}`,
-      ticker,
-      direction,
-      timeframe: 'medium',
-      confidence: safeConfidence(rawConf),
-      title: String(s.ai_summary ?? ''),
-      explanation: String(s.ai_outlook ?? ''),
-      indicators,
-      generatedAt: fallbackDate,
-      score,
-      reasons: reasons.length > 0 ? reasons : undefined,
-      signalCounts:
-        bullish !== undefined && bearish !== undefined && total !== undefined
-          ? { bullish, bearish, total }
-          : undefined,
-      isStale,
-      engineVersion,
-      dataQualityScore,
-    };
-  });
+  const signals: SignalPayload[] = Object.entries(symbols)
+    .filter(([, s]) => s !== null && typeof s === 'object' && !Array.isArray(s))
+    .map(([symbolKey, s], i) => {
+      const entry = s as Record<string, unknown>;
+      // symbolKey is the authoritative ticker; fall back to inner field only if key is empty
+      const ticker = String(symbolKey || entry.symbol || '').trim().toUpperCase();
+      const action = String(entry.ai_action ?? '').toUpperCase();
+      const direction: SignalDirection =
+        action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'neutral';
+      const rawConf = String(entry.ai_confidence ?? '').toLowerCase();
+      const rawSignals = Array.isArray(entry.signals)
+        ? (entry.signals as unknown[]).filter(
+            (x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x),
+          )
+        : [];
+      const indicators: string[] = rawSignals.map(x => String(x.signal ?? '').trim()).filter(Boolean);
+      const reasons: string[] = rawSignals.map(x => String(x.detail ?? '').trim()).filter(Boolean);
+      const score = typeof entry.confluence_score === 'number' ? entry.confluence_score : undefined;
+      const bullish = typeof entry.bull_count === 'number' ? entry.bull_count : undefined;
+      const bearish = typeof entry.bear_count === 'number' ? entry.bear_count : undefined;
+      const total = typeof entry.signal_count === 'number' ? entry.signal_count : undefined;
+      const engineVersion = typeof entry.engine_version === 'string' ? entry.engine_version : undefined;
+      const rawDqScore = entry.data_quality_score;
+      const dataQualityScore: SignalPayload['dataQualityScore'] =
+        rawDqScore === 'fresh' || rawDqScore === 'stale' || rawDqScore === 'unknown'
+          ? rawDqScore
+          : undefined;
+      // Prefer the backend's authoritative data_quality_score when present — it
+      // reflects the source industry_cache's true age, not just this signal's
+      // own generatedAt timestamp. Fall back to the client-side heuristic
+      // otherwise (e.g. older backend versions that don't emit the field yet).
+      const isStale = dataQualityScore
+        ? dataQualityScore !== 'fresh'
+        : computeIsStale(fallbackDate);
+      return {
+        id: ticker || `signal-${i}`,
+        ticker,
+        direction,
+        timeframe: 'medium',
+        confidence: safeConfidence(rawConf),
+        title: String(entry.ai_summary ?? ''),
+        explanation: String(entry.ai_outlook ?? ''),
+        indicators,
+        generatedAt: fallbackDate,
+        score,
+        reasons: reasons.length > 0 ? reasons : undefined,
+        signalCounts:
+          bullish !== undefined && bearish !== undefined && total !== undefined
+            ? { bullish, bearish, total }
+            : undefined,
+        isStale,
+        engineVersion,
+        dataQualityScore,
+      };
+    });
 
   return {
     schemaVersion: DIGEST_SCHEMA_VERSION,

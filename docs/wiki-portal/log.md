@@ -401,3 +401,5 @@ anything fixed.
 ## [2026-08-06] ingest | resume-safe run complete: HTML session summary (local + artifact) | pages touched: 1
 ## [2026-08-07] ingest | stay-on-branch-after-merge rule + checkout-guard PreToolUse hook; document PR #48 file-loss recurrence; git commands branch off origin/main | pages touched: 3
 ## [2026-08-07] ingest | mobile PR #29 (gcp-expo1) fix(subscription): port parseSubscriptionMetadata() — single-surface de-drift, headline ~60%→~61% | pages touched: 3
+## [2026-08-07] ingest | portal PR #50 fix(shared): reconcile signalFilters.ts/prefs.ts with mobile — single-surface de-drift, headline ~61%→~62% | pages touched: 4
+## [2026-08-07] ingest | mobile PR #30 + portal PR #51 fix(shared): reconcile digest.ts/signalCard.ts — dual-surface de-drift + ticker-precedence bugfix, resolves open-issue #6, headline ~62%→~64% | pages touched: 4

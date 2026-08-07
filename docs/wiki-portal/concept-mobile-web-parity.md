@@ -65,6 +65,8 @@ agree in intent but not in code.
 
 > ✅ **Portal PR #50 (2026-08-07) assessed — de-drifts `lib/shared/signalFilters.ts` and confirms `lib/shared/prefs.ts`, item #2 of the [[concept-sync-requirements]] §1 list.** `signalFilters.ts` had drifted by quote style only (double vs single); standardized on mobile's single-quote convention, leaving only the necessary import-path seam (mobile's `@/` alias is unconfigured — a separate, pre-existing bug documented in `docs/findings-neon-and-stray-files.html`, not sync-batch scope). `prefs.ts` was assessed and confirmed to differ *only* on the intended localStorage/SecureStore storage-backend seam — reclassified from 🟡 Partial to ✅ Aligned rather than edited, since forcing byte-identity there would break the platform split by design. Single-surface fix (portal-only PR — mobile's copy needed no change).
 
+> ✅ **Mobile PR #30 + portal PR #51 (2026-08-07) assessed — de-drift `lib/digest.ts` (`adaptLiveSignals`) and `lib/signalCard.ts`, resolving open-issue #6, item #3 of [[concept-sync-requirements]] §1.** This was real functional drift, not formatting: portal's ticker-precedence code (`s.symbol ?? symbolKey`) contradicted its own comment claiming the map key is authoritative — mobile's precedence was actually correct and portal was fixed to match (a genuine bug fix, not just reconciliation). Portal's `dataQualityScore` field (backend-reported freshness, taking precedence over the client-side staleness heuristic) is now ported to mobile, since both adapters target the same GCP3 `/signals` API. Mobile's more defensive entry-filtering and trimmed/filtered indicators/reasons were adopted by portal. `signalCard.ts`: portal adopted mobile's `encodeURIComponent(signal.id)` URL-safety fix; mobile adopted portal's `_baseAppUrl` unused-param convention. Both files confirmed byte-identical post-merge. First dual-surface (two-PR) item in this batch — items #1–2 were single-surface.
+
 > ⚠️ **PR #46 (2026-07-30) assessed — new portal-only `lib/shared/` module, same
 > pattern as PR #40.** Fixed `/api/brief`: it was calling a nonexistent
 > `/holdfold` endpoint (always 404→null) and fetching `/market-overview`
@@ -92,34 +94,36 @@ agree in intent but not in code.
 > that may be closer to intentional than a bug (see
 > [[concept-sync-requirements]] §2).
 
-## Headline: ~62% synced (2026-08-07, after portal PR #50)
+## Headline: ~64% synced (2026-08-07, after mobile PR #30 + portal PR #51)
 
 Two different denominators, deliberately kept separate:
 
 - **Feature-domain parity ≈ 82%** — 9 of 11 shared product domains exist and
   work on both surfaces; only the AI Council is architecturally divergent, and
-  two domains (Signals/Digest, Nu AI) have drifted implementations. Unchanged by
-  PR #40 (which added depth, not a new shared domain).
-- **Single-source (code-identical) parity ≈ 39%** (was ~37%) — mobile PR #29
-  ported `parseSubscriptionMetadata()` into mobile's `lib/subscription.ts`,
-  restoring that module to byte-identical. Portal PR #50 reconciled
-  `signalFilters.ts`'s quote-style drift and confirmed `prefs.ts`'s remaining
-  difference is an intentional storage-backend seam, not drift — both now
-  count as synced. Still owed: PR #40 added a whole portal-only real-time
-  signal tier (`signal-queue`, `signal-policy`, `signal-cache` read-through,
-  `live-price` + `live-price-db`, `/api/signals/drain` + `/live`) with **no
-  mobile counterpart**. Two of those modules (`lib/shared/signal-policy.ts`,
+  one domain (Nu AI) has a drifted implementation (Signals/Digest moved to
+  Synced this round). Unchanged by PR #40 (which added depth, not a new shared
+  domain).
+- **Single-source (code-identical) parity ≈ 41%** (was ~39%) — mobile PR #29
+  ported `parseSubscriptionMetadata()`; portal PR #50 reconciled
+  `signalFilters.ts` and confirmed `prefs.ts`'s seam; mobile PR #30 + portal
+  PR #51 de-drifted `digest.ts`/`signalCard.ts` (open-issue #6), including a
+  genuine bug fix (portal's ticker-precedence code contradicted its own
+  documented intent) and porting portal's `dataQualityScore` field to mobile.
+  Still owed: PR #40 added a whole portal-only real-time signal tier
+  (`signal-queue`, `signal-policy`, `signal-cache` read-through, `live-price` +
+  `live-price-db`, `/api/signals/drain` + `/live`) with **no mobile
+  counterpart**. Two of those modules (`lib/shared/signal-policy.ts`,
   `lib/shared/live-price.ts`) even sit in the supposedly-shared `lib/shared/`
   folder yet are portal-only — new share-debt. PR #46 adds a fourth
   portal-only file to `lib/shared/` (`holdfold-map.ts`) — same share-debt
   pattern, not portable as-is since mobile's Hold/Fold client targets a
   different backend with an incompatible verdict shape.
 
-The blended **~62%** (up from ~61%) reflects the first two completed items of
-the `/sync-pr` de-drift batch (see `docs/sync-pr-large-scale-run.md`) —
-`digest.ts`/`signalCard.ts` is next in that batch's queue. The portal still
-pulls ahead on the signal/Hold-Fold data plane independent of this batch; the
-risk lives in the gap between the two denominators.
+The blended **~64%** (up from ~62%) reflects the first three completed items
+of the `/sync-pr` de-drift batch (see `docs/sync-pr-large-scale-run.md`) —
+item #4 (a drift-detection CI gate) is next. The portal still pulls ahead on
+the signal/Hold-Fold data plane independent of this batch; the risk lives in
+the gap between the two denominators.
 
 ## Domain parity matrix
 
@@ -130,7 +134,7 @@ risk lives in the gap between the two denominators.
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
 | **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
-| **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **diverged** | 🟡 Partial — adapters drifted; portal now much deeper ([[entity-signal-data-plane]]) |
+| **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **byte-identical (mobile PR #30 + portal PR #51)** | ✅ Synced — was 🟡 Partial (open-issue #6, resolved); portal-only signal data plane depth is a separate axis ([[entity-signal-data-plane]]) |
 | **Signal cache / queue** | — | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
 | **Real-time price tier** | — | `live-price.ts`, `live-price-db.ts`, `live_prices`, `/api/signals/live` ([[entity-live-price-tier]]) | `live-price.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
 | **Nu AI chat** | `nuai.ts`, `NuAIScreen`, `useNuAI` | `nuai.ts`, `/api/nuai`, `dashboard/nuai` | `nuai.ts` **diverged** | 🟡 Partial |
