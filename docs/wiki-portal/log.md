@@ -400,3 +400,4 @@ anything fixed.
 ## [2026-08-06] ingest | dev-command-suite + self-improving loop (/friction, /suggest-commands) + /resume-safe; orient-first on /pr + /sync-pr; global artifact-and-local-html rule | pages touched: 8
 ## [2026-08-06] ingest | resume-safe run complete: HTML session summary (local + artifact) | pages touched: 1
 ## [2026-08-07] ingest | stay-on-branch-after-merge rule + checkout-guard PreToolUse hook; document PR #48 file-loss recurrence; git commands branch off origin/main | pages touched: 3
+## [2026-08-07] ingest | mobile PR #29 (gcp-expo1) fix(subscription): port parseSubscriptionMetadata() — single-surface de-drift, headline ~60%→~61% | pages touched: 3
