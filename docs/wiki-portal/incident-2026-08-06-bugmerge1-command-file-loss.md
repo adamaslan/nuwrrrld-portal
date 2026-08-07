@@ -35,6 +35,25 @@ The file existed as an **untracked file** in `main` but not in the branches bein
 - `/bugmerge1` workflow revised to: (a) copy its own definition to `/tmp` before step 1, (b) verify file presence before and after each checkout/rebase, and (c) use pathspec-scoped `git stash -u -- <paths>` instead of a bare `-u` sweep
 - All critical command files now committed to git so branch operations cannot clobber them; see [[entity-dev-command-suite]]
 
+## Recurrence (2026-08-07) and systemic fix
+
+The same failure class recurred: PR #48, built from a branch that **predated**
+this session's edits, was squash-merged into `main`; a later return to `main`
+then replaced on-disk files with `main`'s older versions — reverting the
+`0. Orient` command edits and dropping newly-created files. Root cause
+generalized: **`main` is not a safe place to stand while newer work is in
+flight.** Two systemic guards were added:
+
+1. **Global rule** `~/.claude/rules/stay-on-branch-after-merge.md` — never
+   `git checkout main` after a merge; stay on the branch or branch the next
+   change off `origin/main`; advance local `main` by ref only
+   (`git fetch origin main:main`). The git commands (`/pr`, `/bugmerge1`,
+   `/postbugmergerev`) were updated to follow it.
+2. **`checkout-guard` PreToolUse hook** (`~/.claude/scripts/checkout-guard.mjs`,
+   wired in `~/.claude/settings.json`) — on any `git checkout`/`switch` toward
+   `main`, it detects files newer in the working tree, **backs them up to /tmp**,
+   and warns, while allowing the checkout (warn-and-allow, never blocks a flow).
+
 ## Open items
 
 - [ ] Document which command files are critical in `.claude/commands/README.md` or a `.critical-files` marker

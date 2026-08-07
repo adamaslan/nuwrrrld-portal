@@ -46,9 +46,13 @@ so cost savings from Haiku don't quietly become quality debt on `main`.
 ### 1. Identify what /bugmerge1 merged
 
 ```bash
-git fetch origin main
-git checkout main
-git pull --ff-only origin main
+# Update local main WITHOUT checking it out — checking out main into a tree that
+# holds newer work can clobber it (see ~/.claude/rules/stay-on-branch-after-merge.md
+# and incident-2026-08-06). Fast-forward the ref only, then branch the review
+# work directly off origin/main. The checkout-guard PreToolUse hook will also
+# warn+back up if a `git checkout main` slips through.
+git fetch origin main:main        # fast-forward local main ref, no checkout
+git fetch origin main             # ensure origin/main is current
 
 # The PRs /bugmerge1 just squash-merged. Note: squash merges are NOT true merge
 # commits — git log --merges will not find them. Use the PR numbers directly:
@@ -87,7 +91,8 @@ on. Do not churn code just to leave a fingerprint.
 ### 3. Apply improvements on a fresh branch
 
 ```bash
-git checkout -b fix/postbugmerge-review-<short-desc>
+# Branch off origin/main directly — never off a checked-out local main.
+git checkout -b fix/postbugmerge-review-<short-desc> origin/main
 
 # Make the improvements (minimal, scoped to the merged fixes).
 

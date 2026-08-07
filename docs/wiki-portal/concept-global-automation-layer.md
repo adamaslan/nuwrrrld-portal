@@ -20,15 +20,21 @@ Two tiers, one discipline:
 
 | Tier | Location | Examples | Scope |
 |---|---|---|---|
-| **Global** | `~/.claude/` | `rules/*.md` (mobile-web-wiki-sync, artifact-and-local-html, context-bloat-warning, mamba), `scripts/wiki-guard.mjs` + `wiki-lint.mjs`, `PostToolUse` hooks, the `wiki` skill | every project |
+| **Global** | `~/.claude/` | `rules/*.md` (mobile-web-wiki-sync, stay-on-branch-after-merge, artifact-and-local-html, context-bloat-warning, mamba), `scripts/wiki-guard.mjs` + `wiki-lint.mjs` + `checkout-guard.mjs`, `PreToolUse` + `PostToolUse` hooks, the `wiki` skill | every project |
 | **Project** | `nuwrrrld-portal/.claude/` | the [[entity-dev-command-suite]] (`/pr`, `/bugmerge1`, `/friction`, `/suggest-commands`, …) | this repo |
 
 The global tier **enforces**; the project tier **executes**:
 
-- **Enforcement** — a global `PostToolUse` hook on `gh pr create`/`gh pr merge`
-  runs `wiki-guard.mjs`, which *verifies* (not reminds): uncommitted wiki files,
-  unpushed wiki commits, `wiki-lint` schema/link/secret violations, and cross-repo
-  parity-number disagreement. Always exits 0 — never breaks a PR flow.
+- **Enforcement (ingest)** — a global `PostToolUse` hook on `gh pr create`/`gh pr
+  merge` runs `wiki-guard.mjs`, which *verifies* (not reminds): uncommitted wiki
+  files, unpushed wiki commits, `wiki-lint` schema/link/secret violations, and
+  cross-repo parity-number disagreement. Always exits 0 — never breaks a PR flow.
+- **Enforcement (branch safety)** — a global `PreToolUse` hook on `git
+  checkout`/`switch` runs `checkout-guard.mjs`: when the switch targets `main`
+  while newer work sits in the tree, it backs the at-risk files up to `/tmp` and
+  warns, then allows the checkout. Pairs with the `stay-on-branch-after-merge`
+  rule to prevent the recurring file-loss failure
+  ([[incident-2026-08-06-bugmerge1-command-file-loss]]).
 - **Cross-surface invariant** — `mobile-web-wiki-sync.md` keeps the portal and
   mobile wikis mirror-consistent on the parity headline + matrix.
 - **Output conventions** — global rules like `artifact-and-local-html.md`
