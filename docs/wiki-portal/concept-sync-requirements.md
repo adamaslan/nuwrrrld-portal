@@ -39,8 +39,8 @@ subtree, or the `nuwrrrld-fullstack` skill's single-sourcing workflow).
 | `lib/shared/signal-policy.ts` | New (PR #40), portal-only. Pure ticker validation / cache-freshness / backoff — no mobile copy yet. **Promote to shared before mobile grows its own**, so it never drifts in the first place. |
 | `lib/shared/live-price.ts` | New (PR #40), portal-only. Pure live-price parse/validate. Share if mobile ever consumes `/api/signals/live`. |
 | `lib/shared/holdfold-map.ts` | New (PR #46), portal-only. Pure `/signals`→verdict mapper. **Not a drop-in share** — mobile's `clients/holdfold.ts` targets a different backend (`EXPO_PUBLIC_HOLDFOLD_BACKEND_URL`) with a different verdict schema entirely (`symbol`/`risk_level`/`volatility_regime`/`atr` vs. this module's `ticker`/`confidenceLabel`/`bias`/`adx`). De-drifting this one requires a backend-unification decision first, not just a port. |
-| `lib/digest.ts` | Resolve the `adaptLiveSignals` error-handling split (throw vs. null) and field mappings flagged in mobile `overview.md` #6. Pick one adapter; move it to `lib/shared/`. |
-| `lib/signalCard.ts` | Reconcile card-shape derivation so a signal renders identically. Move to `lib/shared/`. |
+| ~~`lib/digest.ts`~~ | **Logic done — mobile PR #30 + portal PR #51 (2026-08-07).** Fixed a real ticker-precedence bug (portal's code contradicted its own comment) and ported `dataQualityScore` to mobile; both copies confirmed byte-identical. Still open: physically moving the file into `lib/shared/` (currently reconciled in place at `lib/digest.ts` in both repos) — a bigger, lower-priority restructuring with broad import fallout, not required for parity. |
+| ~~`lib/signalCard.ts`~~ | **Logic done — same PRs.** Portal adopted mobile's `encodeURIComponent(signal.id)`; mobile adopted portal's `_baseAppUrl` unused-param convention. Move to `lib/shared/` still open, same as `digest.ts`. |
 | `lib/nuai.ts` | Reconcile chat contract (token budget, refusal guardrails, prompt-chip grounding). Portal drives `/api/nuai`; ensure the request/response types match mobile's `useNuAI`. |
 
 **Definition of done:** each file exists once in `lib/shared/`, is byte-identical
@@ -98,9 +98,9 @@ parity" is undefined and should not be counted for or against the sync %.
 ## Priority order (highest ROI first)
 
 1. ~~`lib/subscription.ts` de-drift~~ — **done, mobile PR #29 (2026-08-07)**.
-2. `lib/shared/prefs.ts` + `signalFilters.ts` de-drift — already in `shared/`, low effort, high symbolic value. **Next up** in the `/sync-pr` batch (`docs/sync-pr-large-scale-run.md`).
-3. `digest.ts` + `signalCard.ts` de-drift — resolves a standing cross-wiki open issue (mobile #6).
-4. Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.
+2. ~~`lib/shared/prefs.ts` + `signalFilters.ts` de-drift~~ — **done, portal PR #50 (2026-08-07)**.
+3. ~~`digest.ts` + `signalCard.ts` de-drift~~ — **done, mobile PR #30 + portal PR #51 (2026-08-07)**. Resolved standing cross-wiki open issue (mobile #6).
+4. Add a drift-detection CI gate so `lib/shared/` can't silently diverge again. **Next up** in the `/sync-pr` batch.
 5. Record the AI Council convergence decision.
 6. Port observability (analytics/Sentry) to portal; port backtest to mobile (or decide against).
 

@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-07 (mobile PR #29 + portal PR #50 — subscription.ts/signalFilters.ts/prefs.ts de-drift batch; parity headline ~60%→~62%)_
+_Last updated: 2026-08-07 (mobile PR #30 + portal PR #51 — digest.ts/signalCard.ts de-drift, resolves open-issue #6; parity headline ~60%→~64%)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -51,7 +51,7 @@ Cross-cutting patterns and design choices.
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
-- [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~62%, 2026-08-07 after mobile PR #29 + portal PR #50) + full parity matrix
+- [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~64%, 2026-08-07 after mobile PR #30 + portal PR #51) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
