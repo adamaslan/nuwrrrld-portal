@@ -4,6 +4,15 @@ Branches the current changes, scans for secrets, commits, pushes, and opens a PR
 against `main` for **this repo only** (`adamaslan/nuwrrrld-portal`). For a change
 that also touches the mobile app, use `/sync-pr` instead.
 
+## 0. Orient (wiki-led dev — before you change or commit)
+
+Read `docs/wiki-portal/START-HERE.md` and let it route you to the entity/concept
+pages for the files this change touches. Opening a PR here fires the wiki-guard
+hook on `gh pr create`, which expects the wiki reconciled — so orient first, and
+plan to **ingest** the change per `docs/wiki-portal/SCHEMA.md` "On PR Creation"
+(update affected pages, `index.md`, append a `log.md` line) before finishing.
+See [[concept-wiki-led-development]] for the full loop.
+
 ## Security Checklist — scan BEFORE committing
 
 Never commit:
@@ -38,8 +47,11 @@ git status --porcelain | grep -E '\.env($|\.local|\.production)' && {
 # 4. Verify the build (Next.js 16 — expect "ƒ Proxy (Middleware)")
 npm run build
 
-# 5. Branch (descriptive; same name as the mobile branch if this is a pair)
-git checkout -b <feat/scope-description>
+# 5. Branch (descriptive; same name as the mobile branch if this is a pair).
+#    Branch off origin/main — never off a checked-out local main, which can
+#    clobber newer work (~/.claude/rules/stay-on-branch-after-merge.md).
+git fetch origin main
+git checkout -b <feat/scope-description> origin/main
 
 # 6. Stage ONLY specific safe files (never blind `git add -A`)
 git add <specific files>
@@ -74,3 +86,11 @@ Brief description of changes.
 Analyze the actual changes: scan for secrets, build, generate a branch name (match
 the mobile branch if part of a pair), stage only safe files, write a clear message,
 attest security in the PR body.
+
+## After the PR merges — stay on the branch
+
+Do **not** `git checkout main` after merging. Staying on the current branch (or
+branching the next change off `origin/main`) keeps the newest work on disk; a
+checkout of local `main` can silently replace it with an older squash-merged
+version — see `~/.claude/rules/stay-on-branch-after-merge.md`. To advance local
+`main`, fast-forward the ref without checking it out: `git fetch origin main:main`.

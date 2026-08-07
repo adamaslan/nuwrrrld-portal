@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-06 (added [[START-HERE]] orientation entry point + [[concept-wiki-led-development]]; catalogued the bugmerge1 incident; reconciled parity headline to ~60%)_
+_Last updated: 2026-08-07 (mobile PR #29 + portal PR #50 — subscription.ts/signalFilters.ts/prefs.ts de-drift batch; parity headline ~60%→~62%)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -39,6 +39,9 @@ One page per named component. These are the hubs — everything links to entitie
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
 
+**Dev tooling / automation**
+- [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`
+
 ---
 
 ## Concepts
@@ -48,12 +51,14 @@ Cross-cutting patterns and design choices.
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
-- [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~60%, 2026-07-30 after PR #46) + full parity matrix
+- [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~62%, 2026-08-07 after mobile PR #29 + portal PR #50) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
+- [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation
+- [[concept-global-automation-layer]] — the `~/.claude/` global tier (rules, hooks, wiki-guard) above the project command suite
 
 ---
 

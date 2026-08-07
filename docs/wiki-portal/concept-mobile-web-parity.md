@@ -61,6 +61,10 @@ agree in intent but not in code.
 
 > ℹ️ **PR #48 (2026-08-06) assessed — CI/lint infra only (env-schema validator, CI test job, eslint flat-config fix). No feature-domain or single-source code changes. Headline unchanged at ~60%.**
 
+> ✅ **Mobile PR #29 (2026-08-07) assessed — de-drifts `lib/subscription.ts`, first item of the [[concept-sync-requirements]] §1 priority list.** Ports `parseSubscriptionMetadata()` verbatim from the portal copy into mobile's `lib/subscription.ts`, closing the drift introduced by PR #45. Confirmed byte-identical by diff post-port. Single-surface fix (mobile-only PR, no portal change needed — portal already had this code). No feature-domain change; single-source parity nudges back up.
+
+> ✅ **Portal PR #50 (2026-08-07) assessed — de-drifts `lib/shared/signalFilters.ts` and confirms `lib/shared/prefs.ts`, item #2 of the [[concept-sync-requirements]] §1 list.** `signalFilters.ts` had drifted by quote style only (double vs single); standardized on mobile's single-quote convention, leaving only the necessary import-path seam (mobile's `@/` alias is unconfigured — a separate, pre-existing bug documented in `docs/findings-neon-and-stray-files.html`, not sync-batch scope). `prefs.ts` was assessed and confirmed to differ *only* on the intended localStorage/SecureStore storage-backend seam — reclassified from 🟡 Partial to ✅ Aligned rather than edited, since forcing byte-identity there would break the platform split by design. Single-surface fix (portal-only PR — mobile's copy needed no change).
+
 > ⚠️ **PR #46 (2026-07-30) assessed — new portal-only `lib/shared/` module, same
 > pattern as PR #40.** Fixed `/api/brief`: it was calling a nonexistent
 > `/holdfold` endpoint (always 404→null) and fetching `/market-overview`
@@ -88,7 +92,7 @@ agree in intent but not in code.
 > that may be closer to intentional than a bug (see
 > [[concept-sync-requirements]] §2).
 
-## Headline: ~60% synced (2026-07-30, after PR #46)
+## Headline: ~62% synced (2026-08-07, after portal PR #50)
 
 Two different denominators, deliberately kept separate:
 
@@ -96,31 +100,33 @@ Two different denominators, deliberately kept separate:
   work on both surfaces; only the AI Council is architecturally divergent, and
   two domains (Signals/Digest, Nu AI) have drifted implementations. Unchanged by
   PR #40 (which added depth, not a new shared domain).
-- **Single-source (code-identical) parity ≈ 36%** (was ~37%) — PR #40 added a
-  whole portal-only real-time signal tier (`signal-queue`, `signal-policy`,
-  `signal-cache` read-through, `live-price` + `live-price-db`, `/api/signals/drain`
-  + `/live`) with **no mobile counterpart**. Two of those new modules
-  (`lib/shared/signal-policy.ts`, `lib/shared/live-price.ts`) even sit in the
-  supposedly-shared `lib/shared/` folder yet are portal-only — new share-debt.
-  PR #45 shaved a further point off: `lib/subscription.ts`, previously one of
-  only four truly identical modules, now carries a portal-only
-  `parseSubscriptionMetadata()`. PR #46 adds a fourth portal-only file to
-  `lib/shared/` (`holdfold-map.ts`) — same share-debt pattern, not portable
-  as-is since mobile's Hold/Fold client targets a different backend with an
-  incompatible verdict shape.
+- **Single-source (code-identical) parity ≈ 39%** (was ~37%) — mobile PR #29
+  ported `parseSubscriptionMetadata()` into mobile's `lib/subscription.ts`,
+  restoring that module to byte-identical. Portal PR #50 reconciled
+  `signalFilters.ts`'s quote-style drift and confirmed `prefs.ts`'s remaining
+  difference is an intentional storage-backend seam, not drift — both now
+  count as synced. Still owed: PR #40 added a whole portal-only real-time
+  signal tier (`signal-queue`, `signal-policy`, `signal-cache` read-through,
+  `live-price` + `live-price-db`, `/api/signals/drain` + `/live`) with **no
+  mobile counterpart**. Two of those modules (`lib/shared/signal-policy.ts`,
+  `lib/shared/live-price.ts`) even sit in the supposedly-shared `lib/shared/`
+  folder yet are portal-only — new share-debt. PR #46 adds a fourth
+  portal-only file to `lib/shared/` (`holdfold-map.ts`) — same share-debt
+  pattern, not portable as-is since mobile's Hold/Fold client targets a
+  different backend with an incompatible verdict shape.
 
-The blended **~60%** (down from ~61%) reflects the portal continuing to pull
-ahead on the signal/Hold-Fold data plane while `lib/shared/` keeps
-accumulating portal-only files — the product still *looks* synced to a user,
-but the code gap widens with each PR that adds to `lib/shared/` without a
-mobile counterpart. The risk lives in the gap between those two numbers.
+The blended **~62%** (up from ~61%) reflects the first two completed items of
+the `/sync-pr` de-drift batch (see `docs/sync-pr-large-scale-run.md`) —
+`digest.ts`/`signalCard.ts` is next in that batch's queue. The portal still
+pulls ahead on the signal/Hold-Fold data plane independent of this batch; the
+risk lives in the gap between the two denominators.
 
 ## Domain parity matrix
 
 | Domain | Mobile | Portal | Shared module | Status |
 |--------|--------|--------|---------------|--------|
 | **Auth (Clerk)** | `@clerk/clerk-expo` | `@clerk/nextjs` | — (SDK differs by design) | ✅ Aligned — same provider + entitlement key |
-| **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **diverged (PR #45)** — mobile lacks `parseSubscriptionMetadata()` | 🟡 Partial — was ✅ Synced until PR #45 |
+| **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **byte-identical (mobile PR #29)** | ✅ Synced — re-synced after PR #45 drift |
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
 | **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
@@ -130,8 +136,8 @@ mobile counterpart. The risk lives in the gap between those two numbers.
 | **Nu AI chat** | `nuai.ts`, `NuAIScreen`, `useNuAI` | `nuai.ts`, `/api/nuai`, `dashboard/nuai` | `nuai.ts` **diverged** | 🟡 Partial |
 | **Hold/Fold** | `clients/holdfold.ts`, `HoldFoldScreen` — different backend, incompatible verdict shape | `/api/holdfold`, `dashboard/holdfold`, `holdfold-cache`, `/api/brief` (PR #46) | `lib/shared/holdfold-map.ts` in `lib/shared/` but portal-only (PR #46) | 🟡 Partial — portal has cache + shared mapper ([[entity-holdfold-cache]]) |
 | **Daily Brief / Market Briefing** | `BriefingScreen` — live council prompt from `getMarketOverview()` + `getMacroPulse()` + `getSignals()` | `/api/brief` — one-shot LLM completion grounded on scoped market data + Hold/Fold verdicts (PR #46) | none | 🔴 Divergent — different data (mobile: full sections + macro; portal: brief-only + verdicts), different output shape (council prose vs. 4-sentence structured brief) |
-| **Shared prefs** | `shared/prefs.ts` | `shared/prefs.ts` | **diverged** | 🟡 Partial |
-| **Shared signal filters** | `shared/signalFilters.ts` | `shared/signalFilters.ts` | **diverged** | 🟡 Partial |
+| **Shared prefs** | `shared/prefs.ts` (SecureStore) | `shared/prefs.ts` (localStorage) | **byte-identical except the storage-backend seam** (confirmed, PR #50 assessment) | ✅ Aligned — same seam class as Auth SDK |
+| **Shared signal filters** | `shared/signalFilters.ts` | `shared/signalFilters.ts` (PR #50) | **byte-identical except the import-path seam** (mobile's `@/` alias is unconfigured — separate bug, see `docs/findings-neon-and-stray-files.html`) | ✅ Synced — was 🟡 Partial (quote-style drift), reconciled by portal PR #50 |
 | **Feedback** | `feedback.ts` | `/api/feedback`, `lib/feedback` | none | 🟡 Present both, unshared |
 | **Push** | `pushNotifications.ts` | `/api/push` | none | 🟡 Present both, unshared |
 | **Referral / share** | `shareSheet.ts` | `/api/referral`, `dashboard/share` | none | 🟡 Present both, unshared |

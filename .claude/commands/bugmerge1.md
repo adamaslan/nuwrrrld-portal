@@ -4,7 +4,8 @@ Sweeps the **open PRs** for `adamaslan/nuwrrrld-portal`, reads their review
 comments, fixes the bugs those comments call out, then merges each PR in an
 order and manner that avoids merge conflicts. Use this before opening a *new*
 PR whose changes might collide with work already in flight — clear the queue
-first, then branch off a fresh `main`.
+first, then branch the next change off `origin/main` (not a checked-out local
+`main` — see `~/.claude/rules/stay-on-branch-after-merge.md`).
 
 Web portal only. For a change that also touches the mobile app, coordinate via
 `/sync-pr` after the queue is clear.
@@ -57,6 +58,13 @@ Web portal only. For a change that also touches the mobile app, coordinate via
   `git stash -u` when you must stash untracked changes mid-workflow — a bare
   `-u` sweeps every untracked file in the tree, including unrelated command
   definitions.
+- **Don't return to `main` after a merge.** After each `gh pr merge`, stay on
+  the current branch or branch the next PR off `origin/main` — never
+  `git checkout main` into a tree with newer work, which can clobber it with an
+  older squash-merged version. To advance local `main`, fast-forward the ref
+  only: `git fetch origin main:main`. (Global rule:
+  `~/.claude/rules/stay-on-branch-after-merge.md`; a `checkout-guard` PreToolUse
+  hook also warns + backs up if a risky checkout slips through.)
 
 ## Execute
 

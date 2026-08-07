@@ -33,7 +33,7 @@ subtree, or the `nuwrrrld-fullstack` skill's single-sourcing workflow).
 
 | Module | What's needed |
 |--------|---------------|
-| `lib/subscription.ts` | New (PR #45), portal-only. Was byte-identical with mobile until this PR added `parseSubscriptionMetadata()` (validates `publicMetadata.subscription_status` against the known enum, degrades to `free` on malformed data) to the portal copy only. Lowest-effort de-drift on this whole list — port the same function verbatim to mobile's `lib/subscription.ts` to restore identical status. See [[entity-billing]] and [[incident-2026-07-27-stripe-checkout-invalid-header]]. |
+| ~~`lib/subscription.ts`~~ | **Done — mobile PR #29 (2026-08-07), gcp-expo1.** Mobile ported `parseSubscriptionMetadata()` verbatim; both copies confirmed byte-identical. Single-surface fix (mobile-only PR — portal needed no change). See [[entity-billing]] and [[incident-2026-07-27-stripe-checkout-invalid-header]]. |
 | `lib/shared/prefs.ts` | Diff the two copies; reconcile to one. Already lives in `shared/` on both sides, so it should be the *easiest* to fix and is the most embarrassing to leave drifted. |
 | `lib/shared/signalFilters.ts` | Same — reconcile filter predicates so a "watchlist"/"muted" filter means the same thing on both surfaces. |
 | `lib/shared/signal-policy.ts` | New (PR #40), portal-only. Pure ticker validation / cache-freshness / backoff — no mobile copy yet. **Promote to shared before mobile grows its own**, so it never drifts in the first place. |
@@ -97,8 +97,8 @@ parity" is undefined and should not be counted for or against the sync %.
 
 ## Priority order (highest ROI first)
 
-1. `lib/subscription.ts` de-drift — port `parseSubscriptionMetadata()` to mobile; one function, restores a previously-solved module to identical (PR #45 regression).
-2. `lib/shared/prefs.ts` + `signalFilters.ts` de-drift — already in `shared/`, low effort, high symbolic value.
+1. ~~`lib/subscription.ts` de-drift~~ — **done, mobile PR #29 (2026-08-07)**.
+2. `lib/shared/prefs.ts` + `signalFilters.ts` de-drift — already in `shared/`, low effort, high symbolic value. **Next up** in the `/sync-pr` batch (`docs/sync-pr-large-scale-run.md`).
 3. `digest.ts` + `signalCard.ts` de-drift — resolves a standing cross-wiki open issue (mobile #6).
 4. Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.
 5. Record the AI Council convergence decision.
