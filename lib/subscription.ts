@@ -134,11 +134,16 @@ export function parseSubscriptionMetadata(
 
   const rawTrialEnd = raw?.trial_end;
   const trialEndSeconds = typeof rawTrialEnd === 'number' ? rawTrialEnd : undefined;
+  // Distinguish "no trial_end" from a valid (if unlikely) zero timestamp, and
+  // guard against NaN/out-of-range values — Date#toISOString throws on an
+  // invalid Date rather than returning a sentinel.
+  const trialEndDate = trialEndSeconds !== undefined ? new Date(trialEndSeconds * 1000) : undefined;
+  const trialEnd = trialEndDate && !Number.isNaN(trialEndDate.getTime()) ? trialEndDate.toISOString() : undefined;
 
   return {
     status,
     tier: tierFromStatus(status),
-    trialEnd: trialEndSeconds ? new Date(trialEndSeconds * 1000).toISOString() : undefined,
+    trialEnd,
     isLoading: false,
   };
 }
