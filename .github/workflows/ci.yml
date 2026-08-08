@@ -30,3 +30,30 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  shared-drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout web (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: nuwrrrld-portal
+          persist-credentials: false
+
+      - name: Checkout mobile
+        uses: actions/checkout@v4
+        with:
+          repository: adamaslan/gcp-expo1
+          path: gcp3-mobile
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check shared-core drift
+        working-directory: nuwrrrld-portal
+        env:
+          WEB_ROOT: .
+          MOBILE_ROOT: ../gcp3-mobile
+        run: node scripts/check-shared-drift.mjs
