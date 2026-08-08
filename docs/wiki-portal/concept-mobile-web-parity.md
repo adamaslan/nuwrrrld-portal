@@ -108,6 +108,8 @@ agree in intent but not in code.
 > watchlist was showing "health score unavailable" instead of "add tickers to
 > get scored").
 
+> ℹ️ **Mobile PR #32 (2026-08-08) assessed — tsc baseline fix only. No feature-domain or shared-code changes. Headline unchanged at ~64%.** Resolved all 38 pre-existing `npx tsc --noEmit` errors on the mobile repo's baseline: missing `@/*` path alias, `@vercel/node` types on `api/*.ts`, missing `expo-notifications`/`svix` dependencies, deleted three dead components, plus type-safety fixes in `lib/api.ts` and `lib/auth-provider.tsx`. None of the touched files live in `lib/shared/`; same infra-only class as portal PR #48.
+
 ## Headline: ~64% synced (2026-08-08, after mobile PR #30 + portal PR #51; drift-gate CI added in mobile PR #31 + portal PR #52)
 
 Two different denominators, deliberately kept separate:
