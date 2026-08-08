@@ -108,7 +108,7 @@ agree in intent but not in code.
 > watchlist was showing "health score unavailable" instead of "add tickers to
 > get scored").
 
-> ℹ️ **Mobile PR #32 (2026-08-08) assessed — tsc baseline fix only. No feature-domain or shared-code changes. Headline unchanged at ~64%.** Resolved all 38 pre-existing `npx tsc --noEmit` errors on the mobile repo's baseline: missing `@/*` path alias, `@vercel/node` types on `api/*.ts`, missing `expo-notifications`/`svix` dependencies, deleted three dead components, plus type-safety fixes in `lib/api.ts` and `lib/auth-provider.tsx`. None of the touched files live in `lib/shared/`; same infra-only class as portal PR #48.
+> ℹ️ **Mobile PR #32 (2026-08-08) assessed — tsc baseline fix, one bundled shared-drift fix. Headline unchanged at ~64%.** Resolved all 38 pre-existing `npx tsc --noEmit` errors on the mobile repo's baseline: missing `@/*` path alias, `@vercel/node` types on `api/*.ts`, missing `expo-notifications`/`svix` dependencies, deleted three dead components, plus type-safety fixes in `lib/api.ts` and `lib/auth-provider.tsx` — same infra-only class as portal PR #48. Also ported this repo's `lib/digest.ts` fix from PR #52's CodeRabbit review (`symbolKey || entry.symbol` never fell back for whitespace-only keys since `symbolKey` is always truthy) to keep the two copies byte-identical; `scripts/check-shared-drift.mjs` confirms they still match. Not a parity-percentage move.
 
 ## Headline: ~64% synced (2026-08-08, after mobile PR #30 + portal PR #51; drift-gate CI added in mobile PR #31 + portal PR #52)
 
