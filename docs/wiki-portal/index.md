@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-07 (mobile PR #30 + portal PR #51 — digest.ts/signalCard.ts de-drift, resolves open-issue #6; parity headline ~60%→~64%)_
+_Last updated: 2026-08-07 (mobile PR #30 + portal PR #51 — digest.ts/signalCard.ts de-drift, resolves open-issue #6; parity headline ~62%→~64%)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 

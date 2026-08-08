@@ -16,7 +16,7 @@ const PAIRS = [
   { path: "lib/digest.ts", normalize: null },
   { path: "lib/signalCard.ts", normalize: null },
   { path: "lib/subscription.ts", normalize: null },
-  { path: "lib/shared/signalFilters.ts", normalize: stripCommentsAndImports },
+  { path: "lib/shared/signalFilters.ts", normalize: stripCommentsAndNormalizeImportSpecifiers },
   { path: "lib/shared/prefs.ts", normalize: normalizePrefsSeam },
 ];
 
@@ -24,19 +24,27 @@ function read(root, path) {
   return readFileSync(join(root, path), "utf8");
 }
 
-function stripCommentsAndImports(src) {
+function stripComments(src) {
   return src
     .split("\n")
-    .filter((line) => !/^\s*(\/\*|\*|\/\/|import\s)/.test(line))
+    .filter((line) => !/^\s*(\/\*|\*|\/\/)/.test(line))
     .join("\n")
     .trim();
+}
+
+// signalFilters.ts's only documented seam is the `@/lib/digest` (web) vs.
+// `../digest` (mobile) import-path alias — normalize just the module
+// specifier so a changed binding or a new import still trips the gate.
+function stripCommentsAndNormalizeImportSpecifiers(src) {
+  return stripComments(src).replace(/from\s+["'][^"']+["']/g, 'from "SPECIFIER"');
 }
 
 // prefs.ts intentionally differs on the localStorage (web) vs.
 // expo-secure-store (mobile) storage seam — normalize both sides to a
 // placeholder before comparing so only unexpected drift trips the gate.
 function normalizePrefsSeam(src) {
-  return stripCommentsAndImports(src)
+  return stripComments(src)
+    .replace(/^\s*import \* as SecureStore from ["']expo-secure-store["'];\s*\n/m, "")
     .replace(/[ \t]*if \(typeof window === "undefined"\) return null;\n/g, "")
     .replace(/[ \t]*if \(typeof window === "undefined"\) return;\n/g, "")
     .replace(/return window\.localStorage\.getItem\(key\);/g, "return STORAGE_GET;")

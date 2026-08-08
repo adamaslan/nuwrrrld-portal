@@ -91,7 +91,8 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
     .map(([symbolKey, s], i) => {
       const entry = s as Record<string, unknown>;
       // symbolKey is the authoritative ticker; fall back to inner field only if key is empty
-      const ticker = String(symbolKey || entry.symbol || '').trim().toUpperCase();
+      const normalizedSymbolKey = symbolKey.trim();
+      const ticker = (normalizedSymbolKey || String(entry.symbol ?? '').trim()).toUpperCase();
       const action = String(entry.ai_action ?? '').toUpperCase();
       const direction: SignalDirection =
         action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'neutral';
