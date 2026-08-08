@@ -403,5 +403,6 @@ anything fixed.
 ## [2026-08-07] ingest | mobile PR #29 (gcp-expo1) fix(subscription): port parseSubscriptionMetadata() — single-surface de-drift, headline ~60%→~61% | pages touched: 3
 ## [2026-08-07] ingest | portal PR #50 fix(shared): reconcile signalFilters.ts/prefs.ts with mobile — single-surface de-drift, headline ~61%→~62% | pages touched: 4
 ## [2026-08-07] ingest | mobile PR #30 + portal PR #51 fix(shared): reconcile digest.ts/signalCard.ts — dual-surface de-drift + ticker-precedence bugfix, resolves open-issue #6, headline ~62%→~64% | pages touched: 4
-## [2026-08-08] ingest | mobile PR #31 + portal PR #52 feat(ci): shared-core drift-detection gate — closes /sync-pr batch item #4, headline unchanged ~64% (tooling, not de-drift) | pages touched: 3
-## [2026-08-08] ingest | mobile PR #32 fix(mobile): resolve all 38 tsc --noEmit errors on baseline (gcp-expo1) — infra-only, no shared-code touched, headline unchanged ~64% | pages touched: 1
+## [2026-08-08] ingest | portal PR #52 feat(ci): shared-core drift-detection gate (portal side) — closes /sync-pr batch item #4, headline unchanged ~64% (tooling, not de-drift); also fixes digest.ts whitespace-ticker bug + drift-script import-stripping gap from CodeRabbit review | pages touched: 3
+## [2026-08-08] ingest | mobile PR #32 fix(mobile): resolve all 38 tsc --noEmit errors on baseline (gcp-expo1) + adopt lib/shared/signal-policy.ts + live-price.ts — headline ~64%→~66% (single-source ~41%→~44%) | pages touched: 1
+## [2026-08-08] ingest | mobile PR #33 feat(ci): shared-core drift-detection gate (mobile side) — supersedes stale mobile PR #31 (closed, content already on main via other PRs), also fixes usePortfolio 204 empty-watchlist bug, headline unchanged ~66% | pages touched: 3

@@ -34,10 +34,10 @@ subtree, or the `nuwrrrld-fullstack` skill's single-sourcing workflow).
 | Module | What's needed |
 |--------|---------------|
 | ~~`lib/subscription.ts`~~ | **Done — mobile PR #29 (2026-08-07), gcp-expo1.** Mobile ported `parseSubscriptionMetadata()` verbatim; both copies confirmed byte-identical. Single-surface fix (mobile-only PR — portal needed no change). See [[entity-billing]] and [[incident-2026-07-27-stripe-checkout-invalid-header]]. |
-| `lib/shared/prefs.ts` | Diff the two copies; reconcile to one. Already lives in `shared/` on both sides, so it should be the *easiest* to fix and is the most embarrassing to leave drifted. |
-| `lib/shared/signalFilters.ts` | Same — reconcile filter predicates so a "watchlist"/"muted" filter means the same thing on both surfaces. |
-| `lib/shared/signal-policy.ts` | New (PR #40), portal-only. Pure ticker validation / cache-freshness / backoff — no mobile copy yet. **Promote to shared before mobile grows its own**, so it never drifts in the first place. |
-| `lib/shared/live-price.ts` | New (PR #40), portal-only. Pure live-price parse/validate. Share if mobile ever consumes `/api/signals/live`. |
+| ~~`lib/shared/prefs.ts`~~ | **Done — portal PR #50 (2026-08-07).** Confirmed to differ only on the intended localStorage/SecureStore storage-backend seam; reclassified ✅ Aligned rather than edited. |
+| ~~`lib/shared/signalFilters.ts`~~ | **Done — portal PR #50 (2026-08-07).** Quote-style drift reconciled to mobile's single-quote convention; only the `@/lib/digest` vs `../digest` import-path seam remains, tracked by the drift gate. |
+| ~~`lib/shared/signal-policy.ts`~~ | **Done — mobile PR #32 (2026-08-08).** Adopted verbatim (pure ticker validation / cache-freshness / backoff) before mobile grew its own copy. Byte-identical, tracked by the drift gate. Mobile doesn't consume it in a feature yet — see §2's Signal cache/queue row. |
+| ~~`lib/shared/live-price.ts`~~ | **Done — mobile PR #32 (2026-08-08).** Adopted verbatim (pure live-price row/batch parsing). Byte-identical, tracked by the drift gate. Mobile doesn't call `/api/signals/live` yet — see §2's Real-time price tier row. |
 | `lib/shared/holdfold-map.ts` | New (PR #46), portal-only. Pure `/signals`→verdict mapper. **Not a drop-in share** — mobile's `clients/holdfold.ts` targets a different backend (`EXPO_PUBLIC_HOLDFOLD_BACKEND_URL`) with a different verdict schema entirely (`symbol`/`risk_level`/`volatility_regime`/`atr` vs. this module's `ticker`/`confidenceLabel`/`bias`/`adx`). De-drifting this one requires a backend-unification decision first, not just a port. |
 | ~~`lib/digest.ts`~~ | **Logic done — mobile PR #30 + portal PR #51 (2026-08-07).** Fixed a real ticker-precedence bug (portal's code contradicted its own comment) and ported `dataQualityScore` to mobile; both copies confirmed byte-identical. Still open: physically moving the file into `lib/shared/` (currently reconciled in place at `lib/digest.ts` in both repos) — a bigger, lower-priority restructuring with broad import fallout, not required for parity. |
 | ~~`lib/signalCard.ts`~~ | **Logic done — same PRs.** Portal adopted mobile's `encodeURIComponent(signal.id)`; mobile adopted portal's `_baseAppUrl` unused-param convention. Move to `lib/shared/` still open, same as `digest.ts`. |
@@ -63,8 +63,8 @@ gate).
 | **Backtest** ([[entity-backtest-engine]]) | A mobile screen + a `clients/` call hitting `/api/backtest/[symbol]`. Or a decision that backtest stays web-only (heavier UI, desktop-first). |
 | **Watchlist store** (`watchlist-store.ts`) | Confirm mobile's `usePortfolio` watchlist and portal's `watchlist-store.ts` agree on shape and persistence; ideally share the store logic. Note: portal's watchlist-add now **enqueues a signal refresh** (PR #40) — mobile's does not. |
 | **Hold/Fold cache** ([[entity-holdfold-cache]]) | Decide whether mobile should read the same cached verdicts or keep calling the backend live. Today portal caches; mobile does not. |
-| **Signal cache/queue + drain** ([[decision-pending-signals-queue]]) | New in PR #40: `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain`. `signal-policy.ts` (ticker validation, cache-freshness, backoff) is a **prime de-drift candidate to promote to shared** — mobile has the same needs. |
-| **Real-time price tier** ([[entity-live-price-tier]]) | New in PR #40: Finnhub WS → `/api/signals/live` → `live_prices`. Mobile needs either to read `GET /api/signals/live` or a decision that live quotes stay web-only. `lib/shared/live-price.ts` parsing is reusable as-is. |
+| **Signal cache/queue + drain** ([[decision-pending-signals-queue]]) | New in PR #40: `signal-queue.ts`, `signal_cache`, `/api/signals/drain`. `signal-policy.ts` (ticker validation, cache-freshness, backoff) is now shared (mobile PR #32) — mobile has the pure logic but not the queue/cache feature built on top of it. |
+| **Real-time price tier** ([[entity-live-price-tier]]) | New in PR #40: Finnhub WS → `/api/signals/live` → `live_prices`. `lib/shared/live-price.ts` parsing is now shared (mobile PR #32) — mobile still needs either to read `GET /api/signals/live` or a decision that live quotes stay web-only. |
 | **Public council demo + share cards** | New in PR #43: `/api/council/public` (no-login, ticker-only, 1/day/IP), `/api/og/verdict/[ticker]`, `/verdict/[ticker]`. Portal-only by nature (a growth/marketing surface, not core product), but if mobile ever wants an app-store-listing teaser or a deep-link share flow, this is the pattern to copy — same fail-closed-quota / server-built-prompt safety rules should apply. |
 | **Daily Brief** (`/api/brief`, PR #46) | Grounded, structured (market overview + Hold/Fold verdicts), 4-sentence one-shot completion — cheap and fast (~0.5–1.3s to gather data) compared to mobile's `BriefingScreen`, which composes a full long-term council prompt from three unscoped fetches. If mobile wants this lighter-weight brief format, it needs its own Hold/Fold data source normalized to this shape first (see §1's `holdfold-map.ts` row) — not a simple port. |
 
@@ -108,9 +108,10 @@ parity" is undefined and should not be counted for or against the sync %.
 1. ~~`lib/subscription.ts` de-drift~~ — **done, mobile PR #29 (2026-08-07)**.
 2. ~~`lib/shared/prefs.ts` + `signalFilters.ts` de-drift~~ — **done, portal PR #50 (2026-08-07)**.
 3. ~~`digest.ts` + `signalCard.ts` de-drift~~ — **done, mobile PR #30 + portal PR #51 (2026-08-07)**. Resolved standing cross-wiki open issue (mobile #6).
-4. ~~Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.~~ — **done, mobile PR #31 + portal PR #52 (2026-08-08). `/sync-pr` batch closed out.**
-5. Record the AI Council convergence decision.
-6. Port observability (analytics/Sentry) to portal; port backtest to mobile (or decide against).
+4. ~~Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.~~ — **done, mobile PR #33 + portal PR #52 (2026-08-08).** (An earlier mobile PR #31 attempting this went stale — its content had landed on `main` via other PRs by the time it was reviewed — and was closed in favor of #33, rebased clean.) Original `/sync-pr` batch closed out.
+5. ~~Adopt `lib/shared/signal-policy.ts` + `live-price.ts` before mobile reimplements them.~~ — **done, mobile PR #32 (2026-08-08).** Byte-identical, tracked by the drift gate. Neither is consumed by a mobile feature yet — that's still #6/#7 below.
+6. Record the AI Council convergence decision.
+7. Port observability (analytics/Sentry) to portal; port backtest to mobile (or decide against). Wire mobile up to consume `signal-policy.ts`/`live-price.ts` if the real-time signal tier is ever ported.
 
 ## Where it appears
 
@@ -119,8 +120,8 @@ This page is the actionable half of the parity pair — where
 lands in:
 
 - `lib/shared/` in both repos — the target destination for every §1 de-drift
-  item, and the folder whose portal-only files (`signal-policy.ts`,
-  `live-price.ts`, `holdfold-map.ts`) generate most of the current gap.
+  item. `holdfold-map.ts` remains the one portal-only file generating share-debt;
+  `signal-policy.ts` and `live-price.ts` were adopted by mobile PR #32.
 - `lib/subscription.ts`, `lib/digest.ts`, `lib/signalCard.ts`, `lib/nuai.ts` —
   the duplicated-by-filename modules §1 tracks.
 - The `nuwrrrld-fullstack` skill — the intended mechanism for single-sourcing
@@ -130,12 +131,13 @@ lands in:
 
 ## Contradictions / tensions
 
-> ✅ Resolved for the six §1 files with a mobile PR #31 + portal PR #52
+> ✅ Resolved for the eight §1 files with a mobile PR #33 + portal PR #52
 > (2026-08-08) CI gate — not a shared package, but "manually kept in sync" no
-> longer means "silently," since a CI job now fails the build on drift. The
-> other `lib/shared/` files (`signal-policy.ts`, `live-price.ts`,
-> `holdfold-map.ts`) are still portal-only and outside the gate's file list —
-> a real npm-workspace/git-subtree mechanism remains open if that set grows.
+> longer means "silently," since a CI job now fails the build on drift (running
+> on both repos as of PR #33). `signal-policy.ts` + `live-price.ts` joined the
+> gate's file list once mobile PR #32 adopted them. `holdfold-map.ts` is the
+> one `lib/shared/` file still portal-only and outside the gate — a real
+> npm-workspace/git-subtree mechanism remains open if that set grows further.
 
 ## See also
 

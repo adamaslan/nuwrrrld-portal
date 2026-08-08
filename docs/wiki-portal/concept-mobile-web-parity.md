@@ -94,23 +94,26 @@ agree in intent but not in code.
 > that may be closer to intentional than a bug (see
 > [[concept-sync-requirements]] §2).
 
-> ✅ **Mobile PR #31 + portal PR #52 (2026-08-08) assessed — drift-detection CI
-> gate, item #4 of [[concept-sync-requirements]] §1, closing out the batch.**
-> Adds `scripts/check-shared-drift.mjs` (identical script in both repos) plus
-> a CI job in each that checks out the sibling repo and fails the build if
-> `lib/shared/sse.ts`, `lib/digest.ts`, `lib/signalCard.ts`, or
-> `lib/subscription.ts` isn't byte-identical, or if `lib/shared/prefs.ts` /
-> `lib/shared/signalFilters.ts` drift beyond the documented
-> localStorage/SecureStore + import-path seam. This is tooling, not a new
-> de-drift or port — it doesn't move either denominator, but it's what makes
-> items #1–3's ~62%→~64% gain durable instead of re-driftable. Bundled in the
-> same mobile PR: a real `usePortfolio`/`PortfolioScreen` fix (a 204 empty
-> watchlist was showing "health score unavailable" instead of "add tickers to
-> get scored").
+> ✅ **Portal PR #52 (2026-08-08) assessed — drift-detection CI gate, item #4 of
+> [[concept-sync-requirements]] §1.** Adds `scripts/check-shared-drift.mjs` plus
+> a CI job that checks out `gcp3-mobile` and fails the build if `lib/shared/sse.ts`,
+> `lib/digest.ts`, `lib/signalCard.ts`, or `lib/subscription.ts` isn't
+> byte-identical, or if `lib/shared/prefs.ts` / `lib/shared/signalFilters.ts`
+> drift beyond the documented localStorage/SecureStore + import-path seam.
+> Also fixes two CodeRabbit-flagged bugs from its own review: `lib/digest.ts`'s
+> `symbolKey || entry.symbol` never fell back to `entry.symbol` for
+> whitespace-only keys (symbolKey, an object key, is always truthy) — now
+> trimmed first; and the drift script's `stripCommentsAndImports` blindly
+> dropped every import line before comparing `signalFilters.ts`, so a changed
+> binding would've passed the gate as equal — now only the documented
+> `@/lib/digest` vs `../digest` module specifier is normalized away, bindings
+> stay in the comparison.
 
-> ℹ️ **Mobile PR #32 (2026-08-08) assessed — tsc baseline fix, one bundled shared-drift fix. Headline unchanged at ~64%.** Resolved all 38 pre-existing `npx tsc --noEmit` errors on the mobile repo's baseline: missing `@/*` path alias, `@vercel/node` types on `api/*.ts`, missing `expo-notifications`/`svix` dependencies, deleted three dead components, plus type-safety fixes in `lib/api.ts` and `lib/auth-provider.tsx` — same infra-only class as portal PR #48. Also ported this repo's `lib/digest.ts` fix from PR #52's CodeRabbit review (`symbolKey || entry.symbol` never fell back for whitespace-only keys since `symbolKey` is always truthy) to keep the two copies byte-identical; `scripts/check-shared-drift.mjs` confirms they still match. Not a parity-percentage move.
+> ℹ️ **Mobile PR #32 (2026-08-08) assessed — tsc baseline fix, one bundled shared-drift fix. Headline unchanged at ~64%.** Resolved all 38 pre-existing `npx tsc --noEmit` errors on the mobile repo's baseline: missing `@/*` path alias, `@vercel/node` types on `api/*.ts`, missing `expo-notifications`/`svix` dependencies, deleted three dead components, plus type-safety fixes in `lib/api.ts` and `lib/auth-provider.tsx` — same infra-only class as portal PR #48. Also ported this repo's `lib/digest.ts` fix from PR #52's CodeRabbit review to keep the two copies byte-identical. Notably, this PR also adopted `lib/shared/signal-policy.ts` + `lib/shared/live-price.ts` verbatim from the portal — see the next entry, since that's the parity-moving part.
 
-## Headline: ~64% synced (2026-08-08, after mobile PR #30 + portal PR #51; drift-gate CI added in mobile PR #31 + portal PR #52)
+> ✅ **Mobile PR #32 (signal-policy/live-price adoption) + mobile PR #33 (drift-gate CI, 2026-08-08) — item #5 of [[concept-sync-requirements]] §1, closes the `lib/shared/signal-policy.ts` + `lib/shared/live-price.ts` share-debt PR #40 created.** Both pure, dependency-free modules (ticker validation, cache freshness/backoff, live-price row/batch parsing) are now byte-identical copies in `gcp3-mobile/lib/shared/`, tracked by the drift gate on both sides. Mobile doesn't yet *consume* either module (no live-price feed wired up on this surface), but landing them now — rather than mobile writing its own version later — is exactly the "adopt before drift" ordering [[concept-sync-requirements]] §1 recommends. Mobile PR #33 also finally adds the drift-gate CI job to `gcp3-mobile` itself (it existed only on the portal side after #52) plus a real `usePortfolio`/`PortfolioScreen` fix (a 204 empty watchlist was showing "health score unavailable" instead of "add tickers to get scored"). PR #33 supersedes an earlier stale mobile PR #31 whose wiki/code content had already landed on `main` via other merged PRs — only the still-missing CI workflow and portfolio fix were carried forward.
+
+## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:
 
@@ -119,30 +122,31 @@ Two different denominators, deliberately kept separate:
   one domain (Nu AI) has a drifted implementation (Signals/Digest moved to
   Synced this round). Unchanged by PR #40 (which added depth, not a new shared
   domain).
-- **Single-source (code-identical) parity ≈ 41%** (was ~39%) — mobile PR #29
+- **Single-source (code-identical) parity ≈ 44%** (was ~41%) — mobile PR #29
   ported `parseSubscriptionMetadata()`; portal PR #50 reconciled
   `signalFilters.ts` and confirmed `prefs.ts`'s seam; mobile PR #30 + portal
   PR #51 de-drifted `digest.ts`/`signalCard.ts` (open-issue #6), including a
   genuine bug fix (portal's ticker-precedence code contradicted its own
-  documented intent) and porting portal's `dataQualityScore` field to mobile.
-  Still owed: PR #40 added a whole portal-only real-time signal tier
-  (`signal-queue`, `signal-policy`, `signal-cache` read-through, `live-price` +
-  `live-price-db`, `/api/signals/drain` + `/live`) with **no mobile
-  counterpart**. Two of those modules (`lib/shared/signal-policy.ts`,
-  `lib/shared/live-price.ts`) even sit in the supposedly-shared `lib/shared/`
-  folder yet are portal-only — new share-debt. PR #46 adds a fourth
-  portal-only file to `lib/shared/` (`holdfold-map.ts`) — same share-debt
-  pattern, not portable as-is since mobile's Hold/Fold client targets a
-  different backend with an incompatible verdict shape.
+  documented intent) and porting portal's `dataQualityScore` field to mobile;
+  mobile PR #32 adopted `lib/shared/signal-policy.ts` + `lib/shared/live-price.ts`
+  verbatim, closing the two-module share-debt PR #40 created (mobile has the
+  code but not yet the feature — see the matrix row below). Still owed: PR #40's
+  wider real-time signal tier (`signal-queue`, `signal-cache` read-through,
+  `/api/signals/drain` + `/live`) still has no mobile counterpart, and PR #46
+  adds a fourth portal-only `lib/shared/` file (`holdfold-map.ts`), not portable
+  as-is since mobile's Hold/Fold client targets a different backend with an
+  incompatible verdict shape.
 
-The blended **~64%** reflects the four completed items of the `/sync-pr`
-de-drift batch (see `docs/sync-pr-large-scale-run.md`) — items #1–3 moved the
-number, item #4 (the drift-detection CI gate) protects it going forward but
-doesn't move it further on its own. The batch is now closed out; remaining
-work (AI Council convergence decision, observability/backtest ports) is
-backlog, not batch scope. The portal still pulls ahead on the signal/Hold-Fold
-data plane independent of this batch; the risk lives in the gap between the
-two denominators.
+The blended **~66%** reflects the four completed items of the original
+`/sync-pr` de-drift batch (see `docs/sync-pr-large-scale-run.md`) plus a fifth,
+follow-on item — adopting `signal-policy.ts`/`live-price.ts` — done once the
+drift gate made "adopt before it drifts" enforceable. The drift-detection CI
+gate now runs on **both** repos (mobile PR #33 added the mobile-side job;
+portal PR #52 added the portal-side one), covering 8 shared-core files.
+Remaining work (AI Council convergence decision, observability/backtest ports,
+Hold/Fold backend unification) is backlog, not batch scope. The portal still
+pulls ahead on the signal/Hold-Fold data plane; the risk lives in the gap
+between the two denominators.
 
 ## Domain parity matrix
 
@@ -154,8 +158,8 @@ two denominators.
 | **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
 | **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **byte-identical (mobile PR #30 + portal PR #51)** | ✅ Synced — was 🟡 Partial (open-issue #6, resolved); portal-only signal data plane depth is a separate axis ([[entity-signal-data-plane]]) |
-| **Signal cache / queue** | — | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
-| **Real-time price tier** | — | `live-price.ts`, `live-price-db.ts`, `live_prices`, `/api/signals/live` ([[entity-live-price-tier]]) | `live-price.ts` in `lib/shared/` but portal-only | ⬅️ Portal-only (PR #40) |
+| **Signal cache / queue** | `signal-policy.ts` present, unconsumed | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` **byte-identical (mobile PR #32)** | 🟡 Partial — module shared, feature still portal-only |
+| **Real-time price tier** | `live-price.ts` present, unconsumed | `live-price.ts`, `live-price-db.ts`, `live_prices`, `/api/signals/live` ([[entity-live-price-tier]]) | `live-price.ts` **byte-identical (mobile PR #32)** | 🟡 Partial — module shared, feature still portal-only |
 | **Nu AI chat** | `nuai.ts`, `NuAIScreen`, `useNuAI` | `nuai.ts`, `/api/nuai`, `dashboard/nuai` | `nuai.ts` **diverged** | 🟡 Partial |
 | **Hold/Fold** | `clients/holdfold.ts`, `HoldFoldScreen` — different backend, incompatible verdict shape | `/api/holdfold`, `dashboard/holdfold`, `holdfold-cache`, `/api/brief` (PR #46) | `lib/shared/holdfold-map.ts` in `lib/shared/` but portal-only (PR #46) | 🟡 Partial — portal has cache + shared mapper ([[entity-holdfold-cache]]) |
 | **Daily Brief / Market Briefing** | `BriefingScreen` — live council prompt from `getMarketOverview()` + `getMacroPulse()` + `getSignals()` | `/api/brief` — one-shot LLM completion grounded on scoped market data + Hold/Fold verdicts (PR #46) | none | 🔴 Divergent — different data (mobile: full sections + macro; portal: brief-only + verdicts), different output shape (council prose vs. 4-sentence structured brief) |
@@ -177,13 +181,14 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 ## Contradictions / tensions
 
 > ⚠️ Contradiction: `lib/shared/` is meant to be the single source of truth, but
-> `prefs.ts` and `signalFilters.ts` already differ between repos *inside that very
-> folder* — and PR #40 added `signal-policy.ts` + `live-price.ts`, PR #46 added
-> `holdfold-map.ts`, all three portal-only with no mobile counterpart. A
-> "shared" module that only one surface has is a standing invitation to drift
-> the moment mobile grows its own copy — and in `holdfold-map.ts`'s case,
-> mobile can't even adopt it without first switching its Hold/Fold backend and
-> verdict schema to match portal's. See [[concept-sync-requirements]].
+> `prefs.ts` and `signalFilters.ts` differ between repos *inside that very
+> folder* on documented seams — and PR #46 added `holdfold-map.ts`, portal-only
+> with no mobile counterpart. `signal-policy.ts` + `live-price.ts` (PR #40) were
+> the same standing-drift-invitation pattern until mobile PR #32 adopted them
+> verbatim, resolved by "claim the module before mobile grows its own copy," per
+> [[concept-sync-requirements]]. `holdfold-map.ts` can't follow the same path —
+> mobile would first need to switch its Hold/Fold backend and verdict schema to
+> match portal's.
 
 > ⚠️ Contradiction: the mobile wiki's
 > `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`
