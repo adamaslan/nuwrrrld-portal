@@ -18,6 +18,8 @@ const PAIRS = [
   { path: "lib/subscription.ts", normalize: null },
   { path: "lib/shared/signalFilters.ts", normalize: stripCommentsAndNormalizeImportSpecifiers },
   { path: "lib/shared/prefs.ts", normalize: normalizePrefsSeam },
+  { path: "lib/shared/signal-policy.ts", normalize: null },
+  { path: "lib/shared/live-price.ts", normalize: null },
 ];
 
 function read(root, path) {
