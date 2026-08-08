@@ -94,7 +94,21 @@ agree in intent but not in code.
 > that may be closer to intentional than a bug (see
 > [[concept-sync-requirements]] §2).
 
-## Headline: ~64% synced (2026-08-07, after mobile PR #30 + portal PR #51)
+> ✅ **Mobile PR #31 + portal PR #52 (2026-08-08) assessed — drift-detection CI
+> gate, item #4 of [[concept-sync-requirements]] §1, closing out the batch.**
+> Adds `scripts/check-shared-drift.mjs` (identical script in both repos) plus
+> a CI job in each that checks out the sibling repo and fails the build if
+> `lib/shared/sse.ts`, `lib/digest.ts`, `lib/signalCard.ts`, or
+> `lib/subscription.ts` isn't byte-identical, or if `lib/shared/prefs.ts` /
+> `lib/shared/signalFilters.ts` drift beyond the documented
+> localStorage/SecureStore + import-path seam. This is tooling, not a new
+> de-drift or port — it doesn't move either denominator, but it's what makes
+> items #1–3's ~62%→~64% gain durable instead of re-driftable. Bundled in the
+> same mobile PR: a real `usePortfolio`/`PortfolioScreen` fix (a 204 empty
+> watchlist was showing "health score unavailable" instead of "add tickers to
+> get scored").
+
+## Headline: ~64% synced (2026-08-08, after mobile PR #30 + portal PR #51; drift-gate CI added in mobile PR #31 + portal PR #52)
 
 Two different denominators, deliberately kept separate:
 
@@ -119,11 +133,14 @@ Two different denominators, deliberately kept separate:
   pattern, not portable as-is since mobile's Hold/Fold client targets a
   different backend with an incompatible verdict shape.
 
-The blended **~64%** (up from ~62%) reflects the first three completed items
-of the `/sync-pr` de-drift batch (see `docs/sync-pr-large-scale-run.md`) —
-item #4 (a drift-detection CI gate) is next. The portal still pulls ahead on
-the signal/Hold-Fold data plane independent of this batch; the risk lives in
-the gap between the two denominators.
+The blended **~64%** reflects the four completed items of the `/sync-pr`
+de-drift batch (see `docs/sync-pr-large-scale-run.md`) — items #1–3 moved the
+number, item #4 (the drift-detection CI gate) protects it going forward but
+doesn't move it further on its own. The batch is now closed out; remaining
+work (AI Council convergence decision, observability/backtest ports) is
+backlog, not batch scope. The portal still pulls ahead on the signal/Hold-Fold
+data plane independent of this batch; the risk lives in the gap between the
+two denominators.
 
 ## Domain parity matrix
 
