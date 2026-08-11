@@ -32,6 +32,16 @@ idea; see [[concept-cache-then-degrade]].
 - `app/api/portfolio/watchlist` — CRUD over `watchlist-store`.
 - `app/dashboard/portfolio/*` — renders the watchlist ([[entity-portfolio-intelligence]]).
 
+**2026-08-11 addition — a third sibling table, `analyze_cache`
+(`lib/analyze-cache-db.ts`):** same Neon connection, same try/catch-guarded
+degrade-to-null shape as `holdfold_cache`, but keyed on
+`(symbol, period, asset_type, risk_profile)` rather than one whole-market
+payload — it fronts the new per-ticker `POST /api/analyze` route
+([[decision-second-analyze-backend]]), which calls a *different* upstream
+(`holdemfoldem-api` via `MCP_ANALYZE_URL`) than this cache's `gcp3-backend`.
+Position lots are deliberately excluded from the cache key: P&L is computed
+from the cached market analysis, not re-fetched per position.
+
 ## Known failures
 
 1. **The bug this fixed.** Before the audit, `app/api/holdfold/route.ts` cached

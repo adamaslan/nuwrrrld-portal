@@ -8,6 +8,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { recentVerdicts } from "@/lib/council-db";
+import DisclaimerModal from "@/components/DisclaimerModal";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "../../landing.css";
 
 interface Props {
@@ -85,6 +87,9 @@ export default async function VerdictPage({ params }: Props) {
         <span>NWF · NuWrrrld Financial</span>
         <span>Six AI analysts. One straight answer.</span>
       </footer>
+
+      <DisclaimerModal surface="verdict" />
+      <DisclaimerFooter surface="verdict" />
     </div>
   );
 }

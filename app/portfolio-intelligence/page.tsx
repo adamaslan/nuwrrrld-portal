@@ -1,6 +1,8 @@
 import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import DisclaimerModal from "@/components/DisclaimerModal";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 
 export const metadata: Metadata = {
   title: "Portfolio Intelligence — Health Score & Optimizer Suggestions",
@@ -106,6 +108,9 @@ export default async function PortfolioIntelligenceLandingPage() {
         <Link href="/pricing" className="hero-cta">Start free trial</Link>
         <p className="landing-disclaimer">Not financial advice · <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link></p>
       </section>
+
+      <DisclaimerModal surface="portfolio" />
+      <DisclaimerFooter surface="portfolio" />
     </main>
   );
 }

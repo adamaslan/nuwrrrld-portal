@@ -37,6 +37,8 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
   is *always* "degraded" until an env var proves the engine is live.
 - [[entity-openrouter-client]] — `runSeat` fallback down `FREE_MODEL_CHAIN` is the
   same instinct one layer up (model-level rather than data-level).
+- [[entity-disclaimer-system]] — the asymmetric-by-field variant (see
+  Contradictions below): read fails closed, write fails open, in the same table.
 
 ## Contradictions / tensions
 
@@ -54,6 +56,14 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
 - ⚠️ **Stale-serve has no visible age.** Now that `signal-lookup` serves stale
   `signal_cache` on outage, a user can see real-but-old data with no badge
   saying how old — the freshness-contract gap on [[entity-signal-data-plane]].
+- ⚠️ **[[entity-disclaimer-system]] (2026-08-11) is a third policy, not a
+  variant of the existing two.** `disclaimer_acks` reads fail *closed*
+  (`hasAcknowledged` → `false` on error, re-showing the gate) while writes to
+  the same table fail *open* (`recordAck` swallows the error). Neither cache
+  nor user-data framing fits cleanly: it isn't disposable like a cache (a
+  false negative here re-prompts a real user, not just re-fetches data), but
+  unlike watchlist writes it deliberately tolerates losing one ack write. The
+  read/write split — not the table — is what decides the policy.
 
 ## See also
 

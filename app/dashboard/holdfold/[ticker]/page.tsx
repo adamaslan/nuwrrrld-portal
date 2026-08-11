@@ -6,6 +6,9 @@ import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import type { HoldFoldVerdict } from "@/app/api/holdfold/route";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
+import DisclaimerModal from "@/components/DisclaimerModal";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
+import { AnalyzeLivePanel } from "./AnalyzeLivePanel";
 import "../holdfold.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
@@ -192,6 +195,8 @@ export default async function TickerDetailPage(
           <TrackRecordBadge symbol={v.ticker} strength={v.confidenceLabel} />
         </div>
 
+        <AnalyzeLivePanel ticker={v.ticker} />
+
         <div className="hf-detail-footer">
           <Link href="/dashboard/holdfold" className="hf-back" style={{ margin: 0 }}>
             ← Back to all verdicts
@@ -202,6 +207,9 @@ export default async function TickerDetailPage(
           </p>
         </div>
       </div>
+
+      <DisclaimerModal surface="analyze" />
+      <DisclaimerFooter surface="analyze" />
     </main>
   );
 }
