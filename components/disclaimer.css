@@ -1,0 +1,143 @@
+/* Styles for DisclaimerModal + DisclaimerFooter. Uses the same global tokens
+   as globals.css/legal.css so it matches brand regardless of which page's
+   stylesheet is also loaded. */
+
+.disclaimer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 85%, black);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.disclaimer-modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
+  background: var(--surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.disclaimer-modal-header {
+  flex-shrink: 0;
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.disclaimer-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.disclaimer-modal-title-row span {
+  color: var(--neon-yellow);
+  font-size: 20px;
+}
+
+.disclaimer-modal-title-row h2 {
+  color: var(--text);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.disclaimer-modal-meta {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 0;
+}
+
+.disclaimer-modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 16px 24px;
+}
+
+.disclaimer-modal-body p {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.disclaimer-modal-body p strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.disclaimer-modal-footer {
+  flex-shrink: 0;
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.disclaimer-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  background: var(--neon-yellow);
+  color: #0d1018;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.disclaimer-btn:hover {
+  opacity: 0.9;
+}
+
+.disclaimer-modal-note {
+  color: var(--text-dim);
+  font-size: 10px;
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+.disclaimer-footer {
+  width: 100%;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: var(--bg);
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.disclaimer-footer p {
+  color: color-mix(in srgb, var(--text-dim) 60%, transparent);
+  font-size: 10px;
+  line-height: 1.5;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.disclaimer-footer-lead {
+  color: color-mix(in srgb, var(--neon-yellow) 70%, var(--text-dim));
+  font-weight: 600;
+}
+
+.disclaimer-footer-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-dim);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.disclaimer-footer-link:hover {
+  color: var(--text);
+}

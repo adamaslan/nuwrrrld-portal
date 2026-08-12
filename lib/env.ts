@@ -25,6 +25,10 @@ const envSchema = z.object({
 
   // Optional
   MCP_BACKEND_URL: z.string().url().optional(),
+  // Points at holdemfoldemapp's backend (holdemfoldem-api Cloud Run service),
+  // deliberately separate from MCP_BACKEND_URL (gcp3-backend) — per-ticker
+  // analysis and the batch /signals feed are two different upstream services.
+  MCP_ANALYZE_URL: z.string().url().optional(),
   RESEND_API_KEY: z.string().optional(),
   DISCORD_FEEDBACK_WEBHOOK_URL: z.string().url().optional(),
   SIGNALS_ENGINE_URL: z.string().url().optional(),

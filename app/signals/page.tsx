@@ -2,6 +2,8 @@ import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { adaptLiveSignals, type SignalPayload } from "@/lib/digest";
+import DisclaimerModal from "@/components/DisclaimerModal";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 
 export const metadata: Metadata = {
   title: "AI Stock Signals — Daily Digest with Explanations",
@@ -103,6 +105,9 @@ export default async function SignalsLandingPage() {
         <Link href="/pricing" className="hero-cta">See pricing</Link>
         <p className="landing-disclaimer">Not financial advice · <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link></p>
       </section>
+
+      <DisclaimerModal surface="signals" />
+      <DisclaimerFooter surface="signals" />
     </main>
   );
 }

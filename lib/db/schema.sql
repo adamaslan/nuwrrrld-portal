@@ -262,3 +262,44 @@ CREATE TABLE IF NOT EXISTS public_demo_cache (
   created_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (ticker, usage_date, seat)
 );
+
+-- ── Disclaimer acknowledgements (signed-in users) ────────────────────────────
+-- Append-only: never UPDATE a row. disclaimer_hash is djb2(text + version) from
+-- lib/disclaimer.ts, so editing the disclaimer text automatically invalidates
+-- every prior ack without a version-bump migration. Signed-out users use
+-- localStorage only (lib/disclaimer.ts hasAcknowledgedLocally); this table is
+-- the durable, audit-relevant record for accounts that can take paid actions.
+
+CREATE TABLE IF NOT EXISTS disclaimer_acks (
+  id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id         text        NOT NULL,
+  disclaimer_hash text        NOT NULL,
+  version         text        NOT NULL,
+  surface         text,
+  user_agent      text,
+  acknowledged_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS disclaimer_acks_user_hash_idx
+  ON disclaimer_acks (user_id, disclaimer_hash);
+
+-- ── Per-ticker analyze cache ──────────────────────────────────────────────────
+-- Keyed on djb2(symbol|period|asset_type|risk_profile) — NOT on position lots,
+-- since P&L is computed from the cached market analysis rather than re-fetched
+-- per position. Distinct from holdfold_cache, which holds one whole-market
+-- batch payload; this holds one payload per (ticker, request-shape).
+
+CREATE TABLE IF NOT EXISTS analyze_cache (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  cache_key    text        NOT NULL,
+  symbol       text        NOT NULL,
+  payload      jsonb       NOT NULL,
+  generated_at timestamptz NOT NULL DEFAULT now()
+);
+-- Migration for deployments that ran with the old plain (non-unique) index and
+-- may already hold duplicate cache_key rows from repeated saveAnalysis() inserts:
+-- keep only the most recent row per key before the unique index can be created.
+DROP INDEX IF EXISTS analyze_cache_key_idx;
+DELETE FROM analyze_cache a USING analyze_cache b
+  WHERE a.cache_key = b.cache_key AND a.generated_at < b.generated_at;
+CREATE UNIQUE INDEX IF NOT EXISTS analyze_cache_key_idx
+  ON analyze_cache (cache_key);

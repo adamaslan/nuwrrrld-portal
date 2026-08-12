@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-08 (mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos; parity headline ~64%→~66%)_
+_Last updated: 2026-08-11 (portal PR #56 — disclaimer/acknowledgement system + per-ticker live analysis via holdemfoldem-api)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -38,6 +38,7 @@ One page per named component. These are the hubs — everything links to entitie
 
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
+- [[entity-disclaimer-system]] — hash-derived disclaimer text + Neon-backed acknowledgement gating `/verdict`, `/signals`, `/portfolio-intelligence`, `/dashboard/holdfold/[ticker]`; `lib/disclaimer.ts`, `lib/disclaimer-db.ts`
 
 **Dev tooling / automation**
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`
@@ -71,6 +72,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
 - [[decision-free-tier-model-chain]] — every model is `:free`; $0 per deliberation
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
+- [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 
 ---
 
