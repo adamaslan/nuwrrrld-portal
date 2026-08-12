@@ -20,18 +20,21 @@ interface Props {
 }
 
 export default function DisclaimerModal({ surface, forceOpen = false, onRequestClose }: Props) {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
   const [open, setOpen] = useState(forceOpen);
   const [checked, setChecked] = useState(forceOpen);
 
   useEffect(() => {
     if (forceOpen) return;
+    // Wait for Clerk: isSignedIn is undefined until isLoaded, which would
+    // otherwise read as "not signed in" and open the modal prematurely.
+    if (!isLoaded) return;
 
     let cancelled = false;
 
     async function check() {
       if (hasAcknowledgedLocally()) {
-        if (!cancelled) setChecked(true);
+        if (!cancelled) { setChecked(true); setOpen(false); }
         return;
       }
       if (isSignedIn) {
@@ -40,7 +43,7 @@ export default function DisclaimerModal({ surface, forceOpen = false, onRequestC
           const data = await res.json();
           if (data.acknowledged) {
             markAcknowledgedLocally();
-            if (!cancelled) setChecked(true);
+            if (!cancelled) { setChecked(true); setOpen(false); }
             return;
           }
         } catch {
@@ -55,7 +58,7 @@ export default function DisclaimerModal({ surface, forceOpen = false, onRequestC
 
     check();
     return () => { cancelled = true; };
-  }, [forceOpen, isSignedIn]);
+  }, [forceOpen, isSignedIn, isLoaded]);
 
   async function accept() {
     markAcknowledgedLocally();

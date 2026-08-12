@@ -12,7 +12,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
-import { analyzeCacheKey } from "@/lib/shared/analyze-policy";
+import { analyzeCacheKey, isGenericAnalyzeRequest } from "@/lib/shared/analyze-policy";
 import { getCachedAnalysis, saveAnalysis } from "@/lib/analyze-cache-db";
 
 const BACKEND = process.env.MCP_ANALYZE_URL;
@@ -54,6 +54,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = { ...parsed.data, symbol };
+  // The cache key is position/options-agnostic, so only a generic request may
+  // read or write it — a personalized response cached under this key would be
+  // served to the next caller asking about the same ticker with no position.
+  const cacheable = isGenericAnalyzeRequest(body);
   const key = analyzeCacheKey({
     symbol,
     period: body.period,
@@ -61,8 +65,10 @@ export async function POST(req: NextRequest) {
     riskProfile: body.risk_profile,
   });
 
-  const cached = await getCachedAnalysis(key);
-  if (cached) return NextResponse.json(cached);
+  if (cacheable) {
+    const cached = await getCachedAnalysis(key);
+    if (cached) return NextResponse.json(cached);
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -90,6 +96,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: detail }, { status: res.status });
   }
 
-  await saveAnalysis(key, symbol, data);
+  if (cacheable) await saveAnalysis(key, symbol, data);
   return NextResponse.json(data);
 }

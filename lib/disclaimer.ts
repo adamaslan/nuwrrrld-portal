@@ -51,10 +51,18 @@ export const DISCLAIMER_STORAGE_KEY = "nwf.disclaimer.ack";
 /** Signed-out fallback only. Signed-in users are checked server-side via lib/disclaimer-db.ts. */
 export function hasAcknowledgedLocally(): boolean {
   if (typeof window === "undefined") return false;
-  return localStorage.getItem(DISCLAIMER_STORAGE_KEY) === DISCLAIMER_HASH;
+  try {
+    return localStorage.getItem(DISCLAIMER_STORAGE_KEY) === DISCLAIMER_HASH;
+  } catch {
+    return false;
+  }
 }
 
 export function markAcknowledgedLocally(): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(DISCLAIMER_STORAGE_KEY, DISCLAIMER_HASH);
+  try {
+    localStorage.setItem(DISCLAIMER_STORAGE_KEY, DISCLAIMER_HASH);
+  } catch {
+    // Session-only acknowledgement remains possible.
+  }
 }

@@ -29,6 +29,8 @@ export async function saveAnalysis(key: string, symbol: string, payload: unknown
   try {
     await sql`
       INSERT INTO analyze_cache (cache_key, symbol, payload) VALUES (${key}, ${symbol}, ${JSON.stringify(payload)})
+      ON CONFLICT (cache_key) DO UPDATE
+        SET symbol = EXCLUDED.symbol, payload = EXCLUDED.payload, generated_at = now()
     `;
   } catch {
     // non-fatal — next request just re-fetches from the backend

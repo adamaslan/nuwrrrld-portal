@@ -38,6 +38,7 @@ describe("analyzeCacheKey", () => {
     // analyzeCacheKey's signature has no position fields; this test documents
     // that omission is intentional (see lib/analyze-cache-db.ts header).
     const req = { symbol: "AAPL", period: "3mo", assetType: "stock", riskProfile: "moderate" };
-    expect(Object.keys(req)).not.toContain("positionQty");
+    const withPosition = { ...req, positionQty: 10 };
+    expect(analyzeCacheKey(withPosition)).toBe(analyzeCacheKey(req));
   });
 });

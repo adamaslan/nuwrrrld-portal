@@ -295,5 +295,11 @@ CREATE TABLE IF NOT EXISTS analyze_cache (
   payload      jsonb       NOT NULL,
   generated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS analyze_cache_key_idx
-  ON analyze_cache (cache_key, generated_at DESC);
+-- Migration for deployments that ran with the old plain (non-unique) index and
+-- may already hold duplicate cache_key rows from repeated saveAnalysis() inserts:
+-- keep only the most recent row per key before the unique index can be created.
+DROP INDEX IF EXISTS analyze_cache_key_idx;
+DELETE FROM analyze_cache a USING analyze_cache b
+  WHERE a.cache_key = b.cache_key AND a.generated_at < b.generated_at;
+CREATE UNIQUE INDEX IF NOT EXISTS analyze_cache_key_idx
+  ON analyze_cache (cache_key);

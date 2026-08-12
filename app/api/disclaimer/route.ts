@@ -17,8 +17,11 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const surface = typeof body.surface === "string" ? body.surface.slice(0, 40) : undefined;
+  const body: unknown = await req.json().catch(() => ({}));
+  const surface =
+    typeof body === "object" && body !== null && "surface" in body && typeof body.surface === "string"
+      ? body.surface.slice(0, 40)
+      : undefined;
 
   await recordAck(userId, DISCLAIMER_HASH, DISCLAIMER_VERSION, surface);
   return NextResponse.json({ ok: true });

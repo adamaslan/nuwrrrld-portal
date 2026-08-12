@@ -54,9 +54,9 @@ recorded alongside the ack for audit purposes.
 
 ## Known failures
 
-- No re-prompt on `DISCLAIMER_VERSION` bump alone if `DISCLAIMER_TEXT` is
-  unchanged — intentional, since the hash is the source of truth, but worth
-  flagging: bumping the version string without changing the text does nothing.
+- A `DISCLAIMER_VERSION` bump alone changes `DISCLAIMER_HASH` because the
+  version is part of the hash input. Existing acknowledgements keyed by the
+  previous hash no longer match, so the gate re-prompts.
 - Signed-out → signed-up transition doesn't migrate a `localStorage` ack into
   Neon; a brand-new account re-prompts once even if the same browser already
   acknowledged as a guest. Acceptable for now (one extra click), not fixed.
