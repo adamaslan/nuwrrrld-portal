@@ -42,6 +42,17 @@ payload — it fronts the new per-ticker `POST /api/analyze` route
 Position lots are deliberately excluded from the cache key: P&L is computed
 from the cached market analysis, not re-fetched per position.
 
+**2026-08-12 fix (PR #56 review pass):** the key's exclusion of position/options
+fields meant a personalized response (options strategy, position P&L) could be
+cached under the same key a plain request would read — one caller's
+position-shaped output leaking to the next caller asking about the same
+ticker. `app/api/analyze/route.ts` now calls
+`isGenericAnalyzeRequest()` ([[decision-second-analyze-backend]]) and only
+reads/writes the cache for requests with no options/position fields at all;
+personalized requests always hit the backend fresh. Separately, `cache_key`
+gained a `UNIQUE` index and `saveAnalysis` now upserts instead of inserting —
+the table previously grew one row per refresh per key forever.
+
 ## Known failures
 
 1. **The bug this fixed.** Before the audit, `app/api/holdfold/route.ts` cached
