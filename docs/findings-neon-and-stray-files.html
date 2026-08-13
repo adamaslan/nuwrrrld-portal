@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Findings — Neon build failure &amp; mobile stray files (2026-08-07)</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131826; --border: #232a3b;
+    --text: #dbe2f0; --muted: #8993ab; --accent: #5ec9a3;
+    --warn: #e0a53b; --bad: #e0625f; --good: #5ec9a3; --mono: 'SF Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+  header { padding: 32px 40px 20px; border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0 0 6px; font-size: 22px; }
+  header .sub { color: var(--muted); font-size: 14px; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 40px 80px; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px 28px; margin-bottom: 24px; }
+  h2 { margin-top: 0; font-size: 17px; display: flex; align-items: center; gap: 10px; }
+  h3 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 22px 0 8px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+  .badge.good { background: rgba(94,201,163,.15); color: var(--good); border: 1px solid rgba(94,201,163,.4); }
+  .badge.bad { background: rgba(224,98,95,.15); color: var(--bad); border: 1px solid rgba(224,98,95,.4); }
+  .badge.warn { background: rgba(224,165,59,.15); color: var(--warn); border: 1px solid rgba(224,165,59,.4); }
+  code, pre { font-family: var(--mono); font-size: 13px; }
+  code { background: #0e1320; padding: 2px 6px; border-radius: 4px; color: #b9c6e6; }
+  pre { background: #0e1320; padding: 14px 16px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--border); color: #b9c6e6; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  .timeline { border-left: 2px solid var(--border); margin-left: 6px; padding-left: 20px; }
+  .timeline .step { margin-bottom: 14px; position: relative; }
+  .timeline .step::before { content: ''; position: absolute; left: -25.5px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+  .timeline .step.bad::before { background: var(--bad); }
+  .timeline .step .t { color: var(--muted); font-size: 12px; }
+  ul.findings li { margin-bottom: 8px; }
+  .verdict { border-left: 4px solid var(--good); padding: 10px 16px; background: rgba(94,201,163,.08); border-radius: 0 6px 6px 0; margin: 12px 0; }
+  .verdict.bad { border-color: var(--bad); background: rgba(224,98,95,.08); }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Findings — Portal Neon build failure &amp; mobile stray/broken files</h1>
+  <div class="sub">nuwrrrld-portal + gcp3-mobile · investigated 2026-08-07 · gate: /sync-pr large-scale run, Step 3</div>
+</header>
+<main>
+
+<section>
+  <h2>1. Portal build failure (Neon DB) <span class="badge good">Resolved — transient</span></h2>
+  <p>The <code>npm run build</code> pre-flight failed with a 5-minute <code>HeadersTimeoutError</code> connecting to the Neon
+  database. Root cause traced and confirmed <strong>not</strong> a code or config problem.</p>
+
+  <h3>What's actually going on</h3>
+  <p><code>package.json</code> wires a <code>prebuild</code> step: <code>node scripts/db-migrate.mjs</code> runs before every
+  <code>next build</code> (including on Vercel), applying <code>lib/db/schema.sql</code> to Neon. It's idempotent
+  (<code>IF NOT EXISTS</code> everywhere) and reads <code>DATABASE_URL</code> from <code>.env.local</code> when not already
+  in <code>process.env</code>.</p>
+
+  <div class="timeline">
+    <div class="step bad"><div class="t">Run 1 (background build)</div>Hung ~5 min, then crashed with <code>UND_ERR_HEADERS_TIMEOUT</code> against
+    <code>ep-muddy-firefly-ahh8328s-pooler.c-3.us-east-1.aws.neon.tech</code></div>
+    <div class="step"><div class="t">Check: is DATABASE_URL set?</div>Yes — present in <code>.env.local</code>, correctly loaded by the fallback reader</div>
+    <div class="step"><div class="t">Check: DNS resolution</div>Resolves fine → 3 AWS us-east-1 IPs</div>
+    <div class="step"><div class="t">Check: TCP/HTTPS reachability (curl, 8s cap)</div><code>http_code=400</code> in 0.41s — expected response shape for a bare GET on a Postgres-over-HTTP endpoint; confirms the host is reachable and fast</div>
+    <div class="step"><div class="t">Retry: node scripts/db-migrate.mjs</div><code>Schema applied … (36 statements)</code> — succeeded immediately</div>
+    <div class="step"><div class="t">Retry: full npm run build</div>Completed clean — <code>ƒ Proxy (Middleware)</code> present as expected</div>
+  </div>
+
+  <div class="verdict">Verdict: one-off network blip (likely the background shell's first connection hit a stale/cold path in the
+  Neon pooler, or a momentary local network hiccup) — not a credentials, DNS, firewall, or code issue. Portal build is
+  green as of this investigation.</div>
+
+  <h3>Suggested follow-up (optional, not applied)</h3>
+  <p><code>scripts/db-migrate.mjs</code> has no request timeout of its own, so a bad connection silently rides the
+  underlying driver's default (which is what produced the 5-minute wait). A short explicit timeout + one retry would turn
+  a 5-minute hang into a fast, clear failure next time this happens.</p>
+</section>
+
+<section>
+  <h2>2. Mobile "stray" files — <span class="badge bad">Not stray. Genuine, pre-existing broken code.</span></h2>
+  <p><code>npx tsc --noEmit</code> in <code>gcp3-mobile</code> reported ~35 errors across <code>api/</code>,
+  <code>app/(tabs)/</code>, <code>app/_layout.tsx</code>, <code>app/sign-in*.tsx</code>, and three <code>components/*</code>
+  files. These are <strong>tracked, committed, in-history files</strong> — not orphaned scratch work — but they've
+  apparently never actually been typechecked before now.</p>
+
+  <h3>Root cause #1 — missing path-alias config (breaks 13 files)</h3>
+  <p>13 files import via <code>@/lib/...</code>. Nothing in this repo defines that alias:</p>
+  <ul class="findings">
+    <li><code>tsconfig.json</code> extends <code>expo/tsconfig.base</code> only — no <code>"paths"</code> override</li>
+    <li><code>expo/tsconfig.base.json</code> itself defines no <code>@/*</code> mapping</li>
+    <li>No <code>babel.config.js</code>, no <code>metro.config.js</code>, no <code>jsconfig.json</code>, no
+    <code>package.json</code> <code>"imports"</code> field anywhere in the repo</li>
+  </ul>
+  <p>The target files the alias points at <em>do exist on disk</em> (<code>lib/config-validator.ts</code>,
+  <code>lib/ui/theme.ts</code>, <code>lib/auth-provider.tsx</code>, etc.) — only the alias resolution is missing. This
+  would break at Metro bundle time too, not just under <code>tsc</code>.</p>
+
+  <h3>Root cause #2 — three deps used but never installed</h3>
+  <table>
+    <tr><th>Package</th><th>Used by</th><th>In package.json?</th></tr>
+    <tr><td><code>next</code></td><td><code>api/config.ts</code>, <code>api/health.ts</code>, <code>api/metrics.ts</code>, <code>api/webhooks/clerk.ts</code></td><td>Never (checked full git history)</td></tr>
+    <tr><td><code>svix</code></td><td><code>api/webhooks/clerk.ts</code></td><td>Never</td></tr>
+    <tr><td><code>expo-notifications</code></td><td><code>lib/pushNotifications.ts</code></td><td>Never</td></tr>
+  </table>
+  <p>The <code>api/</code> folder was added in commit <code>5a4bb2a</code> — <em>"feat: implement phase 4 &amp; 5 —
+  resilience patterns and monitoring"</em> — authored by <strong>Claude Haiku 4.5</strong> (per commit trailer). It adds a
+  health-check endpoint, metrics collection, config validation, and a Clerk webhook handler written in a
+  Next.js/Vercel-serverless-function shape (<code>NextApiRequest</code>/<code>NextApiResponse</code>), inside an Expo
+  Router app that has no Next.js dependency at all. It reads as generated code that assumed the wrong runtime and was
+  never executed to verify.</p>
+
+  <h3>Root cause #3 — a genuinely missing file</h3>
+  <p><code>backend/schemas/signal.ts</code> is imported by three components (<code>EvidenceExpandedView.tsx</code>,
+  <code>SignalMatrixRow.tsx</code>, <code>SignalCard.tsx</code>) — the <code>backend/</code> directory doesn't exist in
+  this repo at all.</p>
+
+  <h3>Root cause #4 — a handful of real (small) type errors</h3>
+  <p>Independent of the above: <code>app/market.tsx:34</code> (unknown not assignable to state setter),
+  <code>app/sign-in.tsx:109</code> (<code>string | null</code> vs <code>string</code>), possibly-undefined
+  <code>signIn</code>/<code>signUp</code> in the 2FA and sign-up flows, and a <code>boolean | undefined</code> vs
+  <code>boolean | null</code> mismatch in <code>lib/auth-provider.tsx:136</code>.</p>
+
+  <h3>Why this went unnoticed</h3>
+  <ul class="findings">
+    <li>No <code>.github/workflows</code> directory exists in <code>gcp3-mobile</code> — no CI at all</li>
+    <li><code>package.json</code> <code>"scripts"</code> has no <code>tsc</code>/typecheck entry — <code>npx tsc --noEmit</code>
+    has apparently never been run as part of this project's normal workflow</li>
+  </ul>
+
+  <div class="verdict bad">Verdict: this is real, standing technical debt in <code>gcp3-mobile</code>, unrelated to any
+  work in the current session. It predates and is independent of the in-progress uncommitted changes on
+  <code>feat/mobile-interactivity-batch</code> (<code>lib/usePortfolio.ts</code>, <code>screens/PortfolioScreen.tsx</code>
+  — neither of which appears in the tsc error list).</div>
+</section>
+
+<section>
+  <h2>Net effect on the /sync-pr batch run</h2>
+  <table>
+    <tr><th>Gate</th><th>Status</th><th>Blocking?</th></tr>
+    <tr><td>Portal <code>npm run build</code></td><td><span class="badge good">Green</span></td><td>No — confirmed passing</td></tr>
+    <tr><td>Mobile repo-wide <code>tsc --noEmit</code></td><td><span class="badge bad">Red</span> (pre-existing, unrelated debt)</td><td>Not for items scoped to unaffected files (e.g. <code>lib/subscription.ts</code>, which has zero errors)</td></tr>
+  </table>
+  <p>Recommendation: don't let this pre-existing, unrelated breakage block the whole batch. Track it as its own backlog
+  item (add <code>@/*</code> to <code>tsconfig.json</code> paths + a matching bundler resolver, install or remove the
+  three missing deps, restore/relocate <code>backend/schemas/signal.ts</code>, add a <code>typecheck</code> script and a
+  CI job) — separate from the parity-sync batch, since it's a repo hygiene gap rather than a mobile/web drift issue.</p>
+</section>
+
+</main>
+<footer>Generated during the /sync-pr large-scale run · nuwrrrld-portal · 2026-08-07</footer>
+</body>
+</html>
