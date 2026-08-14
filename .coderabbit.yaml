@@ -1,0 +1,66 @@
+language: "en-US"
+early_access: false
+
+tone_instructions: >-
+  This is a Next.js portal with Clerk auth, Stripe billing, and a Neon
+  Postgres backend. Prioritize security and correctness findings over style.
+
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  poem: false
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/.vercel/**"
+    - "!**/dist/**"
+    - "!**/*.lock"
+    - "!docs/archive/**"
+
+  # Recurring defect classes this repo's PRs actually get flagged for and have
+  # to fix. Keep in sync with the security checklist in the /geepr and /pr
+  # command templates — that checklist and this config should describe the
+  # same invariants from two angles (pre-flight vs. post-flight).
+  path_instructions:
+    - path: "**/*.{ts,tsx}"
+      instructions: >-
+        Flag any secret-shaped value (API key, Clerk secret key, Stripe
+        `sk_live_*`/`sk_test_*`, database URL, webhook signing secret)
+        assigned to or read through a `NEXT_PUBLIC_*` env var — that prefix
+        ships to the client bundle. Flag any backend/internal service URL
+        exposed via `NEXT_PUBLIC_*` instead of a server-only env var. A
+        server-only module may intentionally read a public value; flag only
+        actual secrets, internal endpoints, or genuine server-client boundary
+        violations, not the prefix alone.
+
+    - path: "app/api/**/*.{ts,tsx}"
+      instructions: >-
+        Flag any Stripe webhook handler that doesn't verify the signature
+        (via `svix`/Stripe's signature verification) before trusting the
+        request body. Flag any route handler that trusts a client-supplied
+        user/org identifier without checking it against the authenticated
+        Clerk session — the session, not the request body, is the source of
+        truth for "who is making this call."
+
+    - path: "lib/shared/**"
+      instructions: >-
+        This directory mirrors canonical code from `gcp3-mobile/lib/`. Flag
+        any change here that isn't limited to the declared base-URL seam —
+        the mirror is supposed to be byte-identical to its mobile counterpart
+        outside that seam, and drift here is a cross-repo bug, not a style
+        choice.
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+chat:
+  allow_non_org_members: false
+  auto_reply: true
