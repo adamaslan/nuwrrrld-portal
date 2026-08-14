@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NuWrrrld Portal — 6 Ways the App Got Better (PRs #5–#11)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:   #2563eb;
+      --blue-lt:#dbeafe;
+      --green:  #16a34a;
+      --green-lt:#dcfce7;
+      --purple: #7c3aed;
+      --purple-lt:#ede9fe;
+      --amber:  #d97706;
+      --amber-lt:#fef3c7;
+      --rose:   #e11d48;
+      --rose-lt:#ffe4e6;
+      --teal:   #0d9488;
+      --teal-lt:#ccfbf1;
+      --ink:    #111827;
+      --muted:  #6b7280;
+      --border: #e5e7eb;
+      --bg:     #f9fafb;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #0891b2 100%);
+      color: #fff;
+      padding: 64px 24px 56px;
+      text-align: center;
+    }
+    header .eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      opacity: .75;
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 800;
+      line-height: 1.15;
+      max-width: 720px;
+      margin: 0 auto 16px;
+    }
+    header p {
+      font-size: 18px;
+      opacity: .85;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .pr-range {
+      display: inline-flex;
+      gap: 8px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .pr-badge {
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* ── TIMELINE SPINE ─────────────────────────────────── */
+    .timeline-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 64px 24px 80px;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 0 24px;
+      margin-bottom: 48px;
+      position: relative;
+    }
+    /* vertical connector */
+    .card:not(:last-child) .icon-col::after {
+      content: "";
+      position: absolute;
+      left: 28px;
+      top: 56px;
+      bottom: -48px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .icon-col {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .icon-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .body-col {
+      padding-top: 8px;
+    }
+    .card-meta {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .card h2 {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+    .card p {
+      font-size: 15px;
+      color: #374151;
+      margin-bottom: 14px;
+    }
+
+    /* pill list */
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    /* "before / after" strip */
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .ba-box {
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+    }
+    .ba-box strong {
+      display: block;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      opacity: .7;
+    }
+
+    /* detail bullets */
+    .detail-list {
+      list-style: none;
+      margin-top: 12px;
+    }
+    .detail-list li {
+      font-size: 14px;
+      color: #374151;
+      padding: 5px 0 5px 20px;
+      position: relative;
+    }
+    .detail-list li::before {
+      content: "›";
+      position: absolute;
+      left: 4px;
+      color: var(--muted);
+    }
+
+    /* pr tag */
+    .pr-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: #f3f4f6;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+    .pr-tag span { color: var(--ink); }
+
+    /* colour themes per card */
+    .c-blue   .icon-circle { background: var(--blue-lt);   color: var(--blue);   }
+    .c-green  .icon-circle { background: var(--green-lt);  color: var(--green);  }
+    .c-purple .icon-circle { background: var(--purple-lt); color: var(--purple); }
+    .c-amber  .icon-circle { background: var(--amber-lt);  color: var(--amber);  }
+    .c-rose   .icon-circle { background: var(--rose-lt);   color: var(--rose);   }
+    .c-teal   .icon-circle { background: var(--teal-lt);   color: var(--teal);   }
+
+    .c-blue   h2 { color: var(--blue);   }
+    .c-green  h2 { color: var(--green);  }
+    .c-purple h2 { color: var(--purple); }
+    .c-amber  h2 { color: var(--amber);  }
+    .c-rose   h2 { color: var(--rose);   }
+    .c-teal   h2 { color: var(--teal);   }
+
+    .c-blue   .pill { background: var(--blue-lt);   color: var(--blue);   }
+    .c-green  .pill { background: var(--green-lt);  color: var(--green);  }
+    .c-purple .pill { background: var(--purple-lt); color: var(--purple); }
+    .c-amber  .pill { background: var(--amber-lt);  color: var(--amber);  }
+    .c-rose   .pill { background: var(--rose-lt);   color: var(--rose);   }
+    .c-teal   .pill { background: var(--teal-lt);   color: var(--teal);   }
+
+    .c-blue   .ba-box.after  { background: var(--blue-lt);   color: var(--blue);   }
+    .c-green  .ba-box.after  { background: var(--green-lt);  color: var(--green);  }
+    .c-purple .ba-box.after  { background: var(--purple-lt); color: var(--purple); }
+    .c-amber  .ba-box.after  { background: var(--amber-lt);  color: var(--amber);  }
+    .c-rose   .ba-box.after  { background: var(--rose-lt);   color: var(--rose);   }
+    .c-teal   .ba-box.after  { background: var(--teal-lt);   color: var(--teal);   }
+
+    .ba-box.before { background: #f3f4f6; color: #6b7280; }
+
+    /* ── FOOTER ─────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 40px 24px;
+      font-size: 13px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 520px) {
+      .before-after { grid-template-columns: 1fr; }
+      .card { grid-template-columns: 44px 1fr; gap: 0 16px; }
+      .icon-circle { width: 44px; height: 44px; font-size: 20px; }
+      .card:not(:last-child) .icon-col::after { left: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">NuWrrrld Financial Portal · Development Log</div>
+  <h1>6 Ways the App Got Better</h1>
+  <p>A plain-English walkthrough of what shipped across PRs #5–#11 and why each change matters for users.</p>
+  <div class="pr-range">
+    <span class="pr-badge">PR #5 · Signals &amp; Nu AI</span>
+    <span class="pr-badge">PR #6 · Portfolio Intelligence</span>
+    <span class="pr-badge">PR #7 · SEO + Landing Pages</span>
+    <span class="pr-badge">PR #8 · Launch &amp; Growth</span>
+    <span class="pr-badge">PR #9 · Retention</span>
+    <span class="pr-badge">PR #10 · Billing UX</span>
+    <span class="pr-badge">PR #11 · Subscription Fix</span>
+  </div>
+</header>
+
+<div class="timeline-wrap">
+
+  <div class="section-label">PRs #8 → #11 &nbsp;·&nbsp; Growth, retention &amp; subscription reliability</div>
+
+  <!-- ① -->
+  <div class="card c-rose">
+    <div class="icon-col">
+      <div class="icon-circle">🔐</div>
+    </div>
+    <div class="body-col">
+      <div class="card-meta">Improvement 1 &nbsp;·&nbsp; Subscription reliability</div>
+      <h2>First-time subscribers actually get their Pro access now</h2>
+      <p>
+        Before PR #11, signing up and paying through the mobile app would silently fail to unlock Pro features.
+        The Stripe webhook that grants entitlements couldn't find the user because a critical piece of identifying
+        data — the Clerk user ID — was never written to the Stripe Customer record. New subscribers would
+        complete checkout but land back in the app still seeing the free-tier paywall.
+      </p>
+      <div class="before-after">
+        <div class="ba-box before">
+          <strong>Before</strong>
+          New subscriber pays → webhook fires → Stripe Customer has no <code>clerk_user_id</code>
+          → sync silently skipped → user stuck on free tier despite paying.
+        </div>
+        <div class="ba-box after">
+          <strong>After</strong>
+          On <code>checkout.session.completed</code> the user ID is stamped onto the Customer →
+          sync runs immediately → Pro access granted within seconds of payment.
+        </div>
+      </div>
+      <div class="pills">
+        <span class="pill">Webhook fix</span>
+        <span class="pill">Entitlement sync</span>
+        <span class="pill">Stripe + Clerk</span>
+      </div>
+      <div class="pr-tag">Landed in <span>PR #11</span></div>
+    </div>
+  </div>
+
+  <!-- ② -->
+  <div class="card c-green">
+    <div class="icon-col">
+      <div class="icon-circle">✅</div>
+    </div>
+    <div class="body-col">
+      <div class="card-meta">Improvement 2 &nbsp;·&nbsp; Post-purchase clarity</div>
+      <h2>A clear "your trial has started" moment after checkout</h2>
+      <p>
+        Completing a subscription used to drop the user silently back onto the dashboard with no feedback —
+        leaving them wondering whether the payment went through. PR #10 added a green confirmation
+        banner that appears immediately after redirect and auto-dismisses, with a direct link to the
+        billing page to review plan details.
+      </p>
+      <ul class="detail-list">
+        <li>Dashboard reads the <code>?checkout=success</code> query param injected by Stripe's redirect</li>
+        <li>Banner confirms the 7-day free trial is active</li>
+        <li>One-tap link to <code>/dashboard/billing</code> for plan management</li>
+        <li>No extra page load — handled entirely within the existing dashboard route</li>
+      </ul>
+      <div class="pills">
+        <span class="pill">Billing UX</span>
+        <span class="pill">Post-checkout flow</span>
+        <span class="pill">Zero extra routes</span>
+      </div>
+      <div class="pr-tag">Landed in <span>PR #10</span></div>
+    </div>
+  </div>
+
+  <!-- ③ -->
+  <div class="card c-amber">
+    <div class="icon-col">
+      <div class="icon-circle">📬</div>
+    </div>
+    <div class="body-col">
+      <div class="card-meta">Improvement 3 &nbsp;·&nbsp; Retention &amp; re-engagement</div>
+      <h2>Weekly digests, streak tracking, and trial nudges keep users coming back</h2>
+      <p>
+        PR #9 wired up three separate retention mechanisms that work in the background to reduce churn and
+        bring lapsed users back to the app — all without requiring any action from the user to set them up.
+      </p>
+      <ul class="detail-list">
+        <li><strong>Weekly digest emails</strong> — a cron-triggered endpoint sends each Pro user their top signals for the week via Resend, respecting email preferences and verified-email requirements</li>
+        <li><strong>Streak API</strong> — records daily app opens; same-day POSTs are idempotent (no accidental double-counting)</li>
+        <li><strong>Trial nudge emails</strong> — automatically sent to trialling users approaching expiry, capped at 3 sends per user so they never become spam</li>
+        <li><strong>Annual upsell page</strong> at <code>/dashboard/upgrade</code> shows monthly subscribers the $9.99 → $6.58/mo savings from switching to annual</li>
+      </ul>
+      <div class="pills">
+        <span class="pill">Email automation</span>
+        <span class="pill">Streak tracking</span>
+        <span class="pill">Trial nudge</span>
+        <span class="pill">Annual upsell</span>
+      </div>
+      <div class="pr-tag">Landed in <span>PR #9</span></div>
+    </div>
+  </div>
+
+  <!-- ④ -->
+  <div class="card c-blue">
+    <div class="icon-col">
+      <div class="icon-circle">🚀</div>
+    </div>
+    <div class="body-col">
+      <div class="card-meta">Improvement 4 &nbsp;·&nbsp; Growth loops</div>
+      <h2>A referral share panel and Product Hunt launch page that actually drive signups</h2>
+      <p>
+        PR #8 added two growth surfaces that give existing users a reason to spread the word and give
+        new visitors a compelling first impression during launch week.
+      </p>
+      <div class="before-after">
+        <div class="ba-box before">
+          <strong>Before</strong>
+          No in-app way to share NuWrrrld. No launch landing page.
+          Growth relied entirely on organic discovery.
+        </div>
+        <div class="ba-box after">
+          <strong>After</strong>
+          One-tap referral code copy + X &amp; LinkedIn share buttons in the dashboard.
+          Dedicated <code>/launch</code> page with Product Hunt CTA, testimonials, and
+          an authenticated email-blast endpoint for coordinated outreach.
+        </div>
+      </div>
+      <ul class="detail-list">
+        <li>Referral codes generated per-user and stored in Clerk metadata — no separate DB needed yet</li>
+        <li>Push notification token registration so future re-engagement pushes can reach opted-in users</li>
+        <li>Email blast endpoint bearer-guarded to prevent abuse (<code>LAUNCH_REMIND_SECRET</code>)</li>
+      </ul>
+      <div class="pills">
+        <span class="pill">Referral program</span>
+        <span class="pill">Social sharing</span>
+        <span class="pill">PH launch page</span>
+        <span class="pill">Push tokens</span>
+      </div>
+      <div class="pr-tag">Landed in <span>PR #8</span></div>
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-top:24px">PRs #5 → #8 &nbsp;·&nbsp; Core product features &amp; discoverability</div>
+
+  <!-- ⑤ -->
+  <div class="card c-teal">
+    <div class="icon-col">
+      <div class="icon-circle">📡</div>
+    </div>
+    <div class="body-col">
+      <div class="card-meta">Improvement 5 &nbsp;·&nbsp; Discoverability &amp; portfolio tools</div>
+      <h2>Search engines can find the app — and it now has real portfolio intelligence</h2>
+      <p>
+        PRs #6 and #7 together moved the app from "invisible on the web with no financial tools" to
+        "discoverable across three keyword clusters with a full portfolio analysis backend."
+      </p>
+      <ul class="detail-list">
+        <li><strong>Portfolio health score</strong> — proxies the MCP backend, normalises to a typed <code>PortfolioHealth</code> shape, graded A–F, cached 15 min per user</li>
+        <li><strong>Optimizer suggestions</strong> — each item carries a required disclaimer; prevents the app from appearing to give direct financial advice</li>
+        <li><strong>Watchlist CRUD</strong> — GET / POST / DELETE per ticker via <code>/api/portfolio/watchlist</code></li>
+        <li><strong>Referral seed API</strong> — generates unique codes, guards against self-referral and double-redemption</li>
+        <li><strong>Three SEO landing pages</strong> — <code>/signals</code>, <code>/ai-assistant</code>, <code>/portfolio-intelligence</code> — each targets a distinct keyword cluster so they don't cannibalise each other</li>
+        <li><strong>Sitemap + robots</strong> — Next.js native routes; disallows <code>/dashboard/</code> and <code>/api/</code> from crawlers</li>
+        <li><strong>Organisation JSON-LD structured data</strong> on root layout for rich search results</li>
+      </ul>
+      <div class="pills">
+        <span class="pill">Portfolio health API</span>
+        <span class="pill">SEO landing pages</span>
+        <span class="pill">Sitemap / robots</span>
+        <span class="pill">Watchlist</span>
+        <span class="pill">Referral API</span>
+      </div>
+      <div class="pr-tag">Landed in <span>PR #6</span> &amp; <span>PR #7</span></div>
+    </div>
+  </div>
+
+  <!-- ⑥ -->
+  <div class="card c-purple">
+    <div class="icon-col">
+      <div class="icon-circle">🤖</div>
+    </div>
+    <div class="body-col">
+      <div class="card-meta">Improvement 6 &nbsp;·&nbsp; Core AI value proposition</div>
+      <h2>Real-time stock signals with explainability, plus a personal AI finance assistant</h2>
+      <p>
+        PR #5 delivered the two features that define what NuWrrrld <em>is</em>: a signal digest that shows
+        users actionable trade ideas with transparent reasoning, and an AI assistant that can discuss those
+        signals in the context of the user's actual portfolio — all with built-in guardrails and a
+        "not financial advice" disclaimer on every response.
+      </p>
+      <div class="before-after">
+        <div class="ba-box before">
+          <strong>Before</strong>
+          The dashboard was a shell. Users who signed up for financial intelligence had nothing to look at.
+        </div>
+        <div class="ba-box after">
+          <strong>After</strong>
+          Pro users land on a live signal digest with confidence scores, time horizons, and expandable
+          "Why this signal" cards — plus a chat window where they can ask follow-up questions answered
+          by Claude with their portfolio as context.
+        </div>
+      </div>
+      <ul class="detail-list">
+        <li>Signals fetched in parallel from two optimiser sources and merged into a single <code>DigestPayload</code> schema — adapter normalises both response shapes</li>
+        <li>15-minute per-user cache avoids hammering upstream APIs on every page load</li>
+        <li>Nu AI is gated behind the <code>nu_ai</code> entitlement — free users see an upgrade prompt, not an error</li>
+        <li>50 k daily token budget tracked in-memory per user; 429 returned (not a silent truncation) when exceeded</li>
+        <li>Guardrail layer refuses off-topic queries before they reach Claude, keeping costs predictable</li>
+        <li>Portfolio context injected into every AI prompt so answers are personalised, not generic</li>
+      </ul>
+      <div class="pills">
+        <span class="pill">Signal digest</span>
+        <span class="pill">Nu AI assistant</span>
+        <span class="pill">Entitlement gate</span>
+        <span class="pill">Daily token budget</span>
+        <span class="pill">Guardrails</span>
+      </div>
+      <div class="pr-tag">Landed in <span>PR #5</span></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  NuWrrrld Financial Portal &nbsp;·&nbsp; PRs #5–#11 &nbsp;·&nbsp; Generated 2026-06-23
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NuWrrrld Portal 10x — Build Phases</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:        #06070d;
+    --surface:   #0d1018;
+    --surface-2: #141926;
+    --text:      #e8ecf4;   /* ~15:1 on --bg */
+    --text-dim:  #9aa4bd;   /* ~6:1 on --bg  */
+    --border:    #212a3d;
+    --neon-blue: #2fd8ff;
+    --neon-red:  #ff3b5c;
+    --glow-blue: 0 0 12px rgba(47,216,255,.55), 0 0 32px rgba(47,216,255,.22);
+    --glow-red:  0 0 12px rgba(255,59,92,.55),  0 0 32px rgba(255,59,92,.22);
+    --maxw: 900px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 2.5rem 1.25rem 5rem;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Ambient neon flares — decorative only, behind content */
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    width: 60vw; height: 60vw;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    opacity: .28;
+  }
+  body::before { background: var(--neon-blue); top: -18vw; left: -14vw; }
+  body::after  { background: var(--neon-red);  bottom: -22vw; right: -16vw; }
+
+  main { max-width: var(--maxw); margin: 0 auto; }
+
+  header { margin-bottom: 2.5rem; }
+  .kicker {
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    font-size: .72rem;
+    color: var(--neon-blue);
+    font-weight: 700;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    line-height: 1.15;
+    margin: .4rem 0 .6rem;
+    text-shadow: var(--glow-blue);
+  }
+  h1 .flare-red { color: var(--neon-red); text-shadow: var(--glow-red); }
+  .lede { color: var(--text-dim); max-width: 62ch; font-size: 1.05rem; }
+
+  h2 {
+    font-size: 1.4rem;
+    margin: 2.75rem 0 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Reality-check callout */
+  .alert {
+    background: var(--surface-2);
+    border: 1px solid var(--neon-red);
+    border-left-width: 4px;
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--glow-red);
+  }
+  .alert h2 { border: 0; margin: 0 0 .5rem; font-size: 1.05rem; color: var(--neon-red); }
+  .alert p { color: var(--text-dim); font-size: .95rem; }
+  .alert p + p { margin-top: .6rem; }
+
+  /* Phase cards */
+  .phases { list-style: none; display: grid; gap: 1rem; }
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.4rem;
+    position: relative;
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+  .phase:hover, .phase:focus-within {
+    border-color: var(--neon-blue);
+    box-shadow: var(--glow-blue);
+  }
+  .phase-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
+  .badge {
+    flex-shrink: 0;
+    font-weight: 800;
+    font-size: .8rem;
+    letter-spacing: .04em;
+    color: var(--bg);
+    background: var(--neon-blue);
+    padding: .2rem .6rem;
+    border-radius: 999px;
+  }
+  .phase.parallel .badge { background: var(--neon-red); }
+  .phase h3 { font-size: 1.15rem; }
+  .size {
+    margin-left: auto;
+    font-size: .72rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: .12rem .5rem;
+    border-radius: 6px;
+  }
+  .phase p { color: var(--text-dim); margin-top: .55rem; font-size: .96rem; }
+  .phase .unblocks {
+    margin-top: .7rem;
+    font-size: .85rem;
+    color: var(--text);
+  }
+  .phase .unblocks b { color: var(--neon-blue); font-weight: 700; }
+
+  .dep-note {
+    margin-top: 1.5rem;
+    color: var(--text-dim);
+    font-size: .92rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+  }
+
+  code {
+    background: var(--surface-2);
+    padding: .1rem .4rem;
+    border-radius: 4px;
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: .85em;
+    color: var(--neon-blue);
+  }
+
+  footer {
+    max-width: var(--maxw);
+    margin: 3.5rem auto 0;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: .82rem;
+  }
+  a { color: var(--neon-blue); }
+
+  /* Accessibility: focus rings clear of glow, solid */
+  a:focus-visible, .phase:focus-within {
+    outline: 2px solid var(--neon-blue);
+    outline-offset: 3px;
+  }
+
+  /* Respect reduced-motion: kill hover transitions, keep static shadows */
+  @media (prefers-reduced-motion: reduce) {
+    .phase { transition: none; }
+  }
+
+  @media (max-width: 560px) {
+    .size { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="kicker">NuWrrrld Portal · Roadmap</p>
+    <h1>10x the Council, the DB, &amp; the <span class="flare-red">UI</span></h1>
+    <p class="lede">
+      Five workstreams turning the portal from a thin display layer into a persistent,
+      grounded, neon-dark product. Ordered by dependency — but two tracks run in parallel.
+      Full detail lives in <code>portal-10x-council-db-local.md</code>.
+    </p>
+  </header>
+
+  <section class="alert" aria-labelledby="reality">
+    <h2 id="reality">⚠ Reality check: signals-app and the portal are not connected</h2>
+    <p>
+      The portal has <strong>zero client</strong> for signals-app — every data path
+      points at the gcp3 Cloud Run backend (<code>MCP_BACKEND_URL</code>). And
+      signals-app's API <strong>isn't deployed anywhere</strong>: no Dockerfile, no
+      host — its FastAPI service only runs on <code>localhost:8000</code> with no auth
+      and <code>allow_origins=["*"]</code>.
+    </p>
+    <p>
+      So wiring them together is real work — it's <strong>Workstream 0</strong>, and the
+      council's backtest grounding depends on it. Until then, the council grounds on
+      gcp3's data (already reachable), just not signals-app's hit-rates.
+    </p>
+  </section>
+
+  <h2>The phases</h2>
+  <ol class="phases">
+    <li class="phase">
+      <div class="phase-head">
+        <span class="badge">Phase 1</span>
+        <h3>Database first</h3>
+        <span class="size">Size: S–M</span>
+      </div>
+      <p>
+        Neon is already provisioned — this is schema + migration, not infra. Add the
+        council/verdict/hit-rate tables and move the in-memory cache Maps (which reset
+        on every serverless cold start) into Postgres.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> the #1 launch blocker (data loss), council persistence, the backtest hit-rate table.</p>
+    </li>
+
+    <li class="phase">
+      <div class="phase-head">
+        <span class="badge">Phase 2</span>
+        <h3>Backend runs locally</h3>
+        <span class="size">Size: S</span>
+      </div>
+      <p>
+        Add a <code>CACHE_BACKEND=sqlite</code> switch so gcp3's FastAPI service runs
+        without Firestore/GCP, plus a <code>uvicorn</code> entry point. Point the portal
+        at <code>localhost</code> and iterate offline.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> cheap, GCP-free iteration on every later phase.</p>
+    </li>
+
+    <li class="phase">
+      <div class="phase-head">
+        <span class="badge">Phase 3</span>
+        <h3>Connect signals-app → portal</h3>
+        <span class="size">Size: M</span>
+      </div>
+      <p>
+        The missing wire. Recommended path: a nightly <code>calibrate.py</code> job
+        writes backtest hit-rates into Neon (<code>backtest_hit_rates</code>), so the
+        council reads Postgres it already talks to. Deploy + secure the live API only if
+        the on-demand drill-down is needed.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> the council's backtest-grounded confidence.</p>
+    </li>
+
+    <li class="phase">
+      <div class="phase-head">
+        <span class="badge">Phase 4</span>
+        <h3>Council debate protocol</h3>
+        <span class="size">Size: M–L</span>
+      </div>
+      <p>
+        The actual 10x. Grow from 2 single-shot seats to 6 roles (adds Risk, Macro,
+        Quant, Chair), a 2-round parallel debate + Chair synthesis into a structured
+        verdict, grounded on real data — not prompt strings.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> persistent, auditable, multi-seat deliberation.</p>
+    </li>
+
+    <li class="phase">
+      <div class="phase-head">
+        <span class="badge">Phase 5</span>
+        <h3>Memory &amp; track record</h3>
+        <span class="size">Size: M</span>
+      </div>
+      <p>
+        Per-user and per-ticker memory, plus a <code>/dashboard/council</code> page
+        scoring past verdicts against realized outcomes — "HIGH-confidence calls: 64%
+        hit rate, n=41." The council confronting its own record is the biggest trust win.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> the product/trust payoff.</p>
+    </li>
+
+    <li class="phase">
+      <div class="phase-head">
+        <span class="badge">Phase 6</span>
+        <h3>Cost control</h3>
+        <span class="size">Size: S</span>
+      </div>
+      <p>
+        Free-tier-only models, per-user daily deliberation quotas in Neon, and a
+        by-(ticker, day) deliberation cache so the second user asking about AAPL gets
+        the saved session, not 11 fresh model calls.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> safe wider rollout.</p>
+    </li>
+
+    <li class="phase parallel">
+      <div class="phase-head">
+        <span class="badge">Parallel</span>
+        <h3>Neon dark-mode frontend</h3>
+        <span class="size">Size: S–M</span>
+      </div>
+      <p>
+        Always-dark near-black canvas with blue/red neon flares (this very page is the
+        look). Ambient blurred radial glows behind content, restrained accent-glow on
+        emphasis only — and WCAG AA throughout: body text never neon, direction never
+        hue-alone, motion respects <code>prefers-reduced-motion</code>.
+      </p>
+      <p class="unblocks"><b>Unblocks:</b> the signature look — independent, hand to a parallel track.</p>
+    </li>
+  </ol>
+
+  <p class="dep-note">
+    <strong>Dependencies:</strong> Phases 1 &amp; 2 are independent and parallel.
+    Phase 3 needs Phase 1's hit-rate table for the push path. Phase 4 can start on
+    gcp3-only grounding before Phase 3 lands, then gains backtest hit-rates once it
+    ships. The neon frontend is fully independent of the rest.
+  </p>
+
+  <footer>
+    Source: <code>homebase/docs/portal-10x-council-db-local.md</code> · Generated 2026-07-09 ·
+    Palette dogfoods Workstream 4 (permanent neon dark mode, AA-accessible).
+  </footer>
+</main>
+</body>
+</html>
