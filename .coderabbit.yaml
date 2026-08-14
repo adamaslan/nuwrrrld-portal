@@ -35,10 +35,10 @@ reviews:
         `sk_live_*`/`sk_test_*`, database URL, webhook signing secret)
         assigned to or read through a `NEXT_PUBLIC_*` env var — that prefix
         ships to the client bundle. Flag any backend/internal service URL
-        exposed via `NEXT_PUBLIC_*` instead of a server-only env var. Flag any
-        code that reads a `NEXT_PUBLIC_*` var inside a file that only runs
-        server-side — it's a signal the boundary was drawn wrong, not just a
-        naming nit.
+        exposed via `NEXT_PUBLIC_*` instead of a server-only env var. A
+        server-only module may intentionally read a public value; flag only
+        actual secrets, internal endpoints, or genuine server-client boundary
+        violations, not the prefix alone.
 
     - path: "app/api/**/*.{ts,tsx}"
       instructions: >-
@@ -62,4 +62,5 @@ reviews:
     drafts: false
 
 chat:
+  allow_non_org_members: false
   auto_reply: true

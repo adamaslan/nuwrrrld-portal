@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Findings — Neon build failure &amp; mobile stray files (2026-08-07)</title>
 <style>
   :root {
@@ -67,9 +68,7 @@
     <div class="step"><div class="t">Retry: full npm run build</div>Completed clean — <code>ƒ Proxy (Middleware)</code> present as expected</div>
   </div>
 
-  <div class="verdict">Verdict: one-off network blip (likely the background shell's first connection hit a stale/cold path in the
-  Neon pooler, or a momentary local network hiccup) — not a credentials, DNS, firewall, or code issue. Portal build is
-  green as of this investigation.</div>
+  <div class="verdict">Verdict: the migration retry using the same <code>@neondatabase/serverless</code> driver and <code>DATABASE_URL</code> path succeeded and the original failure was not reproduced. The initial timeout likely reflects a transient network condition or cold pooler path. Portal build is green as of this investigation.</div>
 
   <h3>Suggested follow-up (optional, not applied)</h3>
   <p><code>scripts/db-migrate.mjs</code> has no request timeout of its own, so a bad connection silently rides the
@@ -123,9 +122,8 @@
 
   <h3>Why this went unnoticed</h3>
   <ul class="findings">
-    <li>No <code>.github/workflows</code> directory exists in <code>gcp3-mobile</code> — no CI at all</li>
-    <li><code>package.json</code> <code>"scripts"</code> has no <code>tsc</code>/typecheck entry — <code>npx tsc --noEmit</code>
-    has apparently never been run as part of this project's normal workflow</li>
+    <li>At the revision examined, <code>.github/workflows</code> was not present in <code>gcp3-mobile</code></li>
+    <li><code>package.json</code> <code>"scripts"</code> had no <code>tsc</code>/typecheck entry — <code>npx tsc --noEmit</code> was not run as part of the standard workflow at that point</li>
   </ul>
 
   <div class="verdict bad">Verdict: this is real, standing technical debt in <code>gcp3-mobile</code>, unrelated to any
@@ -139,12 +137,9 @@
   <table>
     <tr><th>Gate</th><th>Status</th><th>Blocking?</th></tr>
     <tr><td>Portal <code>npm run build</code></td><td><span class="badge good">Green</span></td><td>No — confirmed passing</td></tr>
-    <tr><td>Mobile repo-wide <code>tsc --noEmit</code></td><td><span class="badge bad">Red</span> (pre-existing, unrelated debt)</td><td>Not for items scoped to unaffected files (e.g. <code>lib/subscription.ts</code>, which has zero errors)</td></tr>
+    <tr><td>Mobile repo-wide <code>tsc --noEmit</code></td><td><span class="badge bad">Red</span> (pre-existing, unrelated debt)</td><td><strong>Yes — /sync-pr requires both baselines to be green before PRs open.</strong> Pre-existing debt does not make this non-blocking.</td></tr>
   </table>
-  <p>Recommendation: don't let this pre-existing, unrelated breakage block the whole batch. Track it as its own backlog
-  item (add <code>@/*</code> to <code>tsconfig.json</code> paths + a matching bundler resolver, install or remove the
-  three missing deps, restore/relocate <code>backend/schemas/signal.ts</code>, add a <code>typecheck</code> script and a
-  CI job) — separate from the parity-sync batch, since it's a repo hygiene gap rather than a mobile/web drift issue.</p>
+  <p>To unblock /sync-pr: fix the mobile repo-wide typecheck by adding <code>@/*</code> to <code>tsconfig.json</code> paths + a matching bundler resolver, installing or removing the three missing deps, restoring/relocating <code>backend/schemas/signal.ts</code>, and adding a <code>typecheck</code> script and CI job. This is blocking until resolved.</p>
 </section>
 
 </main>
