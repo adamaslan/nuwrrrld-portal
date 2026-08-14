@@ -115,6 +115,8 @@ agree in intent but not in code.
 
 > ℹ️ **Portal PR #56 (2026-08-11) assessed — portal-only, headline unchanged at ~66%.** Adds [[entity-disclaimer-system]] (hash-derived disclaimer text + Neon acknowledgement, gating `/verdict`, `/signals`, `/portfolio-intelligence`, `/dashboard/holdfold/[ticker]`) and a per-ticker live-analysis panel calling the *second signal-data* backend (`holdemfoldem-api` via `MCP_ANALYZE_URL`, see [[decision-second-analyze-backend]]) — not `gcp3-backend`, and not shared with mobile. The one new `lib/shared/` file this PR adds, `analyze-policy.ts`, is pure cache-key derivation with no mobile counterpart yet, same starting state `signal-policy.ts` was in before mobile PR #32 adopted it — a parity candidate for a future PR, not this one. No existing `lib/shared/` module touched; single-source parity unaffected.
 
+> ℹ️ **Portal PR #59 (2026-08-14) assessed — CI/scheduler infra only, headline unchanged at ~66%.** Adds `afternoon-pipeline.yml` (GitHub Actions cron) and `setup-schedulers.sh` (GCP Cloud Scheduler provisioning) — see [[decision-afternoon-pipeline-cron-split]]. Touches no `lib/`, `lib/shared/`, or `app/` code; nothing here is mobile-reachable or mobile-relevant (mobile has no equivalent server-side cron layer to sync against). Neither denominator moves.
+
 ## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:

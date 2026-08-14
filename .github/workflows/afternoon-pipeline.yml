@@ -1,0 +1,213 @@
+name: Afternoon Pre-Close Pipeline
+
+on:
+  schedule:
+    # 3:15 PM EST (UTC-5) — active approx Nov–Mar
+    - cron: '15 20 * * 1-5'
+    # 3:15 PM EDT (UTC-4) — active approx Mar–Nov
+    - cron: '15 19 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      skip_market_check:
+        description: 'Skip weekday/market-hours gate'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Log responses but do not persist writes'
+        required: false
+        type: boolean
+        default: false
+
+# Finish the run already in flight; queue the next scheduled fire.
+concurrency:
+  group: afternoon-pipeline
+  cancel-in-progress: false
+
+# Least-privilege default; the notify job elevates issues:write for itself.
+permissions:
+  contents: read
+
+jobs:
+  # ── Gate ──────────────────────────────────────────────────────────────────
+  gate:
+    name: Market-hours gate
+    runs-on: ubuntu-latest
+    outputs:
+      is_trading_day: ${{ steps.check.outputs.is_trading_day }}
+    steps:
+      - id: check
+        name: Weekday + single-fire (America/New_York 15:xx) check
+        run: |
+          DAY=$(date -u +%u)   # 1=Mon … 7=Sun
+          # Two schedule entries (EST/EDT) fire year-round; only one is the
+          # correct local hour on any given day. Gate on the actual NY wall
+          # clock hour so the off-season entry is a no-op instead of a
+          # duplicate live run an hour apart (each doing real writes).
+          NY_HOUR=$(TZ="America/New_York" date +%H)
+          if [[ "$DAY" -ge 6 ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "Weekend — skipping pipeline."
+          elif [[ "$NY_HOUR" != "15" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NY local hour is ${NY_HOUR}, not 15 — this is the off-season cron entry, skipping."
+          else
+            echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Pipeline ──────────────────────────────────────────────────────────────
+  pipeline:
+    name: Pre-close pipeline
+    needs: gate
+    if: needs.gate.outputs.is_trading_day == 'true' || inputs.skip_market_check
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    outputs:
+      signals_status: ${{ steps.signals.outputs.status }}
+      council_status:  ${{ steps.council.outputs.status }}
+    steps:
+      - name: Verify required secrets exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fails fast if a secret was never set rather than silently sending
+          # an empty Authorization header to the portal.
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'PORTAL_URL'   || { echo "PORTAL_URL secret missing"; exit 1; }
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'CRON_SECRET'  || { echo "CRON_SECRET secret missing"; exit 1; }
+
+      # NOTE: these 4 routes live under /api/pipeline/* — deliberately NOT
+      # /api/signals/refresh, which already exists and does something else
+      # (accepts a local script's pre-computed digest push, auth'd with
+      # PORTAL_PUSH_SECRET, not CRON_SECRET). Reusing that path here would
+      # silently 401 forever against a working endpoint instead of failing
+      # loudly against a route that doesn't exist yet. None of the 4
+      # /api/pipeline/* routes are built yet — this workflow is orchestration
+      # shipped ahead of them; see docs/wiki-portal/decision-afternoon-pipeline-cron-split.md.
+      - name: Refresh signals
+        id: signals
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          STATUS=$(curl -s -o /tmp/signals.json -w "%{http_code}" \
+            -X POST "$PORTAL_URL/api/pipeline/signals-refresh" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "signals HTTP $STATUS"
+          jq . /tmp/signals.json 2>/dev/null || cat /tmp/signals.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::signals refresh returned HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Run council analysis
+        id: council
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          STATUS=$(curl -s -o /tmp/council.json -w "%{http_code}" \
+            -X POST "$PORTAL_URL/api/pipeline/council-run" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "council HTTP $STATUS"
+          jq . /tmp/council.json 2>/dev/null || cat /tmp/council.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::council run returned HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Score open theses
+        id: theses
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          STATUS=$(curl -s -o /tmp/theses.json -w "%{http_code}" \
+            -X POST "$PORTAL_URL/api/pipeline/theses-score" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
+          jq . /tmp/theses.json 2>/dev/null || cat /tmp/theses.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::theses score returned HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Forced-distribution verdict check
+        id: distribution
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # Fails the step (and the job) if the council emitted uniform
+          # HOLDs (#12) — this must stay a hard failure, not a swallowed one,
+          # or the exact regression this check exists for goes unnoticed.
+          curl -s -o /tmp/distribution.json -f \
+            -X POST "$PORTAL_URL/api/pipeline/council-validate-distribution" \
+            -H "Authorization: Bearer $CRON_SECRET"
+          jq . /tmp/distribution.json 2>/dev/null || true
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Afternoon pre-close pipeline — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "| Step | Result |"
+            echo "|------|--------|"
+            echo "| signals  | ${{ steps.signals.outputs.status  || '—' }} |"
+            echo "| council  | ${{ steps.council.outputs.status  || '—' }} |"
+            echo "| theses   | ${{ steps.theses.outcome          || '—' }} |"
+            echo "| distrib  | ${{ steps.distribution.outcome    || '—' }} |"
+            if [[ -f /tmp/council.json ]]; then
+              echo ""
+              echo '```json'
+              jq '{verdicts: (.verdicts | length), degraded: .meta.degraded, model: .meta.model}' \
+                /tmp/council.json 2>/dev/null || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: afternoon-pipeline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/*.json
+          retention-days: 30
+
+  # ── Notify on failure (gh CLI only — email delivery wired up separately) ──
+  notify:
+    name: Failure notification
+    needs: [gate, pipeline]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Afternoon pipeline failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          **Signals:** ${{ needs.pipeline.outputs.signals_status || 'skipped' }}
+          **Council:** ${{ needs.pipeline.outputs.council_status || 'skipped' }}
+
+          _Email delivery will be added when the Resend integration is wired up._" \
+            --label "pipeline-failure"
