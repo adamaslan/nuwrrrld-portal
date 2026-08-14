@@ -23,6 +23,8 @@ The `afternoon-pipeline.yml` workflow itself calls four portal routes (`/api/sig
 
 A YAML bug was caught during pre-commit validation before merge: the `notify` job's `gh issue create --body` heredoc had three lines with zero indentation inside a `run: |` block scalar, which terminates the literal block early in YAML and would have made the entire workflow file fail to parse in CI. Fixed by aligning all lines to the block's 10-space baseline before commit — see [[concept-test-strategy]] for why syntax validation runs before merge, not after a CI failure.
 
+CodeRabbit's review of this PR then surfaced a more substantive finding: the workflow's original 4 trigger routes reused `/api/signals/refresh` — but that path **already exists** for an unrelated purpose (a local `refresh-signals.py` script pushes a pre-computed `DigestPayload` there, authenticated with `PORTAL_PUSH_SECRET`, not `CRON_SECRET`). Reusing the path would have made the afternoon pipeline silently 401 forever against a live, working endpoint rather than failing loudly against a route that simply doesn't exist yet. Fixed by namespacing all 4 pipeline-trigger routes under `/api/pipeline/*` instead — a path with no existing occupant. Also fixed in the same pass: the two EST/EDT schedule entries both fired every weekday with no DST gate (duplicate live runs an hour apart, each with real writes since `dry_run` defaults to `false` on a scheduled trigger — now gated on the actual America/New_York wall-clock hour); the post-close-scorer GCP job was missing `--time-zone` (would have fired at 16:30 UTC, not 4:30 PM ET); default `GITHUB_TOKEN` permissions were unscoped (now `contents: read` by default, `issues: write` only on the notify job); and curl calls weren't checked for non-2xx status, so a failed portal call would silently continue instead of failing the run (the distribution-check step's failure was explicitly swallowed with `|| echo ... non-fatal` — removed, since that check exists specifically to catch issue #12's uniform-HOLD regression).
+
 ## Alternatives considered
 
 - **One GitHub Actions workflow for everything, including market-clock jobs.** Rejected — GHA scheduled-workflow start times can slip by several minutes under load, which is fine for a 3:15 PM pre-close buffer but not for a 9:45 AM open check meant to fire right after the bell.
@@ -39,8 +41,9 @@ A YAML bug was caught during pre-commit validation before merge: the `notify` jo
 ## Validated by
 
 - `npm run lint` clean, `npm test` — 128 passed / 4 skipped / 0 failed (neither new file is JS/TS, so this confirms no regression, not new coverage).
-- YAML parse validated with `yaml.safe_load` after the indentation fix; `bash -n` on the setup script.
-- Not yet validated by an actual run — no trigger routes exist for it to call yet.
+- YAML parse validated with `yaml.safe_load` after the indentation fix and again after the CodeRabbit-driven revision; `bash -n` on the setup script both times.
+- CodeRabbit automated review (5 findings: 1 critical, 3 major, all addressed pre-merge).
+- Not yet validated by an actual run — the 4 `/api/pipeline/*` routes it calls don't exist yet.
 
 ## See also
 
