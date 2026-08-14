@@ -24,6 +24,10 @@ concurrency:
   group: afternoon-pipeline
   cancel-in-progress: false
 
+# Least-privilege default; the notify job elevates issues:write for itself.
+permissions:
+  contents: read
+
 jobs:
   # ── Gate ──────────────────────────────────────────────────────────────────
   gate:
@@ -33,12 +37,20 @@ jobs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
     steps:
       - id: check
-        name: Weekday check (extend to holiday list here if needed)
+        name: Weekday + single-fire (America/New_York 15:xx) check
         run: |
           DAY=$(date -u +%u)   # 1=Mon … 7=Sun
+          # Two schedule entries (EST/EDT) fire year-round; only one is the
+          # correct local hour on any given day. Gate on the actual NY wall
+          # clock hour so the off-season entry is a no-op instead of a
+          # duplicate live run an hour apart (each doing real writes).
+          NY_HOUR=$(TZ="America/New_York" date +%H)
           if [[ "$DAY" -ge 6 ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping pipeline."
+          elif [[ "$NY_HOUR" != "15" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NY local hour is ${NY_HOUR}, not 15 — this is the off-season cron entry, skipping."
           else
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
           fi
@@ -50,6 +62,8 @@ jobs:
     if: needs.gate.outputs.is_trading_day == 'true' || inputs.skip_market_check
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
     outputs:
       signals_status: ${{ steps.signals.outputs.status }}
       council_status:  ${{ steps.council.outputs.status }}
@@ -67,6 +81,14 @@ jobs:
             | jq -r '.[].name' \
             | grep -qx 'CRON_SECRET'  || { echo "CRON_SECRET secret missing"; exit 1; }
 
+      # NOTE: these 4 routes live under /api/pipeline/* — deliberately NOT
+      # /api/signals/refresh, which already exists and does something else
+      # (accepts a local script's pre-computed digest push, auth'd with
+      # PORTAL_PUSH_SECRET, not CRON_SECRET). Reusing that path here would
+      # silently 401 forever against a working endpoint instead of failing
+      # loudly against a route that doesn't exist yet. None of the 4
+      # /api/pipeline/* routes are built yet — this workflow is orchestration
+      # shipped ahead of them; see docs/wiki-portal/decision-afternoon-pipeline-cron-split.md.
       - name: Refresh signals
         id: signals
         env:
@@ -74,56 +96,66 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           STATUS=$(curl -s -o /tmp/signals.json -w "%{http_code}" \
-            -X POST "$PORTAL_URL/api/signals/refresh" \
+            -X POST "$PORTAL_URL/api/pipeline/signals-refresh" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "signals HTTP $STATUS"
           jq . /tmp/signals.json 2>/dev/null || cat /tmp/signals.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::signals refresh returned HTTP $STATUS"
+            exit 1
+          fi
 
       - name: Run council analysis
         id: council
-        if: steps.signals.outputs.status == '200'
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           STATUS=$(curl -s -o /tmp/council.json -w "%{http_code}" \
-            -X POST "$PORTAL_URL/api/council/run" \
+            -X POST "$PORTAL_URL/api/pipeline/council-run" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "council HTTP $STATUS"
           jq . /tmp/council.json 2>/dev/null || cat /tmp/council.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::council run returned HTTP $STATUS"
+            exit 1
+          fi
 
       - name: Score open theses
         id: theses
-        if: steps.council.outputs.status == '200'
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -s -o /tmp/theses.json \
-            -X POST "$PORTAL_URL/api/theses/score" \
+          STATUS=$(curl -s -o /tmp/theses.json -w "%{http_code}" \
+            -X POST "$PORTAL_URL/api/pipeline/theses-score" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
-            -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}"
+            -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
           jq . /tmp/theses.json 2>/dev/null || cat /tmp/theses.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::theses score returned HTTP $STATUS"
+            exit 1
+          fi
 
       - name: Forced-distribution verdict check
         id: distribution
-        if: steps.council.outputs.status == '200'
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          # Fails the step visibly if the council emitted uniform HOLDs (#12).
+          # Fails the step (and the job) if the council emitted uniform
+          # HOLDs (#12) — this must stay a hard failure, not a swallowed one,
+          # or the exact regression this check exists for goes unnoticed.
           curl -s -o /tmp/distribution.json -f \
-            -X POST "$PORTAL_URL/api/council/validate-distribution" \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            || echo "distribution check failed (non-fatal)" >&2
+            -X POST "$PORTAL_URL/api/pipeline/council-validate-distribution" \
+            -H "Authorization: Bearer $CRON_SECRET"
           jq . /tmp/distribution.json 2>/dev/null || true
 
       - name: Write step summary
@@ -161,6 +193,8 @@ jobs:
     needs: [gate, pipeline]
     if: failure()
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Open failure issue
         env:

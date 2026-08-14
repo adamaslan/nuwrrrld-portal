@@ -44,10 +44,13 @@ upsert_job() {
 }
 
 # Open check — 10:15 AM ET (market days)
+# NOTE: /api/pipeline/signals-refresh, not /api/signals/refresh — the latter
+# already exists for a different purpose (local script digest push, auth'd
+# with PORTAL_PUSH_SECRET). See afternoon-pipeline.yml's matching note.
 upsert_job nuwrrrld-open-check \
   --schedule="15 10 * * 1-5" \
   --time-zone="America/New_York" \
-  --uri="${PORTAL_URL}/api/signals/refresh" \
+  --uri="${PORTAL_URL}/api/pipeline/signals-refresh" \
   --message-body='{"session":"open"}' \
   --headers="Authorization=Bearer ${CRON_SECRET},Content-Type=application/json" \
   --attempt-deadline=4m
@@ -64,6 +67,7 @@ upsert_job nuwrrrld-main-briefing \
 # Post-close scorer — 4:30 PM ET (market days)
 upsert_job nuwrrrld-post-close-scorer \
   --schedule="30 16 * * 1-5" \
+  --time-zone="America/New_York" \
   --uri="${PORTAL_URL}/api/verdicts/score" \
   --message-body='{"session":"post-close"}' \
   --headers="Authorization=Bearer ${CRON_SECRET},Content-Type=application/json" \
