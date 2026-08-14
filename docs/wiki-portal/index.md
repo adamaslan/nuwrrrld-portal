@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-11 (portal PR #56 — disclaimer/acknowledgement system + per-ticker live analysis via holdemfoldem-api)_
+_Last updated: 2026-08-14 (portal PR #59 — afternoon pre-close pipeline workflow + GCP scheduler setup script)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -73,6 +73,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-free-tier-model-chain]] — every model is `:free`; $0 per deliberation
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
+- [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner
 
 ---
 
