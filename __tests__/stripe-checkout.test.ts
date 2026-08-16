@@ -59,9 +59,11 @@ describe("POST /api/stripe/checkout", () => {
     const res = await POST(makeRequest());
     const body = await res.json();
 
+    // Public error contract is stable and user-safe — must never leak the
+    // raw Stripe SDK diagnostic text (internal header/config details).
     expect(res.status).toBe(502);
-    expect(body.error).toContain("checkout failed");
-    expect(body.error).toContain("Invalid character in header content");
+    expect(body.error).toBe("Unable to reach the payment processor. Please try again or contact support.");
+    expect(body.error).not.toContain("Invalid character in header content");
   });
 
   it("returns a checkout URL on success", async () => {

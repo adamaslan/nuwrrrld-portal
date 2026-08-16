@@ -9,10 +9,17 @@
     "start": "next start",
     "lint": "eslint",
     "prepare": "git config core.hooksPath .githooks || true",
-    "test": "vitest run",
+    "test": "vitest run --project unit --project components",
+    "test:unit": "vitest run --project unit",
+    "test:components": "vitest run --project components",
     "test:integration": "vitest run __tests__/signal-queue.integration.test.ts",
+    "test:live": "vitest run --project live",
+    "test:all": "vitest run",
     "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
-    "db:hydrate:dev": "node --env-file=.env.local scripts/hydrate-dev.mjs"
+    "db:hydrate:dev": "node --env-file=.env.local scripts/hydrate-dev.mjs",
+    "nulogdash:inventory": "node scripts/nulogdash-inventory.mjs",
+    "nulogdash": "npm run nulogdash:inventory && node --env-file=.env.local scripts/nulogdash.mjs",
+    "stash:status": "node scripts/stash-status.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
@@ -32,11 +39,17 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest-axe": "^3.5.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "jest-axe": "^10.0.0",
+    "jsdom": "^29.1.1",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

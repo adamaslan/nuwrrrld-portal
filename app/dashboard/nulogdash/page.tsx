@@ -1,0 +1,163 @@
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { redirect, notFound } from "next/navigation";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { getLatestRun, isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
+import type { FeatureResult, FeatureStatus } from "@/lib/nulogdash";
+import "./nulogdash.css";
+
+export const metadata: Metadata = {
+  title: "nulogdash · NuWrrrld Financial",
+};
+
+// Always fresh — this page exists to be checked right after a /nulogdash
+// run, and cached results would defeat the purpose.
+export const dynamic = "force-dynamic";
+
+const STATUS_LABEL: Record<FeatureStatus, string> = {
+  pass: "Pass",
+  fail: "Fail",
+  blocked: "Blocked",
+  not_run: "Not run",
+};
+
+/** Shown to an allowlisted admin who hasn't enrolled a second factor. The
+ * console stays readable; only mutating actions are withheld. */
+function MfaNotice() {
+  return (
+    <div className="nld-mfa-notice">
+      <strong>Two-factor authentication required for admin actions.</strong>
+      <p>
+        You can view reports, but actions that change data (impersonate,
+        disable, reset password, reindex) stay disabled until you enrol a
+        second factor in your account security settings.
+      </p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: FeatureStatus }) {
+  return <span className={`nld-badge nld-badge--${status}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function FeatureRow({ result }: { result: FeatureResult }) {
+  return (
+    <tr className={`nld-row nld-row--${result.status}`}>
+      <td>{result.label}</td>
+      <td><StatusBadge status={result.status} /></td>
+      <td>{result.tier ?? "—"}</td>
+      <td>{result.latencyMs !== null ? `${result.latencyMs}ms` : "—"}</td>
+      <td>
+        {result.reason ? (
+          <details className="nld-reason">
+            <summary>{result.reason.length > 60 ? `${result.reason.slice(0, 60)}…` : result.reason}</summary>
+            <p>{result.reason}</p>
+          </details>
+        ) : "—"}
+      </td>
+    </tr>
+  );
+}
+
+export default async function NulogdashPage() {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard/nulogdash");
+
+  const user = await currentUser();
+  if (!isNulogdashAdmin(user)) notFound();
+
+  // Read-only reports don't require a second factor; mutating actions will.
+  // Surfacing it here means an un-enrolled admin learns why the buttons are
+  // missing instead of finding out when one silently fails.
+  const canMutate = canPerformAdminAction(user);
+
+  const run = getLatestRun();
+
+  if (!run) {
+    return (
+      <main className="nld-page">
+        <Link href="/dashboard" className="nld-back">← Dashboard</Link>
+        <h1>nulogdash</h1>
+        {!canMutate && <MfaNotice />}
+        <p className="nld-empty">
+          No run yet. From Claude Code, run <code>/nulogdash</code>, or from a
+          terminal: <code>npm run nulogdash</code>.
+        </p>
+      </main>
+    );
+  }
+
+  const counts = run.results.reduce<Record<FeatureStatus, number>>(
+    (acc, r) => { acc[r.status] = (acc[r.status] ?? 0) + 1; return acc; },
+    { pass: 0, fail: 0, blocked: 0, not_run: 0 },
+  );
+  const notExercised = counts.blocked + counts.not_run;
+  const total = run.results.length;
+
+  const notExercisedResults = run.results.filter((r) => r.status === "blocked" || r.status === "not_run");
+  const exercisedResults = run.results.filter((r) => r.status === "pass" || r.status === "fail");
+
+  return (
+    <main className="nld-page">
+      <Link href="/dashboard" className="nld-back">← Dashboard</Link>
+      <h1>nulogdash</h1>
+      <p className="nld-meta">
+        Last run {new Date(run.runAt).toLocaleString()} · {run.branch}@{run.gitSha} · {run.baseUrl}
+      </p>
+
+      {!canMutate && <MfaNotice />}
+
+      <div className="nld-headline">
+        <strong>{notExercised} of {total} features not run end-to-end this pass.</strong>
+        <span className="nld-headline-sub">
+          {counts.pass} pass · {counts.fail} fail · {counts.blocked} blocked · {counts.not_run} not run
+        </span>
+      </div>
+
+      {run.driftWarnings.length > 0 && (
+        <div className="nld-drift">
+          <strong>Inventory drift ({run.driftWarnings.length}):</strong>
+          <ul>{run.driftWarnings.map((w) => <li key={w}>{w}</li>)}</ul>
+        </div>
+      )}
+
+      <section>
+        <h2>Not run end-to-end</h2>
+        {notExercisedResults.length === 0 ? (
+          <p className="nld-empty">Everything in scope ran this pass.</p>
+        ) : (
+          <table className="nld-table">
+            <thead><tr><th>Feature</th><th>Status</th><th>Tier</th><th>Latency</th><th>Reason</th></tr></thead>
+            <tbody>{notExercisedResults.map((r) => <FeatureRow key={r.feature} result={r} />)}</tbody>
+          </table>
+        )}
+      </section>
+
+      <section>
+        <h2>Exercised this pass</h2>
+        <table className="nld-table">
+          <thead><tr><th>Feature</th><th>Status</th><th>Tier</th><th>Latency</th><th>Reason</th></tr></thead>
+          <tbody>{exercisedResults.map((r) => <FeatureRow key={r.feature} result={r} />)}</tbody>
+        </table>
+      </section>
+
+      {run.excluded.length > 0 && (
+        <section>
+          <h2>Excluded from sweep</h2>
+          <table className="nld-table">
+            <thead><tr><th>Feature</th><th>Entry point</th><th>Reason</th></tr></thead>
+            <tbody>
+              {run.excluded.map((ex) => (
+                <tr key={ex.feature}>
+                  <td>{ex.feature}</td>
+                  <td>{ex.path}</td>
+                  <td>{ex.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </main>
+  );
+}

@@ -25,14 +25,14 @@ export function RiskSpotlight() {
           <div className="risk-exchange" aria-label="Example council exchange">
             <div className="risk-line risk-line--t1">
               <span className="risk-line-tag">T1</span>
-              <p>NVDA is breaking out on volume. I&apos;d take this long above 462.</p>
+              <p>XLE is up on the day and the week together. I&apos;d take this long above 91.</p>
             </div>
             <div className="risk-line risk-line--risk">
               <span className="risk-line-tag risk-line-tag--risk">RISK</span>
               <p>
-                Volume is up, but so is short interest into an earnings print in 9 days.
-                If guidance disappoints, this gives back the whole breakout in one session.
-                I want a stop, not a story.
+                That&apos;s two momentum checks agreeing with each other, not two independent
+                ones. Strip out relative strength and the case is a week old. If energy stops
+                leading, this gives the move back in one session. I want a stop, not a story.
               </p>
             </div>
           </div>

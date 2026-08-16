@@ -1,8 +1,40 @@
 # Wiki Log — nuwrrrld-portal
 
-Append-only chronological record. Format: `## [{date}] {ingest|query|lint} | {summary} | pages touched: N`
+Append-only chronological record. Format: `## [{date}] {ingest|query|lint|friction} | {summary} | pages touched: N`
 
 ---
+
+## [2026-08-05] ingest | dev-tooling layer + new /bugmerge1 command + command-suggestion mechanism | pages touched: 5
+
+Documented the previously-unwritten dev-tooling layer and added a mechanism for
+proposing new commands from observed bottlenecks. Trigger: added a `/bugmerge1`
+command (scan open PRs → fix review-comment bugs → merge conflict-free) and a
+pre-PR conflict guard in `/pr`; user asked to wiki it and to add a
+bottleneck-driven command-suggestion mechanism plus a survey of the global
+`~/.claude/` automation layer.
+
+**Pages created (3):**
+- `entity-dev-command-suite.md` — the `.claude/commands/` hub: `/pr`,
+  `/bugmerge1`, `/sync-pr`, `/local-check`, `/nulogdash`, their guardrails, and
+  the pre-PR conflict guard. Records the CI/test-enforcement contradiction from
+  [[concept-test-strategy]].
+- `concept-global-automation-layer.md` — the `~/.claude/` layer: global commands
+  (`/geepr`, `/bugz`, `/reb`, `/rem1`, `/maxtoke`, `/locrun`, `/cost-savings`…),
+  always-on rules (`mobile-web-wiki-sync`, `context-bloat`, `mamba`), and the
+  `wiki-guard` PostToolUse hook. Notes lineage `/geepr`→`/pr`, `/bugz`→`/bugmerge1`.
+- `concept-bottleneck-command-suggestion.md` — mine `log.md` + incidents + PR
+  review comments for recurring friction; threshold (≥3, or 1-if-incident);
+  propose-only `/suggest-commands`; the new `friction` log line as highest-signal input.
+
+**Pages/config updated (2):**
+- `index.md` — new "Dev Tooling / Workflow" entity section + two concept entries;
+  header refreshed.
+- `SCHEMA.md` — added the `friction` log-line type to the Log Format section.
+
+**Cross-repo note:** the global `~/.claude/` config and the `mobile-web-wiki-sync`
+rule affect `gcp3-mobile` identically. The mirror pages are *not* written here
+(portal-only session) — a matching `entity-dev-command-suite` / global-automation
+page belongs in `wiki-mobile` when a mobile session next touches this.
 
 ## [2026-07-30] ingest | testing + free-tier robustness pages | pages touched: 6 (4 new, 2 index; both wikis)
 

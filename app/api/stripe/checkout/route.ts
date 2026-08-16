@@ -55,10 +55,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: session.url });
   } catch (err) {
     // Stripe SDK/connection failures (bad key, malformed header, network) land
-    // here — surface a real error message instead of an unhandled 500 with no
-    // body, which the frontend can't distinguish from "server unreachable."
+    // here. Log the real error server-side for debugging, but never forward
+    // Stripe's raw exception text to the client — it's an internal provider
+    // diagnostic (can disclose request/config details) and untrusted callers
+    // shouldn't see it. Return a stable, user-safe message instead of the
+    // previous unhandled 500-with-no-body, which the frontend couldn't
+    // distinguish from "server unreachable."
     console.error("[stripe-checkout] Stripe request failed:", err);
-    const message = err instanceof Error ? err.message : "unknown error";
-    return NextResponse.json({ error: `checkout failed: ${message}` }, { status: 502 });
+    return NextResponse.json(
+      { error: "Unable to reach the payment processor. Please try again or contact support." },
+      { status: 502 },
+    );
   }
 }

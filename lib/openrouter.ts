@@ -169,6 +169,143 @@ export async function fetchWithModelFallback(
   throw new Error(`OpenRouter ${lastStatus}: all models in chain failed`);
 }
 
+/** Parses one buffered chunk of raw SSE text for `data: ` lines, reporting
+ * whether any assistant content/reasoning token was seen and whether `[DONE]`
+ * arrived. Reads both `delta.content` and `delta.reasoning` — a model that
+ * streams only into `reasoning` (never `content`) should not be misread as
+ * having produced nothing (see docs/portfolio-health-ai-workflow.html BUG-4). */
+function scanSSEChunk(raw: string): { remaining: string; sawContent: boolean; sawDone: boolean; parsedLines: number; emptyLines: number } {
+  const lines = raw.split('\n');
+  const remaining = lines.pop() ?? '';
+  let sawContent = false;
+  let sawDone = false;
+  let parsedLines = 0;
+  let emptyLines = 0;
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    const payload = line.slice(6).trim();
+    if (payload === '[DONE]') { sawDone = true; continue; }
+    try {
+      const parsed = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string; reasoning?: string } }> };
+      parsedLines += 1;
+      const delta = parsed?.choices?.[0]?.delta;
+      if (delta?.content || delta?.reasoning) sawContent = true;
+      else emptyLines += 1;
+    } catch { /* skip malformed */ }
+  }
+  return { remaining, sawContent, sawDone, parsedLines, emptyLines };
+}
+
+/**
+ * Like `fetchWithModelFallback`, but additionally treats an HTTP-200 response
+ * that never emits a single content/reasoning token as a failure and retries
+ * the next model — closing the gap where `fetchWithModelFallback` falls back
+ * on HTTP status only (BUG-5). Only "primes" each candidate (buffers raw bytes
+ * until the first token or stream-end) rather than fully buffering to
+ * completion, so a healthy model streams to the caller with effectively the
+ * same latency as `fetchWithModelFallback` — the extra cost is paid only on
+ * the empty-completion path, which was already a dead end for the caller.
+ *
+ * Deliberately a separate function rather than a mode flag on
+ * `fetchWithModelFallback`: `/api/nuai` and `/api/brief` call that one and
+ * have different latency/blast-radius tolerances; this one is opt-in per
+ * caller (currently `/api/portfolio/health-ai` only).
+ */
+export async function fetchWithModelFallbackChecked(
+  apiKey: string,
+  baseBody: Record<string, unknown>,
+  appTitle: string,
+  signal?: AbortSignal,
+): Promise<{ response: Response; model: string }> {
+  let lastStatus = 503;
+  let anyEmptyModel = false;
+
+  for (const model of FREE_MODEL_CHAIN) {
+    let response: Response;
+    try {
+      response = await fetch(`${OR_BASE}/chat/completions`, {
+        method: 'POST',
+        signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://financial.nuwrrrld.com',
+          'X-Title': appTitle,
+        },
+        body: JSON.stringify({ ...baseBody, model }),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      continue;
+    }
+
+    if (!response.ok) {
+      lastStatus = response.status;
+      await response.body?.cancel().catch(() => {});
+      if (response.status !== 402 && response.status !== 429 && response.status < 500) break;
+      continue;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) { continue; }
+    const decoder = new TextDecoder();
+    let bufferedRaw = '';
+    let sawContent = false;
+    let sawDone = false;
+    let parsedLines = 0;
+    let emptyLines = 0;
+    let streamEnded = false;
+
+    while (!sawContent && !streamEnded) {
+      const { done, value } = await reader.read();
+      if (done) { streamEnded = true; bufferedRaw += decoder.decode(); break; }
+      bufferedRaw += decoder.decode(value, { stream: true });
+      const scan = scanSSEChunk(bufferedRaw);
+      sawContent = scan.sawContent;
+      sawDone = sawDone || scan.sawDone;
+      parsedLines += scan.parsedLines;
+      emptyLines += scan.emptyLines;
+      if (scan.sawDone && !sawContent) { streamEnded = true; break; }
+    }
+
+    console.info(
+      `[openrouter] health-ai attempt model=${model} status=200 sawContent=${sawContent} ` +
+      `parsedLines=${parsedLines} emptyLines=${emptyLines} sawDone=${sawDone} streamEnded=${streamEnded}`,
+    );
+
+    if (!sawContent) {
+      // This model produced zero usable tokens — advance to the next one
+      // instead of handing the caller a "successful" empty stream.
+      anyEmptyModel = true;
+      reader.cancel().catch(() => {});
+      continue;
+    }
+
+    // Reconstruct the stream: replay the buffered priming bytes, then keep
+    // pumping the same underlying reader untouched for the rest.
+    const enc = new TextEncoder();
+    const combined = new ReadableStream({
+      start(ctrl) {
+        if (bufferedRaw) ctrl.enqueue(enc.encode(bufferedRaw));
+      },
+      async pull(ctrl) {
+        const { done, value } = await reader.read();
+        if (done) { ctrl.close(); return; }
+        ctrl.enqueue(value);
+      },
+      cancel() { reader.cancel().catch(() => {}); },
+    });
+
+    return { response: new Response(combined, { headers: response.headers }), model };
+  }
+
+  throw new Error(
+    anyEmptyModel
+      ? 'OpenRouter: all models in chain returned empty completions'
+      : `OpenRouter ${lastStatus}: all models in chain failed`,
+  );
+}
+
 /**
  * Run one seat against an explicit message list, trying the seat's primary model
  * then the free-tier chain. Returns the answer plus which model served it and the

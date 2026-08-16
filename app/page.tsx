@@ -112,14 +112,31 @@ async function fetchLandingData() {
     topSignals,
     council: councilData,
     trackRecord: trackRecordData,
+    coverage: coverageFromDigest(digest),
   };
+}
+
+/**
+ * The "things we check" stat, measured rather than asserted: every ranked
+ * symbol carries a `signal_count` (surfaced as `signalCounts.total`), and the
+ * backend's own `signal_summary.total_signals` is the sum of them. Deriving it
+ * here keeps the landing page honest on days the tracked universe changes size,
+ * instead of hardcoding a number that quietly drifts away from the engine.
+ */
+function coverageFromDigest(digest: ReturnType<typeof adaptLiveSignals> | null) {
+  if (!digest || digest.signals.length === 0) return null;
+  const checks = digest.signals.reduce(
+    (sum, s) => sum + (s.signalCounts?.total ?? s.indicators.length),
+    0,
+  );
+  return { tickers: digest.signals.length, checks };
 }
 
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  const { marketSummary, indices, topSignals, council, trackRecord } = await fetchLandingData();
+  const { marketSummary, indices, topSignals, council, trackRecord, coverage } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
@@ -148,8 +165,9 @@ export default async function Home() {
             <span>Should I buy it,</span> <span>or not?</span>
           </h1>
           <p className="hero-copy">
-            Ask any ticker. Six AI analysts argue it out — including one whose whole job is to talk you
-            out of the trade — until they agree on a call, and exactly what price would prove them wrong.
+            Ask about any of the 54 sector and industry ETFs we track. Six AI analysts argue it out —
+            including one whose whole job is to talk you out of the trade — until they agree on a call,
+            and exactly what price would prove them wrong.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
@@ -165,13 +183,13 @@ export default async function Home() {
                 <div className="brief-card">
                   <div className="label">Today&apos;s read</div>
                   <div className="big-number up">Bullish</div>
-                  <p className="brief-text">Stocks are broadly rising and volatility is cooling off.</p>
+                  <p className="brief-text">Most tracked sectors are trending up, and buy calls outnumber sells.</p>
                 </div>
                 <div className="mini-grid">
-                  <div className="mini-card"><strong className="up">72%</strong><span>Stocks rising</span></div>
-                  <div className="mini-card"><strong className="down">-3.1%</strong><span>Fear index</span></div>
-                  <div className="mini-card"><strong className="up">Calmer</strong><span>Volatility</span></div>
-                  <div className="mini-card"><strong className="flat">Steady</strong><span>Interest rates</span></div>
+                  <div className="mini-card"><strong className="up">22</strong><span>Buy calls</span></div>
+                  <div className="mini-card"><strong className="flat">30</strong><span>Hold calls</span></div>
+                  <div className="mini-card"><strong className="down">2</strong><span>Sell calls</span></div>
+                  <div className="mini-card"><strong className="flat">-0.2%</strong><span>Avg index move</span></div>
                 </div>
               </div>
             </ParallaxLayer>
@@ -237,9 +255,9 @@ export default async function Home() {
                   }) : (
                     <>
                       <p className="sample-data-tag">Sample data — live backend unavailable</p>
-                      <div className="signal-row"><b>NVDA</b><div className="bar"><span style={{ width: "91%" }} /></div><span className="up">BUY</span></div>
-                      <div className="signal-row"><b>MSFT</b><div className="bar"><span style={{ width: "74%" }} /></div><span className="up">BUY</span></div>
-                      <div className="signal-row"><b>TSLA</b><div className="bar"><span style={{ width: "58%" }} /></div><span className="flat">HOLD</span></div>
+                      <div className="signal-row"><b>SOXX</b><div className="bar"><span style={{ width: "91%" }} /></div><span className="up">BUY</span></div>
+                      <div className="signal-row"><b>XLK</b><div className="bar"><span style={{ width: "74%" }} /></div><span className="up">BUY</span></div>
+                      <div className="signal-row"><b>JETS</b><div className="bar"><span style={{ width: "58%" }} /></div><span className="flat">HOLD</span></div>
                       <div className="signal-row"><b>XLE</b><div className="bar"><span style={{ width: "36%" }} /></div><span className="down">SELL</span></div>
                     </>
                   )}
@@ -253,8 +271,14 @@ export default async function Home() {
 
       <div className="peek-band" aria-label="Key platform metrics">
         <div className="metric"><StatCounter value={6} /><span>AI analysts arguing every call — including one against you.</span></div>
-        <div className="metric"><StatCounter value={138} /><span>Things we check before we tell you buy, sell, or hold.</span></div>
-        <div className="metric"><StatCounter value={380} suffix="+" /><span>Data points behind every single ticker.</span></div>
+        <div className="metric">
+          <StatCounter value={coverage?.checks ?? 250} suffix={coverage ? "" : "+"} />
+          <span>Individual checks run today before we tell you buy, sell, or hold.</span>
+        </div>
+        <div className="metric">
+          <StatCounter value={coverage?.tickers ?? 54} />
+          <span>Sector and industry ETFs tracked and re-scored every day.</span>
+        </div>
         <div className="metric"><strong>Live</strong><span>One account for the web and the mobile app.</span></div>
       </div>
 
@@ -333,27 +357,28 @@ export default async function Home() {
               <h2>No single indicator ever gets the final word.</h2>
             </div>
             <p className="section-copy">
-              Five completely independent checks back every call — price action, volatility, the macro
-              backdrop, sector rotation, and news events — so one bad signal can&apos;t fool the whole system.
+              Five independent families of check back every call — momentum, trend, relative strength,
+              market structure, and mean reversion — scored and weighted together, so one bad signal
+              can&apos;t fool the whole system.
             </p>
           </Reveal>
 
-          <Reveal className="matrix" role="img" aria-label="Example signal matrix with decisions across time horizons">
+          <Reveal className="matrix" role="img" aria-label="Illustrative signal matrix with decisions across time horizons">
             <div className="matrix-head">
-              <strong>Example — NVDA</strong>
-              <span className="pill">380+ inputs · trust score 0.91</span>
+              <strong>Illustrative — XLE</strong>
+              <span className="pill">5 signal families · confluence +0.91</span>
             </div>
             <div className="matrix-scroll">
               <div className="matrix-grid">
                 <div className="matrix-cell head">Signal</div>
                 <div className="matrix-cell head">1D</div>
-                <div className="matrix-cell head">5D</div>
+                <div className="matrix-cell head">1W</div>
                 <div className="matrix-cell head">1M</div>
                 <div className="matrix-cell head">3M</div>
                 <div className="matrix-cell head">1Y</div>
                 <div className="matrix-cell head">Conf</div>
 
-                <div className="matrix-cell name">RSI + divergence</div>
+                <div className="matrix-cell name">Momentum</div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
@@ -361,7 +386,7 @@ export default async function Home() {
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
                 <div className="matrix-cell mono">0.87</div>
 
-                <div className="matrix-cell name">MACD cross state</div>
+                <div className="matrix-cell name">Trend</div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
@@ -369,7 +394,7 @@ export default async function Home() {
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
                 <div className="matrix-cell mono">0.91</div>
 
-                <div className="matrix-cell name">Breadth and sector relative</div>
+                <div className="matrix-cell name">Relative strength</div>
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
@@ -377,7 +402,7 @@ export default async function Home() {
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell mono">0.82</div>
 
-                <div className="matrix-cell name">Macro regime stress</div>
+                <div className="matrix-cell name">Market structure</div>
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
@@ -385,7 +410,7 @@ export default async function Home() {
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
                 <div className="matrix-cell mono">0.74</div>
 
-                <div className="matrix-cell name">Event and earnings drift</div>
+                <div className="matrix-cell name">Mean reversion</div>
                 <div className="matrix-cell"><span className="verdict sell">SELL</span></div>
                 <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
                 <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
@@ -401,7 +426,7 @@ export default async function Home() {
               <h3>Built to catch its own mistakes</h3>
               <p>Every call carries a trust score, a confidence level, and the exact price that would prove it wrong — and we show you the track record, not just the pitch.</p>
               <ul className="feature-list">
-                <li>Five independent checks behind every call.</li>
+                <li>Five independent signal families, weighted into one score.</li>
                 <li>The council can&apos;t answer without pointing to real data.</li>
               </ul>
             </Reveal>
@@ -469,7 +494,7 @@ export default async function Home() {
               <h3>The one who calls it</h3>
               <p>Weighs all five arguments, says plainly whether they agree or clash, and hands you one final call.</p>
               <div className="verdict-example mono">
-                {`{"direction":"bullish","confidence":"high","horizon":"5-15d","invalidation":"<462"}`}
+                {`{"direction":"bullish","confidence":"high","horizon":"5-15d","invalidation":"<91"}`}
               </div>
             </Reveal>
           </div>

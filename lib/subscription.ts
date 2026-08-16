@@ -133,12 +133,20 @@ export function parseSubscriptionMetadata(
   const status = isSubscriptionStatus(rawStatus) ? rawStatus : 'free';
 
   const rawTrialEnd = raw?.trial_end;
-  const trialEndSeconds = typeof rawTrialEnd === 'number' ? rawTrialEnd : undefined;
-  // Distinguish "no trial_end" from a valid (if unlikely) zero timestamp, and
-  // guard against NaN/out-of-range values — Date#toISOString throws on an
-  // invalid Date rather than returning a sentinel.
-  const trialEndDate = trialEndSeconds !== undefined ? new Date(trialEndSeconds * 1000) : undefined;
-  const trialEnd = trialEndDate && !Number.isNaN(trialEndDate.getTime()) ? trialEndDate.toISOString() : undefined;
+  const trialEndSeconds =
+    typeof rawTrialEnd === 'number' && Number.isFinite(rawTrialEnd) ? rawTrialEnd : undefined;
+
+  // Only serialize trialEnd while actually trialing (matches the
+  // SubscriptionState contract: "undefined when not trialing") — a stale
+  // trial_end left over from a prior trial shouldn't resurface once a user
+  // has converted, lapsed, or canceled. Number.isFinite alone doesn't rule
+  // out values outside the Date range (e.g. 1e100), which throw a
+  // RangeError from toISOString() — validate the constructed Date itself.
+  let trialEnd: string | undefined;
+  if (status === 'trialing' && trialEndSeconds !== undefined) {
+    const date = new Date(trialEndSeconds * 1000);
+    trialEnd = Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+  }
 
   return {
     status,

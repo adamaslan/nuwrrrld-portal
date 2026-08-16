@@ -40,5 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local pipeline logs
-.nulogdash/
+# nulogdash — local run results (v0 JSON sink, see docs/nulogdash-dashboard-plan.md)
+/.nulogdash/
+
+# stash-status — regenerable local snapshot of `git stash list`, see scripts/stash-status.mjs
+/docs/stash-status.html

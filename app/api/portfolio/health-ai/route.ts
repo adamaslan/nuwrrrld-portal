@@ -5,19 +5,23 @@ import type { SubscriptionStatus } from "@/lib/subscription";
 import { getWatchlist } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
-import { fetchWithModelFallback } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
 
-async function fetchHealth(userId: string, token: string): Promise<PortfolioHealth | null> {
-  if (!MCP_URL) return null;
+// Stateless, ticker-keyed — mirrors app/api/portfolio/health/route.ts. No
+// Clerk token is sent; gcp3's endpoint has no concept of "whose" portfolio
+// this is, only "which tickers." See
+// docs/wiki-portal/incident-2026-07-26-portfolio-health-endpoint-missing.md.
+async function fetchHealth(tickers: string[]): Promise<PortfolioHealth | null> {
+  if (!MCP_URL || tickers.length === 0) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 7_000);
   try {
-    const res = await fetch(`${MCP_URL}/api/portfolio/health`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: ctrl.signal,
-    });
+    const res = await fetch(
+      `${MCP_URL}/api/portfolio/health?tickers=${encodeURIComponent(tickers.join(","))}`,
+      { signal: ctrl.signal },
+    );
     if (!res.ok) return null;
     const raw = await res.json() as Record<string, unknown>;
     const score = typeof raw.score === "number" ? Math.round(raw.score) : 0;
@@ -30,7 +34,6 @@ async function fetchHealth(userId: string, token: string): Promise<PortfolioHeal
       generatedAt: typeof raw.generated_at === "string" ? raw.generated_at : new Date().toISOString(),
     };
   } catch { return null; } finally { clearTimeout(t); }
-  void userId;
 }
 
 function buildHealthPrompt(
@@ -68,8 +71,7 @@ function buildHealthPrompt(
 }
 
 export async function POST(req: NextRequest) {
-  void req;
-  const { userId, getToken } = await auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const user = await currentUser();
@@ -84,26 +86,77 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
   const watchlist = await getWatchlist(userId).catch(() => []).then(list => list.map(i => i.ticker));
-  const token = await getToken().catch(() => null);
-  const health = token ? await fetchHealth(userId, token) : null;
+  const health = await fetchHealth(watchlist);
   const prompt = buildHealthPrompt(watchlist, health);
+  // Surfaced to the client so an ungrounded narrative is shown as such rather
+  // than silently — see docs/wiki-portal/concept-graceful-degradation.md
+  // ("degrade to a lesser state, never to a plausible-looking fabrication").
+  const grounded = health !== null;
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25_000);
 
   try {
-    const { response } = await fetchWithModelFallback(
+    // Reasoning-capable models (nemotron-3-*) spend part of max_tokens on
+    // hidden reasoning before any content token appears; 400 was tight enough
+    // to starve that out entirely on some requests. 1024 matches /api/nuai.
+    const { response, model } = await fetchWithModelFallbackChecked(
       apiKey,
-      { max_tokens: 400, stream: true, messages: [{ role: "user", content: prompt }], temperature: 0.3 },
+      { max_tokens: 1024, stream: true, messages: [{ role: "user", content: prompt }], temperature: 0.3 },
       "NuWrrrld Financial Portfolio Health Check",
       ctrl.signal,
     );
+    console.info(`[health-ai] served model=${model} grounded=${grounded} tickers=${watchlist.length}`);
 
+    const wantsStream = (req.headers.get("Accept") ?? "").includes("text/event-stream");
     const upstream = response.body!;
     const decoder = new TextDecoder();
-    const enc = new TextEncoder();
     const reader = upstream.getReader();
 
+    const drainSSELines = (raw: string, onDelta: (d: string) => void): { remaining: string; done: boolean } => {
+      const lines = raw.split("\n");
+      const remaining = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]") return { remaining, done: true };
+        try {
+          const parsed = JSON.parse(payload);
+          const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
+          if (delta) onDelta(delta);
+        } catch { /* skip malformed */ }
+      }
+      return { remaining, done: false };
+    };
+
+    if (!wantsStream) {
+      // Legacy path (BUG-12): buffer and return JSON for clients that didn't
+      // ask for SSE, instead of always returning a stream they can't parse.
+      let fullText = "";
+      let sseBuffer = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            sseBuffer += decoder.decode();
+            if (sseBuffer) drainSSELines(sseBuffer + "\n", d => { fullText += d; });
+            break;
+          }
+          sseBuffer += decoder.decode(value, { stream: true });
+          const result = drainSSELines(sseBuffer, d => { fullText += d; });
+          sseBuffer = result.remaining;
+          if (result.done) break;
+        }
+      } finally {
+        clearTimeout(timer);
+        reader.cancel().catch(() => {});
+      }
+      return NextResponse.json({ answer: fullText, grounded });
+    }
+
+    // SSE streaming path: pipe the (already-primed, guaranteed non-empty)
+    // OpenRouter stream directly to the client.
+    const enc = new TextEncoder();
     const stream = new ReadableStream({
       async start(ctrl2) {
         try {
@@ -131,6 +184,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
+        "X-Portfolio-Health-Grounded": String(grounded),
       },
     });
   } catch (err) {

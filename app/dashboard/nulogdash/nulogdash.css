@@ -1,0 +1,52 @@
+.nld-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+  font-family: var(--font-geist-sans, sans-serif);
+}
+.nld-back { color: var(--neon-blue); font-size: .9rem; text-decoration: none; display: inline-block; margin-bottom: .75rem; }
+.nld-page h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: .35rem; color: var(--text); }
+.nld-meta { color: var(--text-dim); font-size: .85rem; margin-bottom: 1.5rem; }
+.nld-empty { color: var(--text-dim); }
+
+.nld-headline {
+  border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem;
+  background: var(--surface); margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: .35rem;
+}
+.nld-headline strong { font-size: 1.15rem; color: var(--text); }
+.nld-headline-sub { color: var(--text-dim); font-size: .85rem; }
+
+.nld-drift {
+  border: 1px solid var(--bear); border-radius: 12px; padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem; color: var(--text); font-size: .85rem;
+}
+.nld-drift ul { margin: .5rem 0 0; padding-left: 1.25rem; }
+
+/* Caution, not error: the console still works, only mutating actions are held back. */
+.nld-mfa-notice {
+  border: 1px solid var(--neon-yellow); border-radius: 12px; padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem; color: var(--text); font-size: .85rem;
+}
+.nld-mfa-notice p { margin: .4rem 0 0; color: var(--text-dim); }
+
+.nld-page section { margin-bottom: 2rem; }
+.nld-page h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: .75rem; color: var(--text); }
+
+.nld-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.nld-table th {
+  text-align: left; padding: .5rem .6rem; color: var(--text-dim); font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.nld-table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+
+.nld-badge {
+  display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600;
+}
+.nld-badge--pass { background: rgba(34, 197, 94, .15); color: var(--bull, #22c55e); }
+.nld-badge--fail { background: rgba(239, 68, 68, .15); color: var(--bear, #ef4444); }
+.nld-badge--blocked { background: rgba(245, 158, 11, .15); color: #f59e0b; }
+.nld-badge--not_run { background: rgba(148, 163, 184, .15); color: var(--text-dim, #94a3b8); }
+
+.nld-reason { cursor: pointer; }
+.nld-reason summary { color: var(--text-dim); font-size: .8rem; }
+.nld-reason p { margin: .35rem 0 0; font-size: .8rem; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
