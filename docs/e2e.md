@@ -22,7 +22,6 @@ These are the names only. Real values live in `.env.local` (git-ignored) and in 
 | `CLERK_SECRET_KEY` | server | Every `auth()` call fails; API routes 401 uniformly. |
 | `NULOGDASH_ADMIN_EMAILS` | server | Empty ⇒ admin console 404s for *everyone*. Reads as broken, not as open. |
 | `OPENROUTER_API_KEY` | server | Nu AI / council / health-AI routes return 503. Live vitest project skips itself. |
-| `ANTHROPIC_API_KEY` | server | Anthropic-backed paths fall through to the OpenRouter chain. |
 | `MCP_BACKEND_URL` | server | Signals/market data fall back to a hardcoded Cloud Run URL. |
 | `DATABASE_URL` | server | Hard failure — every persisted feature breaks. |
 | `STRIPE_SECRET_KEY` | server | Checkout/portal 500. |
@@ -58,7 +57,6 @@ function expectKeyShape(name: string, prefixes: string[]): void {
 test.describe('Credential preflight', () => {
   test('AI + auth + billing keys are present and well-formed', () => {
     expectKeyShape('OPENROUTER_API_KEY', ['sk-or-v1-']);
-    expectKeyShape('ANTHROPIC_API_KEY', ['sk-ant-']);
     expectKeyShape('CLERK_SECRET_KEY', ['sk_test_', 'sk_live_']);
     expectKeyShape('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', ['pk_test_', 'pk_live_']);
     expectKeyShape('STRIPE_SECRET_KEY', ['sk_test_', 'sk_live_']);
@@ -745,7 +743,6 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MCP_BACKEND_URL: ${{ secrets.MCP_BACKEND_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}

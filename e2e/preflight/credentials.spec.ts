@@ -16,7 +16,6 @@ function expectKeyShape(name: string, prefixes: string[]): void {
 test.describe("Credential preflight — shape", () => {
   test("AI + auth + billing keys are present and well-formed", () => {
     expectKeyShape("OPENROUTER_API_KEY", ["sk-or-v1-"]);
-    expectKeyShape("ANTHROPIC_API_KEY", ["sk-ant-"]);
     expectKeyShape("CLERK_SECRET_KEY", ["sk_test_", "sk_live_"]);
     expectKeyShape("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", ["pk_test_", "pk_live_"]);
     expectKeyShape("STRIPE_SECRET_KEY", ["sk_test_", "sk_live_"]);

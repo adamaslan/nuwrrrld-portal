@@ -147,7 +147,6 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MCP_BACKEND_URL: ${{ secrets.MCP_BACKEND_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}

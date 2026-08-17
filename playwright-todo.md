@@ -67,26 +67,41 @@ nothing beyond `roles/iam.workloadIdentityUser`. Do this before merging
 blocker 1 — an unauthenticated `auth` job step will hard-fail every CI run
 otherwise.
 
-### 4. Repo secrets — now scriptable, still not run
+### 4. Repo secrets — 11/13 done (2026-08-17)
 
-`e2e-resiliency.yml`'s sharded job env block expects 14 secrets mirroring
-`.env.example`'s contract (see the full list in `scripts/sync-e2e-secrets.sh`),
-plus `E2E_CLERK_TEST_EMAIL`/`PASSWORD` on the `auth` job only (blocker 2).
+`ANTHROPIC_API_KEY` was eliminated entirely (2026-08-17) — it was unused
+dead code end to end (unread by any route, `lib/env.ts`'s schema field was
+never imported anywhere, `@anthropic-ai/sdk` is a `package.json` dependency
+nothing calls). Removed from `lib/env.ts`, `.env.example`,
+`e2e/preflight/credentials.spec.ts`, `scripts/sync-e2e-secrets.sh`,
+`.github/workflows/e2e-resiliency.yml`, and `docs/e2e.md`'s env contract
+table. The contract is now 13 vars, not 14.
 
-**Action:**
+`bash scripts/sync-e2e-secrets.sh` has run once. **11/13 pushed** —
+confirmed via `gh secret list` (names only, no values):
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `OPENROUTER_API_KEY`,
+`MCP_BACKEND_URL`, `DATABASE_URL`, `STRIPE_SECRET_KEY`,
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_MONTHLY`,
+`IP_HASH_SECRET`, `E2E_CLERK_TEST_EMAIL`, `E2E_CLERK_TEST_PASSWORD`.
+
+**Still not pushed** (placeholder/empty in `.env.local`, skipped by the
+script rather than failed):
+- [ ] `NULOGDASH_ADMIN_EMAILS` — empty. Add the Clerk test user's email here.
+- [ ] `STRIPE_WEBHOOK_SECRET` — see `docs/stripe-todo.md`.
+- [ ] `STRIPE_PRICE_ANNUAL` — see `docs/stripe-todo.md`.
+- [ ] `PORTAL_PUSH_SECRET` — see `docs/stripe-todo.md` (not Stripe-specific,
+      but grouped there since it's another "generate/create this yourself"
+      value with no existing reference to copy from).
+
+**Action once those four are filled in `.env.local`:**
 ```bash
 bash scripts/sync-e2e-secrets.sh --dry-run   # confirm what would be pushed, by name only
 bash scripts/sync-e2e-secrets.sh             # actually push
 ```
-This wraps the new `secrets-sync` skill's shared script
-(`~/.claude/scripts/sync-secrets.sh`) — reads directly from `.env.local` into
-`gh secret set`, skips placeholder-shaped values with a printed reason
-(currently: `NULOGDASH_ADMIN_EMAILS`, `ANTHROPIC_API_KEY`,
-`STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ANNUAL`, `PORTAL_PUSH_SECRET` — fill
-these in `.env.local` and re-run to cover them), and never prints a real
-value at any point. Run it locally yourself — see `docs/env-rotation.md` for
-why this shouldn't be run by pasting `.env.local` contents into a chat
-session first.
+Wraps the `secrets-sync` skill's shared script
+(`~/.claude/scripts/sync-secrets.sh`) — never prints a real value. Run it
+locally yourself — see `docs/env-rotation.md` for why this shouldn't be run
+by pasting `.env.local` contents into a chat session first.
 
 ### 5. `.nulogdash/latest.json` merge has never run against real browser results
 

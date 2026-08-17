@@ -34,10 +34,14 @@ writing is the **live** pair — meaning local dev has likely been running
 against production Clerk, not a dev instance. Delete the duplicate pair you
 don't intend to use; don't just rotate both and leave the ambiguity.
 
-**Not exposed, no action needed:** `ANTHROPIC_API_KEY` is still the
-`sk_placeholder_set_in_vercel` placeholder locally — nothing real to rotate
-there. `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ANNUAL` are also still
-placeholders.
+**`ANTHROPIC_API_KEY` eliminated (2026-08-17), not just unrotated.** It was
+dead end to end — unused Anthropic SDK dependency, unread env var, an
+unimported `lib/env.ts` schema field. Removed everywhere rather than left as
+a placeholder to eventually rotate. See `playwright-todo.md` blocker #4 for
+the full list of files it was removed from.
+
+**Still placeholder, real action needed — see `docs/stripe-todo.md`:**
+`STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ANNUAL`.
 
 ---
 
@@ -73,7 +77,6 @@ gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 gh secret set CLERK_SECRET_KEY              # rotated value
 gh secret set NULOGDASH_ADMIN_EMAILS
 gh secret set OPENROUTER_API_KEY            # rotated value
-gh secret set ANTHROPIC_API_KEY
 gh secret set MCP_BACKEND_URL
 gh secret set DATABASE_URL                  # rotated value
 gh secret set STRIPE_SECRET_KEY             # rotated value
