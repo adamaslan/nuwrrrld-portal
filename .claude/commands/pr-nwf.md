@@ -44,12 +44,22 @@ Never commit:
 - ❌ `.env`, `.env.local`, `.env.production`, `.env.*.local`
 - ❌ `*.pem`, `*.key`, `*.p8`, `*.p12`, private keys, tokens
 - ❌ `.claude/settings.local.json`, `node_modules/`, `.next/`, `.vercel/`
+- ❌ `test-results/`, `playwright-report/`, `blob-report/`, `playwright/.auth/`,
+  `.nulogdash/` — all git-ignored already, but a forced `git add -f` or a
+  changed `.gitignore` can slip one in. Playwright traces embed request
+  headers (`Authorization: Bearer <key>`) and `playwright/.auth/user.json` is
+  a live Clerk session — either is a worse leak than a bare env var, because
+  it's a *usable* credential, not just a name.
 
 Reject these patterns in the diff:
 - `PRIVATE_KEY`, `SECRET_KEY`, `API_KEY`, `TOKEN`, `PASSWORD`
-- `sk_test_*`, `sk_live_*`, `CLERK_SECRET_KEY`
+- `sk_test_*`, `sk_live_*`, `sk-ant-*`, `sk-or-v1-*`, `CLERK_SECRET_KEY`
 - Any secret value placed in a `NEXT_PUBLIC_*` var (public → leaks to the bundle)
 - Backend URLs in `NEXT_PUBLIC_*` (must stay server-side; use non-public vars)
+- `E2E_CLERK_TEST_EMAIL` / `E2E_CLERK_TEST_PASSWORD` values — these belong in
+  `.env.local` and repo secrets only, never in a spec file, fixture, or commit
+  message. Grepping for the *literal* var name in a diff is fine; a real
+  email/password string next to it is not.
 
 ## Execute
 
@@ -69,8 +79,36 @@ git status --porcelain | grep -E '\.env($|\.local|\.production)' && {
   echo "❌ .env files present - add to .gitignore"; exit 1;
 } || true
 
+# 3b. Reject staged Playwright artifacts even if .gitignore was bypassed
+#     (git add -f, a rewritten .gitignore, etc.) — these can carry live
+#     bearer tokens (traces) or an active Clerk session (playwright/.auth/).
+git status --porcelain | grep -E '(^|/)(test-results|playwright-report|blob-report)/|playwright/\.auth/' && {
+  echo "❌ Playwright artifacts staged - traces/sessions must never be committed"; exit 1;
+} || true
+
 # 4. Verify the build (Next.js 16 — expect "ƒ Proxy (Middleware)")
 npm run build
+
+# 4b. If this change touches e2e/, playwright.config.ts, or a fault-injection
+#     target's markup (class names / roles the specs assert on), run the
+#     relevant tier before opening the PR. Don't run the full suite blind —
+#     `frontend`/`auth-setup` need E2E_CLERK_TEST_EMAIL/PASSWORD configured
+#     (see playwright-todo.md blocker #2); skip straight to `preflight`/`ci`
+#     if those aren't set locally.
+git diff --name-only origin/main... | grep -qE '^(e2e/|playwright\.config\.ts$)' && {
+  echo "🎭 e2e/ changed — running the affected Playwright tier(s)"
+  npx playwright test --list                      # confirms the suite still discovers cleanly
+  npx playwright test --project=preflight --project=ci   # no Clerk session required
+  # If E2E_CLERK_TEST_EMAIL/PASSWORD are set in .env.local, also run:
+  #   npx playwright test --project=frontend
+} || true
+
+# 4c. If a component a fault-injection spec targets changed (compare against
+#     the file paths named in e2e/frontend/*.spec.ts's own comments — each
+#     spec documents which component/route it asserts against), the spec's
+#     selectors may now be stale even though e2e/ itself didn't change.
+#     Re-run --list at minimum; a spec that silently stops matching a
+#     button's accessible name doesn't fail loudly, it just never clicks it.
 
 # 5. Branch (descriptive; same name as the mobile branch if this is a pair).
 #    Branch off origin/main — never off a checked-out local main, which can
@@ -99,11 +137,18 @@ Brief description of changes.
 - [x] No .env files committed
 - [x] No keys / tokens / secrets in NEXT_PUBLIC_*
 - [x] Backend URLs resolved server-side (not NEXT_PUBLIC_)
+- [x] No Playwright artifacts staged (test-results/, playwright-report/, playwright/.auth/)
 
 ## Test Plan
 - [ ] \`npm run build\` passes (\"ƒ Proxy (Middleware)\" present)
 - [ ] Auth gate works (/dashboard requires sign-in)
 - [ ] No regressions in related routes
+
+## Playwright (only if e2e/, playwright.config.ts, or a tested component's markup changed — delete this section otherwise)
+- [ ] \`npx playwright test --list\` still discovers every spec (catches a broken project graph / dependency chain)
+- [ ] \`preflight\` + \`ci\` tiers pass locally (no Clerk session needed)
+- [ ] \`frontend\` tier run locally if E2E_CLERK_TEST_EMAIL/PASSWORD are configured; otherwise noted as untested here
+- [ ] If a spec's target component/route changed, its selectors were re-verified against the new markup, not assumed still valid
 
 🔒 Security verified before commit"
 ```

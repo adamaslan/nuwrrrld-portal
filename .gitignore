@@ -45,3 +45,11 @@ next-env.d.ts
 
 # stash-status — regenerable local snapshot of `git stash list`, see scripts/stash-status.mjs
 /docs/stash-status.html
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

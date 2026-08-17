@@ -15,6 +15,11 @@
     "test:integration": "vitest run __tests__/signal-queue.integration.test.ts",
     "test:live": "vitest run --project live",
     "test:all": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:preflight": "playwright test --project=preflight",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:login": "rm -f playwright/.auth/user.json && playwright test --project=auth-setup --headed",
+    "test:e2e:nulogdash": "playwright test; node scripts/nulogdash-merge-e2e.mjs",
     "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
     "db:hydrate:dev": "node --env-file=.env.local scripts/hydrate-dev.mjs",
     "nulogdash:inventory": "node scripts/nulogdash-inventory.mjs",
@@ -38,7 +43,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.2.24",
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -46,10 +53,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "jest-axe": "^10.0.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.62.1",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

@@ -95,6 +95,14 @@ export default async function NulogdashPage() {
 
   const { notExercised: notExercisedResults, exercised: exercisedResults } = splitResults(run.results);
 
+  // Playwright (scripts/nulogdash-merge-e2e.mjs) merges tier: "browser" rows
+  // into the same results array nulogdash.mjs's tier: "api" rows land in —
+  // see docs/wiki-portal/entity-playwright-e2e.md. Broken out here only for
+  // a quick per-tier read; FeatureRow/StatusBadge already render either tier
+  // with no special-casing (run.results.filter never needed elsewhere).
+  const browserResults = run.results.filter((r) => r.tier === "browser");
+  const browserCounts = summarizeCounts(browserResults);
+
   return (
     <main className="nld-page">
       <Link href="/dashboard" className="nld-back">← Dashboard</Link>
@@ -110,6 +118,12 @@ export default async function NulogdashPage() {
         <span className="nld-headline-sub">
           {counts.pass} pass · {counts.fail} fail · {counts.blocked} blocked · {counts.not_run} not run
         </span>
+        {browserResults.length > 0 && (
+          <span className="nld-headline-sub">
+            Browser tier (Playwright): {browserCounts.pass} pass · {browserCounts.fail} fail ·{" "}
+            {browserCounts.not_run} skipped — run <code>npm run test:e2e:nulogdash</code> to refresh
+          </span>
+        )}
       </div>
 
       {run.driftWarnings.length > 0 && (
