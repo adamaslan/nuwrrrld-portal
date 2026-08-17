@@ -4,6 +4,35 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint|fricti
 
 ---
 
+## [2026-08-16] ingest | PR #60 fix(stripe): checkout/portal error hardening + recovered nulogdash admin console with MFA gate; stash-recovery incident | pages touched: 3
+
+Recovered a full feature (`app/dashboard/nulogdash` admin console, a
+component-testing layer, API hardening across `brief`/`holdfold`/
+`portfolio-health`) that had sat untracked in `stash@{0}` on a branch 15
+commits stale against `main`. Fixed a real admin-gate bypass found during
+review (`isNulogdashAdmin` trusted `emailAddresses[0]` instead of
+`primaryEmailAddressId` + verification status — pinned by 22 tests, 5 of
+which fail against the old logic) and added `canPerformAdminAction()` as a
+separate MFA-gated check for mutating actions.
+
+Rebasing the resulting 5-commit branch onto `main` forced the same wiki-page
+conflicts to be resolved once per commit; a mechanical resolution attempt
+silently duplicated a block of `log.md` mid-way through, caught only by a
+full-file re-read rather than trusting `git diff`. Squashed to one commit
+before re-attempting the rebase, which eliminated the repeated-resolution
+surface. CI then caught a real cross-repo drift: a kept `lib/subscription.ts`
+fix (`trialEnd` only serializes while `status === 'trialing'`) diverged from
+`gcp3-mobile`'s stale copy. Ported the fix to mobile
+(`gcp-expo1#36`, byte-identical, verified via local
+`check-shared-drift.mjs`) rather than reverting it. See
+[[incident-2026-08-16-stash-recovery-and-cross-repo-drift]] for the full
+post-mortem.
+
+**Pages created (1):** `incident-2026-08-16-stash-recovery-and-cross-repo-drift.md`
+
+**Pages updated (2):** `index.md` (new incident link + header refresh),
+`log.md` (this entry).
+
 ## [2026-08-05] ingest | dev-tooling layer + new /bugmerge1 command + command-suggestion mechanism | pages touched: 5
 
 Documented the previously-unwritten dev-tooling layer and added a mechanism for

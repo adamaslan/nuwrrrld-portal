@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-14 (portal PR #59 — afternoon pre-close pipeline workflow + GCP scheduler setup script)_
+_Last updated: 2026-08-16 (PR #60 — Stripe error hardening + recovered nulogdash admin console with MFA gate; stash-recovery incident documented)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -82,6 +82,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-07-26-portfolio-health-endpoint-missing]] — both Portfolio Health panels dead on web *and* mobile; the gcp3 route they call was never implemented, and the two sides share no field names
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — production checkout silently failing; a malformed `STRIPE_SECRET_KEY` + a Clerk dev-instance key on the production domain, both root-caused via Vercel telemetry
 - [[incident-2026-08-06-bugmerge1-command-file-loss]] — `/bugmerge1`'s own command file vanished mid-run during git checkouts/stash; now guarded by a self-integrity check + out-of-tree backup ([[concept-wiki-led-development]] feedback-loop instance)
+- [[incident-2026-08-16-stash-recovery-and-cross-repo-drift]] — a stale 5-commit stashed branch's rebase produced a silent `log.md` duplication (caught by full-file review) and exposed a cross-repo drift-gate merge-order dependency; resolved by squash-before-rebase and a companion mobile PR
 
 The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 
