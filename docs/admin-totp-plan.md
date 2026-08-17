@@ -70,12 +70,24 @@ import { generateSecret, generateURI, verify } from "otplib";
 
 const secret = generateSecret();                       // sync
 const uri = generateURI({ issuer, label, secret });    // sync — feed to qrcode
-const { valid } = await verify({ secret, token });     // async
+const { valid } = await verify({ secret, token, epochTolerance: 30 }); // async
 ```
 
 `generateSync`/`verifySync` exist only for sync-capable plugins
 (`@otplib/plugin-crypto-node`); the default noble plugin is async. This is
 why `confirmEnrollment` below is async too — not an arbitrary choice.
+
+**`epochTolerance` must be passed explicitly — it has no forgiving default.**
+v13 replaced v12's `window` option (a step count, e.g. `window: 1` = ±1 step)
+with `epochTolerance` (seconds, either a number for symmetric tolerance or a
+`[past, future]` tuple for asymmetric — RFC 6238 recommends past-only, to
+absorb transmission delay without accepting future codes). **Its default is
+`0`: exact match only, no clock-skew forgiveness at all.** An unset
+`epochTolerance` isn't "reasonably lenient by default," it's "any admin whose
+phone clock has drifted a few seconds is locked out." Every call site in this
+plan (`confirmEnrollment`, `verifyForAction`) must pass `epochTolerance: 30`
+explicitly to get the documented ±1-step-equivalent behavior — this is a
+required line, not an optional tuning knob.
 
 ### 2. Schema — new table in `lib/db/schema.sql`
 
@@ -137,7 +149,7 @@ no new crypto dependency beyond `otplib`/`qrcode`.
 Keys are **versioned from the first commit**, not retrofitted. Env vars are
 numbered rather than singular:
 
-```
+```text
 ADMIN_TOTP_ENCRYPTION_KEY_V1=<openssl rand -base64 32>
 ADMIN_TOTP_CURRENT_KEY_VERSION=1
 ```
@@ -190,23 +202,51 @@ Mirrors the existing `lib/nulogdash.ts` style (small exported functions,
 explicit fail-closed defaults, doc comments explaining *why* not *what*):
 
 - `generateEnrollment(userId): { secret, qrCodeDataUri, recoveryCodes }` —
-  creates a new TOTP secret and 8–10 single-use recovery codes, returns them
-  once for display, does **not** persist yet (persistence happens on
-  confirmation, so an abandoned enrollment doesn't lock a user into an
-  unconfirmed secret).
+  creates a new TOTP secret and `RECOVERY_CODE_COUNT` (a single exported
+  constant, `= 10`) single-use recovery codes, returns them once for display,
+  does **not** persist yet (persistence happens on confirmation, so an
+  abandoned enrollment doesn't lock a user into an unconfirmed secret). Every
+  other reference to the recovery-code count in this plan (rollout, UI,
+  tests) reads this constant rather than restating a number, so the two
+  don't drift out of sync with each other.
 - `confirmEnrollment(userId, secret, code): Promise<boolean>` — verifies the
   user's first code against the just-generated secret, then persists the
   encrypted secret + hashed recovery codes. Async because `otplib` v13's
-  `verify` is (see Library above).
+  `verify` is (see Library above). **`userId` is never taken from a request
+  body or client-supplied argument** — every real call site resolves it from
+  the authenticated Clerk session server-side (`auth()`'s `userId`, same as
+  `canPerformAdminAction`'s own callers), and `secret` must be bound to a
+  short-lived (~10 min) pending-enrollment record keyed by that session's
+  `userId` rather than trusted as a bare parameter. Skipping this is the
+  difference between "MFA" and "an attacker with a stolen Clerk cookie
+  enrolls their own authenticator and passes `isEnrolled`" — the exact bypass
+  the "why not an in-app reset" reasoning in Lost-device recovery already
+  rules out for the *reset* path; enrollment needs the same discipline.
+  Replacing an *existing* factor additionally requires a valid code against
+  the current one first (self-service re-enroll, not a way around it).
 - `verifyForAction(userId, code): Promise<boolean>` — the check mutating
-  admin actions call. Accepts either a live 6-digit TOTP code or an unused
-  recovery code (marking it consumed on success, matching standard TOTP
-  recovery patterns). Must reject a code already used in the current time
-  step — see Replay below.
+  admin actions call, `userId` likewise from the session, never a parameter
+  supplied by the caller's request. Accepts either a live 6-digit TOTP code
+  or an unused recovery code (marking it consumed on success, matching
+  standard TOTP recovery patterns). Must reject a code already used in the
+  current time step — see Replay below. **The read-check-write for
+  `last_used_step` (and recovery-code consumption, and `failed_attempts`)
+  must happen in one transaction with row-level locking
+  (`SELECT ... FOR UPDATE`) or a single conditional `UPDATE ... WHERE
+  last_used_step < $step`, not a separate read then a separate write** — two
+  concurrent requests reading the same prior step before either writes back
+  would otherwise both accept the same code, silently defeating the replay
+  guard under concurrency.
 - `isEnrolled(userId): Promise<boolean>` — replaces the
   `user.twoFactorEnabled` read.
-- `revokeEnrollment(userId): Promise<void>` — deletes the credential row so the
-  user can re-enroll. **Not reachable from the web app** — see Lost-device
+- `revokeEnrollment(userId, revokedBy, reason?): Promise<void>` — deletes the
+  credential row **and** inserts the `admin_totp_revocations` row in one
+  transaction (not two separate calls — a crash between them would either
+  leave revocation unaudited or leave a dangling audit row for a credential
+  that's still live). `revokedBy` is a required parameter, not optional:
+  the schema's `revoked_by NOT NULL` only works if every caller — the CLI
+  script included — is made to supply it rather than the function inventing
+  a placeholder. **Not reachable from the web app** — see Lost-device
   recovery below. Exported for the CLI script and tests only.
 
 ### 5. `canPerformAdminAction` becomes async
@@ -357,11 +397,13 @@ the primitive the impersonation P1 item in `clerk-todos.md` builds on.
   Proposal: 5 failures → lock 15 min (`failed_attempts` / `locked_until`
   columns above), reset on success. The counter must be updated in the same
   transaction as the verify to avoid a concurrent-request bypass.
-- **Clock skew tolerance**: `otplib` v13's default window; confirm the actual
-  default empirically rather than assuming ±1, since v13 rewrote this layer.
-  Wider windows trade brute-force resistance (see math above) for tolerance
-  of unsynced phones — keep it at ±1 step unless enrollment testing shows
-  real failures.
+- ~~**Clock skew tolerance**~~ — **decided**: `epochTolerance: 30` passed
+  explicitly at every `verify` call (see Library above) — v13's default is
+  `0`, exact match only, not a forgiving ±1 step as the original draft of
+  this plan assumed. Widening beyond 30s trades brute-force resistance (see
+  rate-limiting math above, which assumes exactly this tolerance) for
+  forgiveness of unsynced phones; only widen if enrollment testing shows
+  real failures at 30s.
 - ~~**Encryption key rotation**~~ — **decided**: versioned keys from day one
   (`key_version` column + numbered `ADMIN_TOTP_ENCRYPTION_KEY_V{n}` env vars).
   See "Encryption keys" above for the rotation procedure. Remaining sub-question
@@ -381,6 +423,12 @@ deterministic rather than flaky:
   instead of silently accepting wrong codes.
 - **Replay** — the same code at the same step is accepted once, rejected the
   second time (`last_used_step`).
+- **Concurrent replay** — two simultaneous `verifyForAction` calls with the
+  same code/step: exactly one succeeds, the other observes the already-
+  advanced `last_used_step` and is rejected. This is the case a naive
+  read-then-write implementation gets wrong (`SELECT` then `UPDATE` as two
+  statements loses the race); the test should exercise the actual
+  transaction/locking mechanism, not just the sequential case above.
 - **Skew** — a code from the adjacent step is accepted; one two steps away is
   rejected.
 - **Rate limit** — the 6th failure locks; a correct code during lockout is
@@ -411,28 +459,50 @@ Ordered so the app is never in a state where the gate is weaker than it is
 today. Steps 1–3 are additive (nothing reads the new table yet); step 5 is the
 cutover.
 
+**Step 5 must ship `verifyForAction` alongside the `canPerformAdminAction`
+cutover, not after it.** An earlier draft of this rollout put step-up
+verification in a later step (old step 6), which would have left a window
+where `canPerformAdminAction` accepts *enrollment having happened at some
+point* as sufficient for mutation — no current code required — precisely the
+"enrolled at some point in the session" weakness Scope and section 7 both
+already reject. Since no mutating admin actions exist yet (they're gated only
+in the abstract, per `docs/nulogdash-admin-console-plan.md`), the ordering
+below has no real intermediate state to worry about — but if any mutating
+action ships before this plan completes, `canPerformAdminAction` must not go
+live on its own.
+
 1. Schema migration (`lib/db/schema.sql` + `npm run db:migrate`); document
    `ADMIN_TOTP_ENCRYPTION_KEY_V1` and `ADMIN_TOTP_CURRENT_KEY_VERSION=1` in
    `.env.example` and set both in Vercel (all environments — a missing key in
    Preview surfaces as enrollment throwing, not as a silent bypass).
 2. `lib/admin-totp.ts` + unit tests (see Testing above), including the rate
-   limiter — it is not a follow-up.
+   limiter and the transactional replay/consumption guards — neither is a
+   follow-up.
 3. Enrollment UI route, still gated only by `isNulogdashAdmin`.
 4. **Each admin enrolls before the gate flips**, saves their recovery codes, and
    `scripts/revoke-admin-totp.ts` exists and has been exercised once against a
    throwaway row. Enrolling after step 5 locks every admin out of their own
    mutation path; shipping without a tested break-glass means the first lost
    device is an outage.
-5. `canPerformAdminAction` async migration, existing 28 test cases updated.
-   This is the cutover — mutations now require the new factor.
-6. Step-up `verifyForAction` added to each mutating server action as those
-   actions are built (they don't fully exist yet per
-   `docs/nulogdash-admin-console-plan.md`).
+5. `canPerformAdminAction` async migration **and** `verifyForAction` land
+   together, existing 28 test cases updated. This is the cutover — mutations
+   now require both enrollment and a fresh code, not enrollment alone.
+6. `verifyForAction` wired into each mutating server action as those actions
+   are built (they don't fully exist yet per
+   `docs/nulogdash-admin-console-plan.md`) — the primitive already exists as
+   of step 5, this step is only "call it from new code," not "build it."
 7. Update `docs/clerk-todos.md` (P0 already marked superseded) and ingest into
    `docs/wiki-portal/` per that folder's `SCHEMA.md` — this introduces a new
    entity (the admin TOTP credential) and a decision (self-implement over
    Clerk Pro) the wiki should carry.
 
-**Rollback**: before step 5, revert is a no-op (nothing reads the table). After
-step 5, revert `canPerformAdminAction` to `return isNulogdashAdmin(user)` —
-weaker than intended but not locked out — rather than dropping the table.
+**Rollback**: before step 5, revert is a no-op (nothing reads the table).
+After step 5, **do not** revert `canPerformAdminAction` to
+`return isNulogdashAdmin(user)` — that removes both Clerk MFA (already
+vacuous) and TOTP at once, silently permitting every allowlisted admin to
+mutate with no second factor at all, which is strictly weaker than the
+pre-rollout state this plan exists to fix. Instead, roll back to
+`return false` (deny all mutation, matching today's actual vacuous-flag
+behavior of "no one can mutate") until the forward fix lands — read access via
+`isNulogdashAdmin` is unaffected either way, so this only blocks mutating
+actions, not the console itself.

@@ -19,8 +19,11 @@ Priority key: **P0** blocks the admin console's mutating actions ·
 ## P0 — Enforce MFA in the Clerk dashboard
 
 **Status: superseded by `docs/admin-totp-plan.md`.** Clerk gates MFA behind
-its paid Pro plan ($25/mo) — confirmed, not available on the free tier this
-app currently runs on. Rather than pay for it or migrate identity providers,
+its paid Pro plan — confirmed via Clerk's pricing page as of 2026-08-17
+($25/mo billed monthly, $20/mo equivalent billed annually), not available on
+the free tier this app currently runs on. Pricing pages change; re-verify
+before relying on this figure if it's been a while. Rather than pay for it or
+migrate identity providers,
 the decision is to self-implement TOTP (RFC 6238) as an independent second
 factor scoped to the nulogdash admin gate, keeping Clerk for identity/
 sessions/webhooks. See that plan for the schema, encryption approach, and
@@ -74,12 +77,12 @@ no obvious cause.
 The admin gate was fixed to resolve the **primary, verified** address (see
 `lib/nulogdash.ts`). One other site still uses the old index-0 pattern:
 
-- [x] `app/dashboard/beta/page.tsx:20` —
+- [x] `app/dashboard/beta/page.tsx` (was line 20) —
       `user?.emailAddresses?.[0]?.emailAddress ?? ""`. This is **display and
       feedback-attribution only**, not an access-control gate, so it is not
       the same severity. It can still show the wrong address for a user with
       several, and attribute feedback to an address they don't consider
-      theirs. Fixed: now uses `primaryEmail(user)`.
+      theirs. Fixed: line 21 now calls `primaryEmail(user)`.
 - [x] Extracted a shared `primaryEmail(user)` helper (`lib/nulogdash.ts`) so
       index-0 reads stop being reintroduced by copy-paste. Takes a narrower
       `EmailIdentity` structural type (no `twoFactorEnabled` needed) since

@@ -83,7 +83,7 @@ describe("FeatureRow", () => {
         </tbody>
       </table>,
     );
-    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   it("truncates a long reason to 60 chars in the closed summary, full text on expand", () => {
