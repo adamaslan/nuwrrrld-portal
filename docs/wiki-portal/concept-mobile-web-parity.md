@@ -117,6 +117,8 @@ agree in intent but not in code.
 
 > ℹ️ **Portal PR #59 (2026-08-14) assessed — CI/scheduler infra only, headline unchanged at ~66%.** Adds `afternoon-pipeline.yml` (GitHub Actions cron) and `setup-schedulers.sh` (GCP Cloud Scheduler provisioning) — see [[decision-afternoon-pipeline-cron-split]]. Touches no `lib/`, `lib/shared/`, or `app/` code; nothing here is mobile-reachable or mobile-relevant (mobile has no equivalent server-side cron layer to sync against). Neither denominator moves.
 
+> ℹ️ **Portal PR #64 (2026-08-17) assessed — test tooling only, headline unchanged at ~66%.** Adds [[entity-playwright-e2e]] (the `e2e/` Playwright suite, `e2e-resiliency.yml`, `sync-e2e-secrets.sh`) and one `__tests__/digest-adapt.test.ts` addition pinning `adaptLiveSignals`'s existing batch-wide `generatedAt` behavior. Touches no `lib/shared/` module and adds none — the fault-injection suite asserts against portal-only UI (`app/dashboard/*`), and the digest-adapt test pins behavior already in `lib/digest.ts`, unchanged by this PR. Same shape as PR #59: portal-only tooling, no mobile-reachable code, neither denominator moves. `gcp3-mobile` has no Playwright/e2e layer of its own to compare against yet — a parity candidate only if/when mobile adopts an equivalent test tier, not before.
+
 ## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:
