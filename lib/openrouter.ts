@@ -189,7 +189,12 @@ function scanSSEChunk(raw: string): { remaining: string; sawContent: boolean; sa
       const parsed = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string; reasoning?: string } }> };
       parsedLines += 1;
       const delta = parsed?.choices?.[0]?.delta;
-      if (delta?.content || delta?.reasoning) sawContent = true;
+      // Only a visible content token counts as a usable response. A
+      // reasoning-only stream (delta.reasoning with no delta.content) would
+      // otherwise pass this check while the caller's route parser — which
+      // reads only delta.content — sees nothing, producing a "successful"
+      // empty answer instead of falling back to the next model.
+      if (delta?.content) sawContent = true;
       else emptyLines += 1;
     } catch { /* skip malformed */ }
   }
