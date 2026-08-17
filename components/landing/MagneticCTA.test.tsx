@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MagneticCTA } from "./MagneticCTA";
 import { setReducedMotion } from "@/test/reducedMotion";
