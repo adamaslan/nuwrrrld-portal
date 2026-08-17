@@ -30,34 +30,6 @@ import { test, expect } from "@playwright/test";
  *      timestamp that doesn't exist yet.
  */
 
-const SOXX_SIGNAL = {
-  id: "SOXX",
-  ticker: "SOXX",
-  direction: "bullish" as const,
-  timeframe: "medium" as const,
-  confidence: "high" as const,
-  title: "Semiconductors — 1d +4.17%, 1m -3.2%, 1y +126.7%",
-  explanation:
-    "Confluence score +0.82 (HIGH): 5 of 6 signals are bullish (weighted 9/11). " +
-    "Entry case is strongest when today's relative strength aligns with the " +
-    "multi-week trend — watch for confirmation on volume.",
-  indicators: ["RSI", "MACD", "Relative Strength"],
-  score: 0.82,
-  reasons: ["RSI confirms bullish momentum", "MACD crossover 3 sessions ago"],
-  signalCounts: { bullish: 5, bearish: 0, total: 6 },
-  engineVersion: "gcp3-v2",
-};
-
-function digestPayload(overrides: Partial<typeof SOXX_SIGNAL> = {}, generatedAt = new Date().toISOString()) {
-  return {
-    schemaVersion: 1,
-    periodLabel: "Week of Aug 17",
-    generatedAt,
-    sources: ["gcp3"],
-    signals: [{ ...SOXX_SIGNAL, ...overrides, generatedAt, isStale: false }],
-  };
-}
-
 test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
   test("DIAGNOSE: a fresh generatedAt suppresses the stale badge even for scoped-stale data — the batch-timestamp blind spot", async ({ page }) => {
     // Mocks the server-rendered page's data source is not possible here
@@ -115,7 +87,7 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     }
   });
 
-  test("DIAGNOSE: signal-policy's cacheTtlMinutes classifies an 82%-confluence bullish signal as 'hot' — confirms it SHOULD refresh fast, not sit on stale numbers", async ({ page, request }) => {
+  test("DIAGNOSE: signal-policy's cacheTtlMinutes classifies an 82%-confluence bullish signal as 'hot' — confirms it SHOULD refresh fast, not sit on stale numbers", async ({ request }) => {
     // Pure-logic check reachable without a browser at all, included here
     // (not in __tests__/) because it's the piece that explains WHY a SOXX-
     // shaped signal (extreme confluence, actionable direction) is supposed

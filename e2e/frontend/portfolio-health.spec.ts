@@ -194,7 +194,7 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
   // (that route renders no backtest data at all — confirmed by grep before
   // writing this test, don't reintroduce a /verdict assertion without
   // re-checking that).
-  test("DIAGNOSE: SIGNALS_ENGINE_URL unset vs. engine unreachable vs. malformed response — all collapse to 204", async ({ page, request }) => {
+  test("DIAGNOSE: SIGNALS_ENGINE_URL unset vs. engine unreachable vs. malformed response — all collapse to 204", async ({ request }) => {
     // fetchBacktest() in lib/backtest.ts returns null (-> route returns 204)
     // for FOUR distinct causes: SIGNALS_ENGINE_URL unset, fetch throws,
     // non-2xx, or a response that fails isBacktestResult(). A 204 in prod

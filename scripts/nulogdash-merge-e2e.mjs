@@ -59,7 +59,7 @@ function toFeatureSlug(projectName, filePath, title) {
   return `${projectName}:${file}:${title}`.slice(0, 120);
 }
 
-function statusFromOutcome(outcome, expectedStatus) {
+function statusFromOutcome(outcome) {
   // Playwright JSON reporter per-spec status values: "expected" | "unexpected"
   // | "flaky" | "skipped". Map onto FeatureStatus so the dashboard's existing
   // pass/fail/blocked/not_run styling (nld-badge--*) just works.
