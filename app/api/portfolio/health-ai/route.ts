@@ -154,16 +154,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ answer: fullText, grounded });
     }
 
-    // SSE streaming path: pipe the (already-primed, guaranteed non-empty)
-    // OpenRouter stream directly to the client.
+    // SSE streaming path: re-emit the (already-primed, guaranteed non-empty)
+    // OpenRouter stream, stripping `reasoning`/`reasoning_details` from each
+    // frame first. Reasoning-capable models (nemotron-3-*-reasoning) put
+    // their hidden chain-of-thought in those fields; the client only ever
+    // renders `delta.content`, so forwarding them verbatim leaks internal
+    // model reasoning to the browser for no benefit.
     const enc = new TextEncoder();
+    let sseBuffer2 = "";
+    const rewriteSSELine = (line: string): string => {
+      if (!line.startsWith("data: ")) return line;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") return line;
+      try {
+        const parsed = JSON.parse(payload);
+        const choice = parsed?.choices?.[0];
+        if (choice?.delta) {
+          delete choice.delta.reasoning;
+          delete choice.delta.reasoning_details;
+        }
+        return `data: ${JSON.stringify(parsed)}`;
+      } catch {
+        return line;
+      }
+    };
     const stream = new ReadableStream({
       async start(ctrl2) {
         try {
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-            ctrl2.enqueue(enc.encode(decoder.decode(value, { stream: true })));
+            if (done) {
+              sseBuffer2 += decoder.decode();
+              if (sseBuffer2) ctrl2.enqueue(enc.encode(rewriteSSELine(sseBuffer2)));
+              break;
+            }
+            sseBuffer2 += decoder.decode(value, { stream: true });
+            const lines = sseBuffer2.split("\n");
+            sseBuffer2 = lines.pop() ?? "";
+            for (const line of lines) {
+              ctrl2.enqueue(enc.encode(rewriteSSELine(line) + "\n"));
+            }
           }
           ctrl2.close();
         } catch (err) {
