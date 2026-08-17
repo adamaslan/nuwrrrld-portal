@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { primaryEmail } from "@/lib/nulogdash";
 import "./beta.css";
 
 export const metadata: Metadata = {
@@ -17,7 +18,7 @@ export default async function BetaPage({
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/beta");
 
   const user = await currentUser();
-  const email = user?.emailAddresses?.[0]?.emailAddress ?? "";
+  const email = primaryEmail(user);
   const params = await searchParams;
   const success = params.success === "true";
   const error = params.error;

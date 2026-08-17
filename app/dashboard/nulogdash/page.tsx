@@ -2,7 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getLatestRun, isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
+import { getLatestRun, isNulogdashAdmin, canPerformAdminAction, summarizeCounts, splitResults } from "@/lib/nulogdash";
 import type { FeatureResult, FeatureStatus } from "@/lib/nulogdash";
 import "./nulogdash.css";
 
@@ -22,8 +22,10 @@ const STATUS_LABEL: Record<FeatureStatus, string> = {
 };
 
 /** Shown to an allowlisted admin who hasn't enrolled a second factor. The
- * console stays readable; only mutating actions are withheld. */
-function MfaNotice() {
+ * console stays readable; only mutating actions are withheld.
+ * Exported for component tests — plain function returning JSX, no
+ * `async`/server dependency, so it renders normally under jsdom. */
+export function MfaNotice() {
   return (
     <div className="nld-mfa-notice">
       <strong>Two-factor authentication required for admin actions.</strong>
@@ -36,11 +38,11 @@ function MfaNotice() {
   );
 }
 
-function StatusBadge({ status }: { status: FeatureStatus }) {
+export function StatusBadge({ status }: { status: FeatureStatus }) {
   return <span className={`nld-badge nld-badge--${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
-function FeatureRow({ result }: { result: FeatureResult }) {
+export function FeatureRow({ result }: { result: FeatureResult }) {
   return (
     <tr className={`nld-row nld-row--${result.status}`}>
       <td>{result.label}</td>
@@ -87,15 +89,11 @@ export default async function NulogdashPage() {
     );
   }
 
-  const counts = run.results.reduce<Record<FeatureStatus, number>>(
-    (acc, r) => { acc[r.status] = (acc[r.status] ?? 0) + 1; return acc; },
-    { pass: 0, fail: 0, blocked: 0, not_run: 0 },
-  );
+  const counts = summarizeCounts(run.results);
   const notExercised = counts.blocked + counts.not_run;
   const total = run.results.length;
 
-  const notExercisedResults = run.results.filter((r) => r.status === "blocked" || r.status === "not_run");
-  const exercisedResults = run.results.filter((r) => r.status === "pass" || r.status === "fail");
+  const { notExercised: notExercisedResults, exercised: exercisedResults } = splitResults(run.results);
 
   return (
     <main className="nld-page">

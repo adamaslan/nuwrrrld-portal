@@ -18,6 +18,18 @@ Priority key: **P0** blocks the admin console's mutating actions ·
 
 ## P0 — Enforce MFA in the Clerk dashboard
 
+**Status: superseded by `docs/admin-totp-plan.md`.** Clerk gates MFA behind
+its paid Pro plan — confirmed via Clerk's pricing page as of 2026-08-17
+($25/mo billed monthly, $20/mo equivalent billed annually), not available on
+the free tier this app currently runs on. Pricing pages change; re-verify
+before relying on this figure if it's been a while. Rather than pay for it or
+migrate identity providers,
+the decision is to self-implement TOTP (RFC 6238) as an independent second
+factor scoped to the nulogdash admin gate, keeping Clerk for identity/
+sessions/webhooks. See that plan for the schema, encryption approach, and
+rollout steps. The items below describe the now-superseded Clerk-native
+approach; kept for context on how this was originally scoped.
+
 **Status: half done.** The application-side check exists
 (`canPerformAdminAction` in `lib/nulogdash.ts`, pinned by
 `__tests__/nulogdash-admin.test.ts`), and the nulogdash console shows an
@@ -47,7 +59,7 @@ The variable is read directly via `process.env` in `lib/nulogdash.ts` and
 appears **nowhere else** — not in `.env.example`, and there is no env schema
 module in this branch (no `lib/env.ts`).
 
-- [ ] Add `NULOGDASH_ADMIN_EMAILS` to `.env.example` with a comment stating
+- [x] Add `NULOGDASH_ADMIN_EMAILS` to `.env.example` with a comment stating
       the format (comma-separated) and that empty/unset denies everyone.
 - [ ] Decide whether this app wants a validated env module at all. If yes,
       that is its own task and this variable should be part of it; if no,
@@ -65,16 +77,16 @@ no obvious cause.
 The admin gate was fixed to resolve the **primary, verified** address (see
 `lib/nulogdash.ts`). One other site still uses the old index-0 pattern:
 
-- [ ] `app/dashboard/beta/page.tsx:20` —
+- [x] `app/dashboard/beta/page.tsx` (was line 20) —
       `user?.emailAddresses?.[0]?.emailAddress ?? ""`. This is **display and
       feedback-attribution only**, not an access-control gate, so it is not
       the same severity. It can still show the wrong address for a user with
       several, and attribute feedback to an address they don't consider
-      theirs.
-- [ ] Consider extracting a shared `primaryEmail(user)` helper so index-0
-      reads stop being reintroduced by copy-paste. The gate deliberately
-      takes the user object rather than a string for this reason; a helper
-      gives non-gate callers the same correctness without loosening that.
+      theirs. Fixed: line 21 now calls `primaryEmail(user)`.
+- [x] Extracted a shared `primaryEmail(user)` helper (`lib/nulogdash.ts`) so
+      index-0 reads stop being reintroduced by copy-paste. Takes a narrower
+      `EmailIdentity` structural type (no `twoFactorEnabled` needed) since
+      this is display/attribution, not the admin gate.
 
 ---
 
@@ -127,6 +139,16 @@ verification, not a bare secret comparison).
 
 ## Done
 
+- [x] **`NULOGDASH_ADMIN_EMAILS` documented in `.env.example`.** Added with a
+      comment stating the comma-separated format and the fail-closed
+      empty/unset behavior, so a missing var in a new deploy now has an
+      obvious cause instead of presenting as "the console 404s for
+      everyone" with no explanation.
+- [x] **`primaryEmail(user)` helper extracted; `beta/page.tsx` migrated off
+      `emailAddresses[0]`.** `lib/nulogdash.ts` now exports `primaryEmail`
+      (display/attribution) alongside `isNulogdashAdmin`
+      (access-control) so future callers reach for the correct one instead
+      of reintroducing index-0 reads by copy-paste.
 - [x] **Admin gate reads the primary, verified email.** Was
       `emailAddresses[0]` with no verification check, allowing two bypasses:
       an unverified allowlisted address, and a non-primary allowlisted
