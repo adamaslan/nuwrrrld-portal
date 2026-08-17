@@ -1,0 +1,595 @@
+{
+  "generatedAt": "2026-08-05T10:03:40.125Z",
+  "features": [
+    {
+      "slug": "backtest",
+      "label": "Backtest",
+      "method": "GET",
+      "path": "/api/backtest/AAPL",
+      "auth": true,
+      "dependencies": [
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "brief",
+      "label": "Morning brief",
+      "method": "POST",
+      "path": "/api/brief",
+      "auth": true,
+      "dependencies": [
+        "mcp",
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {},
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "council-deliberate",
+      "label": "Council — deliberate (v2)",
+      "method": "POST",
+      "path": "/api/council/deliberate",
+      "auth": true,
+      "dependencies": [
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "ticker": "AAPL"
+      },
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "council-public",
+      "label": "Council — public deliberation",
+      "method": "POST",
+      "path": "/api/council/public",
+      "auth": false,
+      "dependencies": [
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "ticker": "AAPL"
+      },
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "council",
+      "label": "Council — deliberate",
+      "method": "POST",
+      "path": "/api/council",
+      "auth": true,
+      "dependencies": [
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "ticker": "AAPL"
+      },
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "council-sample",
+      "label": "Council — sample deliberation",
+      "method": "GET",
+      "path": "/api/council/sample",
+      "auth": false,
+      "dependencies": [
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "feedback",
+      "label": "Feedback submission",
+      "method": "POST",
+      "path": "/api/feedback",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "message": "nulogdash automated sweep — ignore"
+      },
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "health",
+      "label": "Health check",
+      "method": "GET",
+      "path": "/api/health",
+      "auth": false,
+      "dependencies": [],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "holdfold",
+      "label": "Hold / Fold verdicts",
+      "method": "GET",
+      "path": "/api/holdfold",
+      "auth": true,
+      "dependencies": [
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "launch-remind",
+      "label": "Launch waitlist reminder",
+      "method": "POST",
+      "path": "/api/launch/remind",
+      "auth": false,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "email": "nulogdash-test@example.com"
+      },
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "nuai",
+      "label": "Nu AI chat",
+      "method": "POST",
+      "path": "/api/nuai",
+      "auth": true,
+      "dependencies": [
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "question": "What is RSI?"
+      },
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "portfolio-health",
+      "label": "Portfolio health score",
+      "method": "GET",
+      "path": "/api/portfolio/health",
+      "auth": true,
+      "dependencies": [
+        "neon",
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "portfolio-health-ai",
+      "label": "Portfolio health — AI narrative",
+      "method": "POST",
+      "path": "/api/portfolio/health-ai",
+      "auth": true,
+      "dependencies": [
+        "neon",
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {},
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "portfolio-suggestions",
+      "label": "Portfolio suggestions",
+      "method": "GET",
+      "path": "/api/portfolio/suggestions",
+      "auth": true,
+      "dependencies": [
+        "neon",
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "watchlist-remove",
+      "label": "Watchlist — remove",
+      "method": "DELETE",
+      "path": "/api/portfolio/watchlist/NULOGDASH-TEST",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "watchlist-list",
+      "label": "Watchlist — list",
+      "method": "GET",
+      "path": "/api/portfolio/watchlist",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "watchlist-add",
+      "label": "Watchlist — add",
+      "method": "POST",
+      "path": "/api/portfolio/watchlist",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "ticker": "NULOGDASH-TEST"
+      },
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "push-register",
+      "label": "Push notification registration",
+      "method": "POST",
+      "path": "/api/push/register",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "endpoint": "https://nulogdash.test/fake-endpoint",
+        "keys": {
+          "p256dh": "test",
+          "auth": "test"
+        }
+      },
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "referral-get",
+      "label": "Referral — status",
+      "method": "GET",
+      "path": "/api/referral",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "referral-create",
+      "label": "Referral — create link",
+      "method": "POST",
+      "path": "/api/referral",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {},
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "retention-streak-get",
+      "label": "Retention — streak status",
+      "method": "GET",
+      "path": "/api/retention/streak",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "retention-streak-post",
+      "label": "Retention — record streak visit",
+      "method": "POST",
+      "path": "/api/retention/streak",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {},
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "retention-trial-nudge",
+      "label": "Retention — trial nudge",
+      "method": "POST",
+      "path": "/api/retention/trial-nudge",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {},
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "signal-chat",
+      "label": "Per-ticker signal chat",
+      "method": "POST",
+      "path": "/api/signals/AAPL/chat",
+      "auth": true,
+      "dependencies": [
+        "openrouter"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "question": "Why is this a hold?"
+      },
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "signals-card",
+      "label": "Signal share card",
+      "method": "GET",
+      "path": "/api/signals/card",
+      "auth": true,
+      "dependencies": [
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "signals-digest",
+      "label": "Signal digest",
+      "method": "GET",
+      "path": "/api/signals/digest",
+      "auth": true,
+      "dependencies": [
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "signals-drain-status",
+      "label": "Signal queue drain — status",
+      "method": "GET",
+      "path": "/api/signals/drain",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "signals-live",
+      "label": "Live signals feed",
+      "method": "GET",
+      "path": "/api/signals/live",
+      "auth": true,
+      "dependencies": [
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "signals-refresh-status",
+      "label": "Signal refresh — status",
+      "method": "GET",
+      "path": "/api/signals/refresh",
+      "auth": true,
+      "dependencies": [
+        "mcp"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "stripe-checkout",
+      "label": "Billing — start checkout",
+      "method": "POST",
+      "path": "/api/stripe/checkout",
+      "auth": true,
+      "dependencies": [
+        "stripe",
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "plan": "monthly"
+      },
+      "writesData": false,
+      "note": "creates a real Stripe test-mode Checkout Session; does not complete a purchase",
+      "excluded": null
+    },
+    {
+      "slug": "stripe-portal",
+      "label": "Billing — customer portal",
+      "method": "POST",
+      "path": "/api/stripe/portal",
+      "auth": true,
+      "dependencies": [
+        "stripe",
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {},
+      "writesData": false,
+      "note": "requires the test user to already have a Stripe customer/subscription",
+      "excluded": null
+    },
+    {
+      "slug": "stripe-subscription",
+      "label": "Billing — subscription status",
+      "method": "GET",
+      "path": "/api/stripe/subscription",
+      "auth": true,
+      "dependencies": [
+        "stripe",
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    }
+  ],
+  "excluded": [
+    {
+      "feature": "retention-digest-email",
+      "path": "POST /api/retention/digest-email",
+      "reason": "sends a real email to real users; not safe to fire on a routine sweep"
+    },
+    {
+      "feature": "signals-drain",
+      "path": "POST /api/signals/drain",
+      "reason": "drains a production queue; not safe to fire on a routine sweep"
+    },
+    {
+      "feature": "signals-live-ingest",
+      "path": "POST /api/signals/live",
+      "reason": "internal WS-worker ingest endpoint gated by PORTAL_PUSH_SECRET, not a user-facing feature"
+    },
+    {
+      "feature": "signals-refresh",
+      "path": "POST /api/signals/refresh",
+      "reason": "triggers a real GCP backend refresh job; expensive to run routinely"
+    },
+    {
+      "feature": "webhook-clerk",
+      "path": "POST /api/webhooks/clerk",
+      "reason": "requires a Svix-signed payload from Clerk; not a plain fetch target"
+    },
+    {
+      "feature": "webhook-stripe",
+      "path": "POST /api/webhooks/stripe",
+      "reason": "requires a Stripe-signed payload from `stripe listen`; not a plain fetch target"
+    }
+  ],
+  "driftWarnings": []
+}

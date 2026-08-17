@@ -11,20 +11,20 @@ interface DebateSeat {
 }
 
 const SEATS: DebateSeat[] = [
-  { tag: "T1", tagClass: "t1", label: "Short-term trader", line: "NVDA is breaking out on volume. I'd take this long above 462." },
-  { tag: "T2", tagClass: "t2", label: "Long-term investor", line: "The secular AI-compute thesis is intact. This is a long-term add on any real pullback, not a reason to avoid it." },
-  { tag: "RISK", tagClass: "risk", label: "The skeptic", line: "Short interest is climbing into earnings in 9 days. If guidance disappoints, this breakout reverses in one session. I want a stop, not a story." },
-  { tag: "MACRO", tagClass: "macro", label: "Big-picture watcher", line: "Rate-cut odds are firming, which usually helps growth names like this one hold a breakout instead of fading it." },
-  { tag: "QUANT", tagClass: "quant", label: "Numbers only", line: "Confluence score 0.91. Five of five independent checks agree bullish, but historical hit-rate into earnings drops to 69%." },
-  { tag: "CHAIR", tagClass: "chair-tag", label: "Final call", line: "The council leans bullish, but RISK's earnings-timing concern is real. Verdict: bullish, medium confidence, invalidation below 462." },
+  { tag: "T1", tagClass: "t1", label: "Short-term trader", line: "XLE is up on the day and the week together, so near-term buying looks sustained. I'd take this long above 91." },
+  { tag: "T2", tagClass: "t2", label: "Long-term investor", line: "The 1-year and 3-month trends both point the same way. That's a position to add to on a pullback, not a trade to chase." },
+  { tag: "RISK", tagClass: "risk", label: "The skeptic", line: "Relative strength is doing most of the work here, and it's the fastest thing to reverse. If energy stops leading, this whole case is one week old. I want a stop, not a story." },
+  { tag: "MACRO", tagClass: "macro", label: "Big-picture watcher", line: "Rates and the dollar are steady, so the sector is not fighting the macro wind — but nothing here is a tailwind either." },
+  { tag: "QUANT", tagClass: "quant", label: "Numbers only", line: "Confluence +0.91, labelled HIGH. Momentum, trend and relative strength all read bullish; mean reversion is the lone abstain." },
+  { tag: "CHAIR", tagClass: "chair-tag", label: "Final call", line: "The council leans bullish, but RISK's point about leadership fading is real. Verdict: bullish, medium confidence, invalidation below 91." },
 ];
 
 const VH_PER_SEAT = 55;
 
 /**
- * Sticky scrollytelling demonstration of one full council debate (example
- * ticker NVDA — the same one used in the static seat grid and signal matrix
- * above). Pins a viewport while the user scrolls through a tall container;
+ * Sticky scrollytelling demonstration of one full council debate (illustrative
+ * ticker XLE — a real member of the tracked ETF universe, and the same one used
+ * in the signal matrix above). Pins a viewport while the user scrolls;
  * each seat's line reveals in turn. Falls back to a plain, fully-revealed
  * static list under prefers-reduced-motion (no pinning, no scroll-driving).
  */

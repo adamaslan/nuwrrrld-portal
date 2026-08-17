@@ -26,8 +26,10 @@ export async function POST(req: NextRequest) {
       stripeCustomerId = customer.id;
     } catch (err) {
       console.error("Failed to create Stripe customer for", userId, err);
-      const message = err instanceof Error ? err.message : "unknown error";
-      return NextResponse.json({ error: `billing setup failed: ${message}` }, { status: 502 });
+      return NextResponse.json(
+        { error: "Unable to set up billing. Please try again or contact support." },
+        { status: 502 },
+      );
     }
 
     try {
@@ -51,10 +53,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ url: session.url });
   } catch (err) {
-    // Same class of failure as checkout: bad key, malformed header, network —
-    // surface it instead of an unhandled 500 with no body.
+    // Same class of failure as checkout: bad key, malformed header, network.
+    // Log the real error server-side; never forward Stripe's raw exception
+    // text to the client (see the matching comment in checkout/route.ts).
     console.error("[stripe-portal] Stripe request failed:", err);
-    const message = err instanceof Error ? err.message : "unknown error";
-    return NextResponse.json({ error: `billing portal failed: ${message}` }, { status: 502 });
+    return NextResponse.json(
+      { error: "Unable to open the billing portal. Please try again or contact support." },
+      { status: 502 },
+    );
   }
 }

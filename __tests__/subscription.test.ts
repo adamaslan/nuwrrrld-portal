@@ -97,4 +97,20 @@ describe("parseSubscriptionMetadata", () => {
     const result = parseSubscriptionMetadata({ subscription_status: "trialing", trial_end: "not-a-number" });
     expect(result.trialEnd).toBeUndefined();
   });
+
+  it("ignores an out-of-range numeric trial_end instead of throwing a RangeError", () => {
+    const result = parseSubscriptionMetadata({ subscription_status: "trialing", trial_end: 1e100 });
+    expect(result.trialEnd).toBeUndefined();
+  });
+
+  it("preserves a zero trial_end instead of treating it as falsy", () => {
+    const result = parseSubscriptionMetadata({ subscription_status: "trialing", trial_end: 0 });
+    expect(result.trialEnd).toBe(new Date(0).toISOString());
+  });
+
+  it("does not surface trialEnd for a non-trialing status even if trial_end is present", () => {
+    const result = parseSubscriptionMetadata({ subscription_status: "active", trial_end: 1_800_000_000 });
+    expect(result.status).toBe("active");
+    expect(result.trialEnd).toBeUndefined();
+  });
 });

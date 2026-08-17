@@ -9,7 +9,7 @@ sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29,
 
 ## Decision
 
-All six seats — and the grounding compiler — use only OpenRouter `:free` models. Each seat has a primary model and falls through a shared `FREE_MODEL_CHAIN` on failure. A full ~11-call deliberation costs **$0** (the WS2.6 cost-control constraint).
+All six seats — and the grounding compiler — were intended to use only OpenRouter `:free` models, each with a primary model falling through a shared `FREE_MODEL_CHAIN` on failure, for a full ~11-call deliberation costing **$0** (the WS2.6 cost-control constraint). **This is no longer accurate for T1** — see "Validated by" below.
 
 ## Date
 

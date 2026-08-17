@@ -105,4 +105,10 @@ A single source should typically touch 3–10 pages. If it touches 1, you're not
 ## [2026-07-18] ingest | PR #37 compile-time grounding PR 3/4 | pages touched: 7
 ## [2026-07-18] query | Where does RISK get its counter-argument?
 ## [2026-07-18] lint | 1 orphan, 2 open questions
+## [2026-08-05] friction | had to hand-rebase 3 stacked PRs before merge | cost: rework
 ```
+
+The `friction` line type feeds the command-suggestion miner (see
+[[concept-bottleneck-command-suggestion]]): append one whenever a manual,
+repeated, or forgotten step costs you rework, a near-miss, or an incident.
+`cost:` is one of `rework | near-miss | incident`.

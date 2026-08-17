@@ -80,7 +80,14 @@ async function checkStripe(): Promise<DepResult> {
 
 async function checkClerk(): Promise<DepResult> {
   const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  if (!key) return { status: "not_configured", latencyMs: null, error: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY not set" };
+  if (!key) {
+    // Missing entirely in production means auth is completely broken, not
+    // just "not set up yet" — that's a degraded (down-counting) state, unlike
+    // preview/dev environments where an unset key is an expected inert state.
+    return process.env.VERCEL_ENV === "production"
+      ? { status: "degraded", latencyMs: null, error: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY not set in production" }
+      : { status: "not_configured", latencyMs: null, error: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY not set" };
+  }
 
   // A Clerk Development instance key (pk_test_...) backing a live production
   // domain has MAU/sign-up caps and isn't meant for this — flag it loudly

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
 import { parseSubscriptionMetadata } from "@/lib/subscription";
+import { isNulogdashAdmin } from "@/lib/nulogdash";
 import { DashboardCockpit } from "./DashboardCockpit";
 import type { IndexChip, MoverChip } from "./DashboardCockpit";
 import "./dashboard.css";
@@ -83,6 +84,7 @@ export default async function Dashboard({
   const firstName = user?.firstName ?? "investor";
   const { status, tier } = parseSubscriptionMetadata(user?.publicMetadata);
   const isPro = tier === "pro";
+  const isAdmin = isNulogdashAdmin(user);
 
   const params = await searchParams;
   const checkoutSuccess = params.checkout === "success";
@@ -117,6 +119,7 @@ export default async function Dashboard({
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
+          {isAdmin && <Link href="/dashboard/nulogdash">nulogdash</Link>}
           <UserButton />
         </div>
       </nav>

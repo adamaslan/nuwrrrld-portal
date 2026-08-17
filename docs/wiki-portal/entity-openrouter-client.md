@@ -14,7 +14,7 @@ The single module that talks to OpenRouter. Owns the seat definitions, the seat�
 - **`CouncilSeat`** — `'T1' | 'T2' | 'RISK' | 'MACRO' | 'QUANT' | 'CHAIR'`.
 - **`DEBATE_SEATS`** — the five that answer in round 1 (`T1, T2, RISK, MACRO, QUANT`); CHAIR only synthesizes.
 - **`SEAT_SYSTEM`** — one system prompt per seat, all written to the [[concept-small-model-prompting]] contract.
-- **`SEAT_MODELS`** — each seat's primary model (all free-tier).
+- **`SEAT_MODELS`** — each seat's primary model (free-tier except T1 — see "Model assignment" below).
 - **`FREE_MODEL_CHAIN`** — the ordered fallback list every seat drops through on failure.
 - **`SMALLEST_MODEL`** — `= SEAT_MODELS.QUANT`, reused for the 3× CHAIR verdict vote.
 - **`CHAIR_VERDICT_SYSTEM`** — the tiny JSON-only prompt for the separate verdict call ([[decision-split-chair-synthesis-and-verdict]]).

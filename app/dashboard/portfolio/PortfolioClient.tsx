@@ -71,12 +71,15 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   const [healthStatus, setHealthStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [healthText, setHealthText] = useState("");
   const [healthError, setHealthError] = useState("");
+  // Whether the AI narrative was grounded in a real gcp3 score, or degraded to
+  // "no portfolio data" — surfaced rather than only logged (concept-graceful-degradation).
+  const [healthGrounded, setHealthGrounded] = useState(true);
 
   // Portfolio Health Score — the numeric score from /api/portfolio/health,
   // distinct from the AI narrative health-ai panel above. Previously fetched
   // by nothing: the audit found this button permanently disabled and the
   // result never rendered.
-  const [scoreStatus, setScoreStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [scoreStatus, setScoreStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
   const [score, setScore] = useState<PortfolioHealth | null>(null);
   const [scoreError, setScoreError] = useState("");
 
@@ -85,6 +88,12 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     setScoreError("");
     try {
       const res = await fetch("/api/portfolio/health");
+      // 204 = watchlist is empty — never let this render as an error, and
+      // never let the server fall back to gcp3's generic default portfolio.
+      if (res.status === 204) {
+        setScoreStatus("empty");
+        return;
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setScoreStatus("error");
@@ -155,8 +164,12 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     setHealthStatus("loading");
     setHealthText("");
     setHealthError("");
+    setHealthGrounded(true);
     try {
-      const res = await fetch("/api/portfolio/health-ai", { method: "POST" });
+      const res = await fetch("/api/portfolio/health-ai", {
+        method: "POST",
+        headers: { "Accept": "text/event-stream, application/json" },
+      });
       if (res.status === 403) {
         setHealthStatus("error");
         setHealthError("Pro feature — upgrade to run a health check.");
@@ -170,10 +183,12 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       const contentType = res.headers.get("content-type") ?? "";
       let finalText = "";
       if (contentType.includes("text/event-stream")) {
+        setHealthGrounded(res.headers.get("X-Portfolio-Health-Grounded") !== "false");
         await consumeSSE(res, (_delta, accumulated) => { finalText = accumulated; setHealthText(accumulated); });
       } else {
         const data = await res.json();
         finalText = data.answer ?? "";
+        setHealthGrounded(data.grounded !== false);
         setHealthText(finalText);
       }
       if (!finalText) {
@@ -260,6 +275,9 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
             <button className="port-health-regen" onClick={runScoreCheck}>↺ Refresh</button>
           </div>
         )}
+        {scoreStatus === "empty" && (
+          <p className="port-watch-empty">Add tickers to your watchlist to get your health score.</p>
+        )}
         {scoreStatus === "error" && (
           <>
             <p className="port-health-error">{scoreError}</p>
@@ -321,6 +339,11 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
         {healthStatus === "ok" && healthText && (
           <div className="port-health-result">
             <p className="port-health-label">Health Check · T2 Council</p>
+            {!healthGrounded && (
+              <p className="port-health-error" style={{ fontSize: ".8rem" }}>
+                ⚠ Based on general knowledge — your portfolio score was unavailable for this check.
+              </p>
+            )}
             <p className="port-health-text">{healthText}</p>
             <button className="port-health-regen" onClick={() => setHealthStatus("idle")}>↺ Run again</button>
           </div>

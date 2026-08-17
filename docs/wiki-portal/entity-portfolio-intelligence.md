@@ -77,11 +77,9 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
   stranger's portfolio graded as their own unless the watchlist is passed
   explicitly. Holdings/cost-basis remain unsourced — the analyzer is
   equal-weight and has no quantity concept at all.
-- ✅ `/api/brief` now has the `Accept`-based content negotiation that
-  `interactivity-15.md` §3.1 specified (PR #46, 2026-07-30).
-- ❓ `/api/portfolio/health-ai` still lacks the `Accept`-based content negotiation;
-  legacy mobile builds expecting JSON get an unparseable stream. Deliberate
-  deferral or missed step?
+- ✅ Both `/api/brief` and `/api/portfolio/health-ai` now have the `Accept`-based
+  content negotiation that `interactivity-15.md` §3.1 specified for all three SSE
+  routes — matching `/api/nuai`, which had it first.
 
 ## See also
 

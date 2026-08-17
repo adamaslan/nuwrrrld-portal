@@ -13,6 +13,31 @@ plan to **ingest** the change per `docs/wiki-portal/SCHEMA.md` "On PR Creation"
 (update affected pages, `index.md`, append a `log.md` line) before finishing.
 See [[concept-wiki-led-development]] for the full loop.
 
+## Pre-PR Conflict Guard — clear the queue FIRST
+
+Before branching, check whether open PRs already touch the files you're about
+to change. If they do, opening a new PR now risks landing merge conflicts.
+
+```bash
+# What files does this change touch?
+git status --porcelain | awk '{print $2}' | sort > /tmp/my-files.txt
+
+# What files do the open PRs touch?
+for pr in $(gh pr list --repo adamaslan/nuwrrrld-portal --state open --json number --jq '.[].number'); do
+  gh pr diff "$pr" --repo adamaslan/nuwrrrld-portal --name-only
+done | sort -u > /tmp/open-pr-files.txt
+
+# Any overlap → conflict risk
+comm -12 /tmp/my-files.txt /tmp/open-pr-files.txt
+```
+
+**If the overlap is non-empty**, run **`/bugmerge1`** first: it scans the open
+PRs, fixes the bugs their review comments describe, and merges them
+conflict-free (rebasing each onto the latest `main`). Once the queue is drained,
+`git fetch origin main && git rebase origin/main` (or re-branch off fresh
+`main`), then continue below. This avoids opening a PR that would collide with
+work already in flight.
+
 ## Security Checklist — scan BEFORE committing
 
 Never commit:

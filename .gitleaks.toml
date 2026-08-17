@@ -27,6 +27,10 @@ regexes = [
   # Env-var *names* referenced in prose are fine (OPENROUTER_API_KEY, DATABASE_URL);
   # only assignments with real values should trip. The default rules already
   # target values, not bare identifiers.
+
+  # __tests__/live/model-chain.live.test.ts asserts fast-fail on an invalid
+  # OpenRouter key; the literal is intentionally fake (note the label).
+  '''sk-or-v1-definitely-not-a-real-key''',
 ]
 
 # Example/sample corpus and lockfiles are noise sources, not secret stores.
