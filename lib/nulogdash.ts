@@ -99,6 +99,27 @@ export function canPerformAdminAction(user: AdminIdentity | undefined | null): b
   return user?.twoFactorEnabled === true;
 }
 
+/** The subset of Clerk's User that `primaryEmail` needs — narrower than
+ * `AdminIdentity` since display/attribution callers don't have (or need)
+ * `twoFactorEnabled`. */
+export interface EmailIdentity {
+  primaryEmailAddressId: string | null;
+  emailAddresses: { id: string; emailAddress: string }[];
+}
+
+/** Resolves a user's primary email for display/attribution purposes (not
+ * access control — see `isNulogdashAdmin` for the verified-primary gate).
+ *
+ * Exists so non-gate callers stop reaching for `emailAddresses[0]`, which
+ * silently picks the wrong address for any user with more than one. Returns
+ * "" if there is no primary address, matching prior call-site fallbacks.
+ */
+export function primaryEmail(user: EmailIdentity | undefined | null): string {
+  if (!user?.primaryEmailAddressId) return "";
+  const primary = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId);
+  return primary?.emailAddress ?? "";
+}
+
 /** v0 sink: reads the local JSON file the runner writes. See the "Persisting
  * run results" section of docs/nulogdash-dashboard-plan.md for the planned
  * migration to a Neon-backed sink with run history. */
@@ -109,4 +130,29 @@ export function getLatestRun(): NulogdashRun | null {
   } catch {
     return null;
   }
+}
+
+/** Tallies each status across a run's results. Pulled out of the page
+ * component so the headline counts can be unit-tested against a fixture
+ * array without rendering anything. */
+export function summarizeCounts(results: FeatureResult[]): Record<FeatureStatus, number> {
+  return results.reduce<Record<FeatureStatus, number>>(
+    (acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      return acc;
+    },
+    { pass: 0, fail: 0, blocked: 0, not_run: 0 },
+  );
+}
+
+/** Splits a run's results into the two tables the page renders: features
+ * that were skipped this pass, and features that actually ran. */
+export function splitResults(results: FeatureResult[]): {
+  notExercised: FeatureResult[];
+  exercised: FeatureResult[];
+} {
+  return {
+    notExercised: results.filter((r) => r.status === "blocked" || r.status === "not_run"),
+    exercised: results.filter((r) => r.status === "pass" || r.status === "fail"),
+  };
 }

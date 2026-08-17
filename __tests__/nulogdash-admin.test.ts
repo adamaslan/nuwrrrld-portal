@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { isNulogdashAdmin, canPerformAdminAction, type AdminIdentity } from "@/lib/nulogdash";
+import {
+  isNulogdashAdmin,
+  canPerformAdminAction,
+  summarizeCounts,
+  splitResults,
+  type AdminIdentity,
+  type FeatureResult,
+} from "@/lib/nulogdash";
 
 const ORIGINAL_ALLOWLIST = process.env.NULOGDASH_ADMIN_EMAILS;
 
@@ -203,5 +210,62 @@ describe("canPerformAdminAction", () => {
   it("refuses a null or undefined user", () => {
     expect(canPerformAdminAction(null)).toBe(false);
     expect(canPerformAdminAction(undefined)).toBe(false);
+  });
+});
+
+/** Builds a minimal FeatureResult fixture; each test only states the status
+ * it's varying, since that's the only field the reducers under test read. */
+function feature(status: FeatureResult["status"], overrides: Partial<FeatureResult> = {}): FeatureResult {
+  return {
+    feature: overrides.feature ?? `feature-${status}-${Math.random().toString(36).slice(2)}`,
+    label: overrides.label ?? "Some Feature",
+    entrypoints: overrides.entrypoints ?? [],
+    tier: overrides.tier ?? null,
+    dependencies: overrides.dependencies ?? [],
+    latencyMs: overrides.latencyMs ?? null,
+    status,
+    reason: overrides.reason ?? null,
+  };
+}
+
+describe("summarizeCounts", () => {
+  it("tallies each status independently", () => {
+    const results = [feature("pass"), feature("pass"), feature("fail"), feature("blocked"), feature("not_run")];
+    expect(summarizeCounts(results)).toEqual({ pass: 2, fail: 1, blocked: 1, not_run: 1 });
+  });
+
+  it("returns zero for every status on an empty run", () => {
+    expect(summarizeCounts([])).toEqual({ pass: 0, fail: 0, blocked: 0, not_run: 0 });
+  });
+
+  it("zero-fills statuses that never occur, rather than omitting the key", () => {
+    const results = [feature("pass")];
+    expect(summarizeCounts(results)).toEqual({ pass: 1, fail: 0, blocked: 0, not_run: 0 });
+  });
+});
+
+describe("splitResults", () => {
+  it("routes blocked and not_run into notExercised, pass and fail into exercised", () => {
+    const passResult = feature("pass");
+    const failResult = feature("fail");
+    const blockedResult = feature("blocked");
+    const notRunResult = feature("not_run");
+
+    const { notExercised, exercised } = splitResults([passResult, failResult, blockedResult, notRunResult]);
+
+    expect(notExercised).toEqual([blockedResult, notRunResult]);
+    expect(exercised).toEqual([passResult, failResult]);
+  });
+
+  it("returns two empty arrays for an empty run", () => {
+    const { notExercised, exercised } = splitResults([]);
+    expect(notExercised).toEqual([]);
+    expect(exercised).toEqual([]);
+  });
+
+  it("never drops or duplicates a result across the two buckets", () => {
+    const results = [feature("pass"), feature("fail"), feature("blocked"), feature("not_run"), feature("pass")];
+    const { notExercised, exercised } = splitResults(results);
+    expect(notExercised.length + exercised.length).toBe(results.length);
   });
 });
