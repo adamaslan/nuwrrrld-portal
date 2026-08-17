@@ -72,6 +72,17 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
   makes this failure class loud instead of silent, and `/api/health` now
   checks for both misconfigurations proactively.
 
+- **Clerk MFA is paid, not free.** `lib/nulogdash.ts`'s `canPerformAdminAction`
+  reads `user.twoFactorEnabled`, but Clerk gates MFA (TOTP/SMS) behind its Pro
+  plan ($25/mo) — confirmed via Clerk's pricing page, not on the free Hobby
+  tier this app runs on. The flag can never be `true`, so the admin console's
+  mutation gate was correct-but-permanently-closed until
+  [[decision-self-implemented-totp-over-clerk-pro]] resolved it with a
+  self-owned TOTP system instead of paying or migrating providers. This is
+  Clerk-as-entitlement-source-of-truth hitting a cost wall for a feature the
+  *app itself* needs, distinct from the subscriber-tier entitlements this
+  entity page otherwise covers.
+
 ## Open questions
 
 - ❓ Whether the Clerk dev-instance key alone would have blocked signups,

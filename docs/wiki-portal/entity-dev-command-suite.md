@@ -42,6 +42,12 @@ and the hub every command links back to.
   not branch-safe. Resolution: commit the command files to git, add a
   self-integrity check + out-of-tree backup, and pathspec-scope `git stash -u`.
 
+- The `/nulogdash` admin console this suite's PRs are checked against
+  (`app/dashboard/nulogdash/`) hit its own cost-boundary problem: its mutation
+  gate depended on Clerk MFA, which turned out to be paid-tier-only. See
+  [[decision-self-implemented-totp-over-clerk-pro]] — same console recovered
+  by the PR that produced [[incident-2026-08-06-bugmerge1-command-file-loss]].
+
 ## Open questions
 
 > ❓ Open question: the incident's open items ask to audit `bugz`, `geepr`, and
@@ -57,4 +63,5 @@ and the hub every command links back to.
 - [[concept-bottleneck-command-suggestion]] — the loop that grows the suite
 - [[concept-global-automation-layer]] — the `~/.claude/` layer this is the project half of
 - [[incident-2026-08-06-bugmerge1-command-file-loss]] — the branch-safety scar
+- [[decision-self-implemented-totp-over-clerk-pro]] — the nulogdash console's own paid-tier cost boundary
 - [[START-HERE]] — the orient step every command begins with
