@@ -157,17 +157,28 @@
     <p class="eyebrow">nuwrrrld-portal &middot; PR #64</p>
     <h1>Testing Status</h1>
     <p class="lede">
-      Four test layers, 344 tests. Everything passes locally. The browser tier
-      has never completed a run on CI &mdash; this page is mostly about why.
+      Four test layers, 344 tests. Clerk sign-in now passes on CI after seven
+      stacked fixes. One infrastructure blocker remains before the browser tier
+      can run at all.
     </p>
+
+    <div class="banner" style="background:var(--pass-bg);border-left-color:var(--pass)">
+      <div>
+        <p style="color:var(--soft)"><strong style="color:var(--pass)">auth is green on CI.</strong>
+        Run <code>32089144456</code> &mdash; 5 tests in 23.1s, session artifact uploaded.
+        Seven distinct causes had to be fixed to get here; the last was a
+        <em>successful</em> sign-in landing on <code>/</code> instead of
+        <code>/dashboard</code>, which the test read as failure.</p>
+      </div>
+    </div>
 
     <div class="banner">
       <div>
-        <p><strong>CI not yet verified.</strong>
-        The Playwright <code>auth</code> job passes locally but has never gone green on a
-        runner. Five separate causes killed it across five attempts; all are fixed,
-        and the next run is the first honest test. Don't read a local pass as CI
-        confidence.</p>
+        <p><strong>The sharded e2e job still hasn't run.</strong>
+        All four shards now start and immediately fail at
+        &ldquo;Authenticate to GCP (keyless)&rdquo; &mdash; the Workload Identity
+        Federation pool was never provisioned, so <code>GCP_WIF_PROVIDER</code> is
+        empty. That is the single remaining blocker.</p>
       </div>
     </div>
 
@@ -219,7 +230,7 @@
             <td>Does the shipped UI degrade correctly under injected faults?</td>
             <td class="num">34</td>
             <td><code>npm run test:e2e</code></td>
-            <td><span class="pill p-warn">LOCAL ONLY</span></td>
+            <td><span class="pill p-warn">PARTIAL</span></td>
           </tr>
         </tbody>
       </table>
@@ -265,19 +276,19 @@
             <td class="mono"><b>auth-setup</b></td>
             <td>Signs in the Clerk test user once, saves <code>storageState</code>.</td>
             <td class="num">1</td><td class="mono">preflight</td>
-            <td><span class="pill p-warn">LOCAL ONLY</span></td>
+            <td><span class="pill p-pass">PASSING ON CI</span></td>
           </tr>
           <tr>
             <td class="mono"><b>frontend</b></td>
             <td>Fault injection: mocked 429s, stalled SSE, contract-drift payloads.</td>
             <td class="num">16</td><td class="mono">auth-setup</td>
-            <td><span class="pill p-warn">NOT RUN</span></td>
+            <td><span class="pill p-fail">BLOCKED ON WIF</span></td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <h2>Why CI stayed red: five stacked failures</h2>
+    <h2>Why CI stayed red: seven stacked failures</h2>
     <p class="note">
       Each fix revealed the next, and the error message pointed at the wrong layer
       almost every time. Recorded in full as
@@ -288,7 +299,9 @@
       <li><b>Test user in the wrong instance</b><span>Created in production, not dev. Valid credentials, rejected sign-in.</span></li>
       <li><b>Concurrency cancellation</b><span>A docs commit landing seconds later triggered <code>cancel-in-progress</code>. Symptom: <code>cancelled</code> &mdash; indistinguishable from a manual cancel.</span></li>
       <li><b>Job timeout set by guess</b><span><code>timeout-minutes: 5</code>, but installing browsers alone took 2m48s. Also reported as <code>cancelled</code>, which is what made this and #3 cost two cycles.</span></li>
-      <li><b>A one-character secret</b><span>The actual root cause of the original symptom &mdash; see below.</span></li>
+      <li><b>A one-character secret</b><span>The root cause of the original symptom &mdash; see below.</span></li>
+      <li><b>Missing boot env</b><span>The job passed only Clerk vars, but <code>lib/db.ts</code> calls <code>neon()</code> at module scope, so <code>next dev</code> never became ready. Surfaced as a generic webServer timeout naming no variable.</span></li>
+      <li><b>Asserting the wrong URL</b><span>Sign-in was <em>succeeding</em> and landing on <code>/</code>, not <code>/dashboard</code>, because Clerk's redirect var was never passed to CI. The test read a working flow as a failure.</span></li>
     </ol>
 
     <div class="cause">

@@ -63,7 +63,16 @@ change is needed — it will fall straight through to the `/dashboard` wait).
 Leave the OTP branch in place regardless: it costs nothing when unused and
 keeps the setup working if the requirement is ever re-enabled.
 
-### 2. Provision the GCP Workload Identity Federation pool
+### 2. Provision the GCP Workload Identity Federation pool ← **now the top blocker**
+
+As of run `32089144456` this is the only thing standing between here and a
+fully green suite. With `auth` passing, all four `e2e` shards now start and
+fail immediately at "Authenticate to GCP (keyless)":
+
+> `google-github-actions/auth failed with: the GitHub Action workflow must
+> specify exactly one of "workload_identity_provider" or "credentials_json"`
+
+`GCP_WIF_PROVIDER` is empty because the pool has never been created.
 
 `e2e-resiliency.yml`'s `e2e` job authenticates to GCP keylessly, and
 `GCP_WIF_PROVIDER` / `GCP_SERVICE_ACCOUNT` don't exist yet.
@@ -135,14 +144,28 @@ cannot catch this** — it shows the name exists, never that the value is
 intact. If a synced secret ever behaves as though it's wrong, check its
 length before suspecting the credential itself.
 
-### 4b. `auth` has still never passed in CI
+### 4b. ✅ `auth` passes in CI (2026-08-17)
 
-Verified working **locally** (writes `playwright/.auth/user.json`), but every
-CI attempt so far died for a different reason than the last: bad Clerk keys,
-then `cancel-in-progress` killing it mid-run, then the 5-minute timeout. All
-three are fixed; the next run is the first real test of the sign-in flow on a
-GitHub runner. Treat a green `auth` as the first genuine confirmation, and
-don't assume the local pass generalizes until then.
+**Resolved.** Run `32089144456`: `auth: success`, 5 tests passed in 23.1s
+(core preflight + Clerk sign-in), `storageState` artifact uploaded for the
+shards to consume. Seven distinct causes were fixed to get here — see
+[[incident-2026-08-17-e2e-ci-cascade]] in the wiki for the full chain.
+
+The last two, both worth remembering:
+
+- **Clerk's post-sign-in redirect URL was never passed to CI.** Sign-in was
+  *succeeding* and landing on `/` instead of `/dashboard`, and the test
+  asserted the specific destination — so a working auth flow reported as an
+  auth failure. Fixed by passing
+  `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` (a plain path, not a
+  secret) *and* by asserting the session rather than a landing URL: wait to
+  be anywhere outside `/sign-in`, then navigate to `/dashboard` and confirm
+  we stay, which proves the session via `middleware.ts`.
+- **`--with-deps` apt-get time is wildly variable** — 2m48s one run, >15min
+  the next, consuming the entire job budget so sign-in never ran. Fixed with
+  step-level `timeout-minutes` (8 cold / 5 cache-hit). This matters more than
+  the job budget, because GitHub reports a timeout kill as `cancelled`,
+  indistinguishable from a real cancel — a confusion that cost two cycles.
 
 ### 5. Verify the browser tier reaches the admin dash from a real CI run
 

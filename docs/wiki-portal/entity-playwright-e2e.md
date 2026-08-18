@@ -119,14 +119,15 @@ genuine regression, not confirmation of the old incident.
 
 ## Known failures
 
-1. **`auth` has never passed in CI, though it passes locally.** Five separate
-   causes killed it across five runner attempts (2026-08-17), each masking the
-   next — see [[incident-2026-08-17-e2e-ci-cascade]] for the full chain and
-   the lesson about error messages pointing at the wrong layer. As of this
-   writing the app boots correctly in CI and core preflight passes; a green
-   `auth` is still unconfirmed. `GCP_WIF_PROVIDER` / `GCP_SERVICE_ACCOUNT`
-   also still need a Workload Identity Federation pool provisioned GCP-side
-   (`bash scripts/sync-e2e-secrets.sh --provision-wif`).
+1. **The sharded `e2e` job has never run — GCP WIF is unprovisioned.**
+   `auth` now passes in CI (run `32089144456`, 2026-08-17), so all four shards
+   start and then fail immediately at "Authenticate to GCP (keyless)" because
+   `GCP_WIF_PROVIDER` is empty. Fix with
+   `bash scripts/sync-e2e-secrets.sh --provision-wif`, then grant the printed
+   service account only the role the MCP identity-token step needs. Getting
+   `auth` green took seven distinct fixes — see
+   [[incident-2026-08-17-e2e-ci-cascade]] for the chain and the recurring
+   lesson that the error message named the wrong layer nearly every time.
 2. **`e2e/frontend/*` specs target one page each** (`/dashboard/nuai`,
    `/dashboard/portfolio`, `/dashboard/signals`). `docs/e2e.md`'s illustrative
    §§1–3 examples reference routes that don't exist in this app (`/ai-chat`,

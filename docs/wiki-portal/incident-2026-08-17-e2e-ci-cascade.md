@@ -122,12 +122,33 @@ bundle into 3030 vendor errors, because eslint does not read `.gitignore`.
   grepped *all* distinct errors from a run at once instead of taking the first
   one at face value.
 
+## Resolution status
+
+**Resolved 2026-08-17.** Run `32089144456`: `auth: success`, 5 tests in 23.1s,
+`storageState` uploaded. Two further causes surfaced after this page was first
+written, bringing the total to seven:
+
+6. **Clerk's redirect URL was never passed to CI.** Sign-in was *succeeding*
+   and landing on `/` rather than `/dashboard`
+   (`NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` is set in `.env.local`
+   but wasn't in the workflow), while the test asserted that exact
+   destination. A passing auth flow was reported as an auth failure for
+   several runs. Fixed both by passing the var *and* by asserting the session
+   instead of a URL — wait to leave `/sign-in`, then confirm `/dashboard`
+   holds, which proves the session via `middleware.ts` regardless of landing
+   spot.
+7. **`--with-deps` apt-get time is unbounded in practice.** 2m48s in one run,
+   >15min in the next, consuming the whole job budget so sign-in never ran.
+   Fixed with step-level `timeout-minutes`, which matters more than the job
+   budget: GitHub reports a timeout kill as `cancelled`, indistinguishable
+   from a real cancel, and that ambiguity alone cost two debugging cycles.
+
 ## Open items
 
-- ❓ **`auth` has still never passed in CI.** It passes locally end to end
-  (writes `playwright/.auth/user.json`). Every known blocker is fixed, but a
-  green run is unconfirmed — don't treat the local pass as generalizing until
-  a runner agrees.
+- ❓ **GCP WIF is now the top blocker.** With `auth` green, all four `e2e`
+  shards start and immediately fail at "Authenticate to GCP (keyless)" —
+  `GCP_WIF_PROVIDER` is empty because the pool was never provisioned. Run
+  `bash scripts/sync-e2e-secrets.sh --provision-wif`.
 - ❓ Clerk's new-device verification is currently worked around by using a
   `+clerk_test` address and typing the fixed code `424242`. Disabling the
   requirement on the dev instance would remove the most fragile step in the
