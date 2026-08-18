@@ -1,10 +1,13 @@
-# Known Bugs — as of 2026-08-18
+# Known Bugs — last updated 2026-08-18
 
-A snapshot of every confirmed-real bug/gap found while building and reviewing
-the Playwright suite (PR #64), consolidated into one list. This is a status
-doc, not a to-do runbook — see `docs/e2e-next-steps.md`,
-`playwright-todo.md`, and `docs/stripe-todo.md` for the corresponding action
-items. No further testing or fixing was done after this snapshot was taken.
+Bugs and gaps found while building and reviewing the Playwright suite (PR #64),
+consolidated into one list. This is a status doc, not a to-do runbook — see
+`docs/e2e-next-steps.md`, `playwright-todo.md`, and `docs/stripe-todo.md` for
+the corresponding action items.
+
+**Status after PR #65 (2026-08-18):** items 17/18/19 fixed; all others remain
+open. Open blockers in priority order: item 1 (Clerk Pro metadata), item 14
+(GCP WIF provisioning), item 2 (Stripe price IDs).
 
 ---
 
@@ -136,22 +139,17 @@ merge-blocking, none fixed:
     in the UI" gap item 19 referenced — not item 15, which is the separate
     portfolio-entitlement design gap and remains open.)
 
-## CI check state at merge time (2026-08-18)
+## CI check state on `main` (after PR #65, 2026-08-18)
 
-Six checks red when this PR merged, all traced to causes outside this PR's
-diff:
+Same six checks red as at PR #64 merge — none caused by #64 or #65 diffs:
 
 | Check | Status | Cause |
 |---|---|---|
-| `shared-drift-check` | fail | Item 12 — predates this branch |
-| `Cloudflare Pages` | fail | Item 13 — predates this branch, known since PR #37 |
+| `shared-drift-check` | fail | Item 12 — cross-repo drift, predates this work |
+| `Cloudflare Pages` | fail | Item 13 — known-broken since PR #37 |
 | `e2e` (shards 1–4) | fail | Item 14 — `GCP_WIF_PROVIDER` never provisioned |
 
-`auth`, `test`, `report`, `CodeRabbit`, `Vercel`, `Vercel Preview Comments`
-all passed. Merged with the six above still red, per explicit instruction —
-none of the six are within this PR's ability to fix (two are cross-repo/
-infra-config issues, four need a one-time `gcloud` provisioning step this
-session didn't run).
+`auth`, `test`, `report`, `Vercel`, `Vercel Preview Comments` pass.
 
 ---
 
@@ -177,9 +175,20 @@ session didn't run).
 
 ---
 
-## Stopped here
+## Open item summary (as of 2026-08-18)
 
-Per instruction, no further tests were run and no further fixes were made
-after this snapshot. This list is the complete, current inventory —
-cross-reference against `playwright-todo.md`'s Optimization/Future-test-ideas
-sections for lower-priority items not repeated here.
+Items that remain unfixed and require action outside a code PR:
+
+| # | Item | What it blocks | Fix path |
+|---|---|---|---|
+| 1 | E2E test user has no Pro entitlement | All `frontend` tier tests | Clerk dashboard → set `publicMetadata.subscription_status: 'pro'` on the test user |
+| 2 | `STRIPE_PRICE_ANNUAL` placeholder | `preflight-billing`; `/api/health` Stripe check | `docs/stripe-todo.md` |
+| 3 | Portfolio-suggestions root cause unconfirmed | Diagnosis only | Re-run with item 1 fixed first |
+| 12 | `lib/subscription.ts` cross-repo drift | `shared-drift-check` CI | Reconcile portal and mobile copies |
+| 13 | Cloudflare Pages integration broken | Cloudflare CI check | Disable via Cloudflare API (see `docs/cloudflare-pages-assessment.md`) |
+| 14 | GCP WIF pool never provisioned | All four `e2e` shards | `bash scripts/sync-e2e-secrets.sh --provision-wif` |
+| 15 | Portfolio page gates on `nu_ai` entitlement, not portfolio-specific | Design clarity | Deliberate review; may be intentional |
+| 16 | Clerk new-device verification worked around | Fragile OTP step in auth setup | Disable on dev Clerk instance |
+
+Cross-reference `playwright-todo.md`'s Optimization/Future-test-ideas sections
+for lower-priority items not listed here.
