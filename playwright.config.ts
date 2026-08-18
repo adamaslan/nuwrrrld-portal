@@ -57,17 +57,32 @@ export default defineConfig({
   },
 
   projects: [
-    // Ordered so the Test Explorer tree mirrors the credential-gate pipeline:
-    // preflight (keys are real) -> health (deps are up) -> auth (session is
-    // fresh) -> frontend (fault injection, already signed in). `dependencies`
-    // makes "run all" stop early on a bad key instead of producing forty red
-    // frontend tests for the wrong reason.
-    { name: "preflight", testDir: "./e2e/preflight" },
+    // The credential gate is split by concern, so a gate blocks what actually
+    // depends on it and nothing else. Previously a single `preflight` project
+    // asserted Stripe keys too, which meant `auth-setup` — a Clerk sign-in
+    // that never touches Stripe — could not run until STRIPE_WEBHOOK_SECRET
+    // was a real value. Wrong coupling, and it made a green suite impossible
+    // for reasons unrelated to what was being tested.
+    //
+    //   preflight ──> health ──> (nothing yet)
+    //             └─> auth-setup ──> frontend
+    //   preflight-billing ──> (billing tiers, when they exist)
+    //   ci (independent: no browser, no webServer)
+
+    // Core: what any tier needs — app boots, user can sign in, AI reachable.
+    { name: "preflight", testMatch: /preflight\/credentials\.spec\.ts/ },
+
+    // Billing: Stripe only. Expected to fail until docs/stripe-todo.md's
+    // three unset values are supplied; deliberately gates nothing else.
+    { name: "preflight-billing", testMatch: /preflight\/billing\.spec\.ts/ },
+
     { name: "health", testDir: "./e2e/health", dependencies: ["preflight"] },
+
     // CLI/subprocess integration checks (scripts/*.mjs + their GHA
     // workflows) — no browser, no webServer dependency. Independent of the
     // auth/frontend chain below.
     { name: "ci", testDir: "./e2e/ci" },
+
     { name: "auth-setup", testMatch: /auth\.setup\.ts/, dependencies: ["preflight"] },
     {
       name: "frontend",
