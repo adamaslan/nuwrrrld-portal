@@ -112,6 +112,26 @@ models can itself consume a meaningful share of a 50/day budget.
 > across models cannot mitigate a shared-quota failure — only a second key,
 > paid capacity, or graceful deferral can.
 
+> ⚠️ Sharpened 2026-08-18: the correlation is worse than the shared quota
+> alone, because the chain is also **single-vendor**. All four
+> `FREE_MODEL_CHAIN` entries are `nvidia/*:free`
+> ([[entity-openrouter-client]] known-failure #6), so even a vendor-scoped
+> failure — not just an account-scoped one — takes the whole chain at once.
+> The redundancy is nominal in two independent dimensions simultaneously.
+> `refresh-free-models.mjs` produces this without intending to: it ranks on
+> "$0 and probes healthy" with no vendor-diversity constraint, so it inherits
+> whatever monoculture the free tier has that week. A per-vendor cap in the
+> ranking is the smallest change that makes the existing chain machinery mean
+> what it appears to mean.
+
+> ⚠️ Contradiction added 2026-08-18: this page (and the whole free-tier design)
+> assumes the *chain* is the thing that rots and gets refreshed weekly. But
+> `SEAT_MODELS` — the other model list in the same file — has no scheduled
+> maintainer, and 5 of its 6 primaries no longer exist
+> ([[entity-openrouter-client]] known-failure #5). A weekly job that maintains
+> half a surface leaves the other half to rot *silently*, which is worse than
+> no job at all: the presence of automation is read as coverage.
+
 > ❓ Open question: should a whole-chain 429 fail loudly (current behavior) or
 > serve a stale cached deliberation? [[concept-cache-then-degrade]] argues for
 > stale-over-nothing on the data plane; no equivalent decision has been
@@ -124,4 +144,6 @@ models can itself consume a meaningful share of a 50/day budget.
 - [[concept-graceful-degradation]] · [[concept-cache-then-degrade]] — the degradation rules
 - [[concept-small-model-prompting]] — how prompts survive weak free models
 - [[concept-test-strategy]] — why the `live` project is opt-in and retry-tolerant
+- `../gha-modal-core-feature-coverage.md` — the scheduled-maintenance argument these two 2026-08-18 findings motivate
+- `../api-failure-mitigation-build-options.md` — the degradation options for when the chain does fail
 - `gcp3-mobile/docs/wiki-mobile/concept-free-tier-resilience.md` — the mobile counterpart (GCP infra free tiers, a different axis)

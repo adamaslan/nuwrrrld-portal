@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Signals Sales Lexicon</title>
+<style>
+  :root { --bg:#0b0e13; --card:#141922; --border:#232b38; --ink:#e6edf3; --mut:#8b98a9; --ok:#3fb950; --warn:#d29922; --accent:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:32px 0 12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  .sub { color:var(--mut); margin:0 0 24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat b { display:block; font-size:1.6rem; }
+  .stat span { color:var(--mut); font-size:.82rem; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 4px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  code { background:#1c2230; padding:1px 6px; border-radius:5px; font-size:.86em; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .accent { color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:12px 0; }
+  ul { margin:6px 0 6px; padding-left:20px; } li { margin:4px 0; }
+  .pill { display:inline-block; font-size:.72rem; padding:2px 8px; border-radius:99px; border:1px solid var(--border); color:var(--mut); }
+  .term { font-weight:600; }
+  footer { color:var(--mut); font-size:.8rem; margin-top:40px; border-top:1px solid var(--border); padding-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Signals Sales Lexicon</h1>
+  <p class="sub">nuwrrrld-portal · mapping the signal-engine internals (<code>ai-fin-opt2</code> → <code>signals-app</code> → <code>gcp3</code> → portal) to copy-safe consumer language · 2026-07-26</p>
+
+  <div class="grid">
+    <div class="stat"><b>9</b><span>lexicon terms</span></div>
+    <div class="stat"><b>466</b><span>raw calcs/bar (sourced ceiling)</span></div>
+    <div class="stat"><b class="accent">~117K</b><span>calcs/ticker/year (252 bars)</span></div>
+    <div class="stat"><b class="warn">1</b><span>term flagged — not live yet</span></div>
+  </div>
+
+  <h2>Why this exists</h2>
+  <div class="card">
+    <p style="margin:0">
+      The engine's real vocabulary — <code>ConfluenceRanker</code>, <code>confidence_label</code>,
+      parameter grids, backtest hit-rate buckets — is accurate but not sellable. This is the
+      translation table: one row per engineering term, its consumer-facing name, and why that
+      name was chosen. Matched against the voice already shipped in
+      <code>components/landing/RiskSpotlight.tsx</code> and the <code>HOLD EM / FOLD EM</code>
+      verdict UI — plain-spoken, argument-driven, poker-themed — not invented from scratch.
+    </p>
+  </div>
+
+  <h2>Timeline — how the calc engine got here</h2>
+  <p class="sub" style="margin-top:-4px">
+    Sourced from <code>homebase/docs/signal-multiplication-analysis.md</code>. Three lineages
+    that never merged — the portal has always been a display layer over whichever backend it
+    pointed at, not an independent calculator.
+  </p>
+  <table>
+    <tr><th>Date</th><th>Project</th><th>Event</th></tr>
+    <tr><td>2026-03-05</td><td>gcp3</td><td>Repo created — single-parameter RSI/BB/MACD only.</td></tr>
+    <tr><td>2026-03-12</td><td>mcp-finance1</td><td>Parameter-grid idea originates: MA-cross, RSI, MACD, MA-distance grids first appear. 4 of 9 doc categories.</td></tr>
+    <tr><td>2026-04-21</td><td>gcp3</td><td><code>backend2/analysis.py</code> lands — ~24 indicator families in one module, incl. Fibonacci, Kelly sizing, Black-Scholes Greeks (unique to this file, never ported anywhere else).</td></tr>
+    <tr><td>2026-04-30</td><td>ai-fin-opt2</td><td><code>boll-4-april-500.py</code> — the "April 500" build. First (and only) project to combine grid multiplication <em>with true historical bar-by-bar scanning</em>. This is the source of the 466/bar ceiling below.</td></tr>
+    <tr><td>2026-05-16</td><td>mcp-finance1</td><td>Last major edit before being superseded — duplicated 3× in-repo, never consolidated.</td></tr>
+    <tr><td>2026-06-13 → 06-28</td><td>signals-app</td><td><code>ConfluenceRanker</code> + <code>scoring/mtf.py</code> — first reusable, tested confluence/multi-timeframe layer. Formalizes <code>indicators/grids.py</code>. Gets a UI and persisted run history, but never picks up historical bar scanning.</td></tr>
+    <tr><td>2026-07-07</td><td>homebase</td><td>First side-by-side comparison of all four lineages — the analysis this timeline and the calc totals below are drawn from.</td></tr>
+    <tr><td>2026-07-09</td><td>signals-app</td><td>Historical bar-by-bar scan + backtest hit-rate engine ships to <code>main</code> — closes the doc's biggest gap, but confidence-calibration wiring back into the live path is built and tested, never opened as a PR (still true today).</td></tr>
+    <tr><td>2026-07-24</td><td>nuwrrrld-portal</td><td><code>pending_signals</code> queue + real-time hardening (4 passes) — the portal's own infrastructure catches up, but it still computes zero indicators itself; everything below is inherited compute.</td></tr>
+  </table>
+  <div class="card">
+    <p style="margin:0; color:var(--mut)">
+      Reading the timeline straight: no single codebase has ever absorbed all three
+      lineages' best ideas. <code>mcp-finance1</code> originated the grid, stalled at 4
+      categories. <code>gcp3</code> forked internally into a lightweight feature-store and a
+      separate kitchen-sink module that grew grids independently. <code>ai-fin-opt2</code>
+      solved historical scanning but never got confluence scoring. <code>signals-app</code>
+      is the newest, most disciplined lineage, and still hasn't merged the historical-scan
+      line. The "total possible calculations" below is a <em>ceiling if all four lineages
+      were unified</em>, not a number any single running system produces today.
+    </p>
+  </div>
+
+  <h2>Total possible calculations — the portal's real ceiling</h2>
+  <p class="sub" style="margin-top:-4px">
+    Reframing "signals" as raw calculator throughput: every indicator × every parameter ×
+    every threshold is one discrete calculation. Breaking the 466/bar figure down by category,
+    plus what's sitting unexploited in <code>gcp3/backend2</code>.
+  </p>
+
+  <table>
+    <tr><th>Category</th><th>Widest known grid</th><th>Calcs / bar</th><th>Source</th></tr>
+    <tr><td>RSI</td><td>7 periods × 4 OS/OB pairs + 7 midline-cross checks</td><td class="term">35</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>Bollinger Bands</td><td>4 periods × 4 std devs × 3 signal types (breakout, %B, band-ride)</td><td class="term">48</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>MA distance</td><td>8 SMA periods × 4 thresholds</td><td class="term">32</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>Rolling HL range</td><td>5 lookbacks × 3 proximity levels</td><td class="term">15</td><td class="pill">boll-4-april-500 / signals-app</td></tr>
+    <tr><td>Support/resistance (pivots)</td><td>4 pivot windows × 4 proximities, O(N) precomputed</td><td class="term">16</td><td class="pill">boll-4-april-500 / signals-app</td></tr>
+    <tr><td>Price action</td><td>4 lookbacks × 4 thresholds</td><td class="term">16</td><td class="pill">boll-4-april-500 (unique)</td></tr>
+    <tr><td>MA cross</td><td>11 fast/slow pairs</td><td class="term">11</td><td class="pill">all 3 grid projects</td></tr>
+    <tr><td>MACD</td><td>4 param sets × 3 signal types (cross, zero-cross, hist)</td><td class="term">12</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>Volume</td><td>4 MA periods × spike/low thresholds + 10-bar divergence</td><td class="term">9</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>Stochastic</td><td>fixed 14/3, zone-filtered K/D cross variants</td><td class="term">4</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>ADX</td><td>fixed 14, strong/very-strong × up/down</td><td class="term">4</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>Ichimoku</td><td>standard 9/26/52, TK cross + Kumo state</td><td class="term">4</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td>OBV / CMF</td><td>20-bar divergence + EMA cross + CMF thresholds</td><td class="term">5</td><td class="pill">boll-4-april-500</td></tr>
+    <tr><td colspan="2" style="text-align:right; color:var(--mut)">Sum of the above (distinct configs)</td><td class="term accent">211</td><td class="pill">derived</td></tr>
+    <tr><td colspan="2" style="text-align:right; color:var(--mut)"><strong>Doc's own stated ceiling</strong> (multi-state signals per config)</td><td class="term ok">466</td><td class="pill">signal-multiplication-analysis.md</td></tr>
+  </table>
+
+  <div class="card">
+    <p style="margin:0 0 10px"><span class="term">Why 211 ≠ 466:</span> the table above counts
+    <em>distinct parameter configurations</em> per category. Several categories emit more than
+    one signal-state per configuration — e.g. a single BB(20, 2σ) config can independently fire
+    upper-breakout, lower-breakout, %B-extreme, and band-ride — so the doc's own measured
+    ceiling (466/bar, cited directly in <code>signal-multiplication-analysis.md</code>) sits
+    above the raw config count. Both numbers are real; they answer different questions
+    ("how many dials" vs. "how many things the dials can say").</p>
+  </div>
+
+  <table>
+    <tr><th>Category (not in the 466 ceiling — gcp3/backend2 only)</th><th>Estimate basis</th><th>Est. calcs / bar</th><th>Confidence</th></tr>
+    <tr>
+      <td>Fibonacci retracement / extension</td>
+      <td>9 standard levels (5 retracement + 4 extension) × 3 proximity thresholds — mirrors the codebase's own documented <code>HL_PROXIMITIES</code>/<code>SR_PROXIMITIES</code> grid shape, applied per detected swing</td>
+      <td class="term">~27</td>
+      <td><span class="warn">estimate — not enumerated in source docs</span></td>
+    </tr>
+    <tr>
+      <td>Extended indicator families (Williams %R, CCI, MFI, ROC×3, ATR×3, SMA×6 w/ cross flags, EMA×3 w/ cross flags, VWAP proxy, pivot points)</td>
+      <td>Doc states ~24 families total, ~79 signals/timeframe × 4 timeframes ≈ 300/call — a separate lineage, not additive with the 466</td>
+      <td class="term">~300</td>
+      <td><span class="ok">sourced</span> (per-call total, own timeframe scope)</td>
+    </tr>
+    <tr>
+      <td>Kelly-criterion position sizing</td>
+      <td>Single formula, evaluated per candidate signal, not a parameter grid</td>
+      <td class="term">1 / candidate</td>
+      <td><span class="ok">sourced</span> (present, uncounted as a "signal")</td>
+    </tr>
+    <tr>
+      <td>Black-Scholes option Greeks</td>
+      <td>5 standard Greeks (delta, gamma, theta, vega, rho) per contract evaluated</td>
+      <td class="term">5 / contract</td>
+      <td><span class="warn">estimate — count not stated in source docs</span></td>
+    </tr>
+  </table>
+
+  <h3 style="margin:28px 0 10px; font-size:1rem; color:var(--mut)">Scaling to a grand total</h3>
+  <div class="card">
+    <pre style="margin:0 0 12px; overflow-x:auto; color:var(--ink)">
+   466   calcs / bar        (sourced ceiling, boll-4-april-500, 13 categories)
+ × 252   trading bars/year   (1 year of daily bars)
+ ───────
+ 117,432 calcs / ticker / year   ≈ "~117K/stock" — matches signal-multiplication-analysis.md's
+                                    own stated figure independently, good cross-check
+
+ × 54    tickers   (the sector/industry ETF universe already tracked for
+ ───────            relative-strength ranking — sourced, signals-app-architecture.md /
+                     signal-multiplication-analysis.md)
+ 6,341,328  calcs / year, ETF universe alone
+
+ + N     user watchlist tickers (variable — scales linearly, same 117,432/ticker/year rate)
+ + ~300  calcs/call from the untapped gcp3/backend2 lineage (Fibonacci, Kelly, Greeks,
+          Williams %R, CCI, MFI — not yet merged into the 466 ceiling at all)</pre>
+    <p style="margin:0; color:var(--mut)">
+      <strong>Headline number:</strong> north of <span class="accent term">6.3 million</span>
+      discrete calculations a year just to cover the sector-ETF universe the portal already
+      grounds itself against — before counting a single user's watchlist, and before folding
+      in the ~300/call second engine sitting unused in <code>gcp3/backend2</code>. "One
+      Agreement Score" is the sellable surface over a genuinely large compute base — that gap
+      is the sales argument, not the engineering detail.
+    </p>
+  </div>
+
+  <h2>The lexicon</h2>
+  <table>
+    <tr><th>Engineering term</th><th>Sales term</th><th>Why</th></tr>
+    <tr>
+      <td>466 raw signals/bar, 13 parameter-grid categories<br /><span class="pill">ai-fin-opt2</span></td>
+      <td class="term">The Full Sweep</td>
+      <td>Conveys exhaustiveness without forcing a user to parse "parameter grids."</td>
+    </tr>
+    <tr>
+      <td><code>ConfluenceRanker</code> net score<br /><span class="pill">signals-app</span></td>
+      <td class="term">Agreement Score</td>
+      <td>Says what confluence actually means — how many independent signals agree — not the math behind it.</td>
+    </tr>
+    <tr>
+      <td><code>confidence_label</code> (HIGH / MED / LOW)<br /><span class="pill">gcp3</span></td>
+      <td class="term">Conviction</td>
+      <td>A trader's word. Ties naturally to the Council seats "arguing" a position.</td>
+    </tr>
+    <tr>
+      <td>Backtest hit-rate buckets<br /><span class="pill">signals-app · backtests/engine.py</span></td>
+      <td class="term">Track Record</td>
+      <td>Already named this in the robustness status doc as "the killer product feature" — reuse verbatim, don't rename twice.</td>
+    </tr>
+    <tr>
+      <td><code>ai_action</code> (BUY / HOLD / SELL)<br /><span class="pill">gcp3 → portal</span></td>
+      <td class="term">HOLD EM / FOLD EM</td>
+      <td>Already shipped and on-brand (<code>HoldFoldClient.tsx</code>). Don't introduce a competing verb.</td>
+    </tr>
+    <tr>
+      <td>Swing-based RSI/price divergence detector<br /><span class="pill">gcp3, unique to it</span></td>
+      <td class="term">The Catch</td>
+      <td>Sells the outcome — catching a reversal others miss — not the swing-window math.</td>
+    </tr>
+    <tr>
+      <td><code>engineVersion</code> / provenance stamp<br /><span class="pill">portal SignalPayload</span></td>
+      <td class="term">Receipt</td>
+      <td>Casual word for "here's exactly what generated this." Fits transparency-as-differentiator.</td>
+    </tr>
+    <tr>
+      <td>Staleness gate, 26h threshold, fails closed<br /><span class="pill">portal SignalPayload</span></td>
+      <td class="term">Freshness Guarantee</td>
+      <td>Turns a defensive engineering gate into a stated promise.</td>
+    </tr>
+    <tr>
+      <td><code>evidence[]</code> + mandatory counter-evidence when confidence &gt; 0.6<br /><span class="pill">gcp3 schema</span></td>
+      <td class="term">The Rebuttal</td>
+      <td>This is literally what RISK's landing copy already dramatizes — name the mechanism after the scene it plays out in.</td>
+    </tr>
+  </table>
+
+  <h2>Flag before using this copy</h2>
+  <div class="card">
+    <p style="margin:0 0 8px">
+      <span class="warn">⚠</span> <span class="term">"Track Record" is not wired to any live endpoint yet.</span>
+    </p>
+    <p style="margin:0; color:var(--mut)">
+      Per <code>homebase/docs/signal-robustness-status.md</code> (2026-07-09): confidence
+      calibration — feeding backtest hit-rates back into <code>confidence_label</code> — was
+      built and tested in <code>signals-app</code> (branch <code>feat/confidence-calibration</code>,
+      commit <code>b494fd7</code>, 35 tests passing) but was committed locally and never opened
+      as a PR. The portal's <code>confidence_label</code> today is score-threshold-derived from
+      <code>gcp3</code>, not hit-rate-calibrated. Don't claim "backtested confidence" in copy
+      until that wiring ships and is confirmed live — verify with a fresh
+      <code>git log</code> check on <code>signals-app</code> before using this term externally.
+    </p>
+  </div>
+
+  <h2>Source pipeline (for context)</h2>
+  <div class="card">
+    <pre style="margin:0; overflow-x:auto; color:var(--ink)">
+ai-fin-opt2  (breadth: 466 signals/bar, 13 grid categories)
+      │
+signals-app  (judgment layer 2: ConfluenceRanker, multi-timeframe composite,
+      │        backtest hit-rate engine — NOT yet wired to live confidence)
+      │
+   gcp3       (judgment layer 1, what the portal talks to today:
+      │        confluence_score, ai_action, ai_summary, RSI/price divergence)
+      ▼
+nuwrrrld-portal  (SignalsClient, HoldFoldClient — HOLD EM / FOLD EM,
+                  score/reasons/staleness/provenance fattening)</pre>
+  </div>
+
+  <footer>
+    Companion to <code>docs/wiki-portal/entity-signal-data-plane.md</code> (canonical signals
+    doc), <code>homebase/docs/signal-multiplication-analysis.md</code> (timeline + the 466/bar
+    ceiling + the 7-pillars robustness roadmap), and
+    <code>homebase/docs/signal-catalog-comparison.md</code> /
+    <code>signal-robustness-status.md</code> (grid-by-grid matrix this calc breakdown draws
+    from). Fibonacci and Black-Scholes-Greek counts are estimates, not sourced — flagged
+    inline above.
+  </footer>
+</div>
+</body>
+</html>

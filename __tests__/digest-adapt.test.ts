@@ -176,33 +176,58 @@ describe("adaptLiveSignals — staleness precedence", () => {
   });
 });
 
-describe("adaptLiveSignals — batch-wide generatedAt (the timing-correctness gap)", () => {
-  // /signals returns ONE `updated` timestamp for the whole symbols map — see
-  // adaptLiveSignals' `fallbackDate`. Every ticker's `generatedAt` (and, when
-  // data_quality_score is absent, its isStale heuristic) is set from that one
-  // shared value, never from a per-ticker timestamp. There is no field in the
-  // /signals response that says "SOXX's confluence score was computed at
-  // T_soxx" — only "this batch was updated at T_batch". If SOXX's own
-  // scoring pipeline lagged (e.g. a stale price fetch upstream of gcp3) while
-  // the rest of the batch refreshed on time, `updated` still looks fresh and
-  // isStale stays false for every ticker, SOXX included. This is exactly the
-  // failure class behind a signal card showing "1d +4.17%" that doesn't match
-  // reality: the number can be old even though nothing about the batch
-  // envelope says so.
-  it("gives every ticker in a batch the identical generatedAt, regardless of per-ticker data age", () => {
-    const d = adaptLiveSignals(payload({ SOXX: {}, AAPL: {}, TSLA: {} }));
-    const stamps = new Set(d.signals.map((s) => s.generatedAt));
-    expect(stamps.size).toBe(1);
-    expect([...stamps][0]).toBe(FRESH);
+describe("adaptLiveSignals — per-ticker generatedAt (closes the batch-timestamp blind spot)", () => {
+  // /signals' symbols map DOES carry a per-symbol `updated` field on every
+  // entry (confirmed against a live gcp3 response, 2026-08-18) — the adapter
+  // previously ignored it and used only the batch-wide `updated` for every
+  // ticker's generatedAt/isStale. If one ticker's own scoring pipeline lagged
+  // (e.g. a stale price fetch upstream of gcp3) while the rest of the batch
+  // refreshed on time, the batch-wide timestamp still looked fresh and
+  // isStale stayed false for every ticker, that one included — the failure
+  // class behind a signal card showing "1d +4.17%" that doesn't match
+  // reality. Fixed: adaptLiveSignals now reads entry.updated per ticker and
+  // only falls back to the batch-wide `updated` when a ticker omits it
+  // (older/partial backend responses).
+  it("uses each ticker's own `updated` field for generatedAt, not the batch-wide one", () => {
+    const stale = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+    const d = adaptLiveSignals(
+      payload({ SOXX: { updated: stale }, AAPL: {} }),
+    );
+    const soxx = d.signals.find((s) => s.ticker === "SOXX")!;
+    const aapl = d.signals.find((s) => s.ticker === "AAPL")!;
+    expect(soxx.generatedAt).toBe(stale);
+    expect(aapl.generatedAt).toBe(FRESH);
+    expect(soxx.generatedAt).not.toBe(aapl.generatedAt);
   });
 
-  it("EXPOSE: a ticker with its own stale data_quality_score is the only reliable per-ticker staleness signal", () => {
-    // The batch envelope is fresh (FRESH), but gcp3 flags this one ticker's
-    // own analysis as stale via data_quality_score — that field is the ONLY
-    // per-ticker timing signal this adapter can act on. If gcp3 ever omits
-    // data_quality_score for a genuinely stale individual ticker, this
-    // adapter has no way to detect it: computeIsStale() falls back to the
-    // batch-wide `updated`, which by construction looks fine.
+  it("a ticker whose own `updated` is stale is flagged stale even though the batch envelope is fresh", () => {
+    const stale = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+    const d = adaptLiveSignals(
+      payload({ SOXX: { updated: stale }, AAPL: {} }),
+    );
+    const soxx = d.signals.find((s) => s.ticker === "SOXX")!;
+    const aapl = d.signals.find((s) => s.ticker === "AAPL")!;
+    expect(soxx.isStale).toBe(true);
+    expect(aapl.isStale).toBe(false);
+  });
+
+  it("falls back to the batch-wide `updated` when a ticker omits its own", () => {
+    const d = adaptLiveSignals(payload({ SOXX: {}, AAPL: {} }));
+    expect(d.signals.find((s) => s.ticker === "SOXX")!.generatedAt).toBe(FRESH);
+    expect(d.signals.find((s) => s.ticker === "AAPL")!.generatedAt).toBe(FRESH);
+  });
+
+  it("falls back to the batch-wide `updated` when a ticker's own `updated` is unparsable", () => {
+    const d = adaptLiveSignals(
+      payload({ SOXX: { updated: "not-a-date" } }, { updated: FRESH }),
+    );
+    expect(d.signals[0].generatedAt).toBe(FRESH);
+  });
+
+  it("EXPOSE-turned-CONFIRMED: a ticker with its own stale data_quality_score is still flagged stale", () => {
+    // data_quality_score still takes precedence over the timestamp heuristic
+    // when present — this behavior is unchanged by the per-ticker timestamp
+    // fix, just re-verified alongside it.
     const d = adaptLiveSignals(
       payload({ SOXX: { data_quality_score: "stale" }, AAPL: {} }),
     );
@@ -210,8 +235,5 @@ describe("adaptLiveSignals — batch-wide generatedAt (the timing-correctness ga
     const aapl = d.signals.find((s) => s.ticker === "AAPL")!;
     expect(soxx.isStale).toBe(true);
     expect(aapl.isStale).toBe(false);
-    // Both still carry the SAME generatedAt — staleness diverged, the
-    // timestamp that's supposed to explain "as of when" did not.
-    expect(soxx.generatedAt).toBe(aapl.generatedAt);
   });
 });

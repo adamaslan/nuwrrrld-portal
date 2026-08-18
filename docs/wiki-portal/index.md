@@ -56,7 +56,8 @@ Cross-cutting patterns and design choices.
 - [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~64%, 2026-08-07 after mobile PR #30 + portal PR #51) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
-- [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
+- [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, the stub/live pairing rule, and why nothing runs the suite in CI
+- [[concept-live-backend-liveness-tests]] — how to test the portal against real gcp3/OpenRouter data (add a real ticker, run each panel for real); found 3 live incidents mocked tests couldn't
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
@@ -72,6 +73,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
 - [[decision-free-tier-model-chain]] — every seat but T1 uses `:free` models; T1 is paid (~$0.20–$0.50/deliberation)
+- [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner

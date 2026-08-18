@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Portfolio Health Check · AI (full-stack workflow &amp; bugs)</title>
+<style>
+  :root { --bg:#0b0e13; --card:#141922; --border:#232b38; --ink:#e6edf3; --mut:#8b98a9; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --accent:#58a6ff; --purple:#bc8cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:1000px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:34px 0 12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  h3 { font-size:.98rem; margin:20px 0 8px; color:var(--accent); }
+  .sub { color:var(--mut); margin:0 0 24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat b { display:block; font-size:1.6rem; }
+  .stat span { color:var(--mut); font-size:.82rem; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 4px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  code { background:#1c2230; padding:1px 6px; border-radius:5px; font-size:.86em; }
+  pre { background:#10151f; border:1px solid var(--border); border-radius:8px; padding:14px 16px; overflow-x:auto; margin:10px 0; font-size:.84rem; line-height:1.5; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); } .accent { color:var(--accent); } .purple { color:var(--purple); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:12px 0; }
+  .card.bad { border-left:3px solid var(--bad); }
+  .card.warn { border-left:3px solid var(--warn); }
+  .card.ok { border-left:3px solid var(--ok); }
+  ul { margin:6px 0 6px; padding-left:20px; } li { margin:5px 0; }
+  .pill { display:inline-block; font-size:.7rem; padding:2px 8px; border-radius:99px; border:1px solid var(--border); color:var(--mut); }
+  .pill.p0 { border-color:var(--bad); color:var(--bad); }
+  .pill.p1 { border-color:var(--warn); color:var(--warn); }
+  .pill.p2 { border-color:var(--mut); }
+  .conf { font-size:.74rem; padding:1px 7px; border-radius:4px; border:1px solid var(--border); color:var(--mut); }
+  .conf.hi { border-color:var(--ok); color:var(--ok); }
+  .conf.med { border-color:var(--warn); color:var(--warn); }
+  .conf.lo { border-color:var(--mut); }
+  footer { color:var(--mut); font-size:.8rem; margin-top:44px; border-top:1px solid var(--border); padding-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Portfolio Health Check · AI</h1>
+  <p class="sub">nuwrrrld-portal · full-stack workflow, data-plane split, and the two failure messages users are hitting · 2026-07-26</p>
+
+  <div class="grid">
+    <div class="stat"><b class="bad">2</b><span>user-visible failures</span></div>
+    <div class="stat"><b class="bad">1</b><span>missing backend route</span></div>
+    <div class="stat"><b class="warn">13</b><span>defects catalogued</span></div>
+    <div class="stat"><b class="bad">2</b><span>surfaces down (web + mobile)</span></div>
+    <div class="stat"><b>2</b><span>data planes</span></div>
+    <div class="stat"><b>2</b><span>repos to fix</span></div>
+  </div>
+
+  <div class="card warn">
+    <b>Scope note.</b> The portfolio page renders <em>two independent panels</em> that
+    users conflate because both say "Health":
+    <ul>
+      <li><b>Portfolio Health Score</b> — deterministic 0–100 number from <code>GET /api/portfolio/health</code>. Currently fails with <em>"Health score unavailable — try again shortly."</em></li>
+      <li><b>Portfolio Health Check · AI</b> — LLM narrative from <code>POST /api/portfolio/health-ai</code>. Currently fails with <em>"Health check returned empty — try again."</em></li>
+    </ul>
+    They fail for <em>different</em> reasons but share one root cause. This doc covers both.
+  </div>
+
+  <h2>Overview — the two data planes</h2>
+
+  <p>The app deliberately splits state across two stores. This split is correct and
+  is load-bearing in ~17 call sites; the bugs below are wiring defects, not
+  architectural ones.</p>
+
+  <table>
+    <tr><th>Plane</th><th>Store</th><th>Owns</th><th>Keyed by</th></tr>
+    <tr>
+      <td><b>User plane</b><br><span class="pill">nuwrrrld-portal</span></td>
+      <td>Neon (Postgres)</td>
+      <td>Watchlist tickers, Nu AI token usage, signal cache, council verdicts, live prices</td>
+      <td>Clerk <code>userId</code></td>
+    </tr>
+    <tr>
+      <td><b>Market plane</b><br><span class="pill">gcp3-backend</span></td>
+      <td>Cloud Run + Firestore</td>
+      <td>Finnhub quotes/profiles, signals, industry analytics, portfolio math</td>
+      <td>Ticker set + date</td>
+    </tr>
+  </table>
+
+  <p>The portal holds <b>no Finnhub key</b>. <code>lib/shared/live-price.ts</code> is only a
+  <em>parser</em> — the actual Finnhub socket lives in a Modal worker
+  (<code>homebase/modal_finnhub_ws.py</code>) that pushes <em>into</em> the portal via
+  <code>POST /api/signals/live</code>. So the portal can never compute market data itself;
+  it must ask gcp3. That constraint is why the split cannot be collapsed.</p>
+
+  <h2>Full-stack workflow — "Run AI health check"</h2>
+
+  <pre>┌─ BROWSER ─────────────────────────────────────────────────────────────┐
+│ PortfolioClient.tsx  runHealthCheck()                                 │
+│   guard: if (healthStatus === "loading") return;                      │
+│   setHealthStatus("loading")                                          │
+└───────────────────────────┬───────────────────────────────────────────┘
+                            │ POST /api/portfolio/health-ai   (no body)
+                            ▼
+┌─ VERCEL EDGE / NODE ──────────────────────────────────────────────────┐
+│ app/api/portfolio/health-ai/route.ts                                  │
+│                                                                       │
+│  1. auth()                    → Clerk userId       ─── 401 if absent  │
+│  2. currentUser()             → subscription_status                   │
+│  3. tierFromStatus + hasEntitlement("nu_ai", tier) ─── 403 if free    │
+│  4. OPENROUTER_API_KEY present?                    ─── 503 if absent  │
+│                                                                       │
+│  5. getWatchlist(userId) ──────────▶ NEON  watchlist_items            │
+│                                     (source of truth for tickers)     │
+│  6. getToken() ────────────────────▶ Clerk session JWT                │
+│  7. fetchHealth(userId, token) ────▶ gcp3 GET /api/portfolio/health   │
+│         ⚠ ROUTE DOES NOT EXIST → always null  (BUG-1)                 │
+│                                                                       │
+│  8. buildHealthPrompt(watchlist, health)                              │
+│         health === null  ⇒ "Portfolio health data: unavailable"       │
+│                                                                       │
+│  9. fetchWithModelFallback(apiKey, {                                  │
+│        max_tokens: 400, stream: true, temperature: 0.3 })             │
+│        └─ walks FREE_MODEL_CHAIN, retries on 402/429/5xx only         │
+│                                                                       │
+│ 10. ReadableStream: pipe RAW OpenRouter SSE bytes to client           │
+│        (no server-side delta parsing on this route)                   │
+└───────────────────────────┬───────────────────────────────────────────┘
+                            │ text/event-stream
+                            ▼
+┌─ BROWSER ─────────────────────────────────────────────────────────────┐
+│ consumeSSE(res, cb)   lib/shared/sse.ts                               │
+│   reads ONLY  choices[0].delta.content                                │
+│   accumulates → setHealthText(...)                                    │
+│                                                                       │
+│ if (!finalText) → "Health check returned empty — try again."  (BUG-2) │
+│ else            → healthStatus = "ok"                                 │
+└───────────────────────────────────────────────────────────────────────┘</pre>
+
+  <h3>Step 7 in detail — the shared root cause</h3>
+  <p>Both panels call the same upstream path, <code>{MCP_BACKEND_URL}/api/portfolio/health</code>.
+  That endpoint <b>is not implemented in gcp3</b>. Grepping
+  <code>gcp3/backend/main.py</code> and <code>gcp3/backend2/main.py</code> for any
+  portfolio-health route returns nothing. The analysis logic exists in
+  <code>gcp3/backend/portfolio_analyzer.py</code> (<code>get_portfolio_analysis()</code>)
+  but was never registered as a FastAPI route.</p>
+
+  <ul>
+    <li><b>Score panel</b> → upstream non-OK → portal returns <code>502</code> → <em>"Health score unavailable."</em></li>
+    <li><b>AI panel</b> → <code>fetchHealth</code> swallows the failure and returns <code>null</code> → the AI still runs, but <b>ungrounded</b>, with the prompt literally saying <em>"Portfolio health data: unavailable (no GCP3 backend connection)"</em>.</li>
+  </ul>
+
+  <h2>Bugs</h2>
+
+  <table>
+    <tr><th>#</th><th>Sev</th><th>Where</th><th>Defect</th><th>Effect</th></tr>
+
+    <tr>
+      <td><b>1</b></td><td><span class="pill p0">P0</span></td>
+      <td>gcp3 <code>backend/main.py</code></td>
+      <td><code>/api/portfolio/health</code> route never registered; <code>portfolio_analyzer.py</code> orphaned</td>
+      <td>Both panels fail. Root cause of both messages.</td>
+    </tr>
+
+    <tr>
+      <td><b>2</b></td><td><span class="pill p0">P0</span></td>
+      <td>contract</td>
+      <td>gcp3 emits <code>ai_grade</code> (A–D), <code>ai_concentration</code>, <code>ai_insights[]</code>… Portal expects <code>score</code> (0–100), <code>factors[]</code>, <code>summary</code>. <b>Zero field overlap.</b></td>
+      <td>Naively wiring the route yields <code>score: 0</code> → <b>Grade F for every user</b>, silently. Worse than the current error.</td>
+    </tr>
+
+    <tr>
+      <td><b>3</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>health-ai/route.ts:97</code></td>
+      <td><code>max_tokens: 400</code> against a reasoning-capable chain (<code>nemotron-3-*</code>). Reasoning tokens consume the same budget.</td>
+      <td>Model can exhaust the budget on hidden reasoning and emit <b>zero</b> <code>delta.content</code> → HTTP 200 + empty body → <em>"returned empty"</em>. Compare <code>/api/nuai</code> which uses 1024.</td>
+    </tr>
+
+    <tr>
+      <td><b>4</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>lib/shared/sse.ts:30</code></td>
+      <td>Parser reads only <code>choices[0].delta.content</code>; ignores <code>delta.reasoning</code> and non-delta shapes.</td>
+      <td>Any model that streams into a different field produces empty output with no diagnostic.</td>
+    </tr>
+
+    <tr>
+      <td><b>5</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>lib/openrouter.ts:157</code></td>
+      <td><code>fetchWithModelFallback</code> falls back on <b>HTTP status only</b>. A model returning <code>200</code> with an empty completion is treated as success.</td>
+      <td>No retry on the exact failure users see. One flaky free model = dead feature.</td>
+    </tr>
+
+    <tr>
+      <td><b>6</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>health-ai/route.ts:116</code></td>
+      <td>Mid-stream errors call <code>ctrl2.error(err)</code> <em>after</em> headers are flushed.</td>
+      <td>Client already saw <code>200 OK</code>; it cannot distinguish "upstream died" from "model said nothing". Both surface as <em>"returned empty"</em>.</td>
+    </tr>
+
+    <tr>
+      <td><b>7</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>health-ai/route.ts</code></td>
+      <td>No rate limit and no token accounting — unlike <code>/api/nuai</code>, which has <code>checkRateLimit()</code> + <code>getRemainingBudget()</code> + <code>recordUsage()</code>.</td>
+      <td>Health checks bypass <code>NU_AI_DAILY_TOKEN_BUDGET</code> entirely. Unmetered cost path; spammable.</td>
+    </tr>
+
+    <tr>
+      <td><b>8</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>health/route.ts</code> + gcp3</td>
+      <td>Portal never sends the user's tickers. gcp3's <code>get_portfolio_analysis()</code> falls back to a hardcoded 10-symbol <code>DEFAULT_PORTFOLIO</code>.</td>
+      <td>Once the route exists, users would see a <b>stranger's portfolio</b> graded as their own. Footgun for a personalised score.</td>
+    </tr>
+
+    <tr>
+      <td><b>9</b></td><td><span class="pill p2">P2</span></td>
+      <td><code>health-ai/route.ts:33</code></td>
+      <td><code>void userId;</code> sits after the <code>try/finally</code> that always returns — unreachable dead code. The <code>userId</code> param is unused.</td>
+      <td>Dead parameter; misleading signature.</td>
+    </tr>
+
+    <tr>
+      <td><b>10</b></td><td><span class="pill p2">P2</span></td>
+      <td><code>PortfolioClient.tsx:186</code></td>
+      <td><code>setHealthError(err.message)</code> surfaces raw internals, e.g. <em>"SSE response body is not readable"</em>.</td>
+      <td>Internal strings leak into the UI.</td>
+    </tr>
+
+    <tr>
+      <td><b>11</b></td><td><span class="pill p2">P2</span></td>
+      <td><code>PortfolioClient.tsx</code></td>
+      <td>No empty-watchlist guard. Prompt becomes <em>"Watchlist tickers: none added yet"</em>.</td>
+      <td>Model is asked to analyse nothing; may refuse or return whitespace → <em>"returned empty"</em> again.</td>
+    </tr>
+
+    <tr>
+      <td><b>12</b></td><td><span class="pill p1">P1</span></td>
+      <td><code>health-ai/route.ts</code>, <code>brief/route.ts</code></td>
+      <td><code>homebase/interactivity-15.md</code> §3.1 specified <code>Accept</code>-based content negotiation for <b>all three</b> SSE routes. Only <code>/api/nuai</code> received it (<code>wantsStream</code>); these two always return a stream.</td>
+      <td><b>Cross-surface.</b> Legacy mobile builds expecting JSON get an unparseable stream → empty result. Independent cause of the same symptom. Documented plan, half-implemented.</td>
+    </tr>
+
+    <tr>
+      <td><b>13</b></td><td><span class="pill p1">P1</span></td>
+      <td>mobile <code>lib/usePortfolio.ts</code></td>
+      <td>Mobile fetches the same dead <code>/api/portfolio/health</code>.</td>
+      <td>The Portfolio tab's headline score is broken on <b>mobile too</b> — same root cause, not previously connected.</td>
+    </tr>
+  </table>
+
+  <h2>Why this went undetected</h2>
+
+  <div class="card bad">
+    <p>Three things independently masked the fault. Worth recording, because each
+    is a repeatable trap:</p>
+    <ol>
+      <li><b>The button was disabled.</b> <code>homebase/nuwrrrld-portal-audit.md</code>
+      catalogued the route as <em>"exists and calls GCP backend"</em> and treated the
+      problem as pure UI wiring — then un-disabled it. Re-enabling a control
+      <em>asserts that everything behind it works</em>; that assertion was never
+      end-to-end tested, only grep-verified at the route-file level.</li>
+
+      <li><b>An earlier fix produced no visible change.</b> A corrupted
+      <code>MCP_BACKEND_URL</code> (literal <code>\n</code> in the prod env value) caused
+      the <em>identical</em> "Health score unavailable" string on 2026-07-21
+      (recorded in the mobile wiki). Repairing it moved the failure from
+      <em>fetch throws</em> (503) to <em>404 from gcp3</em> (502) — both render the same
+      message. The fix was real; the symptom didn't move; the deeper cause stayed
+      hidden. <span class="warn">Do not re-diagnose this as an env-var problem.</span></li>
+
+      <li><b>The AI panel never surfaced its own degradation.</b>
+      <code>fetchHealth()</code> catches everything and returns <code>null</code>, so
+      the check has been silently running <b>ungrounded since it shipped</b> —
+      producing confident portfolio prose with no portfolio data behind it. It
+      looked like it worked.</li>
+    </ol>
+    <p>Prior docs also anticipated this without closing it:
+    <code>docs/nuwrrrld-portal/launch-todo.md</code> carries an unchecked
+    <em>"Brief / Health SSE routes — stream shape correct, empty/error states
+    handled"</em>, and <code>launch-copy.md</code> markets <b>"Portfolio Health Score —
+    an A–F grade"</b> as a headline launch feature. It is currently non-functional,
+    and gcp3's grader tops out at A–D and never emits F.</p>
+  </div>
+
+  <h2>Why "Health check returned empty" specifically</h2>
+
+  <div class="card">
+    <p>That message fires on exactly one condition in
+    <code>PortfolioClient.tsx</code>: the request returned <b>HTTP 200</b> and
+    <code>consumeSSE</code> accumulated a <b>zero-length</b> string.</p>
+    <pre>if (!finalText) {
+  setHealthStatus("error");
+  setHealthError("Health check returned empty — try again.");
+}</pre>
+    <p>So the network call <em>succeeded</em>. Ranked causes:</p>
+    <table>
+      <tr><th>Cause</th><th>Confidence</th><th>Reasoning</th></tr>
+      <tr>
+        <td>Reasoning tokens exhaust <code>max_tokens: 400</code></td>
+        <td><span class="conf hi">high</span></td>
+        <td>Chain is led by <code>nemotron-3-ultra</code>/<code>super</code>, reasoning-capable. 400 is tight for a ~180-word grounded answer <em>plus</em> hidden reasoning. <code>/api/nuai</code> uses 1024 and is not reporting this.</td>
+      </tr>
+      <tr>
+        <td>Content arrives in a field <code>consumeSSE</code> ignores</td>
+        <td><span class="conf med">medium</span></td>
+        <td>Parser is strict on <code>delta.content</code>. Silent-drop by design.</td>
+      </tr>
+      <tr>
+        <td>25 s <code>AbortController</code> fires before first token</td>
+        <td><span class="conf med">medium</span></td>
+        <td>Free-tier queueing can exceed 25 s. Abort after headers → truncated stream, no error status.</td>
+      </tr>
+      <tr>
+        <td>Model refuses (empty watchlist / ungrounded prompt)</td>
+        <td><span class="conf lo">low–med</span></td>
+        <td>Because BUG-1 forces the prompt into "data unavailable" mode, the model is asked to grade a portfolio it was given no data for.</td>
+      </tr>
+    </table>
+    <p class="warn"><b>Not yet confirmed live.</b> These are ranked from code
+    inspection. Confirming requires logging the raw upstream SSE and the served
+    model for one failing request — no such logging exists on this route today
+    (see BUG-6: errors are swallowed into the stream).</p>
+  </div>
+
+  <h2>Recommended fix order</h2>
+
+  <table>
+    <tr><th>Step</th><th>Repo</th><th>Change</th></tr>
+    <tr><td>1</td><td>gcp3</td><td>Add <code>GET /api/portfolio/health?tickers=…</code>. <b>Stateless, no Clerk token</b> — it is a pure function of the ticker list, and <code>get_portfolio_analysis</code> already caches by <code>portfolio:{sorted_tickers}:{date}</code>. Keeps user credentials off the external host.</td></tr>
+    <tr><td>2</td><td>gcp3</td><td>Add an adapter emitting the portal's contract: numeric <code>score</code> 0–100, <code>factors[]</code> (<code>name</code>/<code>score</code>/<code>impact</code>/<code>description</code>), <code>summary</code>, <code>generated_at</code> — derived from the existing concentration &amp; industry-count signals. Fixes BUG-2.</td></tr>
+    <tr><td>3</td><td>portal</td><td>Pass <code>watchlist.map(w =&gt; w.ticker)</code>; short-circuit to an empty-state when the watchlist is empty instead of letting gcp3 grade <code>DEFAULT_PORTFOLIO</code>. Fixes BUG-8, BUG-11.</td></tr>
+    <tr><td>4</td><td>portal</td><td>Raise <code>max_tokens</code> to 1024; treat an empty completion as a failure inside <code>fetchWithModelFallback</code> so the chain actually falls through. Fixes BUG-3, BUG-5.</td></tr>
+    <tr><td>5</td><td>portal</td><td>Buffer the first token before flushing headers, so upstream failures can still return a real status code. Fixes BUG-6.</td></tr>
+    <tr><td>6</td><td>portal</td><td>Apply the <code>/api/nuai</code> rate-limit + token-budget guards to <code>health-ai</code>. Fixes BUG-7.</td></tr>
+    <tr><td>7</td><td>portal</td><td>Housekeeping: drop dead <code>void userId</code>, stop surfacing raw <code>err.message</code>. Fixes BUG-9, BUG-10.</td></tr>
+  </table>
+
+  <div class="card ok">
+    <b>Architecture verdict.</b> Keep the Neon / gcp3 split. The one simplification
+    worth taking is <em>removing</em> the Clerk token from the gcp3 call
+    (step 1) — the endpoint needs no user identity, and
+    <code>app/api/portfolio/health/route.ts</code> already carries the comment
+    <em>"Fail-closed: don't fall back to a hardcoded external host with a user
+    token."</em> A stateless endpoint retires that hazard outright.
+  </div>
+
+  <h2>Related</h2>
+  <ul>
+    <li><code>docs/wiki-portal/incident-2026-07-26-portfolio-health-endpoint-missing.md</code> — <b>the incident page for this</b></li>
+    <li><code>docs/wiki-portal/entity-portfolio-intelligence.md</code> — type contract &amp; known failures (updated with findings 2–5)</li>
+    <li><code>docs/wiki-portal/concept-graceful-degradation.md</code> — this is its first recorded counterexample</li>
+    <li><code>gcp3-mobile/docs/wiki-mobile/entity-portfolio.md</code> — the mobile half + the 2026-07-21 env-var incident with the same error string</li>
+    <li><code>docs/findings-signal-loop-hardening.html</code> — the <code>pending_signals</code> loop this shares Neon with</li>
+    <li><code>docs/storage-structure.html</code> — Neon table inventory</li>
+    <li><code>homebase/nuwrrrld-portal-audit.md</code> — the audit that un-disabled the button (regression origin)</li>
+    <li><code>homebase/interactivity-15.md</code> §3.1 — the content-negotiation plan only <code>/api/nuai</code> received (BUG-12)</li>
+    <li><code>homebase/launch-copy.md</code> — markets this as a headline feature; <b>launch blocker</b></li>
+  </ul>
+
+  <footer>
+    nuwrrrld-portal · generated 2026-07-26 · sources: <code>app/api/portfolio/{health,health-ai}/route.ts</code>,
+    <code>app/dashboard/portfolio/PortfolioClient.tsx</code>, <code>lib/shared/sse.ts</code>,
+    <code>lib/openrouter.ts</code>, <code>lib/watchlist-store.ts</code>,
+    <code>gcp3/backend/{main.py,portfolio_analyzer.py}</code>.
+    Backend host shown as <code>MCP_BACKEND_URL</code> placeholder — no live hostnames or keys recorded here.
+  </footer>
+
+</div>
+</body>
+</html>

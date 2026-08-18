@@ -77,7 +77,15 @@ describe("NuAIChat", () => {
     expect(await screen.findByText("Sure — here's the tone.")).toBeInTheDocument();
   });
 
-  it("shows the daily-limit screen on HTTP 429 and locks out further chat", async () => {
+  it("surfaces HTTP 429 as a visible, retryable error instead of a permanent lockout screen", async () => {
+    // Previously a 429 switched to a dedicated "Daily limit reached" screen
+    // that unmounted the whole chat (input included) — that special-casing
+    // wasn't backed by any distinguishing signal from the server (same
+    // res.status === 429 check the generic error path already handles) and
+    // left the user with no visible error and no way to retry. Removed; 429
+    // now falls through to the same `HTTP ${res.status}` error path as any
+    // other non-ok status. See e2e/frontend/nuai-fault-injection.spec.ts's
+    // "OpenRouter HTTP 429" test for the end-to-end version of this.
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 429 } as Response);
     const user = userEvent.setup();
     render(<NuAIChat />);
@@ -85,8 +93,9 @@ describe("NuAIChat", () => {
     await user.type(screen.getByPlaceholderText("Ask Nu AI…"), "one more question");
     await user.click(screen.getByRole("button", { name: "↑" }));
 
-    expect(await screen.findByText("Daily limit reached")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Ask Nu AI…")).not.toBeInTheDocument();
+    expect(await screen.findByText("HTTP 429")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Ask Nu AI…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "↑" })).toBeEnabled();
   });
 
   it("shows an upgrade-required error on HTTP 403", async () => {
@@ -116,7 +125,12 @@ describe("NuAIChat", () => {
 
     expect(await screen.findByText("offline")).toBeInTheDocument();
     // only the user's own bubble remains; the empty assistant placeholder was stripped
-    expect(screen.getAllByText("question")).toHaveLength(1);
+    expect(screen.getByText("question", { selector: ".nuai-bubble-text" })).toBeInTheDocument();
+    // the failed message is also restored to the input so the user can retry
+    // without retyping — this also re-enables the send button (was previously
+    // stuck disabled after any error, since input had already been cleared).
+    expect(screen.getByPlaceholderText("Ask Nu AI…")).toHaveValue("question");
+    expect(screen.getByRole("button", { name: "↑" })).toBeEnabled();
   });
 
   it("sends on Enter but inserts a newline on Shift+Enter instead of sending", async () => {

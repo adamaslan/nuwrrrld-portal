@@ -74,6 +74,8 @@ carries `E2E_CLERK_TEST_EMAIL`/`PASSWORD`; the sharded jobs never see them.
   ([[entity-ai-council]]'s consumer-facing chat surface), stalled-SSE and 429
   fault injection against real `.nuai-*` selectors.
 - `e2e/frontend/portfolio-health.spec.ts` — see "Diagnostic role" below.
+- `e2e/frontend/portfolio-liveness.spec.ts`, `e2e/frontend/signals-liveness.spec.ts`
+  — see [[concept-live-backend-liveness-tests]], added 2026-08-18.
 - `.github/workflows/e2e-resiliency.yml` — 4-shard matrix, keyless GCP
   Workload Identity Federation (`id-token: write`, no service-account JSON in
   secrets), blob-report merge, idempotent PR comment (`<!-- e2e-resiliency-bot -->`
@@ -151,17 +153,39 @@ genuine regression, not confirmation of the old incident.
    dashboard banner: added precisely because the alternative — the generic
    `role="alert"` — collided with Next.js's always-present route-announcer, the
    false match that made the EXPOSE test meaningless before.
+5. ~~**`.port-watch-empty` was reused across three unrelated empty-states**
+   (watchlist-empty, health-score-empty, suggestions-empty) on
+   `/dashboard/portfolio`~~ — **fixed 2026-08-18.** Any page state with more
+   than one co-rendered was a Playwright strict-mode violation (`resolved to N
+   elements`) — split into `port-watch-empty` / `port-score-empty` /
+   `port-suggestions-empty` in `PortfolioClient.tsx`, style kept shared in
+   `portfolio.css`. Confirmed as a real intermittent CI-shaped flake, not
+   theoretical: reproduced across 2 of 3 consecutive local runs before the fix,
+   0 of 3 after.
+6. ~~**`page.request` / bare `request` fixture calls issued before any
+   `page.goto()` in the same test 401 even with a valid `storageState`
+   session.**~~ — **root-caused 2026-08-18, not a bug, a required pattern.**
+   Clerk's client-side session sync only activates the `__session` cookie's
+   claims once a page in that browser context has actually loaded; a
+   `page.request`/`request` call made first sees no session. Every
+   Clerk-protected API assertion in this suite (backtest, signals/digest,
+   portfolio panels) must `page.goto()` a page in the same app before its
+   first `page.request` call — three tests in `portfolio-health.spec.ts` and
+   `signal-timing.spec.ts` had this backwards and were fixed alongside the
+   other 2026-08-18 test fixes.
 
 ## Open questions
 
 - ❓ Should component markup gain `data-testid` hooks specifically for the
   classes these specs already depend on (`.nuai-error`, `.nuai-typing`,
-  `.port-health-error`, `.port-watch-empty`), or is asserting on real CSS
-  classes + ARIA roles preferred because it also catches accidental class
-  renames? Not decided.
-- ❓ `E2E_CLERK_TEST_EMAIL`/`PASSWORD` need a real, dedicated Clerk test user
-  provisioned before `auth-setup` can run anywhere — local or CI. Not yet
-  created; every `frontend`-project test is currently blocked on this.
+  `.port-health-error`), or is asserting on real CSS classes + ARIA roles
+  preferred because it also catches accidental class renames? Not decided.
+- ✅ **Resolved 2026-08-18:** `E2E_CLERK_TEST_EMAIL`/`PASSWORD` blocker is
+  closed — see [[entity-portfolio-intelligence]] known-failure list and
+  `docs/known-bugs.md` item 1. `publicMetadata.subscription_status` was
+  patched to `active` on the dedicated test user via `clerk api` (Backend
+  API, key-authenticated). `frontend`-project tests now run for real instead
+  of redirecting to `/pricing`.
 - ✅ **Resolved (PR #65):** `e2e/health/dependencies.spec.ts`'s "frontend
   renders a usable page when `/api/health` reports down" test no longer just
   documents the gap — the gap was fixed. `app/dashboard/HealthBanner.tsx`
@@ -176,6 +200,9 @@ genuine regression, not confirmation of the old incident.
 - [[concept-test-strategy]] — the three vitest layers this suite sits above;
   shares the "cheap gate before expensive layer" and "skip loudly, never
   fabricate a credential" principles
+- [[concept-live-backend-liveness-tests]] — the new (2026-08-18) fifth
+  pattern within this suite: real, unmocked calls to gcp3/OpenRouter,
+  distinct from `portfolio-health.spec.ts`'s mocked fault injection
 - [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] — the two
   entities `portfolio-health.spec.ts` diagnoses
 - [[incident-2026-07-26-portfolio-health-endpoint-missing]] — the incident

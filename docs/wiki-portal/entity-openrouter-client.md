@@ -2,7 +2,7 @@
 date: 2026-07-20
 type: entity
 tags: [openrouter, llm, models, seats, fallback, free-tier]
-sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29, PR#30, PR#37]
+sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, ../../__tests__/openrouter-fallback.test.ts, ../../__tests__/live/openrouter-resilience.live.test.ts, PR#29, PR#30, PR#37]
 ---
 
 # Entity: OpenRouter Client (`lib/openrouter.ts`)
@@ -49,11 +49,15 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 2. **Free models rotate / disappear.** OpenRouter's free roster churns. `scripts/refresh-free-models.mjs` (cron, Mondays 06:17 UTC) refreshes `FREE_MODEL_CHAIN`; the grounding compile runs at 06:23, after it, deliberately. PR #44 (2026-07-27) swapped `google/gemma-4-31b-it:free` for `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` — routine churn, not an incident.
 3. **Account-wide daily quota, not per-model.** OpenRouter's free tier caps the whole API key at **50 requests/day** (not per-model) unless ≥10 credits are added, which raises it to 1000/day. When exhausted, *every* model in `[primary, ...FREE_MODEL_CHAIN]` 429s simultaneously — `refresh-free-models.mjs`'s live probe (and any caller) sees "0 working models" and can't tell that apart from an actual dead roster. Observed 2026-07-30: the refresh script's own probe run burned into this ceiling. `X-RateLimit-Reset` on the 429 response headers gives the exact reset timestamp (UTC midnight, key-specific). See [[decision-free-tier-model-chain]] "Validated by" — this is the concurrency risk that section flagged as unvalidated.
 4. **Chain-of-thought leak.** Reasoning-style free models emit `<think>` blocks. This client doesn't strip them — [[entity-ai-council]]'s `stripReasoning` does, downstream.
+5. **`SEAT_MODELS` has rotted — 5 of 6 primaries no longer exist (confirmed 2026-08-18; fallback FIXED, ids still stale).** Checked against the live 412-model catalog: only T1's `cohere/command-r7b-12-2024` is still present. T2/MACRO/CHAIR's `qwen/qwen3-next-80b-a3b-instruct:free`, RISK's `meta-llama/llama-3.3-70b-instruct:free`, and QUANT's `mistralai/mistral-7b-instruct:free` are all gone. The consequence is worse than a slow seat: a retired id returns **404**, which is *not* in `runSeat`'s retry set (`402/429/5xx`), so it `break`s the loop — **a dead primary means the seat never reaches its fallback chain at all**. `refresh-free-models.mjs` has been faithfully maintaining `FREE_MODEL_CHAIN` while the other model list in the same file rotted untouched, because the script only knows about the chain. Two fixes were identified; **the first is now done** (2026-08-18): `runSeat` gained `isRetryableStatus(status, isPrimary)`, which makes 404/400 retryable *only in the primary position* — a retired seat model now falls through to the chain (with a loud `console.warn` naming `SEAT_MODELS`, since the seat still answers and the rot is otherwise invisible), while the same status inside the chain stays fatal, because those ids are refreshed weekly against the live catalog so a 404 there means a malformed request that will fail identically on every remaining model. Live-verified: QUANT's retired `mistralai/mistral-7b-instruct:free` now warns and advances instead of disabling the seat. **Still outstanding:** the stale ids themselves, and extending `refresh-free-models.mjs` to validate `SEAT_MODELS` rather than only `FREE_MODEL_CHAIN`.
+6. **`FREE_MODEL_CHAIN` is single-vendor — nominal depth 4, real depth 1 (confirmed 2026-08-18).** All four entries are `nvidia/*:free`, so the chain has no independence against any failure landing at the vendor or account-tier level — which is the failure that actually happens (failure #3). Observed: on daily-quota exhaustion all four returned 429 within ~100 ms of each other and the fallback loop absorbed nothing. This is not bad luck: `refresh-free-models.mjs` ranks purely on "$0 and probes healthy" with **no vendor-diversity constraint**, so it reproduces whatever monoculture dominates the free tier that week. The catalog held 18 $0 models at the time (`nvidia:8, google:4, poolside:2, cohere:1, openai:1, …`) — diversity was available and simply not requested. Fix: a per-vendor cap (max 2 of N) in the refresh ranking.
 
 ## Open questions
 
 - ❓ `SEAT_MODELS` primary assignments predate the §10 residual-difficulty analysis. Should T1/T2/MACRO be re-tuned once Layer-B flag-rate telemetry exists? (mirrors an open question on [[entity-ai-council]])
 - ❓ The 20 s per-model timeout × 4 models = up to 80 s worst-case per seat. Is that within the route's own timeout budget under a full chain-failure cascade?
+- ✅ Resolved 2026-08-18: a 404 on a *primary* seat model now falls through to the chain; within the chain it stays fatal. The status alone cannot distinguish "retired id" from "malformed request" — position can, and that is what `isRetryableStatus(status, isPrimary)` encodes.
+- ❓ Should `SEAT_MODELS` be a hand-written constant at all, or generated data the weekly job owns (measured latency/success per model)? Failure #5 is what happens when a human-edited literal has no scheduled maintainer.
 
 ## See also
 
@@ -61,3 +65,6 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 - [[concept-small-model-prompting]] — the contract every `SEAT_SYSTEM` prompt follows
 - [[decision-free-tier-model-chain]] — why everything is `:free`
 - [[decision-split-chair-synthesis-and-verdict]] — why CHAIR calls twice with two different prompts
+- [[concept-free-tier-resilience]] — the pattern failures #3, #5 and #6 all stress
+- `../gha-modal-core-feature-coverage.md` — the scheduled-maintenance argument failures #5 and #6 motivate
+- `../../__tests__/live/openrouter-resilience.live.test.ts` — the suite that found #5 and #6

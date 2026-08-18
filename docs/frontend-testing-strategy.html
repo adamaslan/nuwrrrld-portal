@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Frontend Interactivity Testing Strategy</title>
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#141821; --panel2:#1b2029; --ink:#e8ecf3; --muted:#9aa4b6;
+    --line:#262c38; --accent:#6ea8fe; --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
+    --purple:#c084fc; --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#090a0f,#0b0d12 40%);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header{padding:56px 24px 40px;text-align:center;border-bottom:1px solid var(--line);
+    background:radial-gradient(1200px 400px at 50% -120px,rgba(110,168,254,.12),transparent)}
+  header h1{margin:0 0 8px;font-size:34px;letter-spacing:-.02em}
+  header p{margin:6px auto;max-width:760px;color:var(--muted)}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px 96px}
+  nav.toc{position:sticky;top:0;z-index:20;background:rgba(11,13,18,.9);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);padding:12px 24px;margin-bottom:32px}
+  nav.toc ul{list-style:none;display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 auto;max-width:1100px;padding:0;font-size:13px}
+  nav.toc a{color:var(--muted)}
+  section{margin:44px 0;scroll-margin-top:70px}
+  h2{font-size:24px;letter-spacing:-.01em;border-left:3px solid var(--accent);padding-left:12px;margin:0 0 6px}
+  h3{font-size:18px;margin:28px 0 8px;color:#fff}
+  h4{font-size:15px;margin:18px 0 4px;color:var(--purple)}
+  .lede{color:var(--muted);margin:2px 0 18px}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h4{margin-top:0}
+  code,kbd{font-family:var(--mono);font-size:.86em;background:var(--panel2);padding:1px 6px;border-radius:5px;border:1px solid var(--line)}
+  pre{background:#0e1117;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+  pre .c{color:#6b7280}
+  pre .k{color:#c084fc}
+  pre .s{color:#86efac}
+  pre .f{color:#6ea8fe}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#fff;font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;letter-spacing:.02em}
+  .p-unit{background:rgba(74,222,128,.14);color:var(--good);border:1px solid rgba(74,222,128,.3)}
+  .p-comp{background:rgba(110,168,254,.14);color:var(--accent);border:1px solid rgba(110,168,254,.3)}
+  .p-e2e{background:rgba(192,132,252,.14);color:var(--purple);border:1px solid rgba(192,132,252,.3)}
+  .p-a11y{background:rgba(251,191,36,.14);color:var(--warn);border:1px solid rgba(251,191,36,.3)}
+  .p-vis{background:rgba(248,113,113,.14);color:var(--bad);border:1px solid rgba(248,113,113,.3)}
+  .callout{border-left:3px solid var(--warn);background:rgba(251,191,36,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .callout.good{border-color:var(--good);background:rgba(74,222,128,.06)}
+  .callout.info{border-color:var(--accent);background:rgba(110,168,254,.06)}
+  .pyramid{display:flex;flex-direction:column;align-items:center;gap:6px;margin:22px 0}
+  .pyramid div{padding:10px 0;text-align:center;border-radius:8px;font-weight:600;font-size:13px;border:1px solid var(--line)}
+  .l1{width:38%;background:rgba(192,132,252,.15)}
+  .l2{width:58%;background:rgba(251,191,36,.13)}
+  .l3{width:78%;background:rgba(110,168,254,.13)}
+  .l4{width:96%;background:rgba(74,222,128,.13)}
+  .muted{color:var(--muted)}
+  .tag{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  footer{border-top:1px solid var(--line);padding:28px 24px;text-align:center;color:var(--muted);font-size:13px}
+  .step{counter-reset:none;display:flex;gap:12px;margin:10px 0}
+  .step .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+    display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Frontend Interactivity Testing Strategy</h1>
+  <p>A robust, layered plan to make every interactive surface of the <strong>NuWrrrld Portal</strong>
+  (Next.js 16 · React 19 · Framer Motion) fast, correct, accessible, and regression-proof.</p>
+  <p class="tag">Grounded in the real component tree · vitest already present · node-only logic tests today</p>
+</header>
+
+<nav class="toc">
+  <ul>
+    <li><a href="#state">1 · Current State</a></li>
+    <li><a href="#pyramid">2 · Test Pyramid</a></li>
+    <li><a href="#inventory">3 · Interactivity Inventory</a></li>
+    <li><a href="#core">4 · Core Features</a></li>
+    <li><a href="#sub">5 · Sub-Features</a></li>
+    <li><a href="#how">6 · How Each Test Works</a></li>
+    <li><a href="#a11y">7 · A11y &amp; Motion</a></li>
+    <li><a href="#perf">8 · Performance</a></li>
+    <li><a href="#ci">9 · CI &amp; Tooling</a></li>
+    <li><a href="#roadmap">10 · Roadmap</a></li>
+    <li><a href="#admin">11 · Admin Dashboard (nulogdash)</a></li>
+  </ul>
+</nav>
+
+<div class="wrap">
+
+<!-- 1 -->
+<section id="state">
+  <h2>1 · Current State &amp; the Gap</h2>
+  <p class="lede">What exists today, and the interactivity it does <em>not</em> yet cover.</p>
+  <div class="grid">
+    <div class="card">
+      <h4>✅ What's in place</h4>
+      <ul>
+        <li><code>vitest</code> v4 with <code>test</code> and <code>test:integration</code> scripts</li>
+        <li>8 logic suites in <code>__tests__/</code> (council verdict/critique/validate, signal-queue, live-price, grounding, public-demo)</li>
+        <li><code>@</code> path alias resolved in <code>vitest.config.ts</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>⚠️ The gap</h4>
+      <ul>
+        <li><code>environment: "node"</code> — <strong>no DOM</strong>, so no component can be rendered or clicked</li>
+        <li>No Testing Library, no user-event, no jsdom</li>
+        <li>No E2E runner (Playwright/Cypress)</li>
+        <li>Zero coverage of clicks, fetches, animations, focus, or clipboard — <em>all</em> the interactivity</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout info">
+    <strong>Strategy in one line:</strong> keep the fast node logic tests, add a <code>jsdom</code> component
+    layer for interactivity, and cap it with a thin Playwright E2E layer for the flows that only break in a real browser
+    (animation, scroll, streaming, clipboard permissions).
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="pyramid">
+  <h2>2 · The Test Pyramid for This App</h2>
+  <p class="lede">Push assertions to the cheapest layer that can prove them. Spend E2E budget only where a real browser is required.</p>
+  <div class="pyramid">
+    <div class="l1"><span class="pill p-vis">Visual / motion</span>&nbsp; a handful — parallax, reveal, magnetic CTA snapshots</div>
+    <div class="l2"><span class="pill p-e2e">E2E (Playwright)</span>&nbsp; ~10 flows — sign-in gate, chat round-trip, share, holdfold verdict</div>
+    <div class="l3"><span class="pill p-comp">Component (jsdom + Testing Library)</span>&nbsp; ~40 — every client component's interactions</div>
+    <div class="l4"><span class="pill p-unit">Unit (node)</span>&nbsp; the base — pure helpers, reducers, formatters, API shaping</div>
+  </div>
+  <table>
+    <tr><th>Layer</th><th>Runner / env</th><th>Proves</th><th>Speed</th><th>Count target</th></tr>
+    <tr><td><span class="pill p-unit">Unit</span></td><td>vitest · node</td><td>Pure logic: signal shaping, prompt grounding, formatters</td><td>~ms</td><td>many (existing + growing)</td></tr>
+    <tr><td><span class="pill p-comp">Component</span></td><td>vitest · jsdom + @testing-library/react</td><td>Render, click, type, state transitions, mocked fetch, conditional UI</td><td>tens of ms</td><td>~40</td></tr>
+    <tr><td><span class="pill p-e2e">E2E</span></td><td>Playwright · real Chromium/WebKit</td><td>Full flows across routes, auth, real scroll &amp; streaming</td><td>seconds</td><td>~10</td></tr>
+    <tr><td><span class="pill p-vis">Visual</span></td><td>Playwright screenshots / Storybook</td><td>Layout &amp; animation end-states don't regress</td><td>seconds</td><td>a few</td></tr>
+    <tr><td><span class="pill p-a11y">A11y</span></td><td>jest-axe (comp) + axe-core (e2e)</td><td>Roles, labels, focus order, contrast</td><td>fast</td><td>woven into every layer</td></tr>
+  </table>
+</section>
+
+<!-- 3 -->
+<section id="inventory">
+  <h2>3 · Interactivity Inventory</h2>
+  <p class="lede">Every interactive client component, the browser capability it leans on, and the layer that owns its tests.</p>
+  <table>
+    <tr><th>Component</th><th>Interaction</th><th>Browser API / lib</th><th>Owned by</th></tr>
+    <tr><td><code>SignalAskAnything</code></td><td>Type question → <code>fetch</code> chat → render answer / error</td><td>fetch, controlled input</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td><code>NuAIChat</code></td><td>Send message, prompt chips, auto-scroll, loading, rate-limit</td><td>fetch, useRef scroll, disabled state</td><td><span class="pill p-comp">Comp</span> + <span class="pill p-e2e">E2E</span></td></tr>
+    <tr><td><code>SignalShareButton</code></td><td>Copy link → "Copied!" toggle</td><td>Clipboard API</td><td><span class="pill p-comp">Comp</span> + <span class="pill p-e2e">E2E</span></td></tr>
+    <tr><td><code>HoldFoldClient</code></td><td>Search, filter tabs, open/close modal, ask council, add watchlist</td><td>fetch, controlled state, dialog focus</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td><code>CouncilScrollDebate</code></td><td>Scroll-driven step advance</td><td>useRef + scroll math</td><td><span class="pill p-comp">Comp</span> (logic) + <span class="pill p-e2e">E2E</span> (scroll)</td></tr>
+    <tr><td><code>StatCounter</code></td><td>Count-up on in-view, honors reduced-motion</td><td>requestAnimationFrame, IntersectionObserver</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td><code>MagneticCTA</code></td><td>Pointer-follow spring, tap scale</td><td>Framer springs, pointer events</td><td><span class="pill p-vis">Visual</span> + <span class="pill p-comp">Comp</span> (reduced-motion no-op)</td></tr>
+    <tr><td><code>ParallaxStage</code></td><td>Layer offset on scroll (context provider)</td><td>scroll, React context</td><td><span class="pill p-vis">Visual</span></td></tr>
+    <tr><td><code>SmoothScroll</code>, <code>Reveal</code></td><td>rAF smooth scroll, in-view reveal</td><td>rAF, IntersectionObserver</td><td><span class="pill p-comp">Comp</span> (mount/unmount cleanup)</td></tr>
+    <tr><td><code>PublicCouncilDemo</code></td><td>Interactive demo (has logic test already)</td><td>state machine</td><td><span class="pill p-unit">Unit</span> + <span class="pill p-comp">Comp</span></td></tr>
+    <tr><td><code>CheckoutButton</code>, <code>ManageBillingButton</code></td><td>Click → redirect to Stripe</td><td>fetch, navigation</td><td><span class="pill p-e2e">E2E</span> (mocked)</td></tr>
+  </table>
+</section>
+
+<!-- 4 -->
+<section id="core">
+  <h2>4 · Core Features — Robust Coverage</h2>
+  <p class="lede">The four interactive pillars of the product. Each gets its own contract: inputs, states, and the exact assertions that lock it down.</p>
+
+  <h3>4.1 · AI Chat (NuAIChat &amp; SignalAskAnything)</h3>
+  <p class="muted">The highest-value, most stateful surface. A single component juggles input, network, streaming/loading, auto-scroll, errors, and a rate-limit ceiling.</p>
+  <div class="grid">
+    <div class="card"><h4>States to prove</h4>
+      <ul><li><code>idle</code> → empty, send disabled on blank input</li>
+      <li><code>loading</code> → send disabled, spinner/optimistic message</li>
+      <li><code>success</code> → answer appended, input cleared, scrolled to bottom</li>
+      <li><code>error</code> → error text shown, input preserved</li>
+      <li><code>limitReached</code> → composer locked, upgrade CTA</li></ul>
+    </div>
+    <div class="card"><h4>How it's tested</h4>
+      <ul><li><span class="pill p-comp">Comp</span> mock <code>fetch</code>, type + click, assert DOM per state</li>
+      <li>Prompt-chip click sends the chip text</li>
+      <li>Auto-scroll: assert <code>scrollIntoView</code> called on the ref</li>
+      <li><span class="pill p-e2e">E2E</span> one real round-trip against a stubbed <code>/api/nuai</code></li></ul>
+    </div>
+  </div>
+
+  <h3>4.2 · HoldFold Verdict Explorer</h3>
+  <p class="muted">Search + filter + modal + two independent async actions (add-to-watchlist, ask-council). The richest client state machine in the app.</p>
+  <ul>
+    <li><b>Search</b> — typing filters the visible verdict list (case-insensitive, ticker + name).</li>
+    <li><b>Filter tabs</b> — <code>all / HOLD EM / FOLD EM / NEUTRAL</code> narrow results; combined with search.</li>
+    <li><b>Modal</b> — selecting a verdict opens it; <code>✕</code> / Esc / backdrop closes it; focus trapped inside.</li>
+    <li><b>Async actions</b> — each has its own <code>idle/loading/done/error</code> lifecycle mocked independently.</li>
+  </ul>
+
+  <h3>4.3 · Share (SignalShareButton)</h3>
+  <p class="muted">Small but permission-sensitive. Clipboard is mocked at component layer and exercised for real (with granted permission) at E2E.</p>
+  <ul><li>Click → <code>navigator.clipboard.writeText</code> called with the canonical URL.</li>
+  <li>Label flips to "Copied!" then reverts after the timeout (fake timers).</li>
+  <li>Rejected clipboard promise → graceful fallback, no crash.</li></ul>
+
+  <h3>4.4 · Scroll-Driven Motion (CouncilScrollDebate, Parallax, Reveal, StatCounter)</h3>
+  <p class="muted">Animation correctness is split: <em>logic</em> (which step for a given scroll progress) is unit-testable; <em>pixels</em> (does the layer actually move) is visual/E2E.</p>
+  <ul><li>Pure step-mapping function tested at <span class="pill p-unit">unit</span> layer (progress → step index).</li>
+  <li><code>StatCounter</code> reaches its final value; short-circuits to the value under reduced-motion.</li>
+  <li>Observers/rAF are cleaned up on unmount (no leaks) — asserted at <span class="pill p-comp">component</span> layer.</li></ul>
+</section>
+
+<!-- 5 -->
+<section id="sub">
+  <h2>5 · Sub-Features — The Details That Break</h2>
+  <p class="lede">The small behaviors users notice only when they regress. Each row is a discrete assertion.</p>
+  <table>
+    <tr><th>Sub-feature</th><th>Expected behavior</th><th>Assertion</th><th>Layer</th></tr>
+    <tr><td>Blank-input guard</td><td>Send disabled when input is empty/whitespace</td><td><code>button</code> has <code>disabled</code> attr; no fetch fired</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Input clears on send</td><td>Composer empties after successful send</td><td><code>input.value === ""</code> post-resolve</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Input preserved on error</td><td>Failed send keeps the user's text</td><td>value unchanged; error visible</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Enter-to-send</td><td>Enter submits, Shift+Enter newlines</td><td>keyDown handler behavior</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Double-submit lock</td><td>Second click while loading is ignored</td><td>fetch called exactly once</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Auto-scroll to newest</td><td>List scrolls to bottom on new message</td><td><code>scrollIntoView</code> spy called</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Rate-limit ceiling</td><td>Composer locks + upgrade CTA at limit</td><td>disabled composer, CTA rendered</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Search + filter compose</td><td>Both narrow simultaneously</td><td>result count matches expected set</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Empty-state</td><td>No matches → friendly empty message</td><td>empty node present, no rows</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Modal focus trap</td><td>Tab stays within dialog; Esc closes</td><td>focus cycles; close handler on Esc</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Copied label revert</td><td>"Copied!" → original after timeout</td><td>fake-timer advance restores label</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Reduced-motion no-op</td><td>Magnetic/parallax hold still; counter jumps to value</td><td>no transform style applied</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Observer cleanup</td><td>Unmount disconnects observers / cancels rAF</td><td><code>disconnect</code>/<code>cancelAnimationFrame</code> spy called</td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Auth gate</td><td>Dashboard routes redirect when signed out</td><td>redirect to sign-in</td><td><span class="pill p-e2e">E2E</span></td></tr>
+  </table>
+</section>
+
+<!-- 6 -->
+<section id="how">
+  <h2>6 · How Each Test Actually Works</h2>
+  <p class="lede">Concrete mechanics per layer — the wiring, the fakes, and a representative example for each.</p>
+
+  <h3>6.1 · Split the Vitest project into two environments</h3>
+  <p>Keep node-fast logic tests and add a jsdom project for components — one config, two workspaces, so <code>npm test</code> runs both.</p>
+<pre><span class="c">// vitest.config.ts — replace single config with projects</span>
+<span class="k">import</span> { defineConfig } <span class="k">from</span> <span class="s">"vitest/config"</span>;
+<span class="k">export default</span> defineConfig({
+  test: {
+    projects: [
+      { <span class="c">// fast pure logic — unchanged</span>
+        test: { name: <span class="s">"unit"</span>, environment: <span class="s">"node"</span>,
+                include: [<span class="s">"__tests__/**/*.test.ts"</span>] } },
+      { <span class="c">// NEW: interactivity</span>
+        test: { name: <span class="s">"components"</span>, environment: <span class="s">"jsdom"</span>,
+                setupFiles: [<span class="s">"./test/setup.ts"</span>],
+                include: [<span class="s">"components/**/*.test.tsx"</span>, <span class="s">"app/**/*.test.tsx"</span>] } },
+    ],
+  },
+});</pre>
+  <p class="tag">Add dev deps: <code>@testing-library/react</code> · <code>@testing-library/user-event</code> · <code>@testing-library/jest-dom</code> · <code>jsdom</code> · <code>jest-axe</code></p>
+
+  <h3>6.2 · The jsdom setup file — fake what jsdom lacks</h3>
+  <p>jsdom has no <code>IntersectionObserver</code>, <code>matchMedia</code>, <code>scrollIntoView</code>, or clipboard. The setup file polyfills them so animation/observer components mount without throwing.</p>
+<pre><span class="c">// test/setup.ts</span>
+<span class="k">import</span> <span class="s">"@testing-library/jest-dom/vitest"</span>;
+<span class="k">import</span> { vi, afterEach } <span class="k">from</span> <span class="s">"vitest"</span>;
+<span class="k">import</span> { cleanup } <span class="k">from</span> <span class="s">"@testing-library/react"</span>;
+
+afterEach(cleanup);
+
+<span class="c">// prefers-reduced-motion drives StatCounter / MagneticCTA branches</span>
+<span class="f">globalThis</span>.matchMedia ??= (q) => ({
+  matches: <span class="k">false</span>, media: q, onchange: <span class="k">null</span>,
+  addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+});
+
+<span class="k">class</span> IO { observe = vi.fn(); unobserve = vi.fn(); disconnect = vi.fn(); }
+<span class="f">globalThis</span>.IntersectionObserver = IO <span class="k">as</span> <span class="k">any</span>;
+Element.prototype.scrollIntoView = vi.fn();</pre>
+
+  <h3>6.3 · Component test — <code>SignalAskAnything</code> (fetch + states)</h3>
+  <p>The workhorse pattern: render, mock the network, drive it with <code>userEvent</code> exactly as a human would, assert the resulting DOM. No implementation details — only what the user sees.</p>
+<pre><span class="c">// components/SignalAskAnything.test.tsx</span>
+<span class="k">import</span> { render, screen } <span class="k">from</span> <span class="s">"@testing-library/react"</span>;
+<span class="k">import</span> userEvent <span class="k">from</span> <span class="s">"@testing-library/user-event"</span>;
+<span class="k">import</span> { vi, expect, test, beforeEach } <span class="k">from</span> <span class="s">"vitest"</span>;
+<span class="k">import</span> SignalAskAnything <span class="k">from</span> <span class="s">"./SignalAskAnything"</span>;
+
+beforeEach(() => { <span class="f">globalThis</span>.fetch = vi.fn(); });
+
+test(<span class="s">"asks a question and renders the answer"</span>, <span class="k">async</span> () => {
+  (fetch <span class="k">as</span> <span class="k">any</span>).mockResolvedValue({
+    ok: <span class="k">true</span>, json: <span class="k">async</span> () => ({ answer: <span class="s">"NVDA looks strong."</span> }),
+  });
+  <span class="k">const</span> user = userEvent.setup();
+  render(&lt;SignalAskAnything ticker=<span class="s">"NVDA"</span> /&gt;);
+
+  <span class="k">await</span> user.type(screen.getByRole(<span class="s">"textbox"</span>), <span class="s">"Is it a buy?"</span>);
+  <span class="k">await</span> user.click(screen.getByRole(<span class="s">"button"</span>, { name: /ask/i }));
+
+  expect(<span class="k">await</span> screen.findByText(/looks strong/i)).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledWith(
+    <span class="s">"/api/signals/NVDA/chat"</span>, expect.objectContaining({ method: <span class="s">"POST"</span> }));
+});
+
+test(<span class="s">"shows an error and keeps the question on failure"</span>, <span class="k">async</span> () => {
+  (fetch <span class="k">as</span> <span class="k">any</span>).mockResolvedValue({ ok: <span class="k">false</span>, status: 500 });
+  <span class="k">const</span> user = userEvent.setup();
+  render(&lt;SignalAskAnything ticker=<span class="s">"NVDA"</span> /&gt;);
+  <span class="k">await</span> user.type(screen.getByRole(<span class="s">"textbox"</span>), <span class="s">"why?"</span>);
+  <span class="k">await</span> user.click(screen.getByRole(<span class="s">"button"</span>, { name: /ask/i }));
+  expect(<span class="k">await</span> screen.findByRole(<span class="s">"alert"</span>)).toBeInTheDocument();
+  expect(screen.getByRole(<span class="s">"textbox"</span>)).toHaveValue(<span class="s">"why?"</span>); <span class="c">// preserved</span>
+});</pre>
+  <div class="callout"><strong>Why role queries, not <code>data-testid</code>:</strong> querying by role/label
+  tests the accessibility tree — the same thing assistive tech uses. A test that can't find the button by its
+  accessible name is telling you a real a11y bug, for free.</div>
+
+  <h3>6.4 · Timers &amp; animation — <code>StatCounter</code> and the "Copied!" revert</h3>
+  <p>rAF and <code>setTimeout</code> are made deterministic with fake timers, so a count-up that takes 1.2s of wall-clock runs in microseconds and asserts its <em>end state</em>.</p>
+<pre>vi.useFakeTimers();
+render(&lt;StatCounter value={1200} durationMs={1200} inView /&gt;);
+<span class="k">await</span> vi.runAllTimersAsync();          <span class="c">// flush rAF ticks</span>
+expect(screen.getByText(<span class="s">"1,200"</span>)).toBeInTheDocument();
+vi.useRealTimers();
+
+<span class="c">// reduced-motion → jumps straight to value, no animation frames</span>
+matchMedia.mockReturnValueOnce({ matches: <span class="k">true</span> } <span class="k">as</span> <span class="k">any</span>);
+render(&lt;StatCounter value={99} inView /&gt;);
+expect(screen.getByText(<span class="s">"99"</span>)).toBeInTheDocument();</pre>
+
+  <h3>6.5 · Scroll logic — extract the pure part first</h3>
+  <p>Don't test scroll math through the DOM. Refactor the progress→step mapping in <code>CouncilScrollDebate</code> into a pure exported function and unit-test it; leave "does it actually advance while scrolling" to E2E.</p>
+<pre><span class="c">// pure, node-testable</span>
+expect(stepForProgress(0.00, 4)).toBe(0);
+expect(stepForProgress(0.50, 4)).toBe(2);
+expect(stepForProgress(0.99, 4)).toBe(3);   <span class="c">// clamps, never overflows</span></pre>
+
+  <h3>6.6 · E2E — <code>NuAIChat</code> round-trip with a stubbed API</h3>
+  <p>Playwright drives real Chromium. Network is intercepted so tests are deterministic and don't spend model tokens; everything else (scroll, focus, streaming render) is real.</p>
+<pre><span class="c">// e2e/nuai.spec.ts</span>
+<span class="k">import</span> { test, expect } <span class="k">from</span> <span class="s">"@playwright/test"</span>;
+
+test(<span class="s">"chat sends and renders a grounded answer"</span>, <span class="k">async</span> ({ page }) => {
+  <span class="k">await</span> page.route(<span class="s">"**/api/nuai"</span>, (r) =>
+    r.fulfill({ json: { answer: <span class="s">"AAPL is HOLD EM."</span> } }));
+
+  <span class="k">await</span> page.goto(<span class="s">"/dashboard/nuai"</span>);
+  <span class="k">await</span> page.getByRole(<span class="s">"textbox"</span>).fill(<span class="s">"What about AAPL?"</span>);
+  <span class="k">await</span> page.getByRole(<span class="s">"button"</span>, { name: <span class="s">"↑"</span> }).click();
+  <span class="k">await</span> expect(page.getByText(<span class="s">"AAPL is HOLD EM."</span>)).toBeVisible();
+});</pre>
+  <div class="callout good"><strong>Auth in E2E:</strong> Clerk-gated routes use a seeded test session
+  (storage state saved once via a global setup, reused across specs) so you never log in per test.</div>
+
+  <h3>6.7 · Clipboard — mock at unit, real at E2E</h3>
+<pre><span class="c">// component layer</span>
+<span class="k">const</span> writeText = vi.fn().mockResolvedValue(undefined);
+Object.assign(navigator, { clipboard: { writeText } });
+<span class="k">await</span> user.click(screen.getByRole(<span class="s">"button"</span>, { name: /share/i }));
+expect(writeText).toHaveBeenCalledWith(expect.stringContaining(<span class="s">"/verdict/"</span>));
+expect(<span class="k">await</span> screen.findByText(/copied/i)).toBeInTheDocument();</pre>
+  <p class="tag">E2E grants <code>clipboard-read/write</code> permission in the browser context to exercise the real API.</p>
+</section>
+
+<!-- 7 -->
+<section id="a11y">
+  <h2>7 · Accessibility &amp; Motion — Woven In, Not Bolted On</h2>
+  <p class="lede">Interactivity that isn't operable by keyboard or screen reader isn't done. These checks run inside the layers above.</p>
+  <div class="grid">
+    <div class="card"><h4>Automated axe pass</h4>
+      <p>Every component test ends with <code>expect(await axe(container)).toHaveNoViolations()</code>. Catches missing labels, bad contrast, invalid ARIA — the things role-queries alone miss.</p>
+    </div>
+    <div class="card"><h4>Keyboard operability</h4>
+      <p>Drive with <code>user.keyboard()</code>: Tab reaches every control, Enter/Space activate, Esc closes modals, focus order is logical, focus returns to the trigger on close.</p>
+    </div>
+    <div class="card"><h4>Reduced motion</h4>
+      <p>With <code>matchMedia matches:true</code>, assert Magnetic/Parallax apply no transform and StatCounter snaps to its value — honoring the <code>useReducedMotion</code> branches already in the code.</p>
+    </div>
+    <div class="card"><h4>Live regions</h4>
+      <p>Chat answers and error toasts live in <code>aria-live</code> / <code>role="alert"</code> regions so screen readers announce async results. Tests assert the role, not just the text.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="perf">
+  <h2>8 · Performance &amp; Responsiveness</h2>
+  <p class="lede">Optimal interactivity is also <em>fast</em> interactivity. Guard the metrics that make clicks feel instant.</p>
+  <table>
+    <tr><th>Concern</th><th>What to guard</th><th>Tool</th></tr>
+    <tr><td>Input responsiveness (INP)</td><td>Click/keypress → paint under ~200ms; no jank on the chat composer</td><td>Lighthouse CI · <code>web-perf</code> skill (Chrome DevTools MCP)</td></tr>
+    <tr><td>Layout stability (CLS)</td><td>Async answers &amp; reveals don't shove content; reserve space</td><td>Lighthouse CI</td></tr>
+    <tr><td>Animation frame budget</td><td>Scroll/parallax stay at 60fps; rAF work is cheap</td><td>DevTools performance trace</td></tr>
+    <tr><td>Listener/observer leaks</td><td>Unmount removes scroll listeners, disconnects observers, cancels rAF</td><td>Component tests (spies) — see §5</td></tr>
+    <tr><td>Bundle weight of client islands</td><td>Interactive components stay small; motion lib code-split</td><td><code>next build</code> analyze in CI</td></tr>
+  </table>
+  <div class="callout info">Run the <code>web-perf</code> skill against <code>/</code>, <code>/dashboard/nuai</code>, and <code>/dashboard/holdfold</code> — the three most interaction-heavy routes — and fail CI on Core Web Vitals regressions.</div>
+</section>
+
+<!-- 9 -->
+<section id="ci">
+  <h2>9 · CI &amp; Tooling</h2>
+  <p class="lede">Fast feedback locally, full gate on PRs.</p>
+  <div class="step"><div class="n">1</div><div><b>Pre-commit / watch</b> — <code>vitest --project unit --project components</code> run on changed files. Sub-second for logic, fast for jsdom.</div></div>
+  <div class="step"><div class="n">2</div><div><b>PR gate</b> — all vitest projects + Playwright E2E headless + jest-axe. Blocks merge on any failure.</div></div>
+  <div class="step"><div class="n">3</div><div><b>Nightly / pre-release</b> — visual snapshots (Playwright/Storybook) + Lighthouse CI budgets on key routes.</div></div>
+  <div class="step"><div class="n">4</div><div><b>Coverage</b> — <code>vitest --coverage</code> with a floor on <code>components/</code> and <code>app/**/*Client.tsx</code>; report, don't chase 100%.</div></div>
+<pre><span class="c">// package.json scripts to add</span>
+<span class="s">"test:unit"</span>: <span class="s">"vitest run --project unit"</span>,
+<span class="s">"test:comp"</span>: <span class="s">"vitest run --project components"</span>,
+<span class="s">"test:e2e"</span>:  <span class="s">"playwright test"</span>,
+<span class="s">"test:a11y"</span>: <span class="s">"vitest run --project components --grep a11y"</span>,
+<span class="s">"test:all"</span>:  <span class="s">"npm run test:unit &amp;&amp; npm run test:comp &amp;&amp; npm run test:e2e"</span></pre>
+  <div class="callout"><strong>Next.js 16 note:</strong> per <code>AGENTS.md</code>, this is not stock Next — before wiring
+  jsdom/RSC test helpers, check <code>node_modules/next/dist/docs/</code> for the current testing guidance and any
+  deprecations rather than assuming older patterns.</div>
+</section>
+
+<!-- 10 -->
+<section id="roadmap">
+  <h2>10 · Adoption Roadmap</h2>
+  <p class="lede">Sequenced so value lands early and nothing is boil-the-ocean.</p>
+  <table>
+    <tr><th>Phase</th><th>Deliverable</th><th>Unlocks</th></tr>
+    <tr><td><b>1 · Foundation</b></td><td>jsdom vitest project + <code>test/setup.ts</code> + TL/user-event deps</td><td>Ability to render &amp; click any component</td></tr>
+    <tr><td><b>2 · Core</b></td><td>Component suites for <code>SignalAskAnything</code>, <code>NuAIChat</code>, <code>HoldFoldClient</code>, <code>SignalShareButton</code></td><td>The 4 pillars regression-proof</td></tr>
+    <tr><td><b>3 · Motion &amp; a11y</b></td><td>StatCounter/Magnetic/observer-cleanup tests + jest-axe on every suite</td><td>Reduced-motion &amp; keyboard correctness</td></tr>
+    <tr><td><b>4 · E2E</b></td><td>Playwright + seeded Clerk session; chat, share, holdfold, auth-gate flows</td><td>Real-browser confidence</td></tr>
+    <tr><td><b>5 · Guardrails</b></td><td>Lighthouse CI + visual snapshots + coverage floor in PR gate</td><td>Perf &amp; visual regressions blocked</td></tr>
+  </table>
+  <div class="callout good"><strong>First PR to open:</strong> Phase 1 + one Phase-2 suite (<code>SignalAskAnything</code>).
+  It proves the harness end-to-end and gives the team a copy-paste template for every subsequent component.</div>
+</section>
+
+<!-- 11 -->
+<section id="admin">
+  <h2>11 · Admin Dashboard (nulogdash)</h2>
+  <p class="lede">The one real admin surface in the app — <code>app/dashboard/nulogdash/page.tsx</code> — plus the
+  gate it depends on, <code>lib/nulogdash.ts</code>. This section is scoped to the <em>actual</em> component, not the
+  static HTML prototypes in <code>docs/nulogdash-admin.html</code>/<code>nulogdash-admin-site.html</code>, which model
+  a richer client-side console (modals, mutating buttons) that doesn't exist in code yet.</p>
+
+  <div class="callout info">
+    <strong>Shape of the real page:</strong> an <em>async server component</em>, not a client island. It reads
+    <code>.nulogdash/latest.json</code> off disk (<code>force-dynamic</code>, no caching) and renders read-only
+    tables. The only client-side interactivity in the shipped DOM is the native
+    <code>&lt;details&gt;/&lt;summary&gt;</code> reason disclosure per row — everything else is server-rendered HTML.
+  </div>
+
+  <h3>11.1 · What actually needs coverage</h3>
+  <table>
+    <tr><th>Behavior</th><th>Where</th><th>Layer</th></tr>
+    <tr><td>Signed-out → redirect to <code>/sign-in?redirect_url=/dashboard/nulogdash</code></td><td><code>page.tsx:64</code></td><td><span class="pill p-e2e">E2E</span></td></tr>
+    <tr><td>Signed-in, non-allowlisted email → <code>404</code> via <code>notFound()</code> (route doesn't reveal itself)</td><td><code>page.tsx:67</code></td><td><span class="pill p-e2e">E2E</span></td></tr>
+    <tr><td>Allowlist match requires the <strong>primary</strong> + <strong>verified</strong> email, not just any address on the account</td><td><code>isNulogdashAdmin</code></td><td><span class="pill p-unit">Unit</span></td></tr>
+    <tr><td>Empty/unset <code>NULOGDASH_ADMIN_EMAILS</code> denies everyone (fails closed)</td><td><code>isNulogdashAdmin</code></td><td><span class="pill p-unit">Unit</span></td></tr>
+    <tr><td>Admin without MFA enrolled: sees <code>MfaNotice</code>, page still renders reports</td><td><code>canPerformAdminAction</code> + <code>page.tsx:81</code></td><td><span class="pill p-unit">Unit</span> + <span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Admin with MFA enrolled: no MFA notice</td><td><code>canPerformAdminAction</code></td><td><span class="pill p-unit">Unit</span></td></tr>
+    <tr><td>No run on disk → empty-state message with the two run commands</td><td><code>page.tsx:76-88</code></td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Headline counts (pass/fail/blocked/not_run) sum correctly from <code>run.results</code></td><td><code>page.tsx:90-95</code></td><td><span class="pill p-unit">Unit</span> (extract the reducer) + <span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Rows split correctly: "Not run end-to-end" = blocked+not_run, "Exercised" = pass+fail</td><td><code>page.tsx:97-98</code></td><td><span class="pill p-unit">Unit</span></td></tr>
+    <tr><td>Drift warnings list renders only when non-empty</td><td><code>page.tsx:117-122</code></td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Excluded-features table renders only when non-empty</td><td><code>page.tsx:144-160</code></td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Reason <code>&lt;details&gt;</code> truncates &gt;60 chars in the closed summary, full text on expand</td><td><code>FeatureRow</code></td><td><span class="pill p-comp">Comp</span></td></tr>
+    <tr><td>Malformed <code>.nulogdash/latest.json</code> (bad JSON) → treated as no run, not a crash</td><td><code>getLatestRun</code> try/catch</td><td><span class="pill p-unit">Unit</span></td></tr>
+  </table>
+
+  <h3>11.2 · Unit tests — the admin gate (highest priority; this is an authz boundary)</h3>
+  <p>These are pure functions today (<code>AdminIdentity</code> is a structural interface specifically so the gate is
+  unit-testable without constructing a real Clerk <code>User</code>) — no DOM, no server, node environment is enough.</p>
+<pre><span class="c">// lib/nulogdash.test.ts</span>
+<span class="k">import</span> { expect, test } <span class="k">from</span> <span class="s">"vitest"</span>;
+<span class="k">import</span> { isNulogdashAdmin, canPerformAdminAction } <span class="k">from</span> <span class="s">"./nulogdash"</span>;
+
+<span class="k">const</span> identity = (overrides: <span class="k">Partial</span>&lt;<span class="k">Parameters</span>&lt;<span class="k">typeof</span> isNulogdashAdmin&gt;[0]&gt; = {}) =&gt; ({
+  primaryEmailAddressId: <span class="s">"id1"</span>,
+  emailAddresses: [{ id: <span class="s">"id1"</span>, emailAddress: <span class="s">"admin@nuwrrrld.com"</span>,
+                     verification: { status: <span class="s">"verified"</span> } }],
+  ...overrides,
+});
+
+test(<span class="s">"denies everyone when allowlist is unset"</span>, () =&gt; {
+  <span class="k">delete</span> <span class="f">process</span>.env.NULOGDASH_ADMIN_EMAILS;
+  expect(isNulogdashAdmin(identity())).toBe(<span class="k">false</span>);
+});
+
+test(<span class="s">"allows a verified primary email on the allowlist"</span>, () =&gt; {
+  <span class="f">process</span>.env.NULOGDASH_ADMIN_EMAILS = <span class="s">"admin@nuwrrrld.com"</span>;
+  expect(isNulogdashAdmin(identity())).toBe(<span class="k">true</span>);
+});
+
+test(<span class="s">"rejects a non-primary address even if it's on the allowlist"</span>, () =&gt; {
+  <span class="f">process</span>.env.NULOGDASH_ADMIN_EMAILS = <span class="s">"other@nuwrrrld.com"</span>;
+  expect(isNulogdashAdmin(identity({
+    emailAddresses: [
+      { id: <span class="s">"id1"</span>, emailAddress: <span class="s">"admin@nuwrrrld.com"</span>, verification: { status: <span class="s">"verified"</span> } },
+      { id: <span class="s">"id2"</span>, emailAddress: <span class="s">"other@nuwrrrld.com"</span>, verification: { status: <span class="s">"verified"</span> } },
+    ],
+  }))).toBe(<span class="k">false</span>);
+});
+
+test(<span class="s">"rejects an unverified primary email"</span>, () =&gt; {
+  <span class="f">process</span>.env.NULOGDASH_ADMIN_EMAILS = <span class="s">"admin@nuwrrrld.com"</span>;
+  expect(isNulogdashAdmin(identity({
+    emailAddresses: [{ id: <span class="s">"id1"</span>, emailAddress: <span class="s">"admin@nuwrrrld.com"</span>,
+                       verification: { status: <span class="s">"unverified"</span> } }],
+  }))).toBe(<span class="k">false</span>);
+});
+
+test(<span class="s">"canPerformAdminAction requires admin AND twoFactorEnabled"</span>, () =&gt; {
+  <span class="f">process</span>.env.NULOGDASH_ADMIN_EMAILS = <span class="s">"admin@nuwrrrld.com"</span>;
+  expect(canPerformAdminAction(identity({ twoFactorEnabled: <span class="k">false</span> }))).toBe(<span class="k">false</span>);
+  expect(canPerformAdminAction(identity({ twoFactorEnabled: <span class="k">true</span> }))).toBe(<span class="k">true</span>);
+});</pre>
+  <div class="callout"><strong>Why this table outranks everything else in §11:</strong> a bug here doesn't degrade a
+  feature, it leaks an internal test-sweep report (or worse, once mutating actions land) to the wrong person. Treat
+  <code>lib/nulogdash.test.ts</code> as a required file, not a nice-to-have — a PR that touches
+  <code>isNulogdashAdmin</code> or <code>canPerformAdminAction</code> without updating this suite should be blocked in
+  review.</div>
+
+  <h3>11.3 · Component tests — rendering logic without a real Clerk session</h3>
+  <p>The page itself is an async server component (can't <code>render()</code> it directly with Testing Library
+  today). Two practical options, in order of preference:</p>
+  <ol>
+    <li><b>Extract the pure pieces.</b> Pull the counts reducer (<code>page.tsx:90-95</code>) and the
+      not-run/exercised split (<code>page.tsx:97-98</code>) into named exports in <code>lib/nulogdash.ts</code> and
+      unit-test them directly against a fixture <code>NulogdashRun</code> — cheaper and more precise than asserting
+      through rendered HTML.</li>
+    <li><b>Component-test the presentational children</b> (<code>StatusBadge</code>, <code>FeatureRow</code>,
+      <code>MfaNotice</code>) in isolation with jsdom + Testing Library — these are plain functions returning JSX, no
+      <code>async</code>/server dependency, so they render normally.</li>
+  </ol>
+<pre><span class="c">// components-ish unit test against extracted pure logic</span>
+<span class="k">import</span> { splitResults, summarizeCounts } <span class="k">from</span> <span class="s">"@/lib/nulogdash"</span>;
+<span class="k">const</span> results = [
+  fixture({ status: <span class="s">"pass"</span> }), fixture({ status: <span class="s">"fail"</span> }),
+  fixture({ status: <span class="s">"blocked"</span> }), fixture({ status: <span class="s">"not_run"</span> }),
+];
+expect(summarizeCounts(results)).toEqual({ pass: 1, fail: 1, blocked: 1, not_run: 1 });
+<span class="k">const</span> { notExercised, exercised } = splitResults(results);
+expect(notExercised).toHaveLength(2);
+expect(exercised).toHaveLength(2);</pre>
+
+  <h3>11.4 · E2E — the only layer that can prove the auth/authz gate end-to-end</h3>
+  <p>Three seeded Clerk sessions cover every branch: signed-out, signed-in-non-admin, signed-in-admin (with and
+  without MFA). This is the layer that actually exercises <code>redirect()</code> and <code>notFound()</code> as
+  Next.js middleware + routing would in production.</p>
+<pre><span class="c">// e2e/nulogdash-admin.spec.ts</span>
+<span class="k">import</span> { test, expect } <span class="k">from</span> <span class="s">"@playwright/test"</span>;
+
+test(<span class="s">"signed-out visitor is redirected to sign-in"</span>, <span class="k">async</span> ({ page }) =&gt; {
+  <span class="k">await</span> page.goto(<span class="s">"/dashboard/nulogdash"</span>);
+  <span class="k">await</span> expect(page).toHaveURL(<span class="s">/\/sign-in\?redirect_url=/</span>);
+});
+
+test.describe(<span class="s">"signed in, not on the allowlist"</span>, () =&gt; {
+  test.use({ storageState: <span class="s">"e2e/.auth/non-admin.json"</span> });
+  test(<span class="s">"gets a 404, not a redirect to the console"</span>, <span class="k">async</span> ({ page }) =&gt; {
+    <span class="k">const</span> res = <span class="k">await</span> page.goto(<span class="s">"/dashboard/nulogdash"</span>);
+    expect(res?.status()).toBe(404);
+  });
+});
+
+test.describe(<span class="s">"admin without MFA"</span>, () =&gt; {
+  test.use({ storageState: <span class="s">"e2e/.auth/admin-no-mfa.json"</span> });
+  test(<span class="s">"sees the report and the MFA notice, no mutating buttons"</span>, <span class="k">async</span> ({ page }) =&gt; {
+    <span class="k">await</span> page.goto(<span class="s">"/dashboard/nulogdash"</span>);
+    <span class="k">await</span> expect(page.getByText(<span class="s">/two-factor authentication required/i</span>)).toBeVisible();
+    <span class="k">await</span> expect(page.getByRole(<span class="s">"heading"</span>, { name: <span class="s">"nulogdash"</span> })).toBeVisible();
+  });
+});</pre>
+  <div class="callout good"><strong>Seed fixtures once:</strong> a global-setup script creates the three Clerk test
+  users (non-admin, admin-no-mfa, admin-with-mfa) and saves each storage state to <code>e2e/.auth/*.json</code>, reused
+  across every spec — same pattern as §6.6's chat E2E.</div>
+
+  <h3>11.5 · Prototype HTML files — not the app, treat as design reference only</h3>
+  <p class="muted"><code>docs/nulogdash-admin.html</code> + <code>nulogdash-admin.css</code> are a static mockup of a
+  <em>future</em>, richer console (Refresh, Create User, Impersonate/Disable/Reset PW, Reindex/Backup/Deploy with
+  native <code>confirm()</code> guards, a focus-trapped modal). None of this exists in <code>page.tsx</code> yet — the
+  real page has no mutating buttons at all, only the MFA-gated <em>promise</em> of them. If/when those actions get
+  built for real:</p>
+  <ul>
+    <li>Every mutating action must call <code>canPerformAdminAction()</code> server-side — never trust a disabled
+      client button alone, since that's trivially bypassed.</li>
+    <li>The prototype's native <code>window.confirm()</code> pattern won't survive the port to React — re-home those
+      as an accessible modal (focus trap, Esc-to-close, focus-return-on-close) and give it the same component-test
+      treatment as §5's "Modal focus trap" row.</li>
+    <li>Destructive actions (<code>deployBtn</code> in the mockup) need an E2E test asserting the confirmation step
+      cannot be skipped — mirrors this repo's own non-negotiable "warn before destroying state" rule.</li>
+  </ul>
+</section>
+
+</div>
+<footer>
+  NuWrrrld Portal · Frontend Interactivity Testing Strategy · generated 2026-07-26 ·
+  layers: <span class="pill p-unit">unit</span> <span class="pill p-comp">component</span>
+  <span class="pill p-e2e">e2e</span> <span class="pill p-a11y">a11y</span> <span class="pill p-vis">visual</span>
+</footer>
+</body>
+</html>

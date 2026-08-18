@@ -20,6 +20,36 @@ export interface PortfolioHealth {
   generatedAt: string; // ISO
 }
 
+function isHealthFactor(value: unknown): value is HealthFactor {
+  if (!value || typeof value !== 'object') return false;
+  const f = value as Record<string, unknown>;
+  return (
+    typeof f.name === 'string' &&
+    typeof f.score === 'number' &&
+    (f.impact === 'positive' || f.impact === 'negative' || f.impact === 'neutral') &&
+    typeof f.description === 'string'
+  );
+}
+
+/**
+ * Validates a PortfolioHealth response client-side. Catches contract drift
+ * from an unadapted upstream payload (e.g. gcp3's ai_grade/ai_insights shape)
+ * that would otherwise pass an unchecked `as PortfolioHealth` cast and render
+ * as a silent "score 0 / Grade F" — see
+ * docs/wiki-portal/incident-2026-07-26-portfolio-health-endpoint-missing.md.
+ */
+export function isPortfolioHealth(value: unknown): value is PortfolioHealth {
+  if (!value || typeof value !== 'object') return false;
+  const h = value as Record<string, unknown>;
+  return (
+    typeof h.score === 'number' &&
+    typeof h.grade === 'string' &&
+    Array.isArray(h.factors) && h.factors.every(isHealthFactor) &&
+    typeof h.summary === 'string' &&
+    typeof h.generatedAt === 'string'
+  );
+}
+
 export interface OptimizerSuggestion {
   id: string;
   title: string;

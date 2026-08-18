@@ -72,6 +72,8 @@ A fourth, separate lane exists for the DB: `test:integration` runs
   a test gate; it blocks credentials in staged changes
 - Pinned behavior lives in `__tests__/` for logic and colocated `*.test.tsx`
   for components
+- `__tests__/openrouter-fallback.test.ts` + `__tests__/live/openrouter-resilience.live.test.ts`
+  — the reference stub/live pair described in point 6 below
 
 ## What would actually raise confidence
 
@@ -90,6 +92,24 @@ Ordered by value per unit of effort, grounded in the gaps below:
 5. **Treat `live` failures as a signal about the world, not the code.** Read
    the error before debugging: a whole-chain 429 is a quota fact
    ([[entity-openrouter-client]] known-failure #3), not a regression.
+6. **Pair every live suite with a deterministic twin.** Added 2026-08-18 after
+   the OpenRouter pair (`__tests__/openrouter-fallback.test.ts` +
+   `__tests__/live/openrouter-resilience.live.test.ts`) demonstrated the split
+   cleanly. The two answer different questions and neither substitutes for the
+   other: the stub proves *the logic is correct* against failure shapes a live
+   call can't be made to produce on demand (a 402 exactly at the chain head, a
+   200 that streams zero content tokens, a mid-chain network drop, a caller
+   abort); the live test proves *the world still matches the assumptions*
+   (the ids exist, the pricing is still $0, the vendors are distinct). The
+   stub is fast, deterministic, and safe for every commit; the live one is
+   slow, quota-consuming, and correctly opt-in.
+7. **Assert on structure the code can fix, not on state the world owns.** The
+   same live suite showed both edges: "the chain is single-vendor" is a
+   structural defect that should stay red until someone fixes the ranking in
+   `refresh-free-models.mjs`, while "every model 429s right now" is an account
+   fact that must *report and skip*, or the suite goes red every evening after
+   the daily quota is spent and stops being read. The suite encodes this with
+   a `dailyQuotaExhausted()` guard that distinguishes the two before asserting.
 
 ## Contradictions / tensions
 
