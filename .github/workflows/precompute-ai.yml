@@ -2,12 +2,15 @@ name: Nightly AI precompute
 
 # Option D of docs/gha-modal-core-feature-coverage.md.
 #
-# OpenRouter's free tier caps the whole API key at 50 requests/day, resetting at
-# UTC midnight. Batch AI work and interactive Nu AI chat share that one bucket,
-# and batch wins by running first. This job spends the allowance a few minutes
-# after the reset — when it is freshest — and stores the results in Neon, so the
-# app serves them at zero quota cost and the rest of the day belongs to calls a
-# user is actually waiting on.
+# OpenRouter's free tier caps the whole API key at some number of requests/day
+# (this account's auth/key endpoint reports `limit: null` — not independently
+# confirmed here as 50 vs. 1000; see docs/max-coverage-simplest-path.md
+# "Correction" section) and resets at UTC midnight. Batch AI work and
+# interactive Nu AI chat share that one bucket, and batch wins by running
+# first. This job spends the allowance a few minutes after the reset — when it
+# is freshest — and stores the results in Neon, so the app serves them at zero
+# quota cost and the rest of the day belongs to calls a user is actually
+# waiting on.
 #
 # This is the GitHub Actions half of a deliberately multi-platform pair; the
 # Modal equivalent is deploy/precompute-ai/modal_app.py. Run ONE of them, not

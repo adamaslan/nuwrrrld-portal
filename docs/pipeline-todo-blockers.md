@@ -5,6 +5,16 @@ live `gcp3` data and a disposable Neon branch. This is a status/blockers doc,
 not a design doc — see `docs/max-coverage-simplest-path.md` and
 `docs/modal-vs-gcp-signal-coverage.md` for the design and its reasoning.
 
+**Update, same day:** Blockers 3 and 7 closed this session (see each entry).
+Also discovered: `app/api/pipeline/` and the rest of this pipeline's code were
+untracked in git — never committed or deployed — so
+`https://financial.nuwrrrld.com/api/pipeline/hydrate-universe` 404s until PR
+#66 (which now carries this code) merges and deploys. The Yahoo-portfolio
+import (`scripts/seed-yahoo-portfolio.mjs`, 680 US tickers parsed from
+`~/Downloads/portfolio-yahoo/*.csv`) is dry-run verified but has **not** run
+for real yet — same as Blocker 2, both now block on that merge/deploy rather
+than on the secret.
+
 ## What the run actually proved
 
 Ran `gcp3 /signals` → `buildCard()` → `upsertCards()` → `topCards()` against a
@@ -71,22 +81,26 @@ the correct failure mode, just wasted a cron cycle to discover).
 
 ---
 
-### 3. `PORTAL_PUSH_SECRET` is not set in local `.env.local`
+### 3. ~~`PORTAL_PUSH_SECRET` is not set in local `.env.local`~~ — CLOSED 2026-08-18
 
-Checked directly: `.env.local` has `DATABASE_URL`, `MCP_BACKEND_URL`,
+Checked directly: `.env.local` had `DATABASE_URL`, `MCP_BACKEND_URL`,
 `OPENROUTER_API_KEY` — no `PORTAL_PUSH_SECRET`. Every pipeline route
 (`hydrate-universe` GET/POST/PUT, `precompute-ai`) hard-fails with `503
 CONFIG_ERROR` until it's set.
 
-**Blocks:** running any pipeline script (`seed-etf-cards.mjs`,
-`seed-universe.mjs`) against local dev, or the local dev server acting as a
-target for a local Modal smoke test.
-
-**Fix:** generate a secret, add to `.env.local` for dev and to the real secret
-store (Vercel env vars + `modal secret create nuwrrrld-hydration` +
-`modal secret create nuwrrrld-precompute`) for production/Modal. This is a
-credential-provisioning task — see `secrets-sync` skill rather than hand-rolling
-it.
+**Resolution:** `scripts/gen-portal-push-secret.sh` now generates the secret
+and pushes it to Vercel (production/preview/development) without the value
+ever passing through an agent session, per the `secrets-sync` skill pattern.
+Discovered along the way: Vercel's `production` environment already had a
+`PORTAL_PUSH_SECRET` set ~34 days prior to a value this session had no
+knowledge of; the script's non-interactive `vercel env add` safely declined
+to overwrite it (logged as "skipped or failed" — a false-negative label, not
+an actual overwrite), and `.env.local` was reconciled to that existing prod
+value via `vercel env pull` rather than the other way around. **Still open:**
+`modal secret create nuwrrrld-hydration`/`nuwrrrld-precompute` — deliberately
+left to Blocker 4, since setting only `PORTAL_PUSH_SECRET` there via
+`--force` would wipe `ALPACA_API_KEY`/`ALPACA_API_SECRET` once those exist
+(Modal secrets are replaced wholesale, not merged).
 
 ---
 
@@ -141,7 +155,7 @@ without this fixed makes the double-spend real instead of theoretical.
 
 ---
 
-### 7. The "50/day" OpenRouter quota figure is still wrong in two files
+### 7. ~~The "50/day" OpenRouter quota figure is still wrong in two files~~ — CLOSED 2026-08-18
 
 Retracted in `max-coverage-simplest-path.md` on 2026-08-18, but the retraction
 never reached the two files that assert it as fact:
@@ -149,11 +163,12 @@ never reached the two files that assert it as fact:
 `.github/workflows/precompute-ai.yml`'s header comment both still say "caps the
 whole API key at 50 requests/day."
 
-**Fix:** `curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/auth/key`
-— five seconds — then correct both comments to the real number.
-
-**Blocks:** nothing functionally (the code doesn't branch on the literal "50"),
-but it misleads whoever tunes `MAX_SUBJECTS` / batch sizing next.
+**Resolution:** ran `curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/auth/key`.
+Result: `"limit": null`, `"is_free_tier": true` — this account's key does not
+expose a concrete daily number through this endpoint, so neither "50" nor
+"1000" is independently confirmable as fact from here. Both files now say so
+explicitly (pointing at the `max-coverage-simplest-path.md` correction) rather
+than asserting either number.
 
 ---
 
@@ -190,15 +205,21 @@ the coverage pipeline itself, which is a separate code path.
 
 ## Suggested unblock order
 
-1. Blocker 3 (`PORTAL_PUSH_SECRET`) — nothing else runs without it.
-2. Blocker 2 (`seed-universe.mjs` for real) — cheap, no dependencies once #3 is done.
-3. Blocker 7 (fix the "50/day" comments) — five seconds, do it opportunistically.
-4. Blocker 6 (pick one precompute scheduler) — cheap, prevents a real double-spend.
-5. Blocker 4 (Alpaca credentials) — the real provisioning step.
-6. Blocker 5 (`modal deploy`) — mechanical once #4 is done.
-7. Blocker 1 (ETF explain-quality gap) — needs a decision (gcp3 extension vs.
+1. ~~Blocker 3 (`PORTAL_PUSH_SECRET`)~~ — done.
+2. **New, highest priority now:** merge/deploy PR #66 — `app/api/pipeline/`
+   and the rest of this pipeline's code were untracked until this session;
+   nothing that hits `financial.nuwrrrld.com/api/pipeline/*` works until it's
+   live.
+3. Blocker 2 (`seed-universe.mjs` for real) and the Yahoo-portfolio import
+   (`seed-yahoo-portfolio.mjs`, 680 tickers ready, dry-run verified) — cheap,
+   blocked only on #2 above now.
+4. ~~Blocker 7 (fix the "50/day" comments)~~ — done.
+5. Blocker 6 (pick one precompute scheduler) — cheap, prevents a real double-spend.
+6. Blocker 4 (Alpaca credentials) — the real provisioning step.
+7. Blocker 5 (`modal deploy`) — mechanical once #6 is done.
+8. Blocker 1 (ETF explain-quality gap) — needs a decision (gcp3 extension vs.
    accept ETF-as-coverage-only), not just credentials. Discuss before building.
-8. Blocker 8 (`signal-lookup.ts` blindness) — independent of the rest; do
+9. Blocker 8 (`signal-lookup.ts` blindness) — independent of the rest; do
    whenever convenient.
 
 ## See also

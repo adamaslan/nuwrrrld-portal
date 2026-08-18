@@ -1,10 +1,13 @@
 """Modal deployment of the nightly AI precompute (Option D).
 
 The scheduling *is* the design. OpenRouter's free tier caps the whole API key
-at 50 requests/day and resets at UTC midnight. Today batch AI work and
-interactive Nu AI chat compete for that single bucket, and batch usually wins
-simply by running first — so a user asking a question in the afternoon can find
-the allowance already spent on a narrative nobody was waiting for.
+at some number of requests/day (this account's `auth/key` endpoint reports
+`limit: null` — not independently confirmed here as 50 vs. 1000; see
+docs/max-coverage-simplest-path.md "Correction" section) and resets at UTC
+midnight. Today batch AI work and interactive Nu AI chat compete for that
+single bucket, and batch usually wins simply by running first — so a user
+asking a question in the afternoon can find the allowance already spent on a
+narrative nobody was waiting for.
 
 This job runs a few minutes *after* the reset, when the quota is at its
 freshest, generates the batch artifacts, and stores them in Neon. The app then
@@ -40,9 +43,10 @@ image = modal.Image.debian_slim(python_version="3.11").pip_install("httpx")
 _SECRET = modal.Secret.from_name("nuwrrrld-precompute")
 
 # How many distinct watchlist ticker-sets to precompute per run. Deliberately
-# well under the 50/day free-tier cap: the point of this job is to *protect*
-# the interactive allowance, so it must never be the thing that exhausts it.
-# The route enforces its own ceiling too — this is the outer of two bounds.
+# well under the free-tier cap (unconfirmed exact size — see the docstring
+# above): the point of this job is to *protect* the interactive allowance, so
+# it must never be the thing that exhausts it. The route enforces its own
+# ceiling too — this is the outer of two bounds.
 MAX_SUBJECTS = 10
 
 HTTP_TIMEOUT_S = 300.0
