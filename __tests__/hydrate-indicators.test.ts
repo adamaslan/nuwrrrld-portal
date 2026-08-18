@@ -39,19 +39,42 @@ type Fixture = {
 const cases = Object.entries(fixtures as Record<string, Fixture>);
 
 describe('hydrate indicators match the Modal (Python) implementation', () => {
+  /**
+   * null is a real, meaningful outcome here (not-enough-history), so it has to
+   * be asserted as null rather than coerced into a number — toBeCloseTo(null)
+   * would silently pass against 0 and hide a genuinely missing reading.
+   */
+  const expectMatch = (got: number | null, want: number | null) => {
+    if (want === null) expect(got).toBeNull();
+    else expect(got).toBeCloseTo(want, 9);
+  };
+
   it.each(cases)('%s', (_name, { input, expected }) => {
     const { close, high, low } = input;
 
-    expect(rsi(close)).toBeCloseTo(expected.rsi as number, 9);
+    expectMatch(rsi(close), expected.rsi);
     expect(macdCross(close)).toBe(expected.macd);
-    expect(adx(high, low, close)).toBeCloseTo(expected.adx as number, 9);
-    expect(volatilityPercentile(close)).toBeCloseTo(expected.vol as number, 9);
+    expectMatch(adx(high, low, close), expected.adx);
+    expectMatch(volatilityPercentile(close), expected.vol);
+  });
+
+  /**
+   * The six original fixtures all happen to produce a *no-cross* null from
+   * macdCross, so the "bullish"/"bearish" branches — the values the pipeline
+   * actually acts on — went unverified against Python until these two cases
+   * were added. Guard that they stay covered.
+   */
+  it('covers both crossover directions against the Python reference', () => {
+    const seen = cases.map(([, c]) => c.expected.macd);
+    expect(seen).toContain('bullish');
+    expect(seen).toContain('bearish');
   });
 
   it('holds every case within the stated tolerance', () => {
     for (const [name, { input, expected }] of cases) {
+      if (expected.adx === null) continue;
       const got = adx(input.high, input.low, input.close) as number;
-      expect(Math.abs(got - (expected.adx as number)), name).toBeLessThan(TOLERANCE);
+      expect(Math.abs(got - expected.adx), name).toBeLessThan(TOLERANCE);
     }
   });
 });
@@ -73,6 +96,37 @@ describe('insufficient history returns null rather than a fabricated reading', (
 
   it('volatilityPercentile needs 2 * window bars', () => {
     expect(volatilityPercentile(short)).toBeNull();
+  });
+});
+
+/**
+ * scripts/hydrate-local.mjs only returns status "ok" at MIN_BARS = 40, on the
+ * claim that 40 is the largest lookback any indicator needs. If that claim ever
+ * stops holding, rows go back to persisting fabricated 0/0/50 readings as if
+ * they were measured — so the boundary itself is pinned, not just assumed.
+ */
+describe('MIN_BARS = 40 is the exact threshold where all four indicators compute', () => {
+  const series = (n: number) =>
+    Array.from({ length: n }, (_, i) => 100 + Math.sin(i / 5) * 6 + i * 0.2);
+
+  const allComputable = (n: number) => {
+    const close = series(n);
+    const high = close.map(c => c * 1.01);
+    const low = close.map(c => c * 0.99);
+    return (
+      rsi(close) !== null &&
+      macdCross(close) !== 'missing' &&
+      adx(high, low, close) !== null &&
+      volatilityPercentile(close) !== null
+    );
+  };
+
+  it('39 bars is not enough (volatilityPercentile still null)', () => {
+    expect(allComputable(39)).toBe(false);
+  });
+
+  it('40 bars is enough', () => {
+    expect(allComputable(40)).toBe(true);
   });
 });
 
