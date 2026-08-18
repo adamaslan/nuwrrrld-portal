@@ -15,6 +15,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import {
+  adx,
+  confluence,
+  macdCross,
+  rsi,
+  volatilityPercentile,
+} from "./lib/hydrate-indicators.mjs";
+
 // ── env loading ───────────────────────────────────────────────────────────
 let env = {};
 try {
@@ -32,10 +40,37 @@ const PORTAL_PUSH_SECRET = process.env.PORTAL_PUSH_SECRET ?? env.PORTAL_PUSH_SEC
 const ALPACA_API_KEY = process.env.ALPACA_API_KEY ?? env.ALPACA_API_KEY;
 const ALPACA_API_SECRET = process.env.ALPACA_API_SECRET ?? env.ALPACA_API_SECRET;
 
+function fail(message) {
+  console.error(`hydrate-local: ${message}`);
+  process.exit(1);
+}
+
+// ── argument parsing ──────────────────────────────────────────────────────
+// Both options are validated up front. An unparseable value must abort rather
+// than fall through to "hydrate the entire universe", which is the expensive
+// default and never what a malformed flag meant to ask for.
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
-const SYMBOLS_ARG = process.argv.find(a => a.startsWith("--symbols="))?.split("=")[1] ?? null;
-const LIMIT = parseInt(process.argv.find(a => a.startsWith("--limit="))?.split("=")[1] ?? "0") || null;
+
+const symbolsFlag = process.argv.find(a => a.startsWith("--symbols="));
+let SYMBOLS = null;
+if (symbolsFlag) {
+  const raw = symbolsFlag.slice("--symbols=".length);
+  SYMBOLS = raw.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  if (!SYMBOLS.length || SYMBOLS.length !== raw.split(",").length) {
+    fail("--symbols must be a comma-separated list of non-empty ticker symbols");
+  }
+}
+
+const limitFlag = process.argv.find(a => a.startsWith("--limit="));
+let LIMIT = null;
+if (limitFlag) {
+  const raw = limitFlag.slice("--limit=".length);
+  if (!/^\d+$/.test(raw) || Number(raw) === 0) {
+    fail("--limit must be a positive integer");
+  }
+  LIMIT = Number(raw);
+}
 
 // ── guards ────────────────────────────────────────────────────────────────
 if (!PORTAL_PUSH_SECRET) throw new Error("PORTAL_PUSH_SECRET is not set");
@@ -45,67 +80,13 @@ if (!ALPACA_API_SECRET) throw new Error("ALPACA_API_SECRET is not set");
 const CHUNK_SIZE = 10;
 const LOOKBACK_DAYS = 120;
 
-// ── indicators ────────────────────────────────────────────────────────────
-function rsi(close, period = 14) {
-  if (close.length < period + 1) return null;
-  let gains = 0, losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const delta = close[close.length - i] - close[close.length - i - 1];
-    if (delta > 0) gains += delta;
-    else losses -= delta;
-  }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - (100 / (1 + rs));
-}
+// Longest lookback any indicator needs before it returns a real number:
+// macdCross wants slow + signal = 35 bars, volatilityPercentile wants
+// window * 2 = 40, adx wants period * 2 = 28, rsi wants 15. A row is only
+// "ok" once every one of them can be computed — see rowFor().
+const MIN_BARS = 40;
 
-function macdCross(close, fast = 12, slow = 26, signal = 9) {
-  if (close.length < slow + signal) return "missing";
-  const ema = (data, span) => {
-    let ema = data[0];
-    const alpha = 2 / (span + 1);
-    for (let i = 1; i < data.length; i++) {
-      ema = data[i] * alpha + ema * (1 - alpha);
-    }
-    return ema;
-  };
-  // Simplified: just check direction based on 3-bar trend
-  const macd = close[close.length - 1] > close[close.length - 5] ? 1 : -1;
-  return macd > 0 ? "bullish" : "bearish";
-}
-
-function adx(high, low, close, period = 14) {
-  if (close.length < period * 2) return null;
-  // Simplified: return based on recent close trend
-  const trend = close[close.length - 1] - close[close.length - 14];
-  return Math.min(100, Math.abs(trend) * 10);
-}
-
-function volatilityPercentile(close, window = 20) {
-  if (close.length < window * 2) return null;
-  const returns = [];
-  for (let i = 1; i < close.length; i++) {
-    returns.push(Math.abs(close[i] - close[i - 1]) / close[i - 1]);
-  }
-  const volatility = Math.sqrt(returns.reduce((a, b) => a + b * b) / returns.length);
-  const recent = volatility;
-  const sorted = [...returns].sort((a, b) => a - b);
-  let rank = sorted.filter(v => v <= recent).length;
-  return (rank / sorted.length) * 100;
-}
-
-function confluence(rsiVal, macdVal, adxVal, volVal) {
-  let score = 0;
-  if (rsiVal !== null) score += rsiVal < 30 ? 1 : rsiVal > 70 ? -1 : 0;
-  if (macdVal === "bullish") score += 1;
-  else if (macdVal === "bearish") score -= 1;
-  if (adxVal !== null && adxVal > 25) score += (Math.random() - 0.5) * 0.5; // stabilizer
-  if (volVal !== null) score += volVal > 67 ? -0.5 : volVal < 33 ? 0.5 : 0;
-  return Math.round((score / 3) * 100);
-}
-
+// ── vendor fetch ──────────────────────────────────────────────────────────
 async function fetchBars(symbols) {
   const start = new Date();
   start.setDate(start.getDate() - LOOKBACK_DAYS);
@@ -129,8 +110,16 @@ async function fetchBars(symbols) {
   return data.bars || {};
 }
 
+/**
+ * Compute one symbol's indicator row. Never throws — an indicator failure
+ * becomes a per-row error so one bad symbol cannot poison the whole run.
+ *
+ * Mirrors _row_for() in modal_app.py, including the macdCross key convention:
+ * an omitted key means "not computed", an explicit null means "computed, no
+ * cross". Those are different facts and must not collapse into one.
+ */
 function rowFor(symbol, barData) {
-  if (!barData || barData.length < 30) {
+  if (!barData || barData.length < MIN_BARS) {
     return {
       ticker: symbol,
       status: "error",
@@ -139,36 +128,37 @@ function rowFor(symbol, barData) {
   }
 
   try {
-    const close = barData.map(b => b.c);
-    const high = barData.map(b => b.h);
-    const low = barData.map(b => b.l);
+    const sorted = [...barData].sort((a, b) => String(a.t).localeCompare(String(b.t)));
+    const close = sorted.map(b => b.c);
+    const high = sorted.map(b => b.h);
+    const low = sorted.map(b => b.l);
 
     const rsiVal = rsi(close);
     const macdVal = macdCross(close);
     const adxVal = adx(high, low, close);
     const volVal = volatilityPercentile(close);
-    const confVal = confluence(rsiVal, macdVal, adxVal, volVal);
+    const { score, direction } = confluence(
+      rsiVal,
+      macdVal === "missing" ? undefined : macdVal,
+      adxVal
+    );
 
-    const direction =
-      confVal > 20 ? "bullish" : confVal < -20 ? "bearish" : "neutral";
-    const action =
-      confVal > 35 ? "BUY" : confVal < -35 ? "SELL" : "HOLD";
-
-    return {
+    const row = {
       ticker: symbol,
       status: "ok",
-      rsi: Math.round(rsiVal ?? 0),
-      adx: Math.round(adxVal ?? 0),
-      volatilityPercentile: Math.round(volVal ?? 50),
-      confluenceScore: confVal,
+      rsi: rsiVal,
+      adx: adxVal,
+      volatilityPercentile: volVal,
+      confluenceScore: score,
       direction,
-      action,
     };
+    if (macdVal !== "missing") row.macdCross = macdVal;
+    return row;
   } catch (e) {
     return {
       ticker: symbol,
       status: "error",
-      error: e.message,
+      error: `${e.name}: ${e.message}`,
     };
   }
 }
@@ -212,8 +202,8 @@ async function getUniverse() {
 async function main() {
   let targets;
 
-  if (SYMBOLS_ARG) {
-    targets = SYMBOLS_ARG.split(",").map(s => s.trim().toUpperCase());
+  if (SYMBOLS) {
+    targets = SYMBOLS;
   } else {
     const universe = await getUniverse();
     targets = LIMIT ? universe.slice(0, LIMIT) : universe;
@@ -229,8 +219,12 @@ async function main() {
 
   console.log(`[hydrate] run=${runId} symbols=${targets.length} chunk=${CHUNK_SIZE}`);
 
+  // Three counters, deliberately distinct: rows the portal confirmed it wrote,
+  // rows that failed to *compute* locally, and rows lost to a failed POST.
+  // Collapsing these made a fully-failed chunk report written=10 failed=10.
   let written = 0,
-    failed = 0;
+    calcErrors = 0,
+    postFailures = 0;
 
   for (let i = 0; i < targets.length; i += CHUNK_SIZE) {
     const chunk = targets.slice(i, i + CHUNK_SIZE);
@@ -240,29 +234,32 @@ async function main() {
       const barsBySymbol = await fetchBars(chunk);
       const rows = chunk.map(sym => rowFor(sym, barsBySymbol[sym]));
 
-      // Log results per symbol
       for (const row of rows) {
         if (row.status === "ok") {
           console.log(
-            `  ${row.ticker}: score=${row.confluenceScore} action=${row.action} quality=1.0`
+            `  ${row.ticker}: score=${row.confluenceScore} direction=${row.direction}`
           );
-          written++;
         } else {
           console.log(`  ${row.ticker}: ERROR ${row.error}`);
-          failed++;
+          calcErrors++;
         }
       }
 
+      // Persistence counters come from the portal's response, and only after
+      // it has actually answered — never from the count we optimistically sent.
       const result = await postChunk(rows, runId, barDate);
+      written += result.written ?? 0;
+      postFailures += result.failed ?? 0;
       console.log(`  → posted: written=${result.written} failed=${result.failed}`);
     } catch (e) {
       console.error(`  ERROR: ${e.message}`);
-      failed += chunk.length;
+      postFailures += chunk.length;
     }
   }
 
   console.log(
-    `\n[done] written=${written} failed=${failed} total=${targets.length}`
+    `\n[done] written=${written} calc-errors=${calcErrors} ` +
+      `post-failures=${postFailures} total=${targets.length}`
   );
 }
 
