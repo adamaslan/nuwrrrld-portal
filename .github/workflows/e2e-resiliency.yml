@@ -82,6 +82,14 @@ jobs:
           # variable. Anything `next dev` needs to boot belongs here, even if
           # the auth flow itself never touches it.
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Not secrets — plain paths, so they live here rather than in repo
+          # secrets. Without them Clerk falls back to redirecting to "/" after
+          # sign-in instead of /dashboard, and the test that waits for
+          # /dashboard times out even though sign-in fully succeeded.
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /dashboard
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /dashboard
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           E2E_CLERK_TEST_EMAIL: ${{ secrets.E2E_CLERK_TEST_EMAIL }}
           E2E_CLERK_TEST_PASSWORD: ${{ secrets.E2E_CLERK_TEST_PASSWORD }}
@@ -165,6 +173,14 @@ jobs:
         continue-on-error: true
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Not secrets — plain paths, so they live here rather than in repo
+          # secrets. Without them Clerk falls back to redirecting to "/" after
+          # sign-in instead of /dashboard, and the test that waits for
+          # /dashboard times out even though sign-in fully succeeded.
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /dashboard
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /dashboard
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

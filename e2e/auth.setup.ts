@@ -105,11 +105,20 @@ setup("authenticate", async ({ page }) => {
     await page.keyboard.type(CLERK_TEST_OTP, { delay: 80 });
   }
 
-  // /dashboard is the Clerk-protected landing point (middleware.ts); a
-  // successful redirect there is the actual proof sign-in completed, not
-  // just that the form submitted without a client error.
-  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
-  await expect(page.locator("body")).not.toContainText(/sign in/i);
+  // Wait to land anywhere that isn't the sign-in flow. Clerk's post-sign-in
+  // destination depends on NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL,
+  // which is set locally but is easy to omit in CI — and when it's missing
+  // Clerk sends you to "/" instead of /dashboard. Asserting on /dashboard
+  // specifically turned a *successful* sign-in into a 20s timeout that read
+  // like an auth failure. Assert the property that actually matters (we are
+  // out of /sign-in), then confirm the session below.
+  await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"), { timeout: 20_000 });
+
+  // The real proof: /dashboard is Clerk-protected by middleware.ts, so a
+  // signed-out browser gets bounced back to /sign-in. Reaching it means the
+  // session is genuinely live, independent of where Clerk chose to land.
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 
   await page.context().storageState({ path: STORAGE_STATE_PATH });
 });
