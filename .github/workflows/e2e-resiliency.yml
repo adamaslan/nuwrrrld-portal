@@ -32,7 +32,12 @@ jobs:
   # downloaded fresh by each shard.
   # ===========================================================================
   auth:
-    timeout-minutes: 5
+    # 15, not 5. A cold Playwright browser cache alone costs ~3min of this
+    # budget, and the Clerk sign-in flow adds a multi-step form plus a
+    # new-device email-code challenge. At 5 the job was killed mid-sign-in
+    # and reported as "cancelled", which reads like someone cancelled the
+    # run rather than a timeout — a genuinely misleading failure mode.
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -199,20 +204,39 @@ jobs:
       - run: npm ci
 
       - uses: actions/download-artifact@v4
+        # The e2e job is skipped whenever auth fails, so there may be no blob
+        # artifacts at all. Don't let the download step hard-fail on that.
+        continue-on-error: true
         with:
           path: all-blob-reports
           pattern: blob-report-*
           merge-multiple: true
 
+      # merge-reports errors with "Directory does not exist" when e2e was
+      # skipped and produced nothing. That is a legitimate state (upstream
+      # failure), not a reporting bug — detect it and let the PR comment say
+      # so, instead of failing the report job and burying the real cause.
+      - name: Check for blob reports
+        id: blobs
+        run: |
+          if [ -d all-blob-reports ] && [ -n "$(ls -A all-blob-reports 2>/dev/null)" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No blob reports — the e2e job did not run (check the auth job)."
+          fi
+
       # html for humans, json for the reporter below to parse exact counts.
       # PLAYWRIGHT_JSON_OUTPUT_NAME is how the json reporter is told to write
       # a file instead of dumping to stdout.
       - name: Merge shard reports
+        if: steps.blobs.outputs.found == 'true'
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: consolidated-summary.json
         run: npx playwright merge-reports --reporter=html,json ./all-blob-reports
 
       - uses: actions/upload-artifact@v4
+        if: steps.blobs.outputs.found == 'true'
         with:
           name: playwright-report-merged
           path: |
@@ -250,11 +274,20 @@ jobs:
                         : failed  ? '❌ **FAILED** — unhandled client state exposed'
                                   : '✅ **PASSED**';
 
+            // With no stats, a "0 passed · 0 failed" line reads like the suite
+            // ran and found nothing, which is the opposite of what happened.
+            // Say what actually went wrong and where to look.
+            const countsLine = stats
+              ? `**${passed} passed** · **${failed} failed** · ${flaky} flaky · ${skipped} skipped`
+              : 'The `e2e` job never ran, so there are no results to report. ' +
+                'This almost always means the upstream `auth` job failed — ' +
+                'check it first, not the tests.';
+
             const body = [
               MARKER,
               `### E2E Resiliency Results: ${badge}`,
               '',
-              `**${passed} passed** · **${failed} failed** · ${flaky} flaky · ${skipped} skipped`,
+              countsLine,
               '',
               `Sharded across 4 runners. [Full run](${url})`,
               '',
