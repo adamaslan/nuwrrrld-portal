@@ -117,6 +117,52 @@ failures #3 for why).
   see [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] for the two
   options; unresolved as of this page's writing.
 
+## Local runner (`scripts/hydrate-local.mjs`)
+
+A JS runner (PR #67) that drives the same hydration against a local dev server,
+so a chunk can be watched landing and the resulting cards inspected before the
+unattended job runs. It posts to the same `/api/pipeline/hydrate-universe`
+route with the same row shape as the Modal job.
+
+Its indicator math is a **port** of `deploy/universe-hydration/modal_app.py`,
+which is the authoritative implementation — the two write into the same table,
+so a numeric divergence would mean two symbols were scored on different scales
+depending on which runner happened to hydrate them. The first draft was not a
+port at all: `macdCross` never called `ema` and returned a five-bar price
+direction, `adx` ignored `high`/`low` so trend strength tracked the nominal
+share price, `volatilityPercentile` ranked aggregate volatility against
+individual daily returns, and `confluence` mixed in `Math.random()`, so
+identical bars scored differently run to run.
+
+Two seeding conventions had to be matched exactly, and getting them wrong
+shifted RSI by ~0.5 and ADX by ~0.9 while still looking plausible:
+
+- pandas' `ewm()` **skips** a leading `NaN`, seeding from the first real value —
+  so RSI's gain/loss series, built from `close.diff()`, must skip index 0.
+- `np.where` and `Series.combine(max)` do **not** propagate `NaN` the same way,
+  so ADX's `+DM`/`-DM` seed at `0.0` and its first `TR` is the plain high-low
+  range.
+
+`__tests__/hydrate-indicators.test.ts` pins all four indicators against values
+captured from the Python functions across eight series, at a 1e-9 tolerance —
+tight enough to still catch exactly these seeding bugs.
+
+The first six of those series were the whole suite as originally merged, and
+they shared a blind spot worth remembering: every one of them happened to
+produce a *no-cross* `null` from `macdCross`, so the `"bullish"`/`"bearish"`
+branches — the only MACD values the pipeline ever acts on — were never compared
+against Python at all. A suite can cover five distinct market regimes and still
+miss the branch that matters, because regime variety is not the same as branch
+variety. The two `macd_*` fixtures added in the post-merge review cross in each
+direction, and a guard test now asserts both remain represented.
+
+A row is only `status: "ok"` once **every** indicator has enough history
+(`MIN_BARS = 40`, the largest lookback any of them needs). The earlier 30-bar
+threshold let partially-computed rows persist with missing RSI/ADX/volatility
+written as `0`/`0`/`50`, indistinguishable from real measurements. 40 is a
+measured boundary, not a guess — at 39 bars `volatilityPercentile` still
+returns `null` — and the test suite pins both sides of it.
+
 ## See also
 
 - [[decision-precompute-ai-at-quota-reset]] — the sibling route this shares

@@ -39,7 +39,7 @@ subtree, or the `nuwrrrld-fullstack` skill's single-sourcing workflow).
 | ~~`lib/shared/signal-policy.ts`~~ | **Done — mobile PR #32 (2026-08-08).** Adopted verbatim (pure ticker validation / cache-freshness / backoff) before mobile grew its own copy. Byte-identical, tracked by the drift gate. Mobile doesn't consume it in a feature yet — see §2's Signal cache/queue row. |
 | ~~`lib/shared/live-price.ts`~~ | **Done — mobile PR #32 (2026-08-08).** Adopted verbatim (pure live-price row/batch parsing). Byte-identical, tracked by the drift gate. Mobile doesn't call `/api/signals/live` yet — see §2's Real-time price tier row. |
 | `lib/shared/holdfold-map.ts` | New (PR #46), portal-only. Pure `/signals`→verdict mapper. **Not a drop-in share** — mobile's `clients/holdfold.ts` targets a different backend (`EXPO_PUBLIC_HOLDFOLD_BACKEND_URL`) with a different verdict schema entirely (`symbol`/`risk_level`/`volatility_regime`/`atr` vs. this module's `ticker`/`confidenceLabel`/`bias`/`adx`). De-drifting this one requires a backend-unification decision first, not just a port. |
-| ~~`lib/digest.ts`~~ | **Logic done — mobile PR #30 + portal PR #51 (2026-08-07).** Fixed a real ticker-precedence bug (portal's code contradicted its own comment) and ported `dataQualityScore` to mobile; both copies confirmed byte-identical. Still open: physically moving the file into `lib/shared/` (currently reconciled in place at `lib/digest.ts` in both repos) — a bigger, lower-priority restructuring with broad import fallout, not required for parity. |
+| ~~`lib/digest.ts`~~ | **Re-synced — portal PR #66 + mobile PR #36 (2026-08-18)**, after the per-symbol `updated` staleness fix landed portal-first and drifted for part of one day; see [[concept-mobile-web-parity]]. Originally: **logic done — mobile PR #30 + portal PR #51 (2026-08-07).** Fixed a real ticker-precedence bug (portal's code contradicted its own comment) and ported `dataQualityScore` to mobile; both copies confirmed byte-identical. Still open: physically moving the file into `lib/shared/` (currently reconciled in place at `lib/digest.ts` in both repos) — a bigger, lower-priority restructuring with broad import fallout, not required for parity. |
 | ~~`lib/signalCard.ts`~~ | **Logic done — same PRs.** Portal adopted mobile's `encodeURIComponent(signal.id)`; mobile adopted portal's `_baseAppUrl` unused-param convention. Move to `lib/shared/` still open, same as `digest.ts`. |
 | `lib/nuai.ts` | Reconcile chat contract (token budget, refusal guardrails, prompt-chip grounding). Portal drives `/api/nuai`; ensure the request/response types match mobile's `useNuAI`. |
 
@@ -54,6 +54,18 @@ gate).
 > `lib/shared/signalFilters.ts` (must differ only by the documented seam).
 > Answers the open contradiction below: "shared" now means "CI-enforced
 > identical," not "manually kept in sync."
+
+> ⚠️ **Known limitation — the gate is circular (found 2026-08-18, portal PR
+> #66/#67 + mobile PR #36).** Each repo's `shared-drift-check` checks out the
+> *sibling's default branch*, so a change to a gated file can only ever be
+> green on one side at a time: the first PR to carry it fails against the
+> other repo's not-yet-updated `main`, and the mirror PR fails symmetrically.
+> Neither can go green first. The working procedure is to open both PRs, merge
+> the one whose repo the change originated in while its drift job is still red
+> (the failure is expected and its content should be *read* to confirm it names
+> only the intended file), then re-run the sibling's job, which now passes.
+> Skipping the read is how an unrelated drift would ride along unnoticed —
+> the gate's failure text is the check, not its exit code.
 
 ## 2. Port — one-surface features
 
