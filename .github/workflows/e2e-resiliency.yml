@@ -32,12 +32,13 @@ jobs:
   # downloaded fresh by each shard.
   # ===========================================================================
   auth:
-    # 15, not 5. A cold Playwright browser cache alone costs ~3min of this
-    # budget, and the Clerk sign-in flow adds a multi-step form plus a
-    # new-device email-code challenge. At 5 the job was killed mid-sign-in
-    # and reported as "cancelled", which reads like someone cancelled the
-    # run rather than a timeout — a genuinely misleading failure mode.
-    timeout-minutes: 15
+    # 25, and see the step-level timeout on "Install browsers" below. Two
+    # separate lessons: at 5 the job died mid-sign-in, and at 15 a pathological
+    # apt-get inside `--with-deps` (>15min, vs 2m48s the run before) consumed
+    # the whole budget before sign-in ran at all. GitHub reports both as
+    # `cancelled`, indistinguishable from a real cancel — so the step cap
+    # matters more than this number does.
+    timeout-minutes: 25
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,12 +61,20 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
 
+      # timeout-minutes on the STEP, not just the job: `--with-deps` shells out
+      # to apt-get, whose duration is wildly variable on hosted runners (2m48s
+      # in one run, >15m in the next). Without a step cap it silently eats the
+      # entire job budget and the job dies in "Install browsers" reported as
+      # `cancelled` — which reads as a spurious cancel rather than "this step
+      # is slow". Fail fast and legibly instead.
       - name: Install browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
         run: npx playwright install --with-deps chromium
 
       - name: Install OS deps (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
         run: npx playwright install-deps chromium
 
       # webServer in playwright.config.ts starts `next dev` for this job too
@@ -144,12 +153,20 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
 
+      # timeout-minutes on the STEP, not just the job: `--with-deps` shells out
+      # to apt-get, whose duration is wildly variable on hosted runners (2m48s
+      # in one run, >15m in the next). Without a step cap it silently eats the
+      # entire job budget and the job dies in "Install browsers" reported as
+      # `cancelled` — which reads as a spurious cancel rather than "this step
+      # is slow". Fail fast and legibly instead.
       - name: Install browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
         run: npx playwright install --with-deps chromium
 
       - name: Install OS deps (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
         run: npx playwright install-deps chromium
 
       - name: Restore Clerk session
