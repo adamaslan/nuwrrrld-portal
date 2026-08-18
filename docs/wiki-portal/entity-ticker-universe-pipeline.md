@@ -144,13 +144,24 @@ shifted RSI by ~0.5 and ADX by ~0.9 while still looking plausible:
   range.
 
 `__tests__/hydrate-indicators.test.ts` pins all four indicators against values
-captured from the Python functions across five market regimes, at a 1e-9
-tolerance — tight enough to still catch exactly these seeding bugs.
+captured from the Python functions across eight series, at a 1e-9 tolerance —
+tight enough to still catch exactly these seeding bugs.
+
+The first six of those series were the whole suite as originally merged, and
+they shared a blind spot worth remembering: every one of them happened to
+produce a *no-cross* `null` from `macdCross`, so the `"bullish"`/`"bearish"`
+branches — the only MACD values the pipeline ever acts on — were never compared
+against Python at all. A suite can cover five distinct market regimes and still
+miss the branch that matters, because regime variety is not the same as branch
+variety. The two `macd_*` fixtures added in the post-merge review cross in each
+direction, and a guard test now asserts both remain represented.
 
 A row is only `status: "ok"` once **every** indicator has enough history
 (`MIN_BARS = 40`, the largest lookback any of them needs). The earlier 30-bar
 threshold let partially-computed rows persist with missing RSI/ADX/volatility
-written as `0`/`0`/`50`, indistinguishable from real measurements.
+written as `0`/`0`/`50`, indistinguishable from real measurements. 40 is a
+measured boundary, not a guess — at 39 bars `volatilityPercentile` still
+returns `null` — and the test suite pins both sides of it.
 
 ## See also
 
