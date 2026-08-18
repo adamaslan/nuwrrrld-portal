@@ -113,29 +113,28 @@ CodeRabbit completed a second, real review pass against `7db2cc1` (the
 CodeRabbit-fix commit) — this one was not rate-limited. Three findings, none
 merge-blocking, none fixed:
 
-17. **`docs/e2e-next-steps.md`'s blocker section overstates GCP WIF as the
-    sole remaining blocker.** It's the blocker for the 4 sharded `e2e` jobs
-    specifically — the independent `preflight-billing` project is still red
-    on the 3 unset Stripe values regardless of WIF. The doc also still
-    describes the old, pre-split `preflight` dependency graph in one spot,
-    contradicting the corrected description a few lines earlier.
-18. **Incident doc's cause count doesn't add up.** `docs/wiki-portal/
-    incident-2026-08-17-e2e-ci-cascade.md` claims two later fixes "bring the
-    total to seven," but the doc already lists 6 causes plus a separately-
-    numbered "sixth cause" (the missing `DATABASE_URL` in CI env) at an
-    earlier point in the doc — by CodeRabbit's count the real total is 8,
-    not 7, unless the boot-env issue was meant to be excluded from the
-    count. Needs the counting scope stated explicitly and the title/summary/
-    resolution-status made consistent.
-19. **`e2e/health/dependencies.spec.ts`'s EXPOSE test still has no real
-    target to assert against.** The fix in `7db2cc1` corrected the selector
-    to `main [role="alert"], [data-testid="health-banner"]`, but neither
-    `DashboardCockpit` nor `app/dashboard/page.tsx` renders either one —
-    confirmed by CodeRabbit's own grep, and consistent with item 15's
-    already-known gap (no health-down banner exists in the UI at all). The
-    suggested fix is to build the real banner with a `data-testid` and drop
-    the generic `role="alert"` fallback once it exists, rather than
-    asserting against a selector nothing produces yet.
+17. ~~**`docs/e2e-next-steps.md`'s blocker section overstates GCP WIF as the
+    sole remaining blocker.**~~ — **fixed.** Header #2 re-scoped to "top
+    blocker for the `e2e` shards" and the text now states `preflight-billing`
+    stays red on Stripe regardless of WIF; the stale pre-split `preflight`
+    dependency-graph paragraph was rewritten to reflect the actual split
+    (Stripe gates `preflight-billing` only).
+18. ~~**Incident doc's cause count doesn't add up.**~~ — **fixed.**
+    `incident-2026-08-17-e2e-ci-cascade.md` now states the counting scope
+    explicitly (title's "five" = the masking chain only) and totals **8**
+    (5 masking chain + 1 boot-env + 2 late); the resolution-status items were
+    renumbered 7 and 8 so they no longer collide with the boot-env "sixth
+    issue."
+19. ~~**`e2e/health/dependencies.spec.ts`'s EXPOSE test still has no real
+    target to assert against.**~~ — **fixed.** Built the real banner:
+    `app/dashboard/HealthBanner.tsx` is a client component that fetches
+    `/api/health` on mount and renders `data-testid="health-banner"` (wired
+    into `app/dashboard/page.tsx`) when any dependency is `down`/`degraded`.
+    The EXPOSE test dropped `test.fail()` and the generic `role="alert"`
+    fallback, now asserting `getByTestId("health-banner")` — a real
+    end-to-end check of the outage path. (Closes the "no health-down banner
+    in the UI" gap item 19 referenced — not item 15, which is the separate
+    portfolio-entitlement design gap and remains open.)
 
 ## CI check state at merge time (2026-08-18)
 

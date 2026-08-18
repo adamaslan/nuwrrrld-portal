@@ -337,6 +337,9 @@
 .cockpit-brief-regen:hover { border-color: var(--cyan); color: var(--cyan); }
 .cockpit-brief-error { background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.2); border-radius: 10px; padding: .85rem 1.1rem; font-size: .88rem; color: #fca5a5; }
 
+.health-banner { background: rgba(220,38,38,.1); border: 1px solid rgba(220,38,38,.3); border-radius: 10px; padding: .8rem 1.15rem; margin-bottom: 1rem; font-size: .88rem; color: #fca5a5; line-height: 1.5; }
+.health-banner strong { color: #fecaca; }
+
 @media (max-width: 880px) {
   .nwf-dash .tool-grid {
     grid-template-columns: 1fr;

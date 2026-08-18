@@ -5,6 +5,7 @@ import { UserButton } from "@clerk/nextjs";
 import { parseSubscriptionMetadata } from "@/lib/subscription";
 import { isNulogdashAdmin } from "@/lib/nulogdash";
 import { DashboardCockpit } from "./DashboardCockpit";
+import { HealthBanner } from "./HealthBanner";
 import type { IndexChip, MoverChip } from "./DashboardCockpit";
 import "./dashboard.css";
 
@@ -125,6 +126,7 @@ export default async function Dashboard({
       </nav>
 
       <main>
+        <HealthBanner />
         {checkoutSuccess && (
           <div className="checkout-notice success">
             ✓ Subscription started! Your 7-day trial begins now.{" "}
