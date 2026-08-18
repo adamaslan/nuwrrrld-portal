@@ -19,7 +19,9 @@ The first artifact kind is `portfolio_health_ai`. `/api/portfolio/health-ai` che
 
 ## Context
 
-OpenRouter's free tier caps the **whole API key** at 50 requests/day, resetting at UTC midnight ([[entity-openrouter-client]] known-failure #3). Batch AI work and interactive Nu AI chat draw on that single bucket, and batch reliably wins — it runs on page load, before any user asks a question. The observable result is a user asking something in the afternoon and finding the day's allowance already spent on a narrative nobody was waiting for.
+OpenRouter's free tier caps the **whole API key** at some number of requests/day, resetting at UTC midnight ([[entity-openrouter-client]] known-failure #3). Batch AI work and interactive Nu AI chat draw on that single bucket, and batch reliably wins — it runs on page load, before any user asks a question. The observable result is a user asking something in the afternoon and finding the day's allowance already spent on a narrative nobody was waiting for.
+
+> ⚠️ **Corrected 2026-08-18**: this page previously stated the cap as "50 requests/day" as fact. Curling this account's own `{openrouter-api-key}` against `https://openrouter.ai/api/v1/auth/key` returns `"limit": null`, `"is_free_tier": true` — the endpoint does not expose a concrete daily number for this key. OpenRouter's published tiering (commonly cited as 50/day at zero credit, 1000/day once ~10 credits have been purchased) may still apply, but which tier this account sits in is not independently confirmable from the repo or this endpoint. See `../max-coverage-simplest-path.md` "Correction" section for the full account of the error and why the design is written to make the exact number mostly irrelevant.
 
 The reframing that produced this decision: **free-tier quota is a renewable resource with a schedule.** It is not a fixed budget to ration but a recurring allowance with a known reset time — and a scheduler is the right tool for spending a scheduled resource. Nothing about the batch work requires it to happen during a request; it was only there because that is where the code already lived.
 
@@ -44,6 +46,7 @@ The reframing that produced this decision: **free-tier quota is a renewable reso
 - `__tests__/precomputed-ai.test.ts` — pins `subjectFromTickers` order-independence, case/whitespace normalization, de-duplication, and `split()` round-trip. This is the cache key, so instability in it silently re-spends the quota the feature exists to conserve — and a miss looks like a cold cache, not a bug.
 - `next build` — `/api/pipeline/precompute-ai` registers; full unit suite green (262 passing).
 - ❓ **Not yet validated end-to-end against a real schedule.** The endpoint and both schedulers exist; no nightly run has executed. The `quotaExhausted` warning path in particular is untested against a live 429.
+- ⚠️ **2026-08-18 (PR #66):** `app/api/pipeline/*` — including this route — was discovered to be **untracked in git**, so `financial.nuwrrrld.com/api/pipeline/precompute-ai` 404s in production until PR #66 merges/deploys. See [[entity-ticker-universe-pipeline]] for the sibling hydration route and what's blocked pre-merge.
 
 ## See also
 
@@ -52,4 +55,7 @@ The reframing that produced this decision: **free-tier quota is a renewable reso
 - [[concept-free-tier-resilience]] — the broader pattern
 - [[concept-graceful-degradation]] — why `ageMinutes` is surfaced instead of hidden
 - [[concept-cache-then-degrade]] — the read-through pattern this extends from data to model output
+- [[entity-ticker-universe-pipeline]] — the sibling hydration route that shares this quota-reset scheduling logic and `PORTAL_PUSH_SECRET` gate
 - `../gha-modal-core-feature-coverage.md` — Option D, and the five other scheduler options
+- `../max-coverage-simplest-path.md` — the "no 50/day limit" correction and the coverage-first design
+- `../pipeline-todo-blockers.md` — live status of what's actually running vs. still blocked

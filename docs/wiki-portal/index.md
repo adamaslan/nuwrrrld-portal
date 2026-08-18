@@ -35,6 +35,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
 - [[entity-live-price-tier]] — `/api/signals/live` + `live_prices`; Finnhub WS lane + the Modal drain cron
+- [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
 
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
