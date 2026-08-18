@@ -1,0 +1,386 @@
+name: E2E Resiliency
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Kills stale runs when a new commit lands on the same PR. Without this, a
+# branch pushed three times in five minutes occupies 12 runners racing to
+# report on code nobody is looking at anymore.
+concurrency:
+  group: e2e-resiliency-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: only the jobs that actually need id-token/pull-requests
+# grant them (e2e and report respectively, below). A workflow-level grant
+# applies to every job, including `auth`, which holds the Clerk test
+# password — no reason for that job to carry GCP or PR-write scope it
+# never uses. Flagged by zizmor (excessive-permissions).
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================================================
+  # JOB 0: Authenticate to Clerk ONCE, share the session with every shard.
+  #
+  # The handshake: Clerk's testing token (minted server-side via
+  # CLERK_SECRET_KEY, see @clerk/testing) lets a headless browser skip Clerk's
+  # bot-protection challenge, and E2E_CLERK_TEST_EMAIL/PASSWORD sign in a
+  # dedicated test user. Doing this once — not once per shard — means only
+  # one job ever holds the password, and it never touches an artifact: the
+  # *output* (storageState, which is a session cookie + localStorage dump,
+  # not the password) is what gets shared, uploaded with 1-day retention and
+  # downloaded fresh by each shard.
+  # ===========================================================================
+  auth:
+    # Fork PRs get no repo secrets and a read-only GITHUB_TOKEN, so this job
+    # can only fail there (missing Clerk credentials) and the report job's
+    # PR-comment step would fail too. Skip cleanly instead of reporting a
+    # false auth failure. Always runs on push and on same-repo PRs.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # 25, and see the step-level timeout on "Install browsers" below. Two
+    # separate lessons: at 5 the job died mid-sign-in, and at 15 a pathological
+    # apt-get inside `--with-deps` (>15min, vs 2m48s the run before) consumed
+    # the whole budget before sign-in ran at all. GitHub reports both as
+    # `cancelled`, indistinguishable from a real cancel — so the step cap
+    # matters more than this number does.
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Resolve Playwright version
+        run: echo "PW_VERSION=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
+
+      # timeout-minutes on the STEP, not just the job: `--with-deps` shells out
+      # to apt-get, whose duration is wildly variable on hosted runners (2m48s
+      # in one run, >15m in the next). Without a step cap it silently eats the
+      # entire job budget and the job dies in "Install browsers" reported as
+      # `cancelled` — which reads as a spurious cancel rather than "this step
+      # is slow". Fail fast and legibly instead.
+      - name: Install browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: Install OS deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
+        run: npx playwright install-deps chromium
+
+      # webServer in playwright.config.ts starts `next dev` for this job too
+      # — the auth-setup test needs a live /sign-in page, same as any other.
+      - name: Sign in and capture session
+        env:
+          # Clerk vars are what this job is *about*, but they are not
+          # sufficient: playwright.config.ts's webServer boots the real
+          # `next dev`, and lib/db.ts calls neon(process.env.DATABASE_URL!)
+          # at module scope. That module is reachable from app/page.tsx via
+          # lib/track-record.ts, so without DATABASE_URL the server throws on
+          # every request, never becomes ready, and Playwright fails with a
+          # webServer timeout — an error that says nothing about the missing
+          # variable. Anything `next dev` needs to boot belongs here, even if
+          # the auth flow itself never touches it.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Not secrets — plain paths, so they live here rather than in repo
+          # secrets. Without them Clerk falls back to redirecting to "/" after
+          # sign-in instead of /dashboard, and the test that waits for
+          # /dashboard times out even though sign-in fully succeeded.
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /dashboard
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /dashboard
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          E2E_CLERK_TEST_EMAIL: ${{ secrets.E2E_CLERK_TEST_EMAIL }}
+          E2E_CLERK_TEST_PASSWORD: ${{ secrets.E2E_CLERK_TEST_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MCP_BACKEND_URL: ${{ secrets.MCP_BACKEND_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          IP_HASH_SECRET: ${{ secrets.IP_HASH_SECRET }}
+          NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
+        run: |
+          rm -f playwright/.auth/user.json
+          npx playwright test --project=auth-setup
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clerk-storage-state
+          path: playwright/.auth/user.json
+          # Short-lived on purpose: this is a live session token, not a report.
+          # Nothing downstream needs it past this workflow run.
+          retention-days: 1
+
+  # ===========================================================================
+  # JOB 1: Parallel Matrix Sharded Test Execution (Blob Reporting)
+  # ===========================================================================
+  e2e:
+    needs: auth
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # only job that authenticates to GCP via WIF
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Resolve Playwright version
+        run: echo "PW_VERSION=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
+
+      # timeout-minutes on the STEP, not just the job: `--with-deps` shells out
+      # to apt-get, whose duration is wildly variable on hosted runners (2m48s
+      # in one run, >15m in the next). Without a step cap it silently eats the
+      # entire job budget and the job dies in "Install browsers" reported as
+      # `cancelled` — which reads as a spurious cancel rather than "this step
+      # is slow". Fail fast and legibly instead.
+      - name: Install browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium
+
+      - name: Install OS deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 5
+        run: npx playwright install-deps chromium
+
+      - name: Restore Clerk session
+        uses: actions/download-artifact@v4
+        with:
+          name: clerk-storage-state
+          path: playwright/.auth/
+
+      - name: Authenticate to GCP (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # Every project runs here (preflight/health/frontend). `frontend`
+      # consumes the storageState restored above instead of re-authenticating
+      # — auth-setup itself is excluded via --grep-invert so a shard never
+      # tries to sign in again and race the file `auth` already wrote.
+      - name: Run Playwright tests
+        id: pw
+        continue-on-error: true
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Not secrets — plain paths, so they live here rather than in repo
+          # secrets. Without them Clerk falls back to redirecting to "/" after
+          # sign-in instead of /dashboard, and the test that waits for
+          # /dashboard times out even though sign-in fully succeeded.
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+          NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /dashboard
+          NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /dashboard
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MCP_BACKEND_URL: ${{ secrets.MCP_BACKEND_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_MONTHLY: ${{ secrets.STRIPE_PRICE_MONTHLY }}
+          STRIPE_PRICE_ANNUAL: ${{ secrets.STRIPE_PRICE_ANNUAL }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          IP_HASH_SECRET: ${{ secrets.IP_HASH_SECRET }}
+        # `preflight-billing` is deliberately NOT in this list. Its Stripe
+        # values are known-unset (docs/stripe-todo.md), so including it would
+        # fail every CI run for a reason unrelated to the code under test.
+        # Add it here once those secrets are real.
+        run: npx playwright test --project=preflight --project=health --project=frontend --shard=${{ matrix.shard }}/4
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          # 1 day, not 7 — these are intermediate inputs to the merge job and
+          # are worthless once it has run. Only the merged report needs a week.
+          retention-days: 1
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: traces-shard-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 7
+
+      - name: Fail the job if tests failed
+        if: steps.pw.outcome == 'failure'
+        run: exit 1
+
+  # ===========================================================================
+  # JOB 2: Report Consolidation & Idempotent PR Reporter
+  # ===========================================================================
+  report:
+    needs: e2e
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        # The e2e job is skipped whenever auth fails, so there may be no blob
+        # artifacts at all. Don't let the download step hard-fail on that.
+        continue-on-error: true
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      # merge-reports errors with "Directory does not exist" when e2e was
+      # skipped and produced nothing. That is a legitimate state (upstream
+      # failure), not a reporting bug — detect it and let the PR comment say
+      # so, instead of failing the report job and burying the real cause.
+      - name: Check for blob reports
+        id: blobs
+        run: |
+          if [ -d all-blob-reports ] && [ -n "$(ls -A all-blob-reports 2>/dev/null)" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No blob reports — the e2e job did not run (check the auth job)."
+          fi
+
+      # html for humans, json for the reporter below to parse exact counts.
+      # PLAYWRIGHT_JSON_OUTPUT_NAME is how the json reporter is told to write
+      # a file instead of dumping to stdout.
+      - name: Merge shard reports
+        if: steps.blobs.outputs.found == 'true'
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: consolidated-summary.json
+        run: npx playwright merge-reports --reporter=html,json ./all-blob-reports
+
+      - uses: actions/upload-artifact@v4
+        if: steps.blobs.outputs.found == 'true'
+        with:
+          name: playwright-report-merged
+          path: |
+            playwright-report/
+            consolidated-summary.json
+          retention-days: 7
+
+      - name: Post diagnostic summary to the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+                        `/actions/runs/${context.runId}`;
+
+            // An invisible HTML comment is the durable identity for this
+            // comment — matching on a visible heading breaks the moment
+            // someone edits the wording, and then it spams a new comment
+            // on every push.
+            const MARKER = '<!-- e2e-resiliency-bot -->';
+
+            let stats = null;
+            try {
+              const raw = JSON.parse(fs.readFileSync('consolidated-summary.json', 'utf8'));
+              stats = raw.stats ?? null;
+            } catch { /* summary absent — the job died before merge */ }
+
+            const passed  = stats?.expected   ?? 0;
+            const failed  = stats?.unexpected ?? 0;
+            const flaky   = stats?.flaky      ?? 0;
+            const skipped = stats?.skipped    ?? 0;
+
+            const badge = !stats  ? '⚠️ **NO RESULTS** — suite did not report'
+                        : failed  ? '❌ **FAILED** — unhandled client state exposed'
+                                  : '✅ **PASSED**';
+
+            // With no stats, a "0 passed · 0 failed" line reads like the suite
+            // ran and found nothing, which is the opposite of what happened.
+            // Say what actually went wrong and where to look.
+            const countsLine = stats
+              ? `**${passed} passed** · **${failed} failed** · ${flaky} flaky · ${skipped} skipped`
+              : 'The `e2e` job never ran, so there are no results to report. ' +
+                'This almost always means the upstream `auth` job failed — ' +
+                'check it first, not the tests.';
+
+            const body = [
+              MARKER,
+              `### E2E Resiliency Results: ${badge}`,
+              '',
+              countsLine,
+              '',
+              `Sharded across 4 runners. [Full run](${url})`,
+              '',
+              '<details><summary>Diagnostics</summary>',
+              '',
+              '- `playwright-report-merged` — merged HTML report + JSON summary (7 days)',
+              '- `traces-shard-N` — Trace Viewer `.zip` files, failures only',
+              '- `clerk-storage-state` — the Clerk session shared across shards (1 day)',
+              '- Open a trace with: `npx playwright show-trace <file>.zip`',
+              '',
+              'A **blocked** result means a dependency was down or unconfigured,',
+              'not that the feature regressed — check `/api/health` first.',
+              '',
+              `Flaky (${flaky}) means it passed on retry. Real, and it will bite in prod.`,
+              '</details>',
+            ].join('\n');
+
+            // Update in place rather than appending a comment per push.
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body?.includes(MARKER));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number, body,
+              });
+            }

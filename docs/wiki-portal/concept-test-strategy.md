@@ -7,6 +7,17 @@ sources: [../../vitest.config.ts, ../../package.json, ../../test/live-setup.ts, 
 
 # Concept — Test Strategy (Three Layers, One Default)
 
+> ⚠️ **2026-08-17 update:** a fourth layer now exists — [[entity-playwright-e2e]],
+> a credential-gated Playwright suite under `e2e/` with its own CI workflow
+> (`.github/workflows/e2e-resiliency.yml`). It is documented separately rather
+> than folded into this page because it answers a different question (does the
+> *browser-rendered* UI degrade correctly under fault injection?) with a
+> different mechanism (real browser, route interception, Clerk session auth)
+> than the three vitest projects below. The "one workflow calling `npm test`
+> is the single highest-value change" line under "What would actually raise
+> confidence" still holds for the vitest layers — `e2e-resiliency.yml` running
+> does not substitute for that.
+
 How the portal decides what to test, where, and what runs by default. The
 guiding rule: **a test that can fail for reasons unrelated to the code must not
 be able to block the default suite.**
@@ -95,8 +106,11 @@ Ordered by value per unit of effort, grounded in the gaps below:
 > `components/a11y.test.tsx`. Tests that aren't committed can't gate anything
 > and are invisible to every other clone. This is the same
 > written-but-never-committed failure that repeatedly lost wiki content, and
-> it is why `wiki-guard` now checks for it (`~/.claude/scripts/wiki-guard.mjs`)
-> — no equivalent guard exists for tests yet.
+> it is why `wiki-guard` now checks for it (`~/.claude/scripts/wiki-guard.mjs`).
+> No equivalent guard exists for vitest files yet — but note the new `e2e/`
+> Playwright suite ([[entity-playwright-e2e]]) is a fresh instance of exactly
+> this risk until it's committed; check `git status e2e/ playwright.config.ts`
+> before assuming it travels with a clone.
 
 > ⚠️ Contradiction: `package.json` declares `"lint": "eslint"`, but running it
 > throws `TypeError: Converting circular structure to JSON` from
@@ -114,6 +128,7 @@ Ordered by value per unit of effort, grounded in the gaps below:
 
 ## See also
 
+- [[entity-playwright-e2e]] — the fourth, browser-driven layer above these three
 - [[concept-free-tier-resilience]] — why the `live` project must stay opt-in
 - [[entity-openrouter-client]] — what the live model-chain tests actually probe
 - [[entity-signal-data-plane]] · [[entity-billing]] — the logic the unit layer pins

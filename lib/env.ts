@@ -13,7 +13,6 @@ const envSchema = z.object({
 
   // AI providers
   OPENROUTER_API_KEY: z.string().min(1),
-  ANTHROPIC_API_KEY: z.string().min(1),
 
   // Database
   DATABASE_URL: z.string().url(),

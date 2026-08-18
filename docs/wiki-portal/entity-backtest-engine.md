@@ -62,3 +62,7 @@ Two properties define it:
 - [[concept-graceful-degradation]] — "one hard dependency"; backtest is a zero
 - [[decision-compile-time-grounding]] — precompute-vs-request-time, the same
   tension a cached backtest raises
+- [[entity-playwright-e2e]] — `e2e/frontend/portfolio-health.spec.ts`
+  diagnostically separates "SIGNALS_ENGINE_URL unset" from "engine
+  unreachable" from "response shape drifted past `isBacktestResult()`," which
+  today's single collapsed `null`/204 cannot distinguish on its own

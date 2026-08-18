@@ -89,5 +89,9 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
 - [[entity-backtest-engine]] — the track record a saved ticker could accrue
 - [[concept-graceful-degradation]] — the health-ai fallback obligation (unmet; see failure 2)
 - [[incident-2026-07-26-portfolio-health-endpoint-missing]] — the missing gcp3 route behind failures 2–4
+- [[entity-playwright-e2e]] — `e2e/frontend/portfolio-health.spec.ts` reproduces
+  failures 2–4 deterministically via route mocking (contract-drift payload,
+  ungrounded-narrative signal, generic-502 collapse), each test naming which
+  layer broke instead of the ambiguous shared error string
 - `docs/portfolio-health-ai-workflow.html` — full-stack trace + 11-defect catalogue
 - `gcp3-mobile/docs/wiki-mobile/entity-portfolio.md` — the mobile half, broken by the same route

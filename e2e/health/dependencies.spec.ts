@@ -1,0 +1,74 @@
+import { test, expect } from "@playwright/test";
+
+// Mirrors the DepStatus union in app/api/health/route.ts.
+type DepStatus = "ok" | "degraded" | "down" | "not_configured";
+
+test.describe("Backend dependency health", () => {
+  test("every dependency is reachable and configured", async ({ request }) => {
+    const res = await request.get("/api/health");
+    const body = await res.json();
+
+    // Print the whole verdict on failure — it contains statuses and latencies,
+    // never key material (see app/api/health/route.ts).
+    const summary = JSON.stringify(body, null, 2);
+
+    expect(res.status(), `health returned 503:\n${summary}`).toBe(200);
+
+    for (const dep of ["mcp", "neon", "stripe", "openrouter", "clerk"] as const) {
+      const status: DepStatus = body[dep].status;
+      expect(status, `${dep} is ${status}:\n${summary}`).toBe("ok");
+    }
+  });
+
+  test("EXPOSE: latency budget — a dependency slow enough to time out user requests", async ({ request }) => {
+    const body = await (await request.get("/api/health")).json();
+    const BUDGET_MS = 2_000;
+    for (const dep of ["mcp", "neon", "stripe", "openrouter"] as const) {
+      const latency = body[dep].latencyMs;
+      if (latency === null) continue; // not measured / not configured
+      expect(latency, `${dep} took ${latency}ms (budget ${BUDGET_MS}ms)`).toBeLessThan(BUDGET_MS);
+    }
+  });
+
+  test("EXPOSE: frontend renders a usable page when /api/health reports down", async ({ page }) => {
+    // Two independent bugs found while re-verifying this test against CodeRabbit's
+    // "known-failing test wired into required CI" finding:
+    //
+    // 1. This project has no `storageState` (see playwright.config.ts), so
+    //    page.goto("/dashboard") hits Clerk's sign-in redirect, never the
+    //    actual DashboardCockpit — the mocked /api/health response was never
+    //    reaching the component this test claims to check.
+    // 2. getByRole("alert") was matching Next.js's own built-in
+    //    `#__next-route-announcer__` — a visually-hidden, always-empty
+    //    role="alert" element every Next.js page ships for screen-reader
+    //    route announcements. It matches on ANY navigation and says nothing
+    //    about health state, so this assertion could never have been a real
+    //    check. Confirmed by probing the live DOM: the "alert" it caught had
+    //    empty text and `aria-live="assertive"` route-announcer markup.
+    //
+    // Fixed: sign in first (this project now depends on auth-setup — see
+    // playwright.config.ts), and assert on a dashboard-scoped selector that
+    // excludes the always-present announcer.
+    await page.route("**/api/health", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "down",
+          neon: { status: "down", latencyMs: null },
+          mcp: { status: "ok", latencyMs: 40 },
+          stripe: { status: "ok", latencyMs: 120 },
+          openrouter: { status: "ok", latencyMs: 90 },
+          clerk: { status: "ok", latencyMs: null },
+        }),
+      }),
+    );
+    await page.goto("/dashboard");
+    // Still expected to fail: DashboardCockpit does not render any
+    // health-down banner today, real or otherwise. This documents that gap
+    // — see docs/e2e.md §4 — with an assertion that can actually catch it
+    // once implemented, unlike the route-announcer false match above.
+    test.fail();
+    await expect(page.locator('main [role="alert"], [data-testid="health-banner"]')).toBeVisible();
+  });
+});
