@@ -7,7 +7,14 @@ first for the *why* behind any item here.
 
 ---
 
-## Blockers (nothing downstream works until these are resolved)
+> ⚠️ **The Blockers section below is superseded as of 2026-08-17.** Blockers
+> #1–#5 are now mostly closed — the suite is committed, Clerk sign-in works
+> end to end, and 12 GHA secrets are synced. See **`docs/e2e-next-steps.md`**
+> for what's actually still open. The **Optimization** and **Future robust
+> test ideas** sections further down are still current and not duplicated
+> there.
+
+## Blockers (superseded — see `docs/e2e-next-steps.md`)
 
 ### 1. Nothing here is committed
 
