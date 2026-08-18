@@ -89,17 +89,19 @@ export default async function NulogdashPage() {
     );
   }
 
-  const counts = summarizeCounts(run.results);
-  const notExercised = counts.blocked + counts.not_run;
-  const total = run.results.length;
-
-  const { notExercised: notExercisedResults, exercised: exercisedResults } = splitResults(run.results);
-
   // Playwright (scripts/nulogdash-merge-e2e.mjs) merges tier: "browser" rows
   // into the same results array nulogdash.mjs's tier: "api" rows land in —
-  // see docs/wiki-portal/entity-playwright-e2e.md. Broken out here only for
-  // a quick per-tier read; FeatureRow/StatusBadge already render either tier
-  // with no special-casing (run.results.filter never needed elsewhere).
+  // see docs/wiki-portal/entity-playwright-e2e.md. Split BEFORE aggregating:
+  // browser rows are individual test outcomes, not feature-inventory rows,
+  // so including them in the headline's `total`/`notExercised` inflated
+  // "features not run end-to-end" with every skipped Playwright spec.
+  const featureResults = run.results.filter((r) => r.tier !== "browser");
+  const counts = summarizeCounts(featureResults);
+  const notExercised = counts.blocked + counts.not_run;
+  const total = featureResults.length;
+
+  const { notExercised: notExercisedResults, exercised: exercisedResults } = splitResults(featureResults);
+
   const browserResults = run.results.filter((r) => r.tier === "browser");
   const browserCounts = summarizeCounts(browserResults);
 

@@ -13,10 +13,13 @@ concurrency:
   group: e2e-resiliency-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: only the jobs that actually need id-token/pull-requests
+# grant them (e2e and report respectively, below). A workflow-level grant
+# applies to every job, including `auth`, which holds the Clerk test
+# password — no reason for that job to carry GCP or PR-write scope it
+# never uses. Flagged by zizmor (excessive-permissions).
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
 
 jobs:
   # ===========================================================================
@@ -32,6 +35,11 @@ jobs:
   # downloaded fresh by each shard.
   # ===========================================================================
   auth:
+    # Fork PRs get no repo secrets and a read-only GITHUB_TOKEN, so this job
+    # can only fail there (missing Clerk credentials) and the report job's
+    # PR-comment step would fail too. Skip cleanly instead of reporting a
+    # false auth failure. Always runs on push and on same-repo PRs.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # 25, and see the step-level timeout on "Install browsers" below. Two
     # separate lessons: at 5 the job died mid-sign-in, and at 15 a pathological
     # apt-get inside `--with-deps` (>15min, vs 2m48s the run before) consumed
@@ -128,6 +136,9 @@ jobs:
     needs: auth
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # only job that authenticates to GCP via WIF
     strategy:
       fail-fast: false
       matrix:

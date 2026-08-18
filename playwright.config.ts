@@ -76,14 +76,30 @@ export default defineConfig({
     // three unset values are supplied; deliberately gates nothing else.
     { name: "preflight-billing", testMatch: /preflight\/billing\.spec\.ts/ },
 
-    { name: "health", testDir: "./e2e/health", dependencies: ["preflight"] },
-
     // CLI/subprocess integration checks (scripts/*.mjs + their GHA
     // workflows) — no browser, no webServer dependency. Independent of the
     // auth/frontend chain below.
     { name: "ci", testDir: "./e2e/ci" },
 
-    { name: "auth-setup", testMatch: /auth\.setup\.ts/, dependencies: ["preflight"] },
+    {
+      name: "auth-setup",
+      testMatch: /auth\.setup\.ts/,
+      dependencies: ["preflight"],
+      // Overrides the global retain-on-failure capture. .fill(PASSWORD) in
+      // auth.setup.ts means a failed sign-in attempt records the real
+      // E2E_CLERK_TEST_PASSWORD verbatim into the trace, which the workflow
+      // then uploads as a 7-day CI artifact. No trace/video/screenshot is
+      // worth that trade for a single setup step — retry with --headed
+      // locally instead if this project ever needs debugging.
+      use: { trace: "off", video: "off", screenshot: "off" },
+    },
+
+    // Depends on auth-setup (not just preflight): its /dashboard test needs a
+    // signed-in session, or page.goto("/dashboard") hits Clerk's sign-in
+    // redirect instead of DashboardCockpit — a real bug found while
+    // re-verifying the EXPOSE test's own assertion, see e2e/health/dependencies.spec.ts.
+    { name: "health", testDir: "./e2e/health", dependencies: ["auth-setup"], use: { storageState: STORAGE_STATE_PATH } },
+
     {
       name: "frontend",
       testDir: "./e2e/frontend",

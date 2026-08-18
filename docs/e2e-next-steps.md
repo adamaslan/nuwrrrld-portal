@@ -94,7 +94,7 @@ in `.env.local`. **Where to get each is documented in `docs/stripe-todo.md`.**
 
 | Variable | State | Blocks |
 |---|---|---|
-| `STRIPE_WEBHOOK_SECRET` | placeholder | `preflight`'s placeholder-detection test; webhook handling generally |
+| `STRIPE_WEBHOOK_SECRET` | placeholder | `preflight-billing` only (not `preflight`, `health`, `auth-setup`, or `frontend` — see the gate split above); webhook handling generally |
 | `STRIPE_PRICE_ANNUAL` | placeholder | Same, plus `/api/health`'s Stripe check reports `not_configured` |
 | `PORTAL_PUSH_SECRET` | empty | Nothing in the current suite — only needed if `refresh-signals.py` or another internal caller is actually deployed |
 

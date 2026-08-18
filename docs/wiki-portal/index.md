@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-17 (portal PR #63 — primary-email helper + self-implemented TOTP plan for the nulogdash admin gate)_
+_Last updated: 2026-08-17 (portal PR #64 — Playwright e2e suite, CI cascade incident, preflight/preflight-billing gate split)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 

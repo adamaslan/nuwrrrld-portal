@@ -29,10 +29,12 @@ list — mirroring the same "cheap layer gates the expensive one" instinct
 | `frontend` | route-level fault injection (mocked 429s, stalled SSE, contract-drift payloads) against real components, already authenticated | `auth-setup` |
 | `ci` | `scripts/*.mjs` + their GHA workflows, via subprocess — no browser | — |
 
-`dependencies: [...]` means "run all tests" stops at the first broken layer —
-a revoked `OPENROUTER_API_KEY` fails one `preflight` test instead of producing
-forty confusing red `frontend` failures. Same "blocked is not fail"
-distinction `scripts/nulogdash.mjs` already applies to feature results.
+`dependencies: [...]` means a failed `preflight` blocks the projects that
+actually depend on it — `health`, `auth-setup`, and transitively `frontend`
+— not the whole suite: `preflight-billing` and `ci` are independent and run
+regardless. A revoked `OPENROUTER_API_KEY` fails one `preflight` test instead
+of producing forty confusing red `frontend` failures. Same "blocked is not
+fail" distinction `scripts/nulogdash.mjs` already applies to feature results.
 
 > **The gate is split by concern, and that split was learned the hard way
 > (2026-08-17).** Originally one `preflight` project asserted *every*

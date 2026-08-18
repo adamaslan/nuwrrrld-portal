@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile, writeFile, copyFile, unlink } from "node:fs/promises";
+import { readFile, writeFile, copyFile, unlink, mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const execFileAsync = promisify(execFile);
@@ -86,6 +86,11 @@ test.describe("refresh-free-models.mjs — CLI contract", () => {
     // exists to guard against. Never let a bad key silently strand the app
     // on zero models.
     const scratchTarget = path.resolve(process.cwd(), ".nulogdash", "openrouter.scratch.ts");
+    // .nulogdash is gitignored and only created by scripts/nulogdash.mjs — a
+    // fresh checkout (or CI's clean checkout) lacks it, and both copyFile and
+    // the writeFile fallback below throw ENOENT before MIN_WORKING is ever
+    // exercised.
+    await mkdir(path.dirname(scratchTarget), { recursive: true });
     await copyFile(REAL_TARGET, scratchTarget).catch(async () => {
       await writeFile(scratchTarget, `export const FREE_MODEL_CHAIN = [\n  "placeholder:free",\n] as const;\n`);
     });

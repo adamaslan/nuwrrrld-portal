@@ -14,19 +14,28 @@ separately from this — already exposed, unrelated to the three below),
 
 ## `STRIPE_WEBHOOK_SECRET`
 
-**Where to find it:** Stripe Dashboard → **Developers → Webhooks → Add
-endpoint**.
+**Where to find it:** Stripe Dashboard → **Developers → Webhooks**.
+
+**If the endpoint doesn't exist yet** → **Add endpoint**:
 
 1. Endpoint URL: `https://financial.nuwrrrld.com/api/webhooks/stripe`
 2. Select the events `app/api/webhooks/stripe/route.ts` actually handles
    (check that file for the exact event-type switch before picking events —
    don't just select "all events").
 3. After creating the endpoint, Stripe shows the **signing secret** once
-   (`whsec_...`) — copy it immediately, it's not re-displayed later. If you
-   lose it, click the endpoint → **Roll secret** to get a new one (this
-   invalidates the old one, so only do this once the new value is set
-   everywhere that needs it — `.env.local`, Vercel, GHA secrets).
-4. Paste into `.env.local` as `STRIPE_WEBHOOK_SECRET=whsec_...`.
+   (`whsec_...`) — copy it immediately, it's not re-displayed later.
+
+**If the endpoint already exists** (e.g. from an earlier session) → click
+it → **Reveal secret**, next to the signing secret field. This retrieves the
+existing value without changing anything.
+
+Only use **Roll secret** if you've genuinely lost access to the value or
+suspect it's compromised — it immediately invalidates the old secret, so
+only do that once the new value is set everywhere that needs it
+(`.env.local`, Vercel, GHA secrets) or webhook delivery breaks in between.
+
+Either way, paste the result into `.env.local` as
+`STRIPE_WEBHOOK_SECRET=whsec_...`.
 
 **Why it's currently a placeholder:** `.env.example`'s own comment already
 explains the failure mode — until this is a real `whsec_...` value (not

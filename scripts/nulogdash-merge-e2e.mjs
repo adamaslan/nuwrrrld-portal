@@ -41,6 +41,13 @@ const SECRET_PATTERNS = [
   /sk-ant-[A-Za-z0-9-]+/g,
   /sk-or-v1-[A-Za-z0-9]+/g,
   /Bearer\s+[A-Za-z0-9._-]+/g,
+  // e2e-resiliency.yml passes DATABASE_URL to the dev server these tests
+  // drive, so a boot/connection error can embed the connection string
+  // (password included) verbatim in a Playwright error message.
+  /(postgres(ql)?|mysql|mongodb(\+srv)?|redis):\/\/[^\s"']+/gi,
+  // E2E_CLERK_TEST_EMAIL is a user identifier, not a secret, but this file
+  // is rendered on a page — keep it out of a stored report regardless.
+  /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
 ];
 
 function redact(text) {

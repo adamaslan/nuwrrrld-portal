@@ -79,11 +79,13 @@ git status --porcelain | grep -E '\.env($|\.local|\.production)' && {
   echo "❌ .env files present - add to .gitignore"; exit 1;
 } || true
 
-# 3b. Reject staged Playwright artifacts even if .gitignore was bypassed
-#     (git add -f, a rewritten .gitignore, etc.) — these can carry live
-#     bearer tokens (traces) or an active Clerk session (playwright/.auth/).
-git status --porcelain | grep -E '(^|/)(test-results|playwright-report|blob-report)/|playwright/\.auth/' && {
-  echo "❌ Playwright artifacts staged - traces/sessions must never be committed"; exit 1;
+# 3b. Reject staged Playwright/nulogdash artifacts even if .gitignore was
+#     bypassed (git add -f, a rewritten .gitignore, etc.) — these can carry
+#     live bearer tokens (traces), an active Clerk session
+#     (playwright/.auth/), or an unredacted DB URL / test-user email
+#     (.nulogdash/, see scripts/nulogdash-merge-e2e.mjs's redaction set).
+git status --porcelain | grep -E '(^|/)(test-results|playwright-report|blob-report|\.nulogdash)/|playwright/\.auth/' && {
+  echo "❌ Playwright/nulogdash artifacts staged - traces/sessions/reports must never be committed"; exit 1;
 } || true
 
 # 4. Verify the build (Next.js 16 — expect "ƒ Proxy (Middleware)")
@@ -103,12 +105,20 @@ git diff --name-only origin/main... | grep -qE '^(e2e/|playwright\.config\.ts$)'
   #   npx playwright test --project=frontend
 } || true
 
-# 4c. If a component a fault-injection spec targets changed (compare against
-#     the file paths named in e2e/frontend/*.spec.ts's own comments — each
-#     spec documents which component/route it asserts against), the spec's
-#     selectors may now be stale even though e2e/ itself didn't change.
-#     Re-run --list at minimum; a spec that silently stops matching a
-#     button's accessible name doesn't fail loudly, it just never clicks it.
+# 4c. Same reasoning as 4b, but for the case 4b's grep can't see: a component
+#     a fault-injection spec targets changed, while e2e/ itself did not. Build
+#     the route list from e2e/frontend/*.spec.ts's own page.goto() calls
+#     (best-effort — catches the current three dashboard routes; a spec added
+#     without a literal page.goto("/dashboard/...") string won't be caught)
+#     and diff against each route's app/ directory.
+grep -rhoE 'page\.goto\("(/dashboard/[a-z-]+)"' e2e/frontend/*.spec.ts 2>/dev/null \
+  | grep -oE '/dashboard/[a-z-]+' | sort -u | while IFS= read -r route; do
+  dir="app${route}"
+  if git diff --name-only origin/main... | grep -q "^${dir}/"; then
+    echo "🎭 ${dir} changed and is targeted by a fault-injection spec (goto(\"${route}\")) — selectors may be stale"
+    npx playwright test --list | grep -F "${route#/dashboard/}" || true
+  fi
+done
 
 # 5. Branch (descriptive; same name as the mobile branch if this is a pair).
 #    Branch off origin/main — never off a checked-out local main, which can
@@ -137,7 +147,7 @@ Brief description of changes.
 - [x] No .env files committed
 - [x] No keys / tokens / secrets in NEXT_PUBLIC_*
 - [x] Backend URLs resolved server-side (not NEXT_PUBLIC_)
-- [x] No Playwright artifacts staged (test-results/, playwright-report/, playwright/.auth/)
+- [x] No Playwright/nulogdash artifacts staged (test-results/, playwright-report/, blob-report/, playwright/.auth/, .nulogdash/)
 
 ## Test Plan
 - [ ] \`npm run build\` passes (\"ƒ Proxy (Middleware)\" present)

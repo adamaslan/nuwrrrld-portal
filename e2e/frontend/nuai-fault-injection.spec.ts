@@ -36,24 +36,39 @@ test.describe("Nu AI (/dashboard/nuai) frontend resiliency", () => {
   });
 
   test("EXPOSE: a stalled SSE stream leaves the typing indicator running forever", async ({ page }) => {
-    await page.route("**/api/nuai", async (route) => {
-      // Fulfil with a single SSE chunk and never close — NuAIChat's
-      // consumeSSE (lib/shared/sse.ts) awaits the stream to completion with
-      // no client-side timeout of its own.
-      await route.fulfill({
-        status: 200,
-        contentType: "text/event-stream",
-        body: 'data: {"delta":"Generating"}\n\n',
-      });
+    // route.fulfill() always completes the response with the given body —
+    // there is no way to "fulfil and never close" with it, so the original
+    // version of this test (a single fulfill() call) sent a finite response
+    // and never actually simulated a stall. Caught by CodeRabbit review;
+    // confirmed against Playwright's docs before fixing.
+    //
+    // A route handler genuinely stalls a connection by never calling
+    // fulfill()/continue()/abort() at all — the request stays pending until
+    // something external ends it (here, the test's own assertion timeout
+    // below), which is what a real stalled upstream looks like from the
+    // client's point of view.
+    await page.route("**/api/nuai", () => {
+      // Deliberately no fulfill/continue/abort — see comment above.
     });
 
     await page.goto("/dashboard/nuai");
     await page.getByPlaceholder("Ask Nu AI…").fill("What's the market tone?");
     await page.getByRole("button", { name: "↑" }).click();
 
-    // EXPECTED TO FAIL if there is no client-side stream timeout: the
-    // "Nu AI is thinking…" placeholder (.nuai-typing) stays mounted
-    // indefinitely instead of surfacing a retry affordance.
+    // This IS wired into required CI (--project=frontend in e2e-resiliency.yml),
+    // so a genuinely-failing assertion needs test.fail(). Two stacked reasons
+    // it fails today, not one: (a) NuAIChat has no client-side stream
+    // timeout, so .nuai-typing would never clear even if the test reached
+    // it; (b) the E2E test user has no Pro entitlement
+    // (playwright-todo.md: "give the test user a subscription tier"), so
+    // /dashboard/nuai currently redirects to /pricing before the input ever
+    // renders — confirmed locally: page.getByPlaceholder times out because
+    // the page is /pricing, not /dashboard/nuai. Fixing the entitlement gap
+    // will surface (a) as the test's real failure mode; fixing (a) alone
+    // will not make this pass while (b) still redirects. If either gets
+    // fixed and this starts passing, Playwright reports "unexpected pass" —
+    // remove test.fail() then, don't assume both gaps closed at once.
+    test.fail();
     await expect(page.locator(".nuai-typing")).not.toBeVisible({ timeout: 15_000 });
   });
 

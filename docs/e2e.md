@@ -2,7 +2,7 @@ When frontend features fail silently in production across **OpenRouter**, **Fire
 
 The following Playwright test suite is specifically structured to intercept network boundaries and expose broken or silent frontend failure modes in shipped code.
 
-> **Note on scope.** Playwright is *not* currently a dependency of this repo — the suites below are the target state. The shipped test runner is vitest (`unit` / `components` / `live` projects, see `vitest.config.ts`), and the shipped end-to-end sweep is `scripts/nulogdash.mjs`. Sections 0 and 4–6 describe what already works today; sections 1–3 describe the browser tier still to be added.
+> **Note on scope (updated 2026-08-18).** Playwright **is now a real dependency** and `e2e/` is implemented — this note originally described a target state that has since shipped (PR #64). The `auth` job passes in CI. **This doc has not yet been fully reconciled with the shipped `playwright.config.ts`/`e2e-resiliency.yml`** — the config/workflow *examples* further down (§§ starting around the "Config that makes the extension work" and "Running the Whole Thing" headings) predate the real implementation and diverge from it in real ways: the real config has `auth-setup`, `storageState`, an independent `ci` project, and a `preflight`/`preflight-billing` split that the examples below don't show. Treat `playwright.config.ts` and `.github/workflows/e2e-resiliency.yml` themselves as authoritative over any code block in this file; `docs/e2e-next-steps.md` and `docs/wiki-portal/entity-playwright-e2e.md` reflect current state. A full reconciliation pass on this doc's examples is tracked as follow-up, not done in this PR.
 
 ---
 
