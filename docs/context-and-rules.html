@@ -1,0 +1,414 @@
+<title>Context and Rules</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --raised: #fffdf9;
+    --sunken: #ebe7de;
+    --ink: #1a1815;
+    --soft: #56514a;
+    --faint: #8f887d;
+    --line: #ddd7ca;
+    --accent: #1f5f5b;
+    --t1: #2d6a4f;  --t1bg: #e3ede7;
+    --t3: #b8860b;  --t3bg: #f6ecd4;
+    --t5: #9a2f26;  --t5bg: #f7e4e1;
+    --shadow: 0 1px 2px rgba(26,24,21,.06), 0 1px 1px rgba(26,24,21,.04);
+    --r: 7px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14130f; --raised: #1e1c16; --sunken: #0e0d0a;
+      --ink: #ece7db; --soft: #b0a999; --faint: #746d5f; --line: #33301f;
+      --accent: #6bb0a8;
+      --t1: #6fae8b; --t1bg: #1a2b22;
+      --t3: #dcae54; --t3bg: #31280f;
+      --t5: #e0806f; --t5bg: #351d19;
+      --shadow: 0 1px 2px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14130f; --raised: #1e1c16; --sunken: #0e0d0a;
+    --ink: #ece7db; --soft: #b0a999; --faint: #746d5f; --line: #33301f;
+    --accent: #6bb0a8;
+    --t1: #6fae8b; --t1bg: #1a2b22;
+    --t3: #dcae54; --t3bg: #31280f;
+    --t5: #e0806f; --t5bg: #351d19;
+    --shadow: 0 1px 2px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 15.5px; line-height: 1.6;
+  }
+  code, .mono {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  code {
+    font-size: .86em; background: var(--sunken); padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 26px; }
+  header { padding: 52px 0 0; }
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace; font-size: 11.5px;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--accent);
+    font-weight: 600; margin: 0 0 11px;
+  }
+  h1 {
+    font-size: 36px; font-weight: 760; letter-spacing: -.022em;
+    margin: 0 0 14px; text-wrap: balance; line-height: 1.15;
+  }
+  .lede { max-width: 62ch; color: var(--soft); margin: 0; font-size: 16px; }
+
+  h2 {
+    font-size: 21px; font-weight: 700; letter-spacing: -.012em;
+    margin: 52px 0 6px; padding-bottom: 9px;
+    border-bottom: 2px solid var(--accent);
+  }
+  h2 + .note { margin: 0 0 18px; color: var(--soft); font-size: 14.5px; max-width: 74ch; }
+  main { padding-bottom: 80px; }
+
+  /* ---- tier ladder ---- */
+  .ladder { display: flex; flex-direction: column; gap: 7px; margin-top: 18px; }
+  .tier {
+    display: grid; grid-template-columns: 92px 108px 1fr;
+    gap: 16px; align-items: start;
+    background: var(--raised); border: 1px solid var(--line);
+    border-left: 4px solid var(--tc, var(--line));
+    border-radius: var(--r); padding: 13px 16px; box-shadow: var(--shadow);
+  }
+  .tier-pct {
+    font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums;
+    font-size: 13px; font-weight: 700; color: var(--tc, var(--ink));
+    padding-top: 1px;
+  }
+  .tier-badge {
+    font-family: "JetBrains Mono", monospace; font-size: 10.5px; font-weight: 700;
+    letter-spacing: .03em; padding: 3px 8px; border-radius: 4px;
+    color: var(--tc); background: var(--tcbg); text-align: center;
+    white-space: nowrap; align-self: start;
+  }
+  .tier-what { font-size: 14px; color: var(--soft); }
+  .tier-what b { color: var(--ink); font-weight: 640; }
+  .tier--act { border-left-width: 4px; background: var(--t3bg); }
+  .tier--act .tier-what b { color: var(--t3); }
+
+  /* ---- layer table ---- */
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--faint); font-weight: 600;
+    padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  .yes { color: var(--t1); font-weight: 650; }
+  .no { color: var(--t5); font-weight: 650; }
+
+  /* ---- rule cards ---- */
+  .rules { display: grid; gap: 12px; margin-top: 18px; }
+  .rule {
+    background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .rule h3 {
+    margin: 0 0 4px; font-size: 15.5px; font-weight: 700;
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  }
+  .rule h3 .path {
+    font-family: "JetBrains Mono", monospace; font-size: 11.5px;
+    color: var(--faint); font-weight: 500;
+  }
+  .rule p { margin: 6px 0 0; font-size: 14px; color: var(--soft); }
+  .rule .trig {
+    display: inline-block; font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+    background: var(--sunken); color: var(--faint); margin-top: 9px;
+  }
+  .rule--new { border-left: 3px solid var(--t3); }
+
+  /* ---- callout ---- */
+  .call {
+    background: var(--sunken); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--r); padding: 16px 20px; margin-top: 20px;
+  }
+  .call p { margin: 0; font-size: 14.5px; color: var(--soft); }
+  .call p + p { margin-top: 10px; }
+  .call strong { color: var(--ink); }
+
+  ol.why { padding-left: 0; list-style: none; counter-reset: w; margin: 16px 0 0;
+           display: flex; flex-direction: column; gap: 11px; }
+  ol.why li {
+    counter-increment: w; background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 14px 16px 14px 50px; position: relative;
+    box-shadow: var(--shadow);
+  }
+  ol.why li::before {
+    content: counter(w); position: absolute; left: 17px; top: 14px;
+    font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700;
+    color: var(--accent);
+  }
+  ol.why b { display: block; margin-bottom: 3px; font-size: 14.5px; }
+  ol.why span { color: var(--soft); font-size: 13.8px; }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 24px 0 64px;
+    color: var(--faint); font-size: 12.5px;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">~/.claude &middot; global configuration</p>
+    <h1>Context, and the Rules Built Around It</h1>
+    <p class="lede">
+      A context window fills up as a session runs, and what it loses first is the
+      most valuable thing in it. These are the six always-on rules that respond to
+      that &mdash; and the one thing none of them can do.
+    </p>
+  </header>
+
+  <main>
+    <h2>What context actually is</h2>
+    <p class="note">
+      Every message, file read, and tool result in a session accumulates into one
+      finite window. When it fills, the oldest material gets summarized away to
+      make room &mdash; the session keeps working, but it is now reasoning from a
+      compressed retelling rather than the original.
+    </p>
+
+    <div class="call">
+      <p><strong>What degrades, in order.</strong> This is the part that makes
+      the timing rules matter &mdash; loss is not uniform, and the most useful
+      content goes first.</p>
+      <p>Exact strings go earliest: the literal error message, the failing line
+      number, the command that reproduced it. Then <strong>negative
+      knowledge</strong> &mdash; why something <em>wasn't</em> done, the approach
+      tried and abandoned, the finding checked and dismissed as a false positive.
+      To a summarizer that looks like noise, so it is discarded wholesale. Then
+      causal ordering flattens: which fix caused which failure collapses into an
+      undifferentiated list of events.</p>
+    </div>
+
+    <h2>The tier ladder</h2>
+    <p class="note">
+      Six bands, assessed at the top of each turn. The badge is prepended to the
+      response so pressure is visible without being asked about. Only two tiers
+      carry a required action.
+    </p>
+
+    <div class="ladder">
+      <div class="tier" style="--tc:var(--t1);--tcbg:var(--t1bg)">
+        <span class="tier-pct">0&ndash;20%</span>
+        <span class="tier-badge">TIER 1 &middot; CLEAR</span>
+        <span class="tier-what">No badge shown. Full working memory.</span>
+      </div>
+      <div class="tier" style="--tc:var(--t1);--tcbg:var(--t1bg)">
+        <span class="tier-pct">20&ndash;40%</span>
+        <span class="tier-badge">TIER 2 &middot; LIGHT</span>
+        <span class="tier-what">Optional note if many files have been read.</span>
+      </div>
+      <div class="tier tier--act" style="--tc:var(--t3);--tcbg:var(--t3bg)">
+        <span class="tier-pct">40&ndash;60%</span>
+        <span class="tier-badge">TIER 3 &middot; MODERATE</span>
+        <span class="tier-what"><b>Action: offer the session handoff, once.</b>
+          The detail worth capturing is still intact here. This is the newest
+          rule and the one that changes behavior most.</span>
+      </div>
+      <div class="tier" style="--tc:var(--t3);--tcbg:var(--t3bg)">
+        <span class="tier-pct">60&ndash;75%</span>
+        <span class="tier-badge">TIER 4 &middot; HEAVY</span>
+        <span class="tier-what">Recommend a new session or <code>/compact</code>.
+          Don't re-offer the handoff here if it was already declined.</span>
+      </div>
+      <div class="tier" style="--tc:var(--t5);--tcbg:var(--t5bg)">
+        <span class="tier-pct">75&ndash;90%</span>
+        <span class="tier-badge">TIER 5 &middot; CRITICAL</span>
+        <span class="tier-what"><b>Action: name the specific next step.</b>
+          Re-raise the handoff as a recommendation, not a question.</span>
+      </div>
+      <div class="tier" style="--tc:var(--t5);--tcbg:var(--t5bg)">
+        <span class="tier-pct">90&ndash;100%</span>
+        <span class="tier-badge">TIER 6 &middot; MAXIMUM</span>
+        <span class="tier-what">Summarization already active &mdash; earlier
+          detail may be gone. Note branch/stash state before clearing.</span>
+      </div>
+    </div>
+
+    <h2>Why halfway, and not at the end</h2>
+    <p class="note">
+      The instinct is to write a wrap-up when the work is finished. That is the
+      worst available moment, and the reasoning is worth spelling out because
+      &ldquo;50%&rdquo; is otherwise an arbitrary number.
+    </p>
+    <ol class="why">
+      <li><b>Exact strings vanish first</b><span>By Tier 5 you are describing an
+        error message from memory of a summary of it, not from the message.</span></li>
+      <li><b>Negative knowledge vanishes entirely</b><span>The highest-value
+        content in any handoff &mdash; what was ruled out and why &mdash; is the
+        first thing discarded, because it reads as noise.</span></li>
+      <li><b>Causal ordering flattens</b><span>Which fix caused which failure
+        becomes an unordered list of things that happened.</span></li>
+    </ol>
+
+    <h2>The four layers</h2>
+    <p class="note">
+      Two rules, one skill, one hook. They are separate because they have
+      genuinely different capabilities &mdash; in particular, only two of the
+      four can see context at all.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Fires when</th><th>Sees context?</th><th>Does what</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">context-bloat-warning<br><span style="color:var(--faint);font-size:12px">rule</span></td>
+            <td>Every turn</td>
+            <td class="yes">Yes &mdash; model judgment</td>
+            <td>Assesses the tier and shows the badge.</td>
+          </tr>
+          <tr>
+            <td class="mono">handoff-at-half-context<br><span style="color:var(--faint);font-size:12px">rule</span></td>
+            <td>First time at Tier&nbsp;3</td>
+            <td class="yes">Yes &mdash; model judgment</td>
+            <td>Offers the handoff, once, at a clean boundary.</td>
+          </tr>
+          <tr>
+            <td class="mono">end-session<br><span style="color:var(--faint);font-size:12px">skill</span></td>
+            <td>On yes, or a natural stop</td>
+            <td>&mdash;</td>
+            <td>Writes and commits <code>docs/session-handoff.md</code>.</td>
+          </tr>
+          <tr>
+            <td class="mono">SessionEnd<br><span style="color:var(--faint);font-size:12px">hook</span></td>
+            <td>Session teardown, always</td>
+            <td class="no">No &mdash; no telemetry</td>
+            <td>Safety net: records the gap if no handoff was written.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="call">
+      <p><strong>The constraint that forced this shape.</strong> Hook payloads
+      carry <em>no</em> token or context-window data &mdash; only
+      <code>session_id</code>, <code>transcript_path</code>, <code>cwd</code>,
+      and a termination <code>matcher</code>. Verified against Claude Code's hook
+      documentation, not assumed.</p>
+      <p>So a hook <strong>cannot</strong> gate on &ldquo;context above
+      50%.&rdquo; That judgment exists only inside the model's own assessment,
+      which is why the trigger had to be a rule and could not be a script. The
+      hook is demoted to what it can actually do: notice after the fact that a
+      session ended without a handoff, and leave a breadcrumb.</p>
+    </div>
+
+    <h2>All six rules</h2>
+    <p class="note">
+      Everything in <code>~/.claude/rules/</code>, auto-loaded into every session
+      regardless of project. Two are about context; the rest encode lessons from
+      specific incidents.
+    </p>
+
+    <div class="rules">
+      <div class="rule rule--new">
+        <h3>Handoff at Half Context <span class="path">handoff-at-half-context.md</span></h3>
+        <p>Offer a session handoff once at Tier&nbsp;3, then act on the answer and
+        drop it. Includes explicit do-nots, because the failure mode here is
+        nagging: don't re-offer within a tier, don't write it unprompted (it
+        costs the very resource in question), don't interrupt mid-unit, and don't
+        substitute an inline chat summary for the durable file.</p>
+        <span class="trig">TIER 3 &middot; ONCE</span>
+      </div>
+
+      <div class="rule">
+        <h3>Context Bloat Warning <span class="path">context-bloat-warning.md</span></h3>
+        <p>The six-tier ladder above. Prepends a one-line badge before the first
+        sentence of a response &mdash; never at the end, where it would be read
+        after the reader has already decided what to do next.</p>
+        <span class="trig">EVERY TURN</span>
+      </div>
+
+      <div class="rule">
+        <h3>Artifact and Local HTML <span class="path">artifact-and-local-html.md</span></h3>
+        <p>Any standalone HTML deliverable produces <em>both</em> a committed
+        local file and a published artifact. Each covers the other's gap: the
+        file is diffable and offline, the artifact is shareable and previewable.
+        Producing one repeatedly forced a follow-up request for the other.</p>
+        <span class="trig">ON HTML DELIVERABLE</span>
+      </div>
+
+      <div class="rule">
+        <h3>Stay on Branch After Merge <span class="path">stay-on-branch-after-merge.md</span></h3>
+        <p>Never <code>git checkout main</code> into a tree holding newer work.
+        Written after work vanished twice: a squash-merge of an older branch,
+        then a checkout of <code>main</code>, silently reverted newer on-disk
+        edits. To advance the ref without checking it out:
+        <code>git fetch origin main:main</code>.</p>
+        <span class="trig">AFTER gh pr merge</span>
+      </div>
+
+      <div class="rule">
+        <h3>Mobile &harr; Web Wiki Sync <span class="path">mobile-web-wiki-sync.md</span></h3>
+        <p>A PR in either surface refreshes the cross-surface parity pages in
+        <em>both</em> wikis, in the same task. Enforced by a hook that doesn't
+        just remind but <em>verifies</em> &mdash; because the real failure was
+        wiki content written, left uncommitted, and never included in the PR it
+        documented. A reminder can't catch that; a <code>git status</code>
+        check can.</p>
+        <span class="trig">ON gh pr create / merge</span>
+      </div>
+
+      <div class="rule">
+        <h3>Mamba Package Manager <span class="path">mamba-rules.md</span></h3>
+        <p>Mamba over conda for every environment operation, with
+        <code>conda config</code> as the sole exception. Install all packages in
+        one command; never run pip outside an activated environment.</p>
+        <span class="trig">ON PYTHON ENV WORK</span>
+      </div>
+    </div>
+
+    <h2>Two stops, not one</h2>
+    <p class="note">
+      The easiest thing to confuse: there are two different ways a long session
+      can end, and they need opposite handling.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>/resume-safe</th><th>end-session</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Trigger</b></td>
+            <td>Context nearly exhausted, mid-run</td>
+            <td>Deliberate stop, context still healthy</td>
+          </tr>
+          <tr>
+            <td><b>Intent</b></td>
+            <td>Keep <em>this</em> run alive across a context wall</td>
+            <td>Close the run down on purpose</td>
+          </tr>
+          <tr>
+            <td><b>Output</b></td>
+            <td>Checkpoint + scheduled wakeup to auto-resume</td>
+            <td>Committed handoff for a fresh session</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:14px">
+      Use one or the other for a given stop &mdash; never both.
+    </p>
+  </main>
+
+  <footer>
+    Generated 2026-08-18 from the live contents of <code>~/.claude/rules/</code>,
+    <code>~/.claude/skills/end-session/</code>, and
+    <code>~/.claude/scripts/session-end-handoff.mjs</code>.
+    Hook-payload claims verified against Claude Code's hook documentation.
+  </footer>
+</div>
