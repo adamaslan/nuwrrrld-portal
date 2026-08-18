@@ -63,11 +63,15 @@ change is needed — it will fall straight through to the `/dashboard` wait).
 Leave the OTP branch in place regardless: it costs nothing when unused and
 keeps the setup working if the requirement is ever re-enabled.
 
-### 2. Provision the GCP Workload Identity Federation pool ← **now the top blocker**
+### 2. Provision the GCP Workload Identity Federation pool ← **top blocker for the `e2e` shards**
 
-As of run `32089144456` this is the only thing standing between here and a
-fully green suite. With `auth` passing, all four `e2e` shards now start and
-fail immediately at "Authenticate to GCP (keyless)":
+As of run `32089144456` this is what stands between here and a green
+**sharded `e2e`** tier — it is *not* the sole remaining blocker for the whole
+suite: the independent `preflight-billing` project is still red on the unset
+Stripe values (#3 below) regardless of WIF, so provisioning the pool turns the
+four `e2e` shards green but leaves `preflight-billing` red until those secrets
+are real. With `auth` passing, all four `e2e` shards now start and fail
+immediately at "Authenticate to GCP (keyless)":
 
 > `google-github-actions/auth failed with: the GitHub Action workflow must
 > specify exactly one of "workload_identity_provider" or "credentials_json"`
@@ -100,10 +104,14 @@ in `.env.local`. **Where to get each is documented in `docs/stripe-todo.md`.**
 
 After filling any of them: `bash scripts/sync-e2e-secrets.sh`.
 
-Note `preflight` currently **fails** on the first two, and because `health`,
-`auth-setup`, and `frontend` all declare `dependencies: ["preflight"]`, a
-local full-suite run stops there. That's the gate working as designed, but it
-does mean the frontend tier can't run locally until these are real.
+Note that after the gate split (see item 4a of
+[[incident-2026-08-17-e2e-ci-cascade]]), the two Stripe values gate
+`preflight-billing` **only** — they no longer sit in `preflight` (core: Clerk,
+OpenRouter, `DATABASE_URL`), which is what `health`, `auth-setup`, and
+`frontend` declare `dependencies: ["preflight"]` against. So `preflight-billing`
+fails on the first two, but the frontend tier is no longer blocked by them
+locally — it's gated by core `preflight` plus the Pro-entitlement issue in
+`docs/known-bugs.md` instead. `PORTAL_PUSH_SECRET` gates nothing in the suite.
 
 ### 4. Two pre-existing CI failures, unrelated to this suite
 

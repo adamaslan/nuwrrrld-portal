@@ -31,24 +31,21 @@ test.describe("Backend dependency health", () => {
   });
 
   test("EXPOSE: frontend renders a usable page when /api/health reports down", async ({ page }) => {
-    // Two independent bugs found while re-verifying this test against CodeRabbit's
-    // "known-failing test wired into required CI" finding:
+    // Two independent bugs were found while re-verifying this test against
+    // CodeRabbit's "known-failing test wired into required CI" finding:
     //
     // 1. This project has no `storageState` (see playwright.config.ts), so
     //    page.goto("/dashboard") hits Clerk's sign-in redirect, never the
-    //    actual DashboardCockpit — the mocked /api/health response was never
-    //    reaching the component this test claims to check.
+    //    actual dashboard — the mocked /api/health response was never
+    //    reaching the component this test claims to check. Fixed: this project
+    //    now depends on auth-setup (see playwright.config.ts).
     // 2. getByRole("alert") was matching Next.js's own built-in
     //    `#__next-route-announcer__` — a visually-hidden, always-empty
     //    role="alert" element every Next.js page ships for screen-reader
-    //    route announcements. It matches on ANY navigation and says nothing
-    //    about health state, so this assertion could never have been a real
-    //    check. Confirmed by probing the live DOM: the "alert" it caught had
-    //    empty text and `aria-live="assertive"` route-announcer markup.
-    //
-    // Fixed: sign in first (this project now depends on auth-setup — see
-    // playwright.config.ts), and assert on a dashboard-scoped selector that
-    // excludes the always-present announcer.
+    //    route announcements. It matched on ANY navigation and said nothing
+    //    about health state. Fixed: assert on the dedicated
+    //    data-testid="health-banner" the dashboard now renders (see
+    //    app/dashboard/HealthBanner.tsx), never the generic role="alert".
     await page.route("**/api/health", (route) =>
       route.fulfill({
         status: 503,
@@ -64,11 +61,9 @@ test.describe("Backend dependency health", () => {
       }),
     );
     await page.goto("/dashboard");
-    // Still expected to fail: DashboardCockpit does not render any
-    // health-down banner today, real or otherwise. This documents that gap
-    // — see docs/e2e.md §4 — with an assertion that can actually catch it
-    // once implemented, unlike the route-announcer false match above.
-    test.fail();
-    await expect(page.locator('main [role="alert"], [data-testid="health-banner"]')).toBeVisible();
+    // HealthBanner fetches /api/health on mount and, seeing neon "down",
+    // renders the banner. This is now a real end-to-end check of the
+    // outage-degradation path — see docs/e2e.md §4.
+    await expect(page.getByTestId("health-banner")).toBeVisible();
   });
 });

@@ -26,6 +26,7 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 - [[entity-grounding-tier-ladder]] — miss → ungrounded; stale → degraded flag
 - [[entity-ai-council]] — per-seat isolation, `degradedSeats`, CHAIR informed of gaps
 - `lib/council-db.ts` — non-fatal persistence
+- `app/dashboard/HealthBanner.tsx` (PR #65) — the **UI-facing** end of the pattern: turns `/api/health`'s `down`/`degraded` verdict into a user-visible banner, the "and say so" clause made visible rather than logged. Asserted by [[entity-playwright-e2e]]'s health EXPOSE test.
 - Contrast: **CHAIR synthesis is the one exception** — if it fails, `deliberate` returns a hard 503 `Council synthesis unavailable`, because there's no meaningful degraded output without a synthesizer.
 
 ## Contradictions / tensions
@@ -33,6 +34,8 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 > The stance is a double edge: a fully-degraded deliberation (grounding miss + several seats down + no persistence) still returns `200 OK` with a verdict. Nothing in the response schema signals *how* degraded it was to the end user — `degradedSeats` is returned but the UI's use of it isn't verified here.
 
 > ❓ Open question: silent degradation optimizes for availability. For a financial-advice-adjacent product, is "always answer, even ungrounded" the right default, or should a total grounding miss surface a visible "low-confidence, ungrounded" banner to the user rather than only logging it?
+
+> ✅ Partial answer (PR #65): at the *infrastructure* layer the "make it loud" side won. `app/dashboard/HealthBanner.tsx` polls `/api/health` on dashboard mount and renders a visible banner naming the affected dependency (market data / database / billing / Nu AI / sign-in) whenever one is `down` or `degraded` — the first UI surface that tells the user degradation is happening rather than only logging it. It deliberately treats `not_configured` as inert (expected in previews) and ignores its own `AbortError` on unmount, so it fires only on real degradation. This closes the "loud, not silent" question for backend-dependency health; the narrower grounding-miss case (per-request ungrounded answers) still degrades silently and remains open.
 
 ### Counterexample — Portfolio Health (2026-07-26)
 

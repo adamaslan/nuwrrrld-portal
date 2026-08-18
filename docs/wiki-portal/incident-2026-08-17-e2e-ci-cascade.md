@@ -125,10 +125,16 @@ bundle into 3030 vendor errors, because eslint does not read `.gitignore`.
 ## Resolution status
 
 **Resolved 2026-08-17.** Run `32089144456`: `auth: success`, 5 tests in 23.1s,
-`storageState` uploaded. Two further causes surfaced after this page was first
-written, bringing the total to seven:
+`storageState` uploaded.
 
-6. **Clerk's redirect URL was never passed to CI.** Sign-in was *succeeding*
+**Counting the causes.** Eight distinct causes were fixed in total. The title's
+"five" counts only the chain that *masked each other* in the `auth` job's error
+message (causes 1–5 in "What happened"). Separate from that chain sit three
+more: the boot-env `DATABASE_URL` gap (the "sixth issue" above, fixed as item 6
+in Resolution), plus the two below that surfaced after this page was first
+written — **8 total (5 masking chain + 1 boot-env + 2 late)**, not seven.
+
+7. **Clerk's redirect URL was never passed to CI.** Sign-in was *succeeding*
    and landing on `/` rather than `/dashboard`
    (`NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` is set in `.env.local`
    but wasn't in the workflow), while the test asserted that exact
@@ -137,7 +143,7 @@ written, bringing the total to seven:
    instead of a URL — wait to leave `/sign-in`, then confirm `/dashboard`
    holds, which proves the session via `middleware.ts` regardless of landing
    spot.
-7. **`--with-deps` apt-get time is unbounded in practice.** 2m48s in one run,
+8. **`--with-deps` apt-get time is unbounded in practice.** 2m48s in one run,
    >15min in the next, consuming the whole job budget so sign-in never ran.
    Fixed with step-level `timeout-minutes`, which matters more than the job
    budget: GitHub reports a timeout kill as `cancelled`, indistinguishable
