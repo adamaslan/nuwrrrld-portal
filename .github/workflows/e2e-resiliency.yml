@@ -177,6 +177,10 @@ jobs:
           STRIPE_PRICE_ANNUAL: ${{ secrets.STRIPE_PRICE_ANNUAL }}
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
           IP_HASH_SECRET: ${{ secrets.IP_HASH_SECRET }}
+        # `preflight-billing` is deliberately NOT in this list. Its Stripe
+        # values are known-unset (docs/stripe-todo.md), so including it would
+        # fail every CI run for a reason unrelated to the code under test.
+        # Add it here once those secrets are real.
         run: npx playwright test --project=preflight --project=health --project=frontend --shard=${{ matrix.shard }}/4
 
       - uses: actions/upload-artifact@v4
