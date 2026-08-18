@@ -34,6 +34,14 @@ blockers #1–#5 are now mostly closed (see below). Its **Optimization** and
   env var that ships *empty* (so it never fell back, and every `page.goto()`
   failed); and eslint was linting Playwright's generated trace-viewer bundle
   into 3030 vendor errors because it doesn't read `.gitignore`.
+- ✅ **Two workflow bugs fixed** once CI got far enough to hit them: the
+  `auth` job's `timeout-minutes: 5` was a guess that a cold browser cache
+  (~3min) blew straight through, killing sign-in and reporting it as
+  *"cancelled"* — misleading enough to cost two debugging cycles. Raised to
+  15. And the `report` job hard-failed on `Directory does not exist:
+  all-blob-reports` whenever `e2e` was skipped; it now detects the empty case
+  and says *"the e2e job never ran, check auth"* rather than printing a
+  meaningless `0 passed · 0 failed`.
 
 ---
 
@@ -101,6 +109,15 @@ they aren't mistaken for regressions.
   investigated: `docs/cloudflare-pages-assessment.md` concludes the
   integration should be disabled via one Cloudflare API call (keep the
   project, turn off GitHub-triggered builds). Not a code problem.
+
+### 4b. `auth` has still never passed in CI
+
+Verified working **locally** (writes `playwright/.auth/user.json`), but every
+CI attempt so far died for a different reason than the last: bad Clerk keys,
+then `cancel-in-progress` killing it mid-run, then the 5-minute timeout. All
+three are fixed; the next run is the first real test of the sign-in flow on a
+GitHub runner. Treat a green `auth` as the first genuine confirmation, and
+don't assume the local pass generalizes until then.
 
 ### 5. Verify the browser tier reaches the admin dash from a real CI run
 
