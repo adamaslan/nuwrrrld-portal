@@ -41,6 +41,8 @@ The reframing that produced this decision: **free-tier quota is a renewable reso
 - **Degrades to current behavior.** Every DB function is try/catch → null/no-op, so an unreachable Neon or an un-migrated table means "no precomputed value" and the live path runs exactly as before. Safe to deploy before `npm run db:migrate`.
 - **One scheduler, not two.** GHA (`.github/workflows/precompute-ai.yml`) and Modal (`deploy/precompute-ai/modal_app.py`) are a deliberate multi-platform pair matching the `deploy/free-model-refresh/` precedent — but running **both** doubles quota spend for identical output. GHA is the simpler default; Modal wins if this outgrows the GHA job ceiling or needs per-ticker fan-out.
 
+  > ⚠️ **Flagged 2026-08-18:** "GHA is the simpler default" is a *setup-cost* argument (no extra account, secrets already present), not an architectural one, and it recurs across six separate decisions in this repo — see [[incident-2026-08-18-modal-under-recommended]]. Neither scheduler has been disabled, so both are still nominally scheduled at `10 0 * * *` against the same endpoint. Also note this decision is recorded as *implemented* while **`modal deploy` has never been run** for `deploy/precompute-ai/modal_app.py` — the Modal half of the pair exists as a file only.
+
 ## Validated by
 
 - `__tests__/precomputed-ai.test.ts` — pins `subjectFromTickers` order-independence, case/whitespace normalization, de-duplication, and `split()` round-trip. This is the cache key, so instability in it silently re-spends the quota the feature exists to conserve — and a miss looks like a cold cache, not a bug.

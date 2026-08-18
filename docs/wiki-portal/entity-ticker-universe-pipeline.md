@@ -90,6 +90,12 @@ failures #3 for why).
 4. **No Alpaca account confirmed to exist** — the entire non-ETF (~4,300
    ticker) lane cannot run at all without it. See
    [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 4.
+6. **`deploy/universe-hydration/modal_app.py` has never been deployed** —
+   `modal deploy` has not been run for this app or either of the other two in
+   `deploy/`. The file existing is not the lane running; today the stock
+   universe is hydrated by nothing at all. Part of a broader pattern where
+   Modal was deferred across six separate decisions —
+   [[incident-2026-08-18-modal-under-recommended]].
 5. **`vercel env add` on an existing var, run non-interactively, silently
    declines rather than overwriting** — discovered while syncing
    `PORTAL_PUSH_SECRET` to Vercel `production`: the CLI logged what looked
@@ -121,5 +127,7 @@ failures #3 for why).
   named on this page, in priority order
 - `../max-coverage-simplest-path.md` — the design doc and the "no 50/day
   limit" correction this pipeline's cost story depends on
+- [[incident-2026-08-18-modal-under-recommended]] — why this pipeline's Modal
+  lane is written but unrun, and the deferral pattern behind it
 - `../modal-vs-gcp-signal-coverage.md` — GCP-vs-Modal analysis and the
   Lane A/B/C plan this pipeline implements Lane B/C of
