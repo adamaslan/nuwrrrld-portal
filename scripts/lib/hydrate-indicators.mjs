@@ -9,10 +9,6 @@
  * __tests__/hydrate-indicators.test.ts pins against captured reference values.
  */
 
-// Ported from deploy/universe-hydration/modal_app.py. The Modal job is the
-// authoritative implementation; this file must stay numerically identical to
-// it, because rows from both land in the same table and are compared directly.
-
 /** Exponential moving average over the whole series, returned as a series. */
 export function emaSeries(data, span) {
   const alpha = 2 / (span + 1);
