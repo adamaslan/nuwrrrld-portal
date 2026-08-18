@@ -1,0 +1,354 @@
+<title>Testing Status</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --raised: #ffffff;
+    --sunken: #edeae2;
+    --ink: #1c1a15;
+    --soft: #57534a;
+    --faint: #948e80;
+    --line: #ddd8cc;
+    --pass: #2d5c4a;
+    --pass-bg: #e4ede8;
+    --warn: #8a5a1e;
+    --warn-bg: #f5ead6;
+    --fail: #9a3324;
+    --fail-bg: #f7e6e1;
+    --accent: #2d5c4a;
+    --shadow: 0 1px 2px rgba(28,26,21,.06), 0 1px 1px rgba(28,26,21,.04);
+    --r: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16150f; --raised: #201e17; --sunken: #100f0b;
+      --ink: #ece7d9; --soft: #b3ab97; --faint: #746c5c; --line: #353226;
+      --pass: #6fae93; --pass-bg: #1c2f27;
+      --warn: #e0ac5c; --warn-bg: #332714;
+      --fail: #e08670; --fail-bg: #362019;
+      --accent: #6fae93;
+      --shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16150f; --raised: #201e17; --sunken: #100f0b;
+    --ink: #ece7d9; --soft: #b3ab97; --faint: #746c5c; --line: #353226;
+    --pass: #6fae93; --pass-bg: #1c2f27;
+    --warn: #e0ac5c; --warn-bg: #332714;
+    --fail: #e08670; --fail-bg: #362019;
+    --accent: #6fae93;
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 15px; line-height: 1.55;
+  }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; }
+  code {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: .87em; background: var(--sunken); padding: 1px 5px;
+    border-radius: 3px; color: var(--ink);
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px; }
+  header { padding-top: 48px; }
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace; font-size: 12px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--accent);
+    font-weight: 600; margin: 0 0 10px;
+  }
+  h1 {
+    font-size: 34px; font-weight: 750; letter-spacing: -.02em;
+    margin: 0 0 12px; text-wrap: balance;
+  }
+  .lede { max-width: 64ch; color: var(--soft); margin: 0; }
+
+  .banner {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--warn-bg); border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: var(--r); padding: 14px 18px; margin: 28px 0 0;
+  }
+  .banner strong { color: var(--warn); }
+  .banner p { margin: 0; font-size: 14px; color: var(--soft); }
+
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 26px 0 0; }
+  .stat {
+    background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 12px 16px; box-shadow: var(--shadow);
+    min-width: 116px;
+  }
+  .stat-n {
+    font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums;
+    font-size: 24px; font-weight: 700; display: block; line-height: 1.1;
+  }
+  .stat-l {
+    font-size: 11.5px; color: var(--faint); text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  main { padding-bottom: 72px; }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -.01em;
+    margin: 44px 0 6px; padding-bottom: 9px; border-bottom: 2px solid var(--accent);
+  }
+  h2 + .note { margin: 0 0 16px; color: var(--soft); font-size: 14px; max-width: 76ch; }
+
+  .tbl-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--faint); font-weight: 600;
+    padding: 8px 12px; border-bottom: 1px solid var(--line);
+  }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num {
+    font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .pill {
+    display: inline-block; font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+  }
+  .p-pass { color: var(--pass); background: var(--pass-bg); }
+  .p-fail { color: var(--fail); background: var(--fail-bg); }
+  .p-warn { color: var(--warn); background: var(--warn-bg); }
+  .p-mute { color: var(--faint); background: var(--sunken); }
+
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; margin: 16px 0 0;
+             display: flex; flex-direction: column; gap: 10px; }
+  ol.steps li {
+    counter-increment: s; background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 13px 16px 13px 48px; position: relative;
+    box-shadow: var(--shadow);
+  }
+  ol.steps li::before {
+    content: counter(s); position: absolute; left: 16px; top: 13px;
+    font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700;
+    color: var(--accent);
+  }
+  ol.steps b { display: block; margin-bottom: 3px; }
+  ol.steps span { color: var(--soft); font-size: 13.5px; }
+
+  .cause {
+    background: var(--sunken); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 18px 20px; margin-top: 16px;
+  }
+  .cause pre {
+    margin: 12px 0; padding: 12px 14px; background: var(--raised);
+    border: 1px solid var(--line); border-radius: 5px;
+    overflow-x: auto; font-size: 12.5px; line-height: 1.6;
+  }
+  .cause pre code { background: none; padding: 0; }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 22px 0 60px;
+    color: var(--faint); font-size: 12.5px;
+  }
+  footer a { color: var(--accent); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">nuwrrrld-portal &middot; PR #64</p>
+    <h1>Testing Status</h1>
+    <p class="lede">
+      Four test layers, 344 tests. Everything passes locally. The browser tier
+      has never completed a run on CI &mdash; this page is mostly about why.
+    </p>
+
+    <div class="banner">
+      <div>
+        <p><strong>CI not yet verified.</strong>
+        The Playwright <code>auth</code> job passes locally but has never gone green on a
+        runner. Five separate causes killed it across five attempts; all are fixed,
+        and the next run is the first honest test. Don't read a local pass as CI
+        confidence.</p>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="stat-n">344</span><span class="stat-l">Tests total</span></div>
+      <div class="stat"><span class="stat-n">222</span><span class="stat-l">Unit (vitest)</span></div>
+      <div class="stat"><span class="stat-n">88</span><span class="stat-l">Component</span></div>
+      <div class="stat"><span class="stat-n">34</span><span class="stat-l">E2E (Playwright)</span></div>
+      <div class="stat"><span class="stat-n">6</span><span class="stat-l">E2E projects</span></div>
+    </div>
+  </header>
+
+  <main>
+    <h2>The four layers</h2>
+    <p class="note">
+      Each layer answers a different question and runs on a different trigger.
+      Only the fast, hermetic ones run by default &mdash; <code>live</code> and the
+      browser tier are opt-in because they depend on the outside world.
+    </p>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Question it answers</th><th class="num">Tests</th><th>Command</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>unit</b><br><span class="mono" style="font-size:12px;color:var(--faint)">vitest</span></td>
+            <td>Is the pure logic right? Parsers, mappers, policy functions. No I/O.</td>
+            <td class="num">222</td>
+            <td><code>npm run test:unit</code></td>
+            <td><span class="pill p-pass">PASSING</span></td>
+          </tr>
+          <tr>
+            <td><b>components</b><br><span class="mono" style="font-size:12px;color:var(--faint)">vitest + jsdom</span></td>
+            <td>Does the UI render and behave? Testing Library.</td>
+            <td class="num">88</td>
+            <td><code>npm run test:components</code></td>
+            <td><span class="pill p-pass">PASSING</span></td>
+          </tr>
+          <tr>
+            <td><b>live</b><br><span class="mono" style="font-size:12px;color:var(--faint)">vitest, opt-in</span></td>
+            <td>Do the external model contracts still hold? Real API calls.</td>
+            <td class="num">&mdash;</td>
+            <td><code>npm run test:live</code></td>
+            <td><span class="pill p-mute">OPT-IN</span></td>
+          </tr>
+          <tr>
+            <td><b>e2e</b><br><span class="mono" style="font-size:12px;color:var(--faint)">Playwright</span></td>
+            <td>Does the shipped UI degrade correctly under injected faults?</td>
+            <td class="num">34</td>
+            <td><code>npm run test:e2e</code></td>
+            <td><span class="pill p-warn">LOCAL ONLY</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>E2E project graph</h2>
+    <p class="note">
+      Projects are gated by <code>dependencies</code>, so a bad credential fails once
+      instead of producing dozens of confusing downstream failures. The gate is split
+      by concern &mdash; a gate should block what depends on it, not everything.
+    </p>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>Project</th><th>Checks</th><th class="num">Tests</th><th>Gated by</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono"><b>preflight</b></td>
+            <td>Core credentials: Clerk, OpenRouter, <code>DATABASE_URL</code>. Shape + one live call each. Never logs a value.</td>
+            <td class="num">5</td><td class="mono">&mdash;</td>
+            <td><span class="pill p-pass">PASSING</span></td>
+          </tr>
+          <tr>
+            <td class="mono"><b>preflight-billing</b></td>
+            <td>Stripe shape + liveness. Gates nothing else, by design.</td>
+            <td class="num">4</td><td class="mono">&mdash;</td>
+            <td><span class="pill p-fail">BLOCKED</span></td>
+          </tr>
+          <tr>
+            <td class="mono"><b>health</b></td>
+            <td><code>/api/health</code> aggregate dependency verdict + latency budget.</td>
+            <td class="num">3</td><td class="mono">preflight</td>
+            <td><span class="pill p-pass">PASSING</span></td>
+          </tr>
+          <tr>
+            <td class="mono"><b>ci</b></td>
+            <td><code>refresh-free-models.mjs</code> + its workflow, via subprocess. No browser.</td>
+            <td class="num">5</td><td class="mono">&mdash;</td>
+            <td><span class="pill p-pass">PASSING</span></td>
+          </tr>
+          <tr>
+            <td class="mono"><b>auth-setup</b></td>
+            <td>Signs in the Clerk test user once, saves <code>storageState</code>.</td>
+            <td class="num">1</td><td class="mono">preflight</td>
+            <td><span class="pill p-warn">LOCAL ONLY</span></td>
+          </tr>
+          <tr>
+            <td class="mono"><b>frontend</b></td>
+            <td>Fault injection: mocked 429s, stalled SSE, contract-drift payloads.</td>
+            <td class="num">16</td><td class="mono">auth-setup</td>
+            <td><span class="pill p-warn">NOT RUN</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Why CI stayed red: five stacked failures</h2>
+    <p class="note">
+      Each fix revealed the next, and the error message pointed at the wrong layer
+      almost every time. Recorded in full as
+      <code>incident-2026-08-17-e2e-ci-cascade</code>.
+    </p>
+    <ol class="steps">
+      <li><b>Wrong Clerk instance</b><span><code>.env.local</code> held two key pairs; dotenv is last-wins, so the <em>production</em> pair was active and got synced to CI. Symptom: &ldquo;Publishable key not valid.&rdquo;</span></li>
+      <li><b>Test user in the wrong instance</b><span>Created in production, not dev. Valid credentials, rejected sign-in.</span></li>
+      <li><b>Concurrency cancellation</b><span>A docs commit landing seconds later triggered <code>cancel-in-progress</code>. Symptom: <code>cancelled</code> &mdash; indistinguishable from a manual cancel.</span></li>
+      <li><b>Job timeout set by guess</b><span><code>timeout-minutes: 5</code>, but installing browsers alone took 2m48s. Also reported as <code>cancelled</code>, which is what made this and #3 cost two cycles.</span></li>
+      <li><b>A one-character secret</b><span>The actual root cause of the original symptom &mdash; see below.</span></li>
+    </ol>
+
+    <div class="cause">
+      <b>Root cause worth remembering beyond this repo</b>
+      <pre><code>printf '%s' "$value" | gh secret set "$name" --body -   # WRONG
+printf '%s' "$value" | gh secret set "$name"            # correct</code></pre>
+      <p style="margin:0;color:var(--soft);font-size:14px">
+        <code>gh secret set --body</code> takes the value as a literal <em>string</em>.
+        It reads stdin only when <code>--body</code> is omitted. So every synced secret
+        was stored as the single character <code>-</code>, and <code>gh</code> reported
+        success. A Clerk key verified valid against Clerk's own API still failed in CI,
+        because the value <em>in</em> CI was one byte.
+        <strong>Proven with a throwaway workflow echoing <code>${#PK}</code>: 1 before,
+        58 after.</strong> Crucially, <code>gh secret list</code> cannot detect this &mdash;
+        it proves a name exists, never that the value is intact.
+      </p>
+    </div>
+
+    <h2>What's still blocking</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Blocker</th><th>Effect</th><th>Who can resolve</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Three unset secrets</b><br><code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_ANNUAL</code>, <code>PORTAL_PUSH_SECRET</code></td>
+            <td>Fails <code>preflight-billing</code> only. Deliberately excluded from the CI e2e job so it doesn't fail unrelated runs.</td>
+            <td>You &mdash; see <code>docs/stripe-todo.md</code></td>
+          </tr>
+          <tr>
+            <td><b>GCP WIF pool unprovisioned</b><br><code>GCP_WIF_PROVIDER</code>, <code>GCP_SERVICE_ACCOUNT</code></td>
+            <td>The sharded <code>e2e</code> job has never run at all.</td>
+            <td><code>sync-e2e-secrets.sh --provision-wif</code></td>
+          </tr>
+          <tr>
+            <td><b>Clerk new-device verification</b></td>
+            <td>Worked around with a <code>+clerk_test</code> address and the fixed code <code>424242</code>. Functional but the most fragile step.</td>
+            <td>You &mdash; disable on the dev instance</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Pre-existing CI failures (not from this work)</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Check</th><th>Cause</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">shared-drift-check</td><td><code>lib/subscription.ts</code> drifted from the mobile repo's copy. This PR never touches that file &mdash; verified with <code>git diff origin/main</code>.</td></tr>
+          <tr><td class="mono">Cloudflare Pages</td><td>Has failed on every PR since #37. Already investigated in <code>docs/cloudflare-pages-assessment.md</code>: the integration should be disabled, it isn't a code problem.</td></tr>
+          <tr><td class="mono">CodeRabbit</td><td>Reports a green check but has been <b>rate-limited for this PR's entire lifetime</b> and never actually reviewed it. A green bot check is not evidence of review here.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer>
+    Generated 2026-08-17 from <code>npx playwright test --list</code>, <code>npm run test:unit</code>,
+    and <code>npm run test:components</code> on <code>feat/playwright-e2e-suite</code>.
+    Companion pages: <code>docs/e2e.md</code> (operating manual),
+    <code>docs/e2e-next-steps.md</code> (live checklist),
+    <code>docs/test-index.html</code> (every test and what it does).
+  </footer>
+</div>
