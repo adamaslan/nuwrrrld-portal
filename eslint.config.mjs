@@ -16,7 +16,21 @@ const config = [
     },
   },
   {
-    ignores: [".next/**", "node_modules/**", ".vercel/**", ".claude/**"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      ".vercel/**",
+      ".claude/**",
+      // Playwright-generated artifacts. These are gitignored, but eslint does
+      // not read .gitignore — without these entries a local test run leaves
+      // behind a bundled trace viewer (minified vendor JS) that eslint then
+      // lints, producing thousands of errors from code we don't own.
+      "playwright-report/**",
+      "blob-report/**",
+      "test-results/**",
+      "playwright/.cache/**",
+      ".nulogdash/**",
+    ],
   },
 ];
 

@@ -10,7 +10,11 @@ dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
 import { STORAGE_STATE_PATH } from "./e2e/storage-state";
 
-const BASE_URL = process.env.NULOGDASH_BASE_URL ?? "http://localhost:3000";
+// `||`, not `??` — .env.example ships NULOGDASH_BASE_URL with an empty value,
+// and dotenv loads that as "" rather than leaving it undefined. `??` only
+// falls back on null/undefined, so an empty var would set baseURL to "" and
+// every page.goto("/path") fails with "Cannot navigate to invalid URL".
+const BASE_URL = process.env.NULOGDASH_BASE_URL || "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./e2e",

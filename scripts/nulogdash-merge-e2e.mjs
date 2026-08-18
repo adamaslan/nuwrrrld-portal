@@ -142,7 +142,10 @@ function main() {
     runAt: new Date().toISOString(),
     gitSha,
     branch,
-    baseUrl: process.env.NULOGDASH_BASE_URL ?? "http://localhost:3000",
+    // `||` not `??` — NULOGDASH_BASE_URL ships empty in .env.example, and
+    // dotenv loads an empty var as "" (not undefined), which `??` won't
+    // fall back on. Same fix as playwright.config.ts.
+    baseUrl: process.env.NULOGDASH_BASE_URL || "http://localhost:3000",
     tiers: [...new Set([...(existing?.tiers ?? []), "browser"])],
     results: [...apiResults, ...results],
     excluded: otherExcluded,
