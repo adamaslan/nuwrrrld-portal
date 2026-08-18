@@ -312,6 +312,43 @@ export async function fetchWithModelFallbackChecked(
 }
 
 /**
+ * A 404/400 that means "this model id no longer exists". OpenRouter returns
+ * 404 for a retired id and 400 for one it cannot route at all — both are
+ * permanent for *that model* and say nothing about the next one.
+ */
+function isRetiredModelStatus(status: number): boolean {
+  return status === 404 || status === 400;
+}
+
+/**
+ * Whether a failed attempt should advance to the next model.
+ *
+ * 402 (free-tier quota) / 429 (rate limit) / 5xx are transient-or-per-model
+ * everywhere, so they always advance.
+ *
+ * The subtle case is 404/400, and the answer depends on *position*, not status.
+ * On the **primary** model — a hand-maintained `SEAT_MODELS` literal with no
+ * scheduled maintainer — a 404 overwhelmingly means the id was retired from
+ * the catalog, which is precisely what the fallback chain exists for. Treating
+ * it as fatal there made a single rotted id *disable* a seat rather than
+ * degrade it, even while every chain model was healthy (2026-08-18: five of
+ * six seats were in this state).
+ *
+ * Within the **chain** the same status means something different: those ids
+ * are rewritten weekly by scripts/refresh-free-models.mjs against the live
+ * catalog, so a 404 there points at a malformed request — a bad prompt shape,
+ * an unsupported parameter — that will fail identically on every remaining
+ * model. Retrying it burns the whole chain's latency to reach the same error.
+ *
+ * Auth (401/403) is fatal in both positions: it is a property of the key, not
+ * the model.
+ */
+function isRetryableStatus(status: number, isPrimary: boolean): boolean {
+  if (status === 402 || status === 429 || status >= 500) return true;
+  return isPrimary && isRetiredModelStatus(status);
+}
+
+/**
  * Run one seat against an explicit message list, trying the seat's primary model
  * then the free-tier chain. Returns the answer plus which model served it and the
  * wall-clock latency (persisted for observability). Throws only if every model
@@ -330,7 +367,8 @@ export async function runSeat(
 
   const started = Date.now();
   let lastStatus = 503;
-  for (const model of modelChain) {
+  for (const [index, model] of modelChain.entries()) {
+    const isPrimary = index === 0;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20_000);
     try {
@@ -352,9 +390,17 @@ export async function runSeat(
       }
       lastStatus = res.status;
       await res.body?.cancel().catch(() => {});
-      // Retry on 402 (free-tier quota) / 429 (rate limit) / 5xx; other 4xx are
-      // fatal for this request and propagate.
-      if (res.status !== 402 && res.status !== 429 && res.status < 500) break;
+      if (!isRetryableStatus(res.status, isPrimary)) break;
+      if (isPrimary && isRetiredModelStatus(res.status)) {
+        // Loud, because nothing else surfaces it: the seat still answers via
+        // the chain, so a rotted SEAT_MODELS entry is otherwise invisible
+        // until someone audits the catalog by hand.
+        console.warn(
+          `[openrouter] seat=${seat} primary model ${model} returned ${res.status} — ` +
+          `likely retired from the catalog. Falling through to FREE_MODEL_CHAIN. ` +
+          `Update SEAT_MODELS (see scripts/refresh-free-models.mjs).`,
+        );
+      }
     } catch (err) {
       // Timeout (AbortError from our own ctrl) → try next model; other errors propagate.
       if (err instanceof Error && err.name !== 'AbortError') throw err;

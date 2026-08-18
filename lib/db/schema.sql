@@ -303,3 +303,86 @@ DELETE FROM analyze_cache a USING analyze_cache b
   WHERE a.cache_key = b.cache_key AND a.generated_at < b.generated_at;
 CREATE UNIQUE INDEX IF NOT EXISTS analyze_cache_key_idx
   ON analyze_cache (cache_key);
+
+-- ---------------------------------------------------------------------------
+-- Precomputed AI artifacts (Option D, docs/gha-modal-core-feature-coverage.md).
+--
+-- Batch AI work is generated off-request by a scheduled Modal job that runs
+-- just after OpenRouter's UTC-midnight free-tier reset, when the daily quota is
+-- fresh. The app then serves these rows as ordinary cached reads, costing zero
+-- model quota at request time — which leaves the whole daily allowance for
+-- genuinely interactive calls (Nu AI chat) that cannot be precomputed.
+--
+-- Keyed by (kind, subject): `kind` is the artifact type ('portfolio_health_ai',
+-- 'digest_commentary', …) and `subject` is whatever that kind is scoped to — a
+-- ticker set hash, a user id, or the literal 'global'. One row per pair; the
+-- job upserts, so the table never grows without bound.
+CREATE TABLE IF NOT EXISTS precomputed_ai (
+  kind         text        NOT NULL,
+  subject      text        NOT NULL,
+  payload      jsonb       NOT NULL,
+  model        text,                    -- which model served it, for observability
+  generated_at timestamptz NOT NULL DEFAULT now(),
+  expires_at   timestamptz,             -- NULL = serve until replaced
+  PRIMARY KEY (kind, subject)
+);
+CREATE INDEX IF NOT EXISTS precomputed_ai_kind_generated_idx
+  ON precomputed_ai (kind, generated_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- ticker_universe / ticker_cards — the full-universe signal layer.
+--
+-- The design in docs/max-coverage-simplest-path.md: coverage is expensive only
+-- because the unit of coverage is an AI narrative. A *token card* — the
+-- discretized tuple lib/grounding/taxonomy.ts already produces — costs no model
+-- quota, so every ticker can carry a dated, source-traced, machine-rankable
+-- card while the model is spent only on the top of the ranking.
+--
+-- Deliberately ONE card table, not the three tables an earlier draft proposed.
+-- Ranking is a SQL ORDER BY over this table; no ranking endpoint is needed.
+
+CREATE TABLE IF NOT EXISTS ticker_universe (
+  ticker     text PRIMARY KEY,
+  universe   text NOT NULL CHECK (universe IN ('etf', 'stock')),
+  name       text,
+  active     boolean NOT NULL DEFAULT true,
+  added_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ticker_universe_active_idx
+  ON ticker_universe (universe, ticker) WHERE active;
+
+-- One card per (ticker, horizon): the taxonomy produces a distinct state for
+-- each horizon, and both are cheap, so both are stored rather than picking one.
+CREATE TABLE IF NOT EXISTS ticker_cards (
+  ticker           text NOT NULL REFERENCES ticker_universe (ticker) ON DELETE CASCADE,
+  horizon          text NOT NULL CHECK (horizon IN ('t1', 't2')),
+  universe         text NOT NULL CHECK (universe IN ('etf', 'stock')),
+  state_key        text NOT NULL,          -- toStateKey() — joins to grounding_pack
+  taxonomy_version text NOT NULL,          -- TAXONOMY_VERSION at card time
+  score            real NOT NULL,          -- deterministic, computed in code
+  score_version    text NOT NULL,          -- CARD_SCORE_VERSION
+  action           text NOT NULL CHECK (action IN ('BUY', 'HOLD', 'SELL')),
+  tokens           jsonb NOT NULL,         -- toStateKeyParts() — the card itself
+  numerics         jsonb NOT NULL DEFAULT '{}'::jsonb,  -- raw inputs, for audit
+  data_quality     real NOT NULL DEFAULT 1.0,           -- gates the explain batch
+  missing_fields   text[] NOT NULL DEFAULT '{}',        -- prevents silent neutralization
+  source           text NOT NULL,          -- 'gcp3' | 'modal-eod' | …
+  source_run_id    text,
+  bar_date         date NOT NULL,
+  computed_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (ticker, horizon)
+);
+
+-- The ranking index. Partial on quality because the top-N query never wants
+-- low-quality rows, so they should not occupy the index at all.
+CREATE INDEX IF NOT EXISTS ticker_cards_rank_idx
+  ON ticker_cards (horizon, score DESC, computed_at DESC)
+  WHERE data_quality >= 0.8;
+
+-- The quiet payoff: joins straight to grounding_pack.state_key, giving every
+-- ticker cited, corpus-grounded rules at Tier 0 for zero model calls.
+CREATE INDEX IF NOT EXISTS ticker_cards_state_idx
+  ON ticker_cards (taxonomy_version, state_key);
+
+CREATE INDEX IF NOT EXISTS ticker_cards_freshness_idx
+  ON ticker_cards (bar_date DESC, computed_at DESC);

@@ -75,12 +75,13 @@ test.describe("Portfolio Health Score (/api/portfolio/health)", () => {
 
     // EXPECTED TO FAIL if the adapter regresses: this proves the silent
     // "score 0 / Grade F" failure mode the incident calls out as WORSE than
-    // an error, because it renders as a real result.
-    const scoreText = await page.locator(".port-health-result").textContent();
-    expect(
-      scoreText,
-      'contract-drift payload rendered as a real score instead of being rejected — see incident "Contract drift" section',
-    ).not.toMatch(/Grade F/);
+    // an error, because it renders as a real result. isPortfolioHealth()
+    // (lib/portfolio.ts) rejects a payload missing a numeric `score` before
+    // it ever reaches state, so the client falls into the error branch
+    // (.port-health-error) — not .port-health-result, which must never mount
+    // for a rejected payload.
+    await expect(page.locator(".port-health-error")).toBeVisible();
+    await expect(page.locator(".port-health-result")).not.toBeVisible();
   });
 
   test("EXPOSE: empty watchlist (204) must never render as an error", async ({ page }) => {
@@ -88,9 +89,13 @@ test.describe("Portfolio Health Score (/api/portfolio/health)", () => {
     await page.goto("/dashboard/portfolio");
     await page.getByRole("button", { name: /run health score/i }).click();
 
-    // scoreStatus must land on "empty" (port-watch-empty copy), not "error".
+    // scoreStatus must land on "empty" (port-score-empty copy), not "error".
+    // Was .port-watch-empty, shared with two other unrelated empty-states
+    // (watchlist-empty, suggestions-empty) — a strict-mode violation whenever
+    // more than one co-rendered on an empty watchlist. Split into
+    // per-section classes (port-score-empty here) in PortfolioClient.tsx.
     await expect(page.locator(".port-health-error")).not.toBeVisible();
-    await expect(page.locator(".port-watch-empty")).toBeVisible();
+    await expect(page.locator(".port-score-empty")).toBeVisible();
   });
 });
 
@@ -194,14 +199,21 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
   // (that route renders no backtest data at all — confirmed by grep before
   // writing this test, don't reintroduce a /verdict assertion without
   // re-checking that).
-  test("DIAGNOSE: SIGNALS_ENGINE_URL unset vs. engine unreachable vs. malformed response — all collapse to 204", async ({ request }) => {
+  test("DIAGNOSE: SIGNALS_ENGINE_URL unset vs. engine unreachable vs. malformed response — all collapse to 204", async ({ page }) => {
     // fetchBacktest() in lib/backtest.ts returns null (-> route returns 204)
     // for FOUR distinct causes: SIGNALS_ENGINE_URL unset, fetch throws,
     // non-2xx, or a response that fails isBacktestResult(). A 204 in prod
     // is therefore uninformative about which one you're facing — this test
     // documents that ambiguity exists rather than resolving it, since only
     // server-side env inspection can distinguish "unset" from "unreachable".
-    const res = await request.get("/api/backtest/JETS");
+    // Uses page.request (not the bare `request` fixture) so the call carries
+    // the frontend project's authenticated storageState session. A page load
+    // is required first — Clerk's client-side session sync only activates
+    // the __session cookie's claims once a page in this browser context has
+    // actually loaded; page.request.get() before any goto() still 401s even
+    // with valid storageState cookies present.
+    await page.goto("/dashboard/portfolio");
+    const res = await page.request.get("/api/backtest/JETS");
     if (res.status() === 204) {
       test.info().annotations.push({
         type: "diagnosis",
@@ -215,6 +227,11 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
   test("EXPOSE: the exact 'unavailable' string does not distinguish unset config from a broken engine", async ({ page }) => {
     await page.route("**/api/backtest/**", (route) => route.fulfill({ status: 204 }));
     await page.goto("/dashboard/signals");
+
+    // TrackRecordBadge sits inside the card's expanded content — collapsed
+    // by default, so "Details ↓" must be opened first or the badge (and its
+    // "Show track record" button) never mounts.
+    await page.getByRole("button", { name: /details/i }).first().click();
 
     // TrackRecordBadge is idle until clicked — this reproduces the reported
     // "Historical hit-rate data unavailable for JETS" state deterministically
@@ -244,6 +261,10 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
     );
 
     await page.goto("/dashboard/signals");
+
+    // Same as the test above: expand the card before TrackRecordBadge exists.
+    await page.getByRole("button", { name: /details/i }).first().click();
+
     const showButton = page.getByRole("button", { name: /show track record/i }).first();
     await showButton.click();
 

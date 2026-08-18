@@ -17,7 +17,6 @@ export function NuAIChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [limitReached, setLimitReached] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,7 +44,6 @@ export function NuAIChat() {
         body: JSON.stringify({ messages: next }),
       });
 
-      if (res.status === 429) { setLimitReached(true); return; }
       if (res.status === 403) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error === "upgrade_required"
@@ -77,21 +75,14 @@ export function NuAIChat() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reach Nu AI");
+      // Restore the failed message to the input so the send button
+      // re-enables and the user can retry without retyping.
+      setInput(text);
       // Remove the empty placeholder on error
       setMessages(m => m.filter((_, i) => i !== m.length - 1 || m[m.length - 1].content !== ""));
     } finally {
       setLoading(false);
     }
-  }
-
-  if (limitReached) {
-    return (
-      <div className="nuai-limit">
-        <p className="nuai-limit-emoji">⏰</p>
-        <p className="nuai-limit-title">Daily limit reached</p>
-        <p className="nuai-limit-sub">Your Nu AI quota resets at midnight UTC.</p>
-      </div>
-    );
   }
 
   return (

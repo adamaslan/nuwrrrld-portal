@@ -114,13 +114,26 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
         rawDqScore === 'fresh' || rawDqScore === 'stale' || rawDqScore === 'unknown'
           ? rawDqScore
           : undefined;
+      // Per-symbol `updated` field, when gcp3 emits one — falls back to the
+      // batch-wide `updated` (fallbackDate) only when a symbol omits it.
+      // Using fallbackDate for every signal regardless of its own `updated`
+      // was the "batch-timestamp blind spot": a symbol whose own data lagged
+      // the rest of the batch would inherit the batch's fresh timestamp and
+      // never trip computeIsStale(), even though ITS data was old — see
+      // e2e/frontend/signal-timing.spec.ts's DIAGNOSE test of the same name.
+      const rawUpdated = entry.updated;
+      const signalGeneratedAt =
+        typeof rawUpdated === 'string' && !Number.isNaN(Date.parse(rawUpdated))
+          ? rawUpdated
+          : fallbackDate;
       // Prefer the backend's authoritative data_quality_score when present — it
       // reflects the source industry_cache's true age, not just this signal's
-      // own generatedAt timestamp. Fall back to the client-side heuristic
-      // otherwise (e.g. older backend versions that don't emit the field yet).
+      // own generatedAt timestamp. Fall back to the per-signal timestamp
+      // heuristic otherwise (e.g. older backend versions that don't emit the
+      // field yet).
       const isStale = dataQualityScore
         ? dataQualityScore !== 'fresh'
-        : computeIsStale(fallbackDate);
+        : computeIsStale(signalGeneratedAt);
       return {
         id: ticker || `signal-${i}`,
         ticker,
@@ -130,7 +143,7 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
         title: String(entry.ai_summary ?? ''),
         explanation: String(entry.ai_outlook ?? ''),
         indicators,
-        generatedAt: fallbackDate,
+        generatedAt: signalGeneratedAt,
         score,
         reasons: reasons.length > 0 ? reasons : undefined,
         signalCounts:

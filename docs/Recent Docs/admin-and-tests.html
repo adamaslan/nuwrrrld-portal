@@ -1,0 +1,434 @@
+<title>Admin & Test Coverage</title>
+<style>
+:root{
+  --bg:#f7f5f1;
+  --surface:#ffffff;
+  --border:#e3ddd1;
+  --ink:#241f18;
+  --ink-soft:#5c5346;
+  --muted:#8a8171;
+  --accent:#a8471e;
+  --accent-soft:#f0e0d3;
+  --ok:#3d6b4c;
+  --ok-bg:#e6efe6;
+  --warn:#9c6b1f;
+  --warn-bg:#f5ecd9;
+  --gap:#b23b3b;
+  --gap-bg:#f7e4e0;
+  --mono-bg:#efe9dd;
+  --font-display:'Fraunces',serif;
+  --font-body:'Source Sans','Helvetica Neue',Arial,sans-serif;
+  --font-mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1913;
+    --surface:#26221a;
+    --border:#3a352a;
+    --ink:#efe9dd;
+    --ink-soft:#c4bcac;
+    --muted:#8f8877;
+    --accent:#e08a54;
+    --accent-soft:#3a2a1f;
+    --ok:#7fb894;
+    --ok-bg:#20302a;
+    --warn:#d9b063;
+    --warn-bg:#332a19;
+    --gap:#e08585;
+    --gap-bg:#332120;
+    --mono-bg:#211e17;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1913;
+  --surface:#26221a;
+  --border:#3a352a;
+  --ink:#efe9dd;
+  --ink-soft:#c4bcac;
+  --muted:#8f8877;
+  --accent:#e08a54;
+  --accent-soft:#3a2a1f;
+  --ok:#7fb894;
+  --ok-bg:#20302a;
+  --warn:#d9b063;
+  --warn-bg:#332a19;
+  --gap:#e08585;
+  --gap-bg:#332120;
+  --mono-bg:#211e17;
+}
+
+@font-face{
+  font-family:'Fraunces';
+  src:local('Fraunces');
+  font-weight:300 700;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{
+  max-width:840px;
+  margin:0 auto;
+  padding:4rem 1.5rem 6rem;
+}
+
+header.masthead{
+  border-bottom:2px solid var(--ink);
+  padding-bottom:1.75rem;
+  margin-bottom:2.5rem;
+}
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:0.75rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin-bottom:0.9rem;
+}
+h1{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:clamp(2.1rem,5vw,3rem);
+  line-height:1.08;
+  margin:0 0 0.75rem;
+  text-wrap:balance;
+}
+.dek{
+  color:var(--ink-soft);
+  font-size:1.05rem;
+  max-width:60ch;
+  margin:0;
+}
+.meta-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.5rem 1.5rem;
+  margin-top:1.25rem;
+  font-family:var(--font-mono);
+  font-size:0.8rem;
+  color:var(--muted);
+}
+.meta-row span b{color:var(--ink-soft);font-weight:600;}
+
+section{margin-bottom:3rem;}
+h2{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:1.5rem;
+  margin:0 0 0.4rem;
+  display:flex;
+  align-items:baseline;
+  gap:0.6rem;
+}
+.section-num{
+  font-family:var(--font-mono);
+  font-size:0.85rem;
+  color:var(--muted);
+  font-weight:400;
+}
+.section-lede{
+  color:var(--ink-soft);
+  max-width:62ch;
+  margin:0 0 1.5rem;
+}
+
+/* Status banner for admin section */
+.status-card{
+  background:var(--gap-bg);
+  border:1px solid var(--gap);
+  border-radius:6px;
+  padding:1.25rem 1.5rem;
+  display:flex;
+  gap:1rem;
+  align-items:flex-start;
+  margin-bottom:1.5rem;
+}
+.status-dot{
+  width:0.65rem;height:0.65rem;border-radius:50%;
+  background:var(--gap);
+  margin-top:0.45rem;
+  flex-shrink:0;
+}
+.status-card h3{
+  margin:0 0 0.35rem;
+  font-size:1rem;
+  font-family:var(--font-body);
+  font-weight:700;
+  color:var(--ink);
+}
+.status-card p{margin:0;color:var(--ink-soft);font-size:0.95rem;}
+.status-card code{
+  font-family:var(--font-mono);
+  background:var(--mono-bg);
+  padding:0.1rem 0.4rem;
+  border-radius:3px;
+  font-size:0.85em;
+}
+
+/* auth model table */
+.auth-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:0.92rem;
+  margin-top:1rem;
+}
+.auth-table th{
+  text-align:left;
+  font-family:var(--font-mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--muted);
+  font-weight:600;
+  padding:0 0.75rem 0.6rem 0;
+  border-bottom:1px solid var(--border);
+}
+.auth-table td{
+  padding:0.7rem 0.75rem 0.7rem 0;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+  color:var(--ink-soft);
+}
+.auth-table td:first-child{
+  font-family:var(--font-mono);
+  font-size:0.85rem;
+  color:var(--ink);
+  white-space:nowrap;
+}
+.auth-table tr:last-child td{border-bottom:none;}
+.pill{
+  display:inline-block;
+  font-family:var(--font-mono);
+  font-size:0.72rem;
+  padding:0.15rem 0.5rem;
+  border-radius:999px;
+  background:var(--ok-bg);
+  color:var(--ok);
+  border:1px solid transparent;
+}
+.pill.warn{background:var(--warn-bg);color:var(--warn);}
+
+/* Test coverage table */
+.test-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:0.9rem;
+  overflow-x:auto;
+  display:block;
+}
+.test-table thead, .test-table tbody{display:table;width:100%;table-layout:fixed;}
+.test-table th{
+  text-align:left;
+  font-family:var(--font-mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--muted);
+  font-weight:600;
+  padding:0 0.75rem 0.6rem 0;
+  border-bottom:1px solid var(--border);
+}
+.test-table th:nth-child(1){width:38%;}
+.test-table th:nth-child(2){width:12%;}
+.test-table th:nth-child(3){width:50%;}
+.test-table td{
+  padding:0.65rem 0.75rem 0.65rem 0;
+  border-bottom:1px solid var(--border);
+  color:var(--ink-soft);
+  vertical-align:top;
+}
+.test-table td.file{
+  font-family:var(--font-mono);
+  font-size:0.8rem;
+  color:var(--ink);
+}
+.test-table td.count{
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+  color:var(--ink-soft);
+}
+.test-table tr:last-child td{border-bottom:none;}
+.table-scroll{overflow-x:auto;border-radius:4px;}
+
+.tally{
+  display:flex;
+  gap:2rem;
+  flex-wrap:wrap;
+  margin:1.5rem 0 0.5rem;
+  padding:1.25rem 1.5rem;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+.tally-item .num{
+  font-family:var(--font-display);
+  font-size:2.1rem;
+  font-weight:600;
+  color:var(--accent);
+  line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.tally-item .label{
+  font-family:var(--font-mono);
+  font-size:0.72rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--muted);
+  margin-top:0.35rem;
+}
+
+.gap-list{
+  list-style:none;
+  margin:1rem 0 0;
+  padding:0;
+  display:grid;
+  gap:0.6rem;
+}
+.gap-list li{
+  display:flex;
+  gap:0.65rem;
+  align-items:flex-start;
+  font-size:0.92rem;
+  color:var(--ink-soft);
+}
+.gap-list li::before{
+  content:"—";
+  color:var(--gap);
+  font-weight:700;
+  flex-shrink:0;
+}
+.gap-list b{color:var(--ink);font-weight:600;}
+
+footer{
+  border-top:1px solid var(--border);
+  margin-top:3rem;
+  padding-top:1.25rem;
+  font-family:var(--font-mono);
+  font-size:0.78rem;
+  color:var(--muted);
+}
+
+code, .inline-code{
+  font-family:var(--font-mono);
+  background:var(--mono-bg);
+  padding:0.1rem 0.4rem;
+  border-radius:3px;
+  font-size:0.88em;
+  color:var(--ink);
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Engineering status · nuwrrrld-portal</div>
+    <h1>Admin surface &amp; test coverage</h1>
+    <p class="dek">A factual snapshot of what administrative controls exist in the portal today, and what the current Vitest suite actually verifies.</p>
+    <div class="meta-row">
+      <span>Repo <b>nuwrrrld-portal</b></span>
+      <span>Snapshot date <b>2026-08-15</b></span>
+      <span>Test runner <b>Vitest</b></span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="section-num">01</span> Admin features</h2>
+    <p class="section-lede">There is no admin surface in this app today. No admin routes, no admin API, no role-based gate.</p>
+
+    <div class="status-card">
+      <div class="status-dot"></div>
+      <div>
+        <h3>No admin panel exists</h3>
+        <p>There is no <code>app/admin/**</code> directory, no <code>/api/admin/*</code> route, and no admin UI components anywhere in the codebase. The one trace of the word "admin" is <code>NULOGDASH_ADMIN_EMAILS</code>, declared in the env schema (<code>lib/env.ts</code>) but never read by any middleware, route, or component — a reserved config key, not a working feature.</p>
+      </div>
+    </div>
+
+    <p class="section-lede" style="margin-bottom:0.5rem;">What <code>middleware.ts</code> actually enforces is user-level auth only, via Clerk — no privileged role or org-permission check anywhere:</p>
+
+    <table class="auth-table">
+      <thead>
+        <tr><th>Route</th><th>Guard</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>/dashboard(.*)</td>
+          <td><span class="pill">signed-in</span></td>
+          <td>Any authenticated user — no role distinction.</td>
+        </tr>
+        <tr>
+          <td>/api/portfolio/health</td>
+          <td><span class="pill">signed-in</span></td>
+          <td>Requires an active Clerk session.</td>
+        </tr>
+        <tr>
+          <td>/api/holdfold(.*)</td>
+          <td><span class="pill">signed-in</span></td>
+          <td>Requires an active Clerk session.</td>
+        </tr>
+        <tr>
+          <td>/api/signals/digest</td>
+          <td><span class="pill warn">signed-in, or bearer secret</span></td>
+          <td>Server-to-server calls authenticate via <code>PORTAL_PUSH_SECRET</code> — built for cron/internal callers, not a privileged human role.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="section-num">02</span> Test coverage</h2>
+    <p class="section-lede">Vitest is the only test runner configured (<code>vitest.config.ts</code>, node environment). No Playwright or e2e config exists — everything below runs headless, no browser.</p>
+
+    <div class="tally">
+      <div class="tally-item"><div class="num">12</div><div class="label">Test files</div></div>
+      <div class="tally-item"><div class="num">106</div><div class="label">Test cases</div></div>
+      <div class="tally-item"><div class="num">1</div><div class="label">Route-handler test</div></div>
+      <div class="tally-item"><div class="num">0</div><div class="label">E2E / UI tests</div></div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="test-table">
+        <thead>
+          <tr><th>File</th><th>Cases</th><th>Covers</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="file">signal-queue.test.ts</td><td class="count">19</td><td><code>normalizeTicker</code>, <code>isCacheFresh</code> — signal queue helper logic</td></tr>
+          <tr><td class="file">grounding-taxonomy.test.ts</td><td class="count">14</td><td><code>toStateKeyParts</code> bucketing for RSI/ADX/volatility thresholds</td></tr>
+          <tr><td class="file">council-validate.test.ts</td><td class="count">11</td><td><code>numericCrossCheck</code> hallucinated-number detection, <code>tradeLogicSanity</code> long/short stop ordering</td></tr>
+          <tr><td class="file">council-critique.test.ts</td><td class="count">9</td><td><code>extractDirection</code> parsing, <code>computeDisagreements</code> majority/tie logic</td></tr>
+          <tr><td class="file">public-demo.test.ts</td><td class="count">9</td><td><code>hashIp</code> HMAC hashing, <code>clientIpFromHeaders</code> spoof-resistance</td></tr>
+          <tr><td class="file">subscription.test.ts</td><td class="count">9</td><td><code>tierFromStatus</code>, <code>hasEntitlement</code>, <code>isTrialExpired</code>, Stripe metadata parsing</td></tr>
+          <tr><td class="file">council-verdict.test.ts</td><td class="count">8</td><td><code>parseStructuredVerdict</code>, <code>stripReasoning</code>, <code>directionFromOutlook</code></td></tr>
+          <tr><td class="file">disclaimer.test.ts</td><td class="count">7</td><td><code>djb2</code> hash, <code>DISCLAIMER_HASH</code> derivation, <code>analyzeCacheKey</code></td></tr>
+          <tr><td class="file">brief.test.ts</td><td class="count">7</td><td><code>mapSignalsToHoldFold</code>, <code>buildBriefPrompt</code></td></tr>
+          <tr><td class="file">live-price.test.ts</td><td class="count">6</td><td><code>parseLivePriceRow</code> / <code>parseLivePriceBatch</code> validation and dedup</td></tr>
+          <tr><td class="file">signal-queue.integration.test.ts</td><td class="count">4</td><td>Real queue: dedup on enqueue, claim/processing transitions, retry backoff, <code>getQueueStats</code> — hits an actual store</td></tr>
+          <tr><td class="file">stripe-checkout.test.ts</td><td class="count">3</td><td><code>POST /api/stripe/checkout</code> — 401 unauthenticated, 502 on Stripe error, success returns checkout URL</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="section-num">03</span> Coverage gaps</h2>
+    <p class="section-lede">The suite is dense on pure-function business logic and thin everywhere else.</p>
+    <ul class="gap-list">
+      <li><b>Route handlers:</b> only <code>stripe-checkout.test.ts</code> exercises an actual API route. Every other endpoint — <code>/api/webhooks/*</code>, <code>/api/portfolio/*</code>, <code>/api/holdfold/*</code>, <code>/api/backtest/*</code> — has no request/response-level test.</li>
+      <li><b>Auth &amp; middleware:</b> no test asserts that <code>middleware.ts</code> actually blocks unauthenticated requests to protected routes, or that the <code>PORTAL_PUSH_SECRET</code> bearer path behaves correctly under a wrong or missing secret.</li>
+      <li><b>UI &amp; components:</b> zero React component tests and zero end-to-end/browser tests — no Playwright, Cypress, or Testing Library setup exists.</li>
+      <li><b>Admin controls:</b> not applicable — there is nothing to test, since no admin feature is implemented yet.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Generated from a direct repository scan of nuwrrrld-portal — <code>middleware.ts</code>, <code>lib/env.ts</code>, <code>vitest.config.ts</code>, and <code>__tests__/**</code>.
+  </footer>
+
+</div>

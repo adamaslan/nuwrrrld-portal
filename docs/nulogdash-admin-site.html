@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NuWrrrld Portal — Admin Site (nulogdash)</title>
+<style>
+  :root { --bg:#0b0e13; --card:#141922; --border:#232b38; --ink:#e6edf3; --mut:#8b98a9; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --accent:#58a6ff; --purple:#bc8cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:1000px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:34px 0 12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  h3 { font-size:.98rem; margin:20px 0 8px; color:var(--accent); }
+  .sub { color:var(--mut); margin:0 0 24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat b { display:block; font-size:1.6rem; }
+  .stat span { color:var(--mut); font-size:.82rem; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 4px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  code { background:#1c2230; padding:1px 6px; border-radius:5px; font-size:.86em; }
+  pre { background:#10151f; border:1px solid var(--border); border-radius:8px; padding:14px 16px; overflow-x:auto; margin:10px 0; font-size:.84rem; line-height:1.5; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); } .accent { color:var(--accent); } .purple { color:var(--purple); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:12px 0; }
+  .card.bad { border-left:3px solid var(--bad); }
+  .card.warn { border-left:3px solid var(--warn); }
+  .card.ok { border-left:3px solid var(--ok); }
+  ul { margin:6px 0 6px; padding-left:20px; } li { margin:5px 0; }
+  ol { margin:6px 0 6px; padding-left:22px; } ol li { margin:8px 0; }
+  .pill { display:inline-block; font-size:.7rem; padding:2px 8px; border-radius:99px; border:1px solid var(--border); color:var(--mut); }
+  .pill.ok { border-color:var(--ok); color:var(--ok); }
+  .pill.warn { border-color:var(--warn); color:var(--warn); }
+  .cta { display:inline-block; margin:6px 0 0; padding:10px 16px; border-radius:8px; background:var(--accent); color:#0b0e13; font-weight:700; text-decoration:none; font-size:.88rem; }
+  .cta:hover { opacity:.9; }
+  footer { color:var(--mut); font-size:.8rem; margin-top:44px; border-top:1px solid var(--border); padding-top:16px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Admin Site — nulogdash</h1>
+  <p class="sub">nuwrrrld-portal · what the admin dashboard is, who can see it, and how to get there</p>
+
+  <a class="cta" href="/dashboard/nulogdash">Open the dash →</a>
+
+  <div class="grid">
+    <div class="stat"><b class="ok">1</b><span>admin page</span></div>
+    <div class="stat"><b>allowlist</b><span>email-gated access</span></div>
+    <div class="stat"><b>live</b><span>reads latest local run</span></div>
+  </div>
+
+  <h2>What it is</h2>
+  <div class="card">
+    <p>
+      <code>/dashboard/nulogdash</code> is the portal's only admin surface today. It
+      renders the results of the most recent <code>nulogdash</code> sweep — a pass over
+      the app's features (signals, hold/fold, portfolio, Nu AI, etc.) checking whether
+      each one actually ran end-to-end, and if not, why.
+    </p>
+    <p>
+      Runs are produced locally via <code>/nulogdash</code> in Claude Code or
+      <code>npm run nulogdash</code> from a terminal, and written to
+      <code>.nulogdash/latest.json</code>. The page is <code>force-dynamic</code> so it
+      always reflects the latest run on disk — there's no caching to fight.
+    </p>
+  </div>
+
+  <h2>Access control</h2>
+  <div class="card warn">
+    <p>
+      The page is gated by email allowlist, not role or plan. On load it checks the
+      signed-in Clerk user's primary email against
+      <code>NULOGDASH_ADMIN_EMAILS</code> (comma-separated env var). Non-admins get a
+      <code>404</code> via <code>notFound()</code> — the route doesn't reveal itself to
+      anyone off the list. Signed-out users are redirected to sign-in first.
+    </p>
+    <p>The allowlist check is centralized in <code>lib/nulogdash.ts</code> as
+      <code>isNulogdashAdmin(email)</code>, shared by the page itself and by the
+      dashboard navbar (below).</p>
+  </div>
+
+  <h2>What the page shows</h2>
+  <table>
+    <thead><tr><th>Section</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>Headline</td><td>Run timestamp, branch@sha, base URL, and a count of features not exercised this pass</td></tr>
+      <tr><td>Inventory drift</td><td>Warnings when the feature inventory has changed since the last sweep</td></tr>
+      <tr><td>Not run end-to-end</td><td>Table of blocked / not-run features with tier, latency, and reason</td></tr>
+      <tr><td>Exercised this pass</td><td>Table of pass / fail features</td></tr>
+      <tr><td>Excluded from sweep</td><td>Features intentionally out of scope, with entry point and reason</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Link on the dashboard navbar</h2>
+  <div class="card ok">
+    <p>
+      The main dashboard topbar (<code>app/dashboard/page.tsx</code>) now shows a
+      <span class="pill ok">nulogdash</span> link alongside Signals, Hold/Fold, Nu AI,
+      Portfolio, Share, Billing, and Founders — but only for signed-in users who pass
+      <code>isNulogdashAdmin()</code>. Everyone else sees the same navbar with that
+      link simply absent, matching the page's own 404-if-not-allowlisted behavior.
+    </p>
+    <a class="cta" href="/dashboard/nulogdash">Open the dash →</a>
+  </div>
+
+  <footer>
+    NuWrrrld Portal · generated docs · see <code>docs/nulogdash-dashboard-plan.md</code> for the planned Neon-backed run history.
+  </footer>
+
+</div>
+</body>
+</html>

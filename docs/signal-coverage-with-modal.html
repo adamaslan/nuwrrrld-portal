@@ -1,0 +1,691 @@
+<title>The Token Card Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ── Tokens: complete light palette on bare :root ───────────────────── */
+  :root {
+    --bg:        #F7F5F1;
+    --panel:     #FFFFFF;
+    --panel-2:   #EFEBE4;
+    --line:      #DAD3C8;
+    --line-soft: #E7E1D8;
+    --text:      #1A1D22;
+    --text-2:    #4A5058;
+    --muted:     #6E7A8A;
+
+    --accent:    #B87514;   /* signal amber, darkened for paper */
+    --accent-dim:#F0E4CE;
+    --free:      #17756A;   /* teal — the zero-cost lanes */
+    --free-dim:  #D6EAE6;
+    --quota:     #9A5B12;
+    --scope:     #6E7A8A;
+
+    --shadow: 0 1px 2px rgba(26,29,34,.06), 0 8px 24px rgba(26,29,34,.05);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #0E1116;
+      --panel:     #161B22;
+      --panel-2:   #1C222B;
+      --line:      #2A323D;
+      --line-soft: #222933;
+      --text:      #E9EDF2;
+      --text-2:    #B4BEC9;
+      --muted:     #7C8896;
+
+      --accent:    #E8A33D;
+      --accent-dim:#3A2C13;
+      --free:      #5EC8B4;
+      --free-dim:  #12332F;
+      --quota:     #E8A33D;
+      --scope:     #6E7A8A;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.30);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:        #0E1116;
+    --panel:     #161B22;
+    --panel-2:   #1C222B;
+    --line:      #2A323D;
+    --line-soft: #222933;
+    --text:      #E9EDF2;
+    --text-2:    #B4BEC9;
+    --muted:     #7C8896;
+
+    --accent:    #E8A33D;
+    --accent-dim:#3A2C13;
+    --free:      #5EC8B4;
+    --free-dim:  #12332F;
+    --quota:     #E8A33D;
+    --scope:     #6E7A8A;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.30);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 3.5rem 1.5rem 7rem; }
+
+  /* ── Type scale ─────────────────────────────────────────────────────── */
+  h1 {
+    font: 400 clamp(2.1rem, 5.2vw, 3.3rem)/1.08 var(--serif);
+    letter-spacing: -.022em; margin: 0 0 1rem; text-wrap: balance;
+  }
+  h2 {
+    font: 400 clamp(1.35rem, 2.6vw, 1.75rem)/1.2 var(--serif);
+    letter-spacing: -.015em; margin: 0 0 .5rem; text-wrap: balance;
+  }
+  h3 { font: 600 1rem/1.35 var(--sans); margin: 0 0 .4rem; letter-spacing: -.005em; }
+  p { margin: 0 0 1rem; max-width: 68ch; color: var(--text-2); }
+  p.lede { font-size: 1.1rem; color: var(--text-2); max-width: 62ch; }
+  strong { color: var(--text); font-weight: 600; }
+  a { color: var(--accent); }
+
+  .eyebrow {
+    font: 600 .7rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 .9rem;
+  }
+  code {
+    font-family: var(--mono); font-size: .86em;
+    background: var(--panel-2); color: var(--text);
+    padding: .1rem .34rem; border-radius: 4px;
+    border: 1px solid var(--line-soft);
+  }
+
+  section { margin-top: 4.5rem; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 0; }
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  header.doc { padding-bottom: 2.25rem; border-bottom: 1px solid var(--line); }
+  .stamp {
+    display: inline-flex; align-items: center; gap: .55rem;
+    font: 600 .68rem/1 var(--mono); letter-spacing: .13em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-dim);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    padding: .42rem .7rem; border-radius: 3px; margin-bottom: 1.5rem;
+  }
+  .stamp .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  /* ── Stat strip ─────────────────────────────────────────────────────── */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line);
+    border-radius: 6px; overflow: hidden; margin-top: 2.25rem;
+  }
+  .stat { background: var(--panel); padding: 1.15rem 1.15rem 1.05rem; }
+  .stat b {
+    display: block; font: 400 1.95rem/1.05 var(--mono);
+    font-variant-numeric: tabular-nums; letter-spacing: -.03em; margin-bottom: .35rem;
+  }
+  .stat.free b  { color: var(--free); }
+  .stat.acc b   { color: var(--accent); }
+  .stat span { font: .74rem/1.4 var(--sans); color: var(--muted); display: block; }
+
+  /* ── The machine ────────────────────────────────────────────────────── */
+  .machine {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .machine-head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem;
+    padding: .85rem 1.15rem; border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+  .machine-head .t { font: 600 .78rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .machine-head .h { font: .72rem/1 var(--mono); color: var(--muted); margin-left: auto; }
+  .dials {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+    gap: 1.4rem 1.75rem; padding: 1.5rem 1.15rem;
+  }
+  .dial label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font: 600 .72rem/1 var(--mono); letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: .65rem;
+  }
+  .dial .val {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--text); font-size: .82rem; letter-spacing: 0;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%;
+    background: transparent; height: 20px; margin: 0; display: block; cursor: ew-resize;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 3px; background: var(--line); border-radius: 2px;
+  }
+  input[type=range]::-moz-range-track {
+    height: 3px; background: var(--line); border-radius: 2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 15px; height: 15px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--panel);
+    margin-top: -6px; box-shadow: 0 0 0 1px var(--accent);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--panel);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+  .seg { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .seg button {
+    font: 600 .72rem/1 var(--mono); letter-spacing: .04em;
+    padding: .48rem .6rem; border-radius: 4px; cursor: pointer;
+    background: var(--panel-2); color: var(--text-2);
+    border: 1px solid var(--line); transition: background .12s, color .12s, border-color .12s;
+  }
+  .seg button:hover { border-color: var(--accent); color: var(--text); }
+  .seg button[aria-pressed="true"] {
+    background: var(--accent-dim); color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .keyout {
+    border-top: 1px solid var(--line); background: var(--panel-2);
+    padding: 1.15rem 1.15rem 1.3rem;
+  }
+  .keyout .cap {
+    font: 600 .68rem/1 var(--mono); letter-spacing: .13em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: .7rem;
+  }
+  .statekey {
+    font-family: var(--mono); font-size: .84rem; line-height: 1.9;
+    word-break: break-all; color: var(--text-2);
+  }
+  .statekey .tok { color: var(--free); font-weight: 600; }
+  .statekey .pipe { color: var(--muted); opacity: .55; padding: 0 .1em; }
+  .keyout .foot {
+    margin: .85rem 0 0; font-size: .82rem; color: var(--muted); max-width: 60ch;
+  }
+  .keyout .foot b { color: var(--free); font-family: var(--mono); font-weight: 600; }
+
+  /* ── Lanes ──────────────────────────────────────────────────────────── */
+  .lanes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
+  .lane {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 1.4rem 1.3rem 1.5rem;
+    display: flex; flex-direction: column; gap: .5rem;
+    border-top: 3px solid var(--lane-c, var(--line));
+  }
+  .lane.a { --lane-c: var(--free); }
+  .lane.b { --lane-c: var(--free); }
+  .lane.c { --lane-c: var(--quota); }
+  .lane .cost {
+    font: 400 1.5rem/1.1 var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--lane-c); letter-spacing: -.02em;
+  }
+  .lane .ceil { font: .74rem/1.5 var(--mono); color: var(--muted); }
+  .lane p { font-size: .89rem; margin: .35rem 0 0; }
+  .lane .unit {
+    margin-top: auto; padding-top: .9rem; font: .74rem/1.5 var(--mono); color: var(--muted);
+    border-top: 1px solid var(--line-soft);
+  }
+
+  /* ── Tables ─────────────────────────────────────────────────────────── */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; min-width: 560px; }
+  th, td { text-align: left; padding: .72rem .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    color: var(--muted); font: 600 .68rem/1.3 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; background: var(--panel-2); border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.host { font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
+
+  .pill {
+    display: inline-block; font: 600 .66rem/1 var(--mono); letter-spacing: .06em;
+    padding: .3rem .5rem; border-radius: 3px; text-transform: uppercase; white-space: nowrap;
+  }
+  .p-free  { background: var(--free-dim);   color: var(--free);   border: 1px solid color-mix(in srgb, var(--free) 35%, transparent); }
+  .p-quota { background: var(--accent-dim); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .p-scope { background: var(--panel-2);    color: var(--scope);  border: 1px solid var(--line); }
+
+  /* ── Callout ────────────────────────────────────────────────────────── */
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    border-top: 1px solid var(--line); border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line); border-radius: 0 6px 6px 0;
+    padding: 1.25rem 1.35rem; margin: 1.75rem 0;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .q { font: 400 1.12rem/1.5 var(--serif); color: var(--text); max-width: 60ch; }
+
+  /* ── Flow ───────────────────────────────────────────────────────────── */
+  .flow { display: grid; gap: .75rem; }
+  .step {
+    display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 1rem 1.15rem;
+  }
+  .step .clock {
+    font: 600 .74rem/1.4 var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--accent); background: var(--accent-dim);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    padding: .3rem .5rem; border-radius: 3px; white-space: nowrap;
+  }
+  .step .clock.free { color: var(--free); background: var(--free-dim); border-color: color-mix(in srgb, var(--free) 30%, transparent); }
+  .step p { margin: .25rem 0 0; font-size: .87rem; }
+  .step .who { font: 600 .7rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  footer.doc {
+    margin-top: 5rem; padding-top: 1.75rem; border-top: 1px solid var(--line);
+    font-size: .84rem; color: var(--muted);
+  }
+  footer.doc a { color: var(--muted); }
+  footer.doc ul { padding-left: 1.1rem; margin: .6rem 0 0; }
+  footer.doc li { margin-bottom: .3rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="stamp"><span class="dot"></span>Signal architecture · 2026-08-18</div>
+    <h1>Coverage stopped being<br />the expensive part.</h1>
+    <p class="lede">
+      The signal engine covers <strong>54 ETFs</strong> because every covered ticker
+      costs one AI narrative, and AI narratives are quota. Change the unit of coverage
+      from a paragraph to a <strong>token card</strong> and the ceiling disappears —
+      Modal computes the cards, the portal ranks them in SQL, and the model only
+      writes sentences for the handful a human will actually read.
+    </p>
+
+    <div class="stats">
+      <div class="stat"><b>54</b><span>Tickers covered today — all ETFs, measured live</span></div>
+      <div class="stat free"><b>4,300</b><span>Tickers a token card can cover, at zero quota</span></div>
+      <div class="stat free"><b>486</b><span>Distinct signal states per horizon — the whole vocabulary</span></div>
+      <div class="stat acc"><b>10</b><span>Model calls to explain the top 100</span></div>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">The compression</p>
+    <h2>Five floats become one key</h2>
+    <p>
+      <code>lib/grounding/taxonomy.ts</code> already turns continuous indicator values into a fixed
+      token vocabulary — it was written for grounding-pack retrieval, and it is, unchanged,
+      the signal-card discretizer. Move the dials: the key underneath is the exact string
+      <code>toStateKey()</code> emits.
+    </p>
+
+    <div class="machine">
+      <div class="machine-head">
+        <span class="t">toStateKey()</span>
+        <span class="h">TAXONOMY_V1</span>
+      </div>
+
+      <div class="dials">
+        <div class="dial">
+          <label for="rsi">RSI <span class="val" id="rsi-v">58</span></label>
+          <input type="range" id="rsi" min="0" max="100" value="58" />
+        </div>
+        <div class="dial">
+          <label for="adx">ADX <span class="val" id="adx-v">27</span></label>
+          <input type="range" id="adx" min="0" max="60" value="27" />
+        </div>
+        <div class="dial">
+          <label for="vol">Volatility pctile <span class="val" id="vol-v">61</span></label>
+          <input type="range" id="vol" min="0" max="100" value="61" />
+        </div>
+        <div class="dial">
+          <label for="conf">Confluence <span class="val" id="conf-v">72</span></label>
+          <input type="range" id="conf" min="-100" max="100" value="72" />
+        </div>
+        <div class="dial">
+          <label id="macd-l">MACD cross</label>
+          <div class="seg" id="macd" role="group" aria-labelledby="macd-l">
+            <button type="button" data-v="bullish" aria-pressed="true">bullish</button>
+            <button type="button" data-v="bearish" aria-pressed="false">bearish</button>
+            <button type="button" data-v="none" aria-pressed="false">none</button>
+          </div>
+        </div>
+        <div class="dial">
+          <label id="hz-l">Horizon</label>
+          <div class="seg" id="hz" role="group" aria-labelledby="hz-l">
+            <button type="button" data-v="t1" aria-pressed="true">t1</button>
+            <button type="button" data-v="t2" aria-pressed="false">t2</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="keyout">
+        <div class="cap">state_key</div>
+        <div class="statekey" id="key" aria-live="polite"></div>
+        <p class="foot">
+          Joins straight to <code>grounding_pack.state_key</code> — every ticker gets cited,
+          corpus-grounded rules for <b>zero model calls</b>. One of <b id="space">486</b>
+          reachable states at this horizon, which is why a vocabulary this small can
+          describe a universe of any size.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">The economics</p>
+    <h2>Three lanes, three different ceilings</h2>
+    <p>
+      Coverage is capped today because all three of these are charged to one budget.
+      Separated, only the third one costs anything — and it is the only one that
+      needed to.
+    </p>
+
+    <div class="lanes">
+      <div class="lane a">
+        <span class="pill p-free">no quota</span>
+        <h3>Discretize</h3>
+        <div class="cost">$0.00</div>
+        <div class="ceil">ceiling: unbounded</div>
+        <p>Pure functions over indicator fields. No network, no model, no key. Runs for
+           every ticker in the universe on every bar, forever.</p>
+        <div class="unit">unit — one token tuple</div>
+      </div>
+      <div class="lane b">
+        <span class="pill p-free">no quota</span>
+        <h3>Rank &amp; ground</h3>
+        <div class="cost">$0.00</div>
+        <div class="ceil">ceiling: ~4,300</div>
+        <p>A deterministic score in code, a SQL <code>ORDER BY</code> for the ranking, and a
+           join on <code>state_key</code> for cited rules. BUY/HOLD/SELL never needs a model.</p>
+        <div class="unit">unit — one indexed row</div>
+      </div>
+      <div class="lane c">
+        <span class="pill p-quota">quota-bound</span>
+        <h3>Explain</h3>
+        <div class="cost">10 calls</div>
+        <div class="ceil">ceiling: top ~100</div>
+        <p>Ten token cards per prompt, schema-locked output. Cards are tokens rather than
+           floats, so batching is nearly free. The model writes prose and nothing else.</p>
+        <div class="unit">unit — one batched narrative</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p class="q">The model should never compute, never fetch, and never freestyle — it should
+         classify, rank, and explain over pre-digested categorical inputs.</p>
+      <p style="margin-top:.75rem;font-size:.84rem;color:var(--muted)">
+        The thesis from <code>nuwrrrld-small-model-engine.md</code>, and the reason the
+        quota ceiling stops being the binding constraint.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">The split</p>
+    <h2>What Modal adds, and what it must not touch</h2>
+    <p>
+      Modal is not a replacement for the GCP backend — that backend is healthy, and it
+      serves its 54 ETFs in under a second. Modal is the lane nobody has built: per-stock
+      indicators, computed in Python, fanned out nightly, failing loudly when they fail.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Work</th><th>Host</th><th>Cadence</th><th>Coverage</th><th>Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ETF signals — already computed</td>
+            <td class="host">GCP · Cloud Run</td>
+            <td class="num">daily 00:30 UTC</td>
+            <td class="num">54</td>
+            <td><span class="pill p-scope">unchanged</span></td>
+          </tr>
+          <tr>
+            <td>Per-stock indicators — RSI, MACD, ADX, volatility</td>
+            <td class="host">Modal · pandas</td>
+            <td class="num">nightly EOD</td>
+            <td class="num">~4,300</td>
+            <td><span class="pill p-free">no quota</span></td>
+          </tr>
+          <tr>
+            <td>Card scoring, ranking, upsert</td>
+            <td class="host">Portal · Neon</td>
+            <td class="num">on ingest</td>
+            <td class="num">all rows</td>
+            <td><span class="pill p-free">no quota</span></td>
+          </tr>
+          <tr>
+            <td>Tier-0 grounding join</td>
+            <td class="host">Portal · SQL</td>
+            <td class="num">on read</td>
+            <td class="num">all rows</td>
+            <td><span class="pill p-free">no quota</span></td>
+          </tr>
+          <tr>
+            <td>Top-N batched explanations</td>
+            <td class="host">Portal · OpenRouter</td>
+            <td class="num">00:10 UTC</td>
+            <td class="num">~100</td>
+            <td><span class="pill p-quota">10 calls</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.25rem">
+      The two universes never overlap: GCP owns ETF rows, Modal owns stock rows, and
+      <code>ticker_cards.source</code> keeps provenance unambiguous. That separation is what
+      makes a second RSI implementation safe — the two engines are never asked about the
+      same symbol, so their numbers can never contend for one row.
+    </p>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">The night</p>
+    <h2>One pass, ordered by what the clock is worth</h2>
+    <p>
+      The schedule is the design. OpenRouter's free tier resets at UTC midnight, so the
+      batch work runs when the allowance is freshest and leaves the rest of the day to
+      questions a user is actually waiting on.
+    </p>
+
+    <div class="flow">
+      <div class="step">
+        <span class="clock free">00:00</span>
+        <div>
+          <div class="who">OpenRouter</div>
+          <h3>Daily free-tier quota resets</h3>
+          <p>Observed directly: a <code>429</code> reset at <code>2026-08-19T00:00:00Z</code>. Everything below
+             is positioned relative to this moment.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="clock free">00:05</span>
+        <div>
+          <div class="who">Modal · hydrate_universe_eod</div>
+          <h3>Fan out the universe, post cards back</h3>
+          <p>Chunks of ~100–200 symbols, pandas indicators, per-symbol <code>status</code> rows so one
+             delisted ticker fails as data rather than as a run. Posts to the portal —
+             never writes Neon directly.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="clock free">00:08</span>
+        <div>
+          <div class="who">Portal · /api/pipeline/hydrate-universe</div>
+          <h3>Discretize, score, upsert, rank</h3>
+          <p>Calls <code>toStateKey()</code>, applies the deterministic scorer, and upserts
+             <code>ticker_cards</code>. A newer bar replaces an older one; partial data never
+             overwrites a complete same-day card.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="clock">00:10</span>
+        <div>
+          <div class="who">Scheduler · precompute-ai</div>
+          <h3>Spend ten calls on the top of the ranking</h3>
+          <p>The only quota-bound step of the night, running against the freshest possible
+             allowance. <code>quotaExhausted</code> stops the job rather than spilling into the
+             interactive budget.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">The guardrails</p>
+    <h2>What has to stay true</h2>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Contract</th><th>Why it exists</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Modal never writes Neon</strong></td>
+            <td>Validation, idempotency and the auth boundary stay in one place — the portal.
+                Modal holds a push secret and a vendor key, never the database.</td>
+          </tr>
+          <tr>
+            <td><strong>The model key stays portal-side</strong></td>
+            <td>Modal triggers precompute over HTTP and nothing more, so there is never a
+                second long-lived copy of <code>OPENROUTER_API_KEY</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Missing inputs lower <code>data_quality</code></strong></td>
+            <td>Absent indicators bucket into neutral-looking tokens. Without an explicit
+                <code>missing_fields</code> column, "neutral because the market is quiet" and
+                "neutral because the fetch failed" become the same card.</td>
+          </tr>
+          <tr>
+            <td><strong>Every interpretation is versioned</strong></td>
+            <td><code>TAXONOMY_V1</code> and the score version travel with each row, so a moved
+                threshold can't silently put two incompatible cards in one ranking.</td>
+          </tr>
+          <tr>
+            <td><strong>Prose failing never breaks the card</strong></td>
+            <td>If the model output fails schema validation the score, action, tokens and
+                citations still render. Only the sentence is missing.</td>
+          </tr>
+          <tr>
+            <td><strong>Exactly one scheduler owns the nightly run</strong></td>
+            <td>A GitHub Actions workflow and a Modal function currently both fire
+                <code>10 0 * * *</code> at the same endpoint. Two runs double-spend the quota for
+                identical output.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section>
+    <p class="eyebrow">The measure</p>
+    <h2>Done means</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Target</th><th>Threshold</th></tr></thead>
+        <tbody>
+          <tr><td>Active symbols carded nightly</td><td class="num">≥ 95%</td></tr>
+          <tr><td>Model quota spent on coverage</td><td class="num">0 calls</td></tr>
+          <tr><td>Model calls to explain the top 100</td><td class="num">ceil(N / 10) + retries</td></tr>
+          <tr><td>A failed symbol downgrading a prior good card</td><td class="num">never</td></tr>
+          <tr><td>Tickers written by both GCP and Modal</td><td class="num">0</td></tr>
+          <tr><td>Out-of-scope lookups reported as an outage</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="doc">
+    <p style="margin-bottom:.5rem"><strong style="color:var(--text)">Source</strong></p>
+    <ul>
+      <li><code>docs/modal-vs-gcp-signal-coverage.md</code> — the host split, and the live probes behind the 54-ticker figure</li>
+      <li><code>docs/max-coverage-simplest-path.md</code> — the token-card design and the Modal pipeline shape</li>
+      <li><code>lib/grounding/taxonomy.ts</code> — <code>toStateKey()</code>, reproduced faithfully in the machine above</li>
+      <li><code>deploy/precompute-ai/modal_app.py</code> — the httpx-only trigger pattern the hydration lane extends</li>
+    </ul>
+    <p style="margin-top:1.1rem;font-size:.8rem">
+      Figures measured or derived on 2026-08-18. The 486-state count is the product of the
+      taxonomy's own bucket vocabularies at one horizon; the ~4,300 universe size is a
+      target, not a current measurement.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    // Thresholds mirror lib/grounding/taxonomy.ts bucket functions.
+    var T = { RSI_OVERSOLD_MAX: 30, RSI_OVERBOUGHT_MIN: 70, ADX_TRENDING_MIN: 25,
+              VOL_LOW_MAX: 33, VOL_HIGH_MIN: 67, CONF_STRONG: 67, CONF_MODERATE: 34 };
+
+    var state = { rsi: 58, adx: 27, vol: 61, conf: 72, macd: "bullish", hz: "t1" };
+
+    function bucketRsi(v)  { return v <= T.RSI_OVERSOLD_MAX ? "oversold" : v >= T.RSI_OVERBOUGHT_MIN ? "overbought" : "neutral"; }
+    function bucketMacd(c) { return c === "bullish" ? "bullish_cross" : c === "bearish" ? "bearish_cross" : "none"; }
+    function bucketAdx(v)  { return v >= T.ADX_TRENDING_MIN ? "trending" : "ranging"; }
+    function bucketVol(v)  { return v <= T.VOL_LOW_MAX ? "low" : v >= T.VOL_HIGH_MIN ? "high" : "normal"; }
+    function bucketConf(v) { var a = Math.abs(v); return a >= T.CONF_STRONG ? "strong" : a >= T.CONF_MODERATE ? "moderate" : "weak"; }
+    function direction(c, v) {
+      if (c === "bullish" && v > 0) return "bullish";
+      if (c === "bearish" && v < 0) return "bearish";
+      return v >= T.CONF_MODERATE ? "bullish" : v <= -T.CONF_MODERATE ? "bearish" : "neutral";
+    }
+
+    var keyEl = document.getElementById("key");
+
+    function render() {
+      var parts = [
+        ["rsi", bucketRsi(state.rsi)],
+        ["macd", bucketMacd(state.macd)],
+        ["adx", bucketAdx(state.adx)],
+        ["vol", bucketVol(state.vol)],
+        ["confluence", bucketConf(state.conf)],
+        ["dir", direction(state.macd, state.conf)],
+        ["h", state.hz]
+      ];
+      keyEl.innerHTML = parts.map(function (p) {
+        return p[0] + ':<span class="tok">' + p[1] + "</span>";
+      }).join('<span class="pipe">|</span>');
+    }
+
+    [["rsi", "rsi-v"], ["adx", "adx-v"], ["vol", "vol-v"], ["conf", "conf-v"]].forEach(function (pair) {
+      var input = document.getElementById(pair[0]);
+      var out = document.getElementById(pair[1]);
+      input.addEventListener("input", function () {
+        state[pair[0]] = Number(input.value);
+        out.textContent = input.value;
+        render();
+      });
+    });
+
+    ["macd", "hz"].forEach(function (group) {
+      var el = document.getElementById(group);
+      el.addEventListener("click", function (ev) {
+        var btn = ev.target.closest("button");
+        if (!btn) return;
+        Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+          b.setAttribute("aria-pressed", String(b === btn));
+        });
+        state[group] = btn.dataset.v;
+        render();
+      });
+    });
+
+    render();
+  })();
+</script>

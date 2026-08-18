@@ -6,6 +6,7 @@ import { getWatchlist } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
 import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
+import { getPrecomputed, subjectFromTickers } from "@/lib/precomputed-ai-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
 
@@ -86,6 +87,41 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
   const watchlist = await getWatchlist(userId).catch(() => []).then(list => list.map(i => i.ticker));
+
+  // Precomputed-first (Option D, docs/gha-modal-core-feature-coverage.md): a
+  // scheduled job generates this narrative just after OpenRouter's UTC-midnight
+  // free-tier reset. Serving it here costs *zero* model quota, which is the
+  // whole point — the 50/day allowance is then spent on interactive Nu AI chat
+  // that genuinely cannot be precomputed, instead of on a batch narrative that
+  // could have been produced hours earlier.
+  //
+  // Only the JSON path is served this way. A client that asked for SSE expects
+  // a token stream, and faking one from stored text would add latency for no
+  // benefit; those callers fall through to the live path below.
+  const wantsStreamEarly = (req.headers.get("Accept") ?? "").includes("text/event-stream");
+  if (!wantsStreamEarly) {
+    const pre = await getPrecomputed<{
+      narrative: string;
+      grounded: boolean;
+      health: PortfolioHealth | null;
+    }>("portfolio_health_ai", subjectFromTickers(watchlist));
+    if (pre?.payload?.narrative) {
+      console.info(
+        `[health-ai] served precomputed model=${pre.model} age=${pre.ageMinutes}m tickers=${watchlist.length}`,
+      );
+      return NextResponse.json({
+        answer: pre.payload.narrative,
+        grounded: pre.payload.grounded,
+        // Age is surfaced rather than hidden so the UI can label this as "as of
+        // {time}" instead of presenting hours-old commentary as current — the
+        // honest-lesser rule in concept-graceful-degradation.md.
+        precomputed: true,
+        ageMinutes: pre.ageMinutes,
+        generatedAt: pre.generatedAt,
+      });
+    }
+  }
+
   const health = await fetchHealth(watchlist);
   const prompt = buildHealthPrompt(watchlist, health);
   // Surfaced to the client so an ungrounded narrative is shown as such rather

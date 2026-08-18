@@ -1,0 +1,695 @@
+<title>Test Index</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono'), local('Menlo'), local('Consolas');
+  }
+
+  :root {
+    --bg: #f7f5f0;
+    --bg-raised: #ffffff;
+    --bg-sunken: #edeae2;
+    --ink: #1c1a15;
+    --ink-soft: #57534a;
+    --ink-faint: #948e80;
+    --line: #ddd8cc;
+    --accent: #2d5c4a;
+    --accent-soft: #e4ede8;
+    --accent-ink: #1a3d30;
+    --pass: #2d5c4a;
+    --pass-bg: #e4ede8;
+    --diagnose: #8a5a1e;
+    --diagnose-bg: #f5ead6;
+    --expose: #9a3324;
+    --expose-bg: #f7e6e1;
+    --project-preflight: #6b5b95;
+    --project-health: #2d5c4a;
+    --project-ci: #8a5a1e;
+    --project-frontend: #1c5c7a;
+    --project-auth: #57534a;
+    --shadow: 0 1px 2px rgba(28,26,21,0.06), 0 1px 1px rgba(28,26,21,0.04);
+    --radius: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16150f;
+      --bg-raised: #201e17;
+      --bg-sunken: #100f0b;
+      --ink: #ece7d9;
+      --ink-soft: #b3ab97;
+      --ink-faint: #746c5c;
+      --line: #353226;
+      --accent: #6fae93;
+      --accent-soft: #1c2f27;
+      --accent-ink: #a8d6c1;
+      --pass: #6fae93;
+      --pass-bg: #1c2f27;
+      --diagnose: #e0ac5c;
+      --diagnose-bg: #332714;
+      --expose: #e08670;
+      --expose-bg: #362019;
+      --project-preflight: #b3a4dd;
+      --project-health: #6fae93;
+      --project-ci: #e0ac5c;
+      --project-frontend: #7ec3e8;
+      --project-auth: #b3ab97;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #16150f;
+    --bg-raised: #201e17;
+    --bg-sunken: #100f0b;
+    --ink: #ece7d9;
+    --ink-soft: #b3ab97;
+    --ink-faint: #746c5c;
+    --line: #353226;
+    --accent: #6fae93;
+    --accent-soft: #1c2f27;
+    --accent-ink: #a8d6c1;
+    --pass: #6fae93;
+    --pass-bg: #1c2f27;
+    --diagnose: #e0ac5c;
+    --diagnose-bg: #332714;
+    --expose: #e08670;
+    --expose-bg: #362019;
+    --project-preflight: #b3a4dd;
+    --project-health: #6fae93;
+    --project-ci: #e0ac5c;
+    --project-frontend: #7ec3e8;
+    --project-auth: #b3ab97;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .mono { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+
+  header {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 28px 28px;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: 34px;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    margin: 0 0 10px;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+
+  .lede {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    font-size: 15.5px;
+    margin: 0;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 26px;
+  }
+
+  .stat {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    box-shadow: var(--shadow);
+    min-width: 108px;
+  }
+
+  .stat-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 8px 28px 80px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 32px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 7px; }
+
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .tag--diagnose { color: var(--diagnose); background: var(--diagnose-bg); }
+  .tag--expose { color: var(--expose); background: var(--expose-bg); }
+  .tag--plain { color: var(--ink-faint); background: var(--bg-sunken); }
+
+  section.group {
+    margin-bottom: 40px;
+  }
+
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 4px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--group-color, var(--accent));
+  }
+
+  .group-title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .group-project {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--group-color, var(--accent));
+    background: color-mix(in srgb, var(--group-color, var(--accent)) 14%, transparent);
+    padding: 3px 9px;
+    border-radius: 4px;
+  }
+
+  .group-count {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+
+  .group-note {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    margin: 10px 0 16px;
+    max-width: 76ch;
+  }
+
+  .file-block {
+    margin-bottom: 18px;
+  }
+
+  .file-path {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .file-path::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--group-color, var(--accent));
+    flex-shrink: 0;
+  }
+
+  ul.tests {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  li.test {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--group-color, var(--accent));
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px 12px;
+    align-items: start;
+  }
+
+  .test-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.45;
+    grid-column: 2;
+  }
+
+  .test-desc {
+    grid-column: 2;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    max-width: 74ch;
+  }
+
+  .test-desc code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-sunken);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  .tag-cell { grid-row: 1; grid-column: 1; align-self: start; margin-top: 2px; }
+
+  footer {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 28px 60px;
+    color: var(--ink-faint);
+    font-size: 12.5px;
+    border-top: 1px solid var(--line);
+    padding-top: 24px;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  .vitest-section {
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+
+  .vitest-section .group-head { border-bottom-color: var(--ink-faint); }
+
+  .file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .file-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 7px 10px;
+  }
+
+  @media (max-width: 640px) {
+    li.test { grid-template-columns: 1fr; }
+    .tag-cell { grid-row: auto; grid-column: 1; }
+    .test-title, .test-desc { grid-column: 1; }
+  }
+</style>
+
+<header>
+  <p class="eyebrow">nuwrrrld-portal &middot; test coverage</p>
+  <h1>What Every Test Actually Checks</h1>
+  <p class="lede">
+    A working index of the Playwright suite under <code class="mono">e2e/</code> &mdash;
+    31 tests across 4 project tiers, grouped by file, with a plain-language line on
+    what each one verifies and why it exists. Verified against <code class="mono">npx playwright test --list</code>
+    on 2026-08-17.
+  </p>
+  <div class="stat-row">
+    <div class="stat"><span class="stat-num">31</span><span class="stat-label">Playwright tests</span></div>
+    <div class="stat"><span class="stat-num">7</span><span class="stat-label">Spec files</span></div>
+    <div class="stat"><span class="stat-num">4</span><span class="stat-label">Project tiers</span></div>
+    <div class="stat"><span class="stat-num">16+12</span><span class="stat-label">Vitest files (unit / component)</span></div>
+  </div>
+</header>
+
+<main>
+  <div class="legend">
+    <div class="legend-item"><span class="tag tag--diagnose">DIAGNOSE</span> isolates which layer failed, so a red run points at a cause, not a symptom</div>
+    <div class="legend-item"><span class="tag tag--expose">EXPOSE</span> written to fail today if a known gap regresses further, or to prove a fix landed</div>
+    <div class="legend-item"><span class="tag tag--plain">plain</span> a straightforward pass/fail check</div>
+  </div>
+
+  <section class="group" style="--group-color: var(--project-preflight)">
+    <div class="group-head">
+      <span class="group-title">Preflight</span>
+      <span class="group-project">project: preflight</span>
+      <span class="group-count">6 tests &middot; runs first, gates everything else</span>
+    </div>
+    <p class="group-note">
+      Credential shape and liveness &mdash; never logs a secret value, only asserts prefix,
+      whitespace, and whether the provider actually accepts the key. A revoked
+      <code>OPENROUTER_API_KEY</code> fails once here instead of producing forty confusing
+      red tests downstream.
+    </p>
+    <div class="file-block">
+      <p class="file-path">e2e/preflight/credentials.spec.ts</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">shape</span></span>
+          <p class="test-title">AI + auth + billing keys are present and well-formed</p>
+          <p class="test-desc">Checks <code>OPENROUTER_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>CLERK_SECRET_KEY</code>, <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code>, <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, and <code>DATABASE_URL</code> exist and start with the expected prefix (<code>sk-or-v1-</code>, <code>sk-ant-</code>, etc.), with no leading/trailing whitespace.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">placeholder values that pass a presence check but fail at runtime</p>
+          <p class="test-desc">Flags <code>whsec_placeholder_*</code>-style values in Stripe/portal-push/IP-hash secrets &mdash; the class of value that satisfies "is it set?" and then silently rejects every real request.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">production running on development-tier keys</p>
+          <p class="test-desc">Production-only guard: fails if <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> or <code>STRIPE_SECRET_KEY</code> are still <code>pk_test_</code>/<code>sk_test_</code> while <code>VERCEL_ENV=production</code>.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">liveness</span></span>
+          <p class="test-title">OPENROUTER_API_KEY is accepted by the provider</p>
+          <p class="test-desc">One real, free call to <code>/v1/models</code> &mdash; a well-formed but revoked key passes every shape check and only fails here.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">liveness</span></span>
+          <p class="test-title">STRIPE_SECRET_KEY is accepted by Stripe</p>
+          <p class="test-desc">One real, free call to <code>/v1/balance</code> to confirm the key is live, not just shaped correctly.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">liveness</span></span>
+          <p class="test-title">MCP_BACKEND_URL points at a live GCP Cloud Run service</p>
+          <p class="test-desc">Hits the backend's own <code>/health</code>; a 5xx here is the Cloud Run cold-start signature, not necessarily a real outage.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="group" style="--group-color: var(--project-health)">
+    <div class="group-head">
+      <span class="group-title">Health</span>
+      <span class="group-project">project: health</span>
+      <span class="group-count">3 tests &middot; depends on preflight</span>
+    </div>
+    <p class="group-note">
+      Wraps the app's own aggregate dependency probe (<code>GET /api/health</code>), which
+      already fans out to MCP, Neon, Stripe, OpenRouter, and Clerk in parallel.
+    </p>
+    <div class="file-block">
+      <p class="file-path">e2e/health/dependencies.spec.ts</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">check</span></span>
+          <p class="test-title">every dependency is reachable and configured</p>
+          <p class="test-desc">Asserts <code>/api/health</code> returns 200 and every one of mcp/neon/stripe/openrouter/clerk reports <code>ok</code>. Prints the full verdict on failure &mdash; statuses and latencies only, never key material.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">latency budget &mdash; a dependency slow enough to time out user requests</p>
+          <p class="test-desc">Flags any dependency over a 2000ms budget, so a slow-but-technically-"ok" backend is caught before a user hits it as a timeout.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">frontend renders a usable page when /api/health reports down</p>
+          <p class="test-desc">Mocks a 503 health response and checks for a visible alert banner on <code>/dashboard</code>. Currently expected to fail &mdash; <code>DashboardCockpit</code> has no such banner yet; this documents the gap.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="group" style="--group-color: var(--project-ci)">
+    <div class="group-head">
+      <span class="group-title">CI / automation integrations</span>
+      <span class="group-project">project: ci</span>
+      <span class="group-count">5 tests &middot; no browser, no auth</span>
+    </div>
+    <p class="group-note">
+      Covers the weekly <code>refresh-free-models.mjs</code> job and its GitHub Actions
+      workflow &mdash; spawns the real script as a subprocess and checks the workflow YAML's
+      structure. No page, no mocking: these prove the CLI's own safety invariants.
+    </p>
+    <div class="file-block">
+      <p class="file-path">e2e/ci/refresh-free-models.spec.ts</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">safety</span></span>
+          <p class="test-title">--dry-run never writes lib/openrouter.ts, even when the run otherwise succeeds</p>
+          <p class="test-desc">Spawns the real script with <code>--dry-run --no-probe</code> and diffs the target file before/after. Needs live network to OpenRouter's public model list &mdash; a "fetch failed" here means check connectivity, not the flag.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">safety</span></span>
+          <p class="test-title">refuses to run --probe (the default) without OPENROUTER_API_KEY</p>
+          <p class="test-desc">Confirms a missing key hard-fails loudly (exit 1, clear stderr) instead of silently no-op&rsquo;ing &mdash; the failure mode that would let a misconfigured GHA secret through unnoticed.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">MIN_WORKING safety floor leaves the target file untouched on a near-total probe failure</p>
+          <p class="test-desc">Feeds a deliberately invalid key through the real probe path (every model call 401s) and confirms the script refuses to write a chain that would strand the app on zero working models.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">shape</span></span>
+          <p class="test-title">workflow env forwards the same OPENROUTER_API_KEY name the script reads</p>
+          <p class="test-desc">Cross-checks the literal env var name in <code>refresh-free-models.yml</code> against what the script actually reads &mdash; catches a renamed secret on one side going silently stale.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">shape</span></span>
+          <p class="test-title">workflow requests contents:write + pull-requests:write, matching what create-pull-request needs</p>
+          <p class="test-desc">Confirms the workflow's permissions block has what <code>peter-evans/create-pull-request</code> needs &mdash; missing either fails after the costly probe pass already ran.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="group" style="--group-color: var(--project-auth)">
+    <div class="group-head">
+      <span class="group-title">Auth setup</span>
+      <span class="group-project">project: auth-setup</span>
+      <span class="group-count">1 test &middot; gates the frontend tier</span>
+    </div>
+    <p class="group-note">
+      Signs in a dedicated Clerk test user once via <code>@clerk/testing</code> and saves the
+      session to <code>playwright/.auth/user.json</code>, reused for up to 6 days before
+      re-authenticating automatically.
+    </p>
+    <div class="file-block">
+      <p class="file-path">e2e/auth.setup.ts</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--plain">setup</span></span>
+          <p class="test-title">authenticate</p>
+          <p class="test-desc">Skips itself if the cached session is under 6 days old. Otherwise signs in with <code>E2E_CLERK_TEST_EMAIL</code>/<code>E2E_CLERK_TEST_PASSWORD</code> and confirms the redirect to <code>/dashboard</code> actually happened before saving state.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="group" style="--group-color: var(--project-frontend)">
+    <div class="group-head">
+      <span class="group-title">Frontend fault injection</span>
+      <span class="group-project">project: frontend</span>
+      <span class="group-count">16 tests &middot; already signed in</span>
+    </div>
+    <p class="group-note">
+      Route-level fault injection against real components &mdash; mocked 429s, stalled SSE,
+      contract-drift payloads, and DOM-vs-payload fidelity checks. Three files, one per
+      surface.
+    </p>
+
+    <div class="file-block">
+      <p class="file-path">e2e/frontend/nuai-fault-injection.spec.ts &mdash; Nu AI chat (/dashboard/nuai)</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">OpenRouter HTTP 429 leaves the error unrendered or the button stuck disabled</p>
+          <p class="test-desc">Mocks a 429 and checks the error string actually reaches <code>.nuai-error</code> and the send button re-enables, rather than getting silently swallowed.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">a stalled SSE stream leaves the typing indicator running forever</p>
+          <p class="test-desc">Fulfils a single SSE chunk and never closes the stream &mdash; checks whether <code>.nuai-typing</code> ever clears without a client-side timeout.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">a 403 upgrade_required response surfaces the specific upgrade copy, not a raw HTTP 403</p>
+          <p class="test-desc">Confirms the Pro-upgrade message renders, not a generic status-code string.</p>
+        </li>
+      </ul>
+    </div>
+
+    <div class="file-block">
+      <p class="file-path">e2e/frontend/portfolio-health.spec.ts &mdash; Portfolio Health / Track Record (/dashboard/portfolio)</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">gcp3 returning non-ok collapses to one generic 502</p>
+          <p class="test-desc">Proves the portal's own response can't distinguish "route never registered" from "backend crashed" &mdash; both become the same flat <code>upstream error</code>. Root-cause diagnosis needs gcp3's own logs.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">contract drift &mdash; gcp3 emits ai_grade/ai_insights, portal expects score/factors/summary</p>
+          <p class="test-desc">Mocks the documented field-name mismatch and confirms it does <em>not</em> silently render as "Grade F for every user" &mdash; the incident's worse-than-an-error failure mode.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">empty watchlist (204) must never render as an error</p>
+          <p class="test-desc">A 204 must land on the "add tickers" empty state, not the error state.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">AI narrative renders ungrounded prose without the warning banner</p>
+          <p class="test-desc">Checks that an <code>X-Portfolio-Health-Grounded: false</code> response actually surfaces a warning &mdash; not just confident-sounding prose with no real data behind it.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">HTTP-200-but-empty completion from every fallback model</p>
+          <p class="test-desc">Reproduces the terminal "every free model came back empty" state and checks it surfaces the expected copy, distinct from a broken fallback chain.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">PortfolioClient sends no Accept header on the AI health request</p>
+          <p class="test-desc">Captures the actual request header sent &mdash; verified during this build-out that the header <em>is</em> present today; a failure here is a real regression, not confirmation of the old bug.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">suggestions silently fail with a generic message, masking the actual HTTP status</p>
+          <p class="test-desc">Notes that 401, 503, and a malformed body all render identically &mdash; the fix is capturing the real status, not just "error".</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">SIGNALS_ENGINE_URL unset vs. engine unreachable vs. malformed response &mdash; all collapse to 204</p>
+          <p class="test-desc">Documents that four distinct causes in <code>fetchBacktest()</code> all produce the identical 204 &mdash; only server-side env inspection can tell them apart.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">the exact 'unavailable' string does not distinguish unset config from a broken engine</p>
+          <p class="test-desc">Reproduces the reported "Historical hit-rate data unavailable for JETS" state deterministically via a mocked 204.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">backtest engine returns a shape that fails isBacktestResult() silently</p>
+          <p class="test-desc">Mocks a plausible-but-wrong response shape (flat <code>hit_rate</code> instead of bucketed data) &mdash; same contract-drift failure class as the portfolio-health incident, different service pair.</p>
+        </li>
+      </ul>
+    </div>
+
+    <div class="file-block">
+      <p class="file-path">e2e/frontend/signal-timing.spec.ts &mdash; Signal timing / SOXX (/dashboard/signals)</p>
+      <ul class="tests">
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">a fresh generatedAt suppresses the stale badge even for scoped-stale data</p>
+          <p class="test-desc">The batch-timestamp blind spot: every ticker in one digest shares <em>one</em> <code>generatedAt</code>. A single ticker's own score can be old while the batch envelope still looks fresh, and nothing here can currently tell.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--expose">EXPOSE</span></span>
+          <p class="test-title">the confluence score and bull/bear counts rendered in the DOM must match the payload exactly</p>
+          <p class="test-desc">Cross-checks the live <code>/api/signals/digest</code> response against what actually painted on screen &mdash; catches transcription drift between backend and pixels.</p>
+        </li>
+        <li class="test">
+          <span class="tag-cell"><span class="tag tag--diagnose">DIAGNOSE</span></span>
+          <p class="test-title">signal-policy's cacheTtlMinutes classifies an 82%-confluence bullish signal as 'hot'</p>
+          <p class="test-desc">Checks a high-confluence signal's actual age against the 5-minute hot-refresh TTL it should qualify for &mdash; if it's older, the hot-refresh path isn't firing, which is the real "why does this number look stale" question.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="group vitest-section" style="margin-top: 48px;">
+    <div class="group-head">
+      <span class="group-title">Vitest &mdash; unit &amp; component layer</span>
+      <span class="group-count">16 unit &middot; 12 component files</span>
+    </div>
+    <p class="group-note">
+      The three vitest projects (<code>unit</code>, <code>components</code>, opt-in <code>live</code>)
+      this Playwright suite sits above &mdash; pure logic and rendered-component checks, run
+      via <code>npm test</code>. Listed by file for completeness; see each file for its
+      own <code>describe</code> blocks.
+    </p>
+    <div class="file-grid">
+      <div class="file-chip">__tests__/brief.test.ts</div>
+      <div class="file-chip">__tests__/council-critique.test.ts</div>
+      <div class="file-chip">__tests__/council-validate.test.ts</div>
+      <div class="file-chip">__tests__/council-verdict.test.ts</div>
+      <div class="file-chip">__tests__/digest-adapt.test.ts &mdash; incl. new batch-timestamp tests</div>
+      <div class="file-chip">__tests__/disclaimer.test.ts</div>
+      <div class="file-chip">__tests__/grounding-taxonomy.test.ts</div>
+      <div class="file-chip">__tests__/live-price.test.ts</div>
+      <div class="file-chip">__tests__/nulogdash-admin.test.ts</div>
+      <div class="file-chip">__tests__/public-demo.test.ts</div>
+      <div class="file-chip">__tests__/signal-card.test.ts</div>
+      <div class="file-chip">__tests__/signal-queue.integration.test.ts</div>
+      <div class="file-chip">__tests__/signal-queue.test.ts</div>
+      <div class="file-chip">__tests__/sse.test.ts</div>
+      <div class="file-chip">__tests__/stripe-checkout.test.ts</div>
+      <div class="file-chip">__tests__/subscription.test.ts</div>
+      <div class="file-chip">app/dashboard/holdfold/HoldFoldClient.test.tsx</div>
+      <div class="file-chip">app/dashboard/nuai/NuAIChat.test.tsx</div>
+      <div class="file-chip">app/dashboard/nulogdash/page.test.tsx</div>
+      <div class="file-chip">components/SignalAskAnything.test.tsx</div>
+      <div class="file-chip">components/SignalShareButton.test.tsx</div>
+      <div class="file-chip">components/a11y.test.tsx</div>
+      <div class="file-chip">components/landing/CouncilScrollDebate.test.tsx</div>
+      <div class="file-chip">components/landing/MagneticCTA.test.tsx</div>
+      <div class="file-chip">components/landing/ParallaxStage.test.tsx</div>
+      <div class="file-chip">components/landing/Reveal.test.tsx</div>
+      <div class="file-chip">components/landing/SmoothScroll.test.tsx</div>
+      <div class="file-chip">components/landing/StatCounter.test.tsx</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Generated 2026-08-17 from <code class="mono">npx playwright test --list</code> against the working tree on
+  <code class="mono">fix/nulogdash-admin-totp-plan</code>. Run <code class="mono">npm run test:e2e:nulogdash</code>
+  to fold results into the <a href="/dashboard/nulogdash">nulogdash admin dashboard</a> (browser tier).
+  See <code class="mono">docs/e2e.md</code> and <code class="mono">docs/wiki-portal/entity-playwright-e2e.md</code>
+  for the full operating manual.
+</footer>

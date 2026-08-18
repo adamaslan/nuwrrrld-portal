@@ -31,6 +31,13 @@ regexes = [
   # __tests__/live/model-chain.live.test.ts asserts fast-fail on an invalid
   # OpenRouter key; the literal is intentionally fake (note the label).
   '''sk-or-v1-definitely-not-a-real-key''',
+  # __tests__/openrouter-fallback.test.ts uses an obviously-fake key to test
+  # fallback behavior without a real credential.
+  '''sk-or-v1-test-key-not-real''',
+  # docs/nuwrrrld-portal-audit.md documents the unset Stripe webhook secret's
+  # literal placeholder value (the string the app checks for to skip verification),
+  # not a real secret.
+  '''whsec_placeholder_set_after_creating_endpoint''',
 ]
 
 # Example/sample corpus and lockfiles are noise sources, not secret stores.

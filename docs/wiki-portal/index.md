@@ -35,6 +35,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
 - [[entity-live-price-tier]] — `/api/signals/live` + `live_prices`; Finnhub WS lane + the Modal drain cron
+- [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
 
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
@@ -56,7 +57,8 @@ Cross-cutting patterns and design choices.
 - [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~64%, 2026-08-07 after mobile PR #30 + portal PR #51) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
-- [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, and why nothing runs the suite in CI
+- [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, the stub/live pairing rule, and why nothing runs the suite in CI
+- [[concept-live-backend-liveness-tests]] — how to test the portal against real gcp3/OpenRouter data (add a real ticker, run each panel for real); found 3 live incidents mocked tests couldn't
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
@@ -72,6 +74,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
 - [[decision-free-tier-model-chain]] — every seat but T1 uses `:free` models; T1 is paid (~$0.20–$0.50/deliberation)
+- [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner
@@ -86,6 +89,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-08-06-bugmerge1-command-file-loss]] — `/bugmerge1`'s own command file vanished mid-run during git checkouts/stash; now guarded by a self-integrity check + out-of-tree backup ([[concept-wiki-led-development]] feedback-loop instance)
 - [[incident-2026-08-16-stash-recovery-and-cross-repo-drift]] — a stale 5-commit stashed branch's rebase produced a silent `log.md` duplication (caught by full-file review) and exposed a cross-repo drift-gate merge-order dependency; resolved by squash-before-rebase and a companion mobile PR
 - [[incident-2026-08-17-e2e-ci-cascade]] — five stacked failures kept the E2E `auth` job red, each masking the next; root cause was `gh secret set --body -` silently storing one-character secrets, which `gh secret list` cannot detect
+- [[incident-2026-08-18-modal-under-recommended]] — Modal routed around across six separate decisions despite fitting the hydration lane; each deferral locally reasonable, the pattern never evaluated, and three `modal_app.py` files read as coverage while zero have ever been deployed
 
 The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 

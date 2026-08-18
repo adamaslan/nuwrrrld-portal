@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Landing Page Fact Sheet — NuWrrrld Financial</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14181d;
+    --panel-2: #1b2027;
+    --line: #262d36;
+    --text: #e6eaef;
+    --muted: #97a3b2;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --info: #60a5fa;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+  header.doc { border-bottom: 1px solid var(--line); padding-bottom: 1.75rem; margin-bottom: 2.5rem; }
+  h1 { font-size: 2rem; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  .sub { color: var(--muted); margin: 0; }
+  .meta { margin-top: 1rem; font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  h2 {
+    font-size: 1.15rem; margin: 2.75rem 0 1rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--line); letter-spacing: -.01em;
+  }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin: 1.5rem 0 0; }
+  .sumcard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; }
+  .sumcard strong { display: block; font-size: 1.6rem; line-height: 1.2; }
+  .sumcard span { color: var(--muted); font-size: .78rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .9rem; }
+  th, td { text-align: left; padding: .7rem .75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+  tbody tr:hover { background: var(--panel); }
+  td.claim { width: 44%; }
+  .badge {
+    display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .04em;
+    padding: .18rem .5rem; border-radius: 999px; text-transform: uppercase; white-space: nowrap;
+  }
+  .b-ok   { background: rgba(74,222,128,.13);  color: var(--ok);   border: 1px solid rgba(74,222,128,.3); }
+  .b-fix  { background: rgba(248,113,113,.13); color: var(--bad);  border: 1px solid rgba(248,113,113,.3); }
+  .b-ill  { background: rgba(96,165,250,.13);  color: var(--info); border: 1px solid rgba(96,165,250,.3); }
+  .b-soft { background: rgba(251,191,36,.13);  color: var(--warn); border: 1px solid rgba(251,191,36,.3); }
+  sup a {
+    color: var(--info); text-decoration: none; font-family: var(--mono);
+    font-size: .7rem; padding: 0 .12rem;
+  }
+  sup a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: .85em; background: var(--panel-2); padding: .12rem .35rem; border-radius: 4px; }
+  .was { color: var(--bad); text-decoration: line-through; opacity: .75; }
+  .now { color: var(--ok); }
+  ol.notes { padding-left: 1.4rem; }
+  ol.notes li { margin-bottom: 1.1rem; padding-left: .3rem; }
+  ol.notes li:target { background: rgba(96,165,250,.09); border-radius: 6px; padding: .5rem .5rem .5rem .3rem; }
+  .src { display: block; font-family: var(--mono); font-size: .78rem; color: var(--muted); margin-top: .25rem; }
+  .evidence {
+    display: block; font-family: var(--mono); font-size: .78rem; color: var(--text);
+    background: var(--panel); border-left: 2px solid var(--line);
+    padding: .5rem .7rem; border-radius: 0 6px 6px 0; margin-top: .4rem; white-space: pre-wrap;
+  }
+  footer.doc { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>Landing Page Fact Sheet</h1>
+  <p class="sub">
+    Every factual claim made on the signed-out landing page (<code>app/page.tsx</code> and
+    <code>components/landing/*</code>), each footnoted to the code or live API response that
+    substantiates it — or to the correction that was applied.
+  </p>
+  <p class="meta">
+    Audited 2026-07-26 · live payloads captured from <code>/signals</code> and
+    <code>/market-overview</code> on the gcp3 backend that same day.
+  </p>
+</header>
+
+<h2>What the audit found</h2>
+<div class="summary">
+  <div class="sumcard"><strong style="color:var(--ok)">7</strong><span>Claims verified as-is</span></div>
+  <div class="sumcard"><strong style="color:var(--bad)">6</strong><span>Claims corrected</span></div>
+  <div class="sumcard"><strong style="color:var(--info)">4</strong><span>Re-labelled illustrative</span></div>
+  <div class="sumcard"><strong style="color:var(--warn)">2</strong><span>Scope narrowed</span></div>
+</div>
+<p style="color:var(--muted);margin-top:1.25rem">
+  The two headline numbers in the metrics band — <code>138</code> and <code>380+</code> — were
+  inherited verbatim from the copy draft in <code>LANDING-REVAMP.md</code> and were never
+  derived from the engine. Both are now measured from the same live payload the page already
+  fetches.<sup><a href="#fn1">1</a></sup><sup><a href="#fn2">2</a></sup> The other significant
+  finding: every example on the page was built around NVDA and around RSI/MACD/ADX indicators,
+  none of which the product actually covers.<sup><a href="#fn5">5</a></sup><sup><a href="#fn6">6</a></sup>
+</p>
+
+<h2>Metrics band</h2>
+<table>
+  <thead><tr><th class="claim">Claim on page</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="claim">
+        <span class="was">138 — Things we check before we tell you buy, sell, or hold.</span><br />
+        <span class="now">252 — Individual checks run today…</span><sup><a href="#fn1">1</a></sup>
+      </td>
+      <td><span class="badge b-fix">Corrected</span></td>
+      <td>Was invented copy. Now rendered live from the signal payload; 252 on audit day.</td>
+    </tr>
+    <tr>
+      <td class="claim">
+        <span class="was">380+ — Data points behind every single ticker.</span><br />
+        <span class="now">54 — Sector and industry ETFs tracked…</span><sup><a href="#fn2">2</a></sup>
+      </td>
+      <td><span class="badge b-fix">Corrected</span></td>
+      <td>Real figure is 52–76 leaf fields per ticker (avg 62) — roughly 6× lower than claimed. Replaced with the universe size, which is exact.</td>
+    </tr>
+    <tr>
+      <td class="claim">6 — AI analysts arguing every call, including one against you.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Five debate seats plus the CHAIR.<sup><a href="#fn3">3</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">Live — One account for the web and the mobile app.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Shared Clerk instance across both surfaces.<sup><a href="#fn4">4</a></sup></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>The engine section</h2>
+<table>
+  <thead><tr><th class="claim">Claim on page</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="claim">
+        <span class="was">Five independent checks — price action, volatility, the macro backdrop, sector rotation, and news events</span><br />
+        <span class="now">momentum, trend, relative strength, market structure, mean reversion</span><sup><a href="#fn5">5</a></sup>
+      </td>
+      <td><span class="badge b-fix">Corrected</span></td>
+      <td>The count of five was right by coincidence; the list was wrong on all five items. No volatility, macro, or news-event check exists in the engine.</td>
+    </tr>
+    <tr>
+      <td class="claim">
+        Matrix rows: <span class="was">RSI + divergence · MACD cross state · Breadth and sector relative · Macro regime stress · Event and earnings drift</span>
+        <sup><a href="#fn6">6</a></sup>
+      </td>
+      <td><span class="badge b-fix">Corrected</span></td>
+      <td>The most serious inaccuracy found. RSI, MACD and ADX are <code>null</code> for every tracked symbol — a known backend gap. Rows now name the five categories that are genuinely computed.</td>
+    </tr>
+    <tr>
+      <td class="claim"><span class="was">Example — NVDA · 380+ inputs · trust score 0.91</span><br />
+        <span class="now">Illustrative — XLE · 5 signal families · confluence +0.91</span><sup><a href="#fn7">7</a></sup></td>
+      <td><span class="badge b-ill">Illustrative</span></td>
+      <td>NVDA is not in the tracked universe. XLE is. "Trust score" renamed to the field's real name; +0.91 is in-range for a <code>confluence_score</code>.</td>
+    </tr>
+    <tr>
+      <td class="claim">
+        <span class="was">Five independent checks behind every call.</span><br />
+        <span class="now">Five independent signal families, weighted into one score.</span>
+      </td>
+      <td><span class="badge b-fix">Corrected</span></td>
+      <td>Per-call reality is 3–7 checks (avg 4.67), not five.<sup><a href="#fn8">8</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">N% rolling hit-rate across N recorded calls.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Queried live and null-guarded — the sentence disappears rather than showing a fabricated number.<sup><a href="#fn9">9</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">Every call carries a trust score, a confidence level, and an invalidation price.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Confluence score and confidence on every ranked entry; invalidation is enforced in the CHAIR verdict schema.<sup><a href="#fn10">10</a></sup></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Hero and product preview</h2>
+<table>
+  <thead><tr><th class="claim">Claim on page</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="claim">
+        <span class="was">Ask any ticker.</span><br />
+        <span class="now">Ask about any of the 54 sector and industry ETFs we track.</span><sup><a href="#fn11">11</a></sup>
+      </td>
+      <td><span class="badge b-soft">Narrowed</span></td>
+      <td>The council will answer on any symbol, but grounding silently degrades to none outside the tracked 54 — so "any ticker" oversold it.</td>
+    </tr>
+    <tr>
+      <td class="claim">
+        <span class="was">72% Stocks rising · -3.1% Fear index · Calmer volatility · Steady interest rates</span><br />
+        <span class="now">22 Buy · 30 Hold · 2 Sell · -0.2% Avg index move</span><sup><a href="#fn12">12</a></sup>
+      </td>
+      <td><span class="badge b-fix">Corrected</span></td>
+      <td>No fear index, volatility measure, or rates series exists anywhere in the backend. Replaced with four numbers the API does return.</td>
+    </tr>
+    <tr>
+      <td class="claim">
+        Fallback signal rows: <span class="was">NVDA · MSFT · TSLA · XLE</span> →
+        <span class="now">SOXX · XLK · JETS · XLE</span><sup><a href="#fn13">13</a></sup>
+      </td>
+      <td><span class="badge b-ill">Illustrative</span></td>
+      <td>Three of four were untracked names. All four are now real members of the universe. Still shown only behind the "Sample data" label when the backend is unreachable.</td>
+    </tr>
+    <tr>
+      <td class="claim">S&amp;P 500 / QQQ / DIA / IWM live quotes.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Exactly these four indices are returned, keyed by display name and re-keyed by symbol on the page.<sup><a href="#fn14">14</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">Free to start · no card required.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Signals and portfolio score are entitled at the free tier; unauthenticated default is free.<sup><a href="#fn15">15</a></sup></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Council section</h2>
+<table>
+  <thead><tr><th class="claim">Claim on page</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="claim">Six seats: T1, T2, RISK, MACRO, QUANT, CHAIR — each a distinct system prompt.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>One prompt per seat.<sup><a href="#fn3">3</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">RISK's whole job is to argue against the trade.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Enforced at the data layer, not just in the prompt: RISK is served the opposite-direction slice of the grounding pack.<sup><a href="#fn16">16</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">Every disagreement gets named, not smoothed over.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Disagreement is computed in code, not asked of the model; only genuinely dissenting seats get a round-2 call.<sup><a href="#fn17">17</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">
+        Scripted debate: <span class="was">NVDA breakout, short interest, earnings in 9 days, 69% hit-rate</span> →
+        rewritten around XLE and real signal categories<sup><a href="#fn18">18</a></sup>
+      </td>
+      <td><span class="badge b-ill">Illustrative</span></td>
+      <td>The old script cited short interest, an earnings calendar and a 69% conditional hit-rate — three data sources the product does not have.</td>
+    </tr>
+    <tr>
+      <td class="claim">
+        RISK spotlight exchange <span class="was">(NVDA, short interest, earnings print)</span>
+        → rewritten<sup><a href="#fn18">18</a></sup>
+      </td>
+      <td><span class="badge b-ill">Illustrative</span></td>
+      <td>RISK's objection now attacks correlated momentum checks — a criticism the engine's own output actually supports.</td>
+    </tr>
+    <tr>
+      <td class="claim">Live, streaming chat per ticker, grounded in real data.</td>
+      <td><span class="badge b-ok">Verified</span></td>
+      <td>Server-sent events on three routes; grounded via the compiled pack.<sup><a href="#fn19">19</a></sup></td>
+    </tr>
+    <tr>
+      <td class="claim">Invalidation example <span class="was">&lt;462</span> → <span class="now">&lt;91</span></td>
+      <td><span class="badge b-soft">Narrowed</span></td>
+      <td>462 was an NVDA-shaped price. Realigned to the XLE example used everywhere else on the page.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Footnotes</h2>
+<ol class="notes">
+
+<li id="fn1">
+  <strong>252 individual checks.</strong> The backend reports
+  <code>signal_summary.total_signals</code>, which is the sum of every symbol's
+  <code>signal_count</code>. The page no longer hardcodes this — <code>coverageFromDigest()</code>
+  derives it from the payload already being fetched for the signal preview, so it tracks the engine
+  on days the universe changes size. Falls back to <code>250+</code> only when the backend is down.
+  <span class="src">app/page.tsx — <code>coverageFromDigest()</code>, metrics band · lib/digest.ts:105 (<code>signalCounts.total</code>)</span>
+  <span class="evidence">GET /signals → signal_summary.total_signals = 252   (2026-07-26)
+sum of ranked[].signal_count            = 252   ✓ agrees</span>
+</li>
+
+<li id="fn2">
+  <strong>Data points per ticker: 52–76, not 380+.</strong> Counting every leaf value in a ranked
+  entry — 21 top-level fields, 13 return windows, and 3–7 nested signal objects of 6 fields each —
+  gives a mean of 62.0 and a maximum of 76. The <code>380+</code> figure appears nowhere in the
+  system; it originates in the copy draft. The metrics slot now shows universe size instead, which
+  is exactly checkable.
+  <span class="src">LANDING-REVAMP.md:70 (origin of the number) · app/page.tsx metrics band</span>
+  <span class="evidence">leaf data points per ticker: min 52 · max 76 · avg 62.0  (n=54)
+top-level keys: 21 · return windows: 13 · signals: 3–7</span>
+</li>
+
+<li id="fn3">
+  <strong>Six seats.</strong> <code>DEBATE_SEATS</code> holds five, and the CHAIR is a separate
+  synthesis pass with its own verdict system prompt — six distinct prompts total.
+  <span class="src">lib/openrouter.ts:18 (<code>DEBATE_SEATS</code>), :70 (<code>SEAT_SYSTEM</code>), :126 (<code>CHAIR_VERDICT_SYSTEM</code>)</span>
+  <span class="evidence">DEBATE_SEATS = ['T1','T2','RISK','MACRO','QUANT']  + CHAIR = 6</span>
+</li>
+
+<li id="fn4">
+  <strong>One account across surfaces.</strong> Both the Next.js portal and the Expo mobile app
+  authenticate against the same Clerk instance, so a single sign-up carries across.
+  <span class="src">middleware.ts · <code>@clerk/nextjs/server</code> in app/page.tsx:3</span>
+</li>
+
+<li id="fn5">
+  <strong>The five real signal categories.</strong> Every signal the engine emits carries a
+  <code>category</code>, and across the whole universe exactly five values occur. Note the
+  distribution is heavily skewed toward momentum — the claim of five <em>independent</em> checks is
+  true of the taxonomy but not of any single call's weighting.
+  <span class="src">GET /signals → <code>ranked[].signals[].category</code></span>
+  <span class="evidence">momentum          129
+trend              53
+relative_strength  36
+structure          20
+mean_reversion     14
+                  ---
+                   252</span>
+</li>
+
+<li id="fn6">
+  <strong>RSI / MACD / ADX are not computed.</strong> The payload carries an <code>indicators</code>
+  object, but all three fields are <code>null</code> for all 54 symbols. This is a documented
+  backend gap, and the grounding taxonomy already defaults these buckets to their neutral value
+  because of it. Advertising an "RSI + divergence" and "MACD cross state" row was therefore
+  describing a capability that does not currently exist.
+  <span class="src">lib/council-grounding.ts:58-62 (gap comment) · lib/grounding/taxonomy.ts (<code>bucketRsi</code>, <code>bucketAdx</code>, <code>bucketVol</code>)</span>
+  <span class="evidence">ranked[*].indicators = {"macd": null, "adx": null, "rsi": null}
+                        → null for 54 of 54 symbols</span>
+</li>
+
+<li id="fn7">
+  <strong>XLE is real; NVDA is not tracked.</strong> The universe is 54 sector and industry ETFs.
+  XLE (Oil &amp; Gas) is a member; NVDA, MSFT and TSLA are not. "Trust score" was a UI-only rename
+  of <code>confluence_score</code>, which ranges [-1, 1] and carries a
+  <code>confluence_label</code> of HIGH / MODERATE / WEAK — so +0.91 is a legitimate value shape.
+  <span class="src">GET /signals → <code>ranked[].symbol</code>, <code>confluence_score</code>, <code>confluence_label</code></span>
+  <span class="evidence">tracked (54): DBA PFM KBE IBB HACK XPH XLE ESGU KRE IHF PAVE VHT
+XLK MSOS FTXR BOAT SLX KIE LUXE REM CARZ SOXX INDS IYR XLV ITA
+JETS XLU ICLN XLP IBUY XRT ROBO CLOU PBJ UFO ITB PEJ FDN SOCL
+LIT BOTZ XLB XME PBS XHB VOX IGV ESPO URA PAWZ IPAY FINX IHI</span>
+</li>
+
+<li id="fn8">
+  <strong>Checks per call: 3 to 7.</strong> No symbol receives all five categories every day; the
+  engine emits only the checks that fire. "Five independent checks behind every call" was therefore
+  false for the majority of calls, and the copy now describes the taxonomy rather than the per-call count.
+  <span class="src">GET /signals → <code>len(ranked[].signals)</code></span>
+  <span class="evidence">signals per symbol: min 3 · max 7 · avg 4.67  (n=54, total 252)</span>
+</li>
+
+<li id="fn9">
+  <strong>Hit-rate is measured, and fails closed.</strong> Aggregated from the
+  <code>backtest_hit_rates</code> table. If the query throws or the table is empty the function
+  returns <code>null</code> and the page renders "Building our public track record" instead — it
+  cannot display a fabricated percentage. The call is also wrapped in a 5s timeout so a slow Neon
+  query can't stall the render.
+  <span class="src">lib/track-record.ts — <code>getAggregateTrackRecord()</code> · app/page.tsx <code>withTimeout()</code></span>
+</li>
+
+<li id="fn10">
+  <strong>Score, confidence, invalidation.</strong> <code>confluence_score</code> and
+  <code>ai_confidence</code> are present on every ranked entry. The invalidation price is a required
+  field of the CHAIR's verdict, validated and repaired before acceptance rather than trusted from
+  the model.
+  <span class="src">lib/council-verdict.ts · lib/council-validate.ts · docs/wiki-portal/concept-verdict-repair-loop.md</span>
+  <span class="evidence">ranked[0]: ai_confidence "HIGH" · confluence_score 1.0 · confluence_label "HIGH"</span>
+</li>
+
+<li id="fn11">
+  <strong>Coverage boundary.</strong> The council does not refuse an untracked symbol — grounding
+  simply resolves to nothing and the seats argue from the prompt alone. The hero previously implied
+  full coverage of any ticker; it now states the tracked universe, which is what the product
+  actually grounds on.
+  <span class="src">lib/council-grounding.ts — <code>fetchSignalData()</code> returns null → ungrounded run · lib/shared/signal-lookup.ts</span>
+</li>
+
+<li id="fn12">
+  <strong>No fear index, volatility, or rates data exists.</strong> The market overview endpoint
+  returns four keys of substance — none of them a volatility or rates series. The four replacement
+  tiles map onto figures the API genuinely returns.
+  <span class="src">GET /market-overview → <code>brief</code></span>
+  <span class="evidence">brief keys: summary · indices · market_tone · avg_change_pct · metrics_52w · date
+market_tone = "neutral"   avg_change_pct = -0.22
+signal_summary: buy 22 · hold 30 · sell 2   (sums to 54 ✓)</span>
+</li>
+
+<li id="fn13">
+  <strong>Fallback rows.</strong> These render only when the live fetch fails, behind an explicit
+  "Sample data — live backend unavailable" label. That label was already honest; the tickers were
+  not, since three of the four could never appear in a real feed.
+  <span class="src">app/page.tsx — signals phone, fallback branch</span>
+</li>
+
+<li id="fn14">
+  <strong>Index quotes.</strong> The backend nests these under <code>brief.indices</code> keyed by
+  display name, not ticker, which is why <code>indexBySymbol()</code> re-keys by the inner
+  <code>.symbol</code> field before the page looks up <code>SPY</code>.
+  <span class="src">app/page.tsx — <code>indexBySymbol()</code></span>
+  <span class="evidence">"S&P 500" → SPY · "Dow Jones" → DIA
+"Nasdaq 100" → QQQ · "Russell 2000" → IWM</span>
+</li>
+
+<li id="fn15">
+  <strong>Free tier is real.</strong> The entitlement map puts signals and portfolio scoring at the
+  free tier, and the default subscription state for a user with no Stripe record is free — so no
+  card is required to reach the advertised surfaces.
+  <span class="src">lib/subscription.ts:31,34 (entitlements), :70 (default state)</span>
+  <span class="evidence">signals: 'free' · portfolio_score: 'free' · pro_signals: 'pro'
+default = { status: 'free', tier: 'free' }</span>
+</li>
+
+<li id="fn16">
+  <strong>RISK is adversarial by construction.</strong> Each seat receives a different slice of the
+  same compiled grounding pack. RISK is handed the slice for the <em>opposite</em> direction of the
+  prevailing signal, so its counter-argument is enforced at the data layer instead of relying on the
+  model to remember its instructions.
+  <span class="src">lib/council-grounding.ts — <code>opposite()</code>, per-seat slicing</span>
+</li>
+
+<li id="fn17">
+  <strong>Disagreement is computed, not asked for.</strong> Small models produce polite mush when
+  told to "critique the other seats", so <code>extractDirection()</code> and
+  <code>computeDisagreements()</code> determine in code who actually dissents from the majority
+  direction; only those seats receive a round-2 arbitration prompt.
+  <span class="src">app/api/council/deliberate/route.ts · docs/wiki-portal/concept-small-model-prompting.md §8</span>
+</li>
+
+<li id="fn18">
+  <strong>Scripted demos rewritten.</strong> The scroll debate and the RISK spotlight both cited
+  short interest, an earnings calendar, and a conditional hit-rate "into earnings" — none of which
+  the system ingests. Both are now written against data the engine genuinely produces (momentum,
+  trend, relative strength, confluence label) and both use XLE.
+  <span class="src">components/landing/CouncilScrollDebate.tsx — <code>SEATS</code> · components/landing/RiskSpotlight.tsx</span>
+</li>
+
+<li id="fn19">
+  <strong>Streaming is real.</strong> Three routes emit <code>text/event-stream</code>, and the
+  assistant route negotiates on the <code>Accept</code> header rather than always streaming.
+  <span class="src">app/api/nuai/route.ts:180,271 · app/api/brief/route.ts:129 · app/api/portfolio/health-ai/route.ts:131</span>
+</li>
+
+</ol>
+
+<footer class="doc">
+  Regenerate this sheet whenever the metrics band, the engine section, or any scripted council demo
+  changes. The two live-derived figures (checks, tracked ETFs) need no maintenance — they read from
+  the API at render time. Everything else in this document is a point-in-time assertion about code
+  that can drift.
+</footer>
+
+</div>
+</body>
+</html>

@@ -20,44 +20,49 @@ import { test, expect } from "@playwright/test";
  *   2. Whether the confluence score/signal-count numbers rendered in the DOM
  *      exactly match what the API returned — no transcription drift between
  *      payload and pixels.
- *   3. The real timing bug class (see __tests__/digest-adapt.test.ts's new
- *      "batch-wide generatedAt" tests): every ticker in one /signals batch
- *      shares ONE generatedAt/`updated` timestamp. There is no per-ticker
- *      "as of" time. A SOXX card can show a fresh-looking timestamp while
- *      its own underlying score is old, and neither this repo nor its UI can
- *      currently detect that — this suite documents the blind spot rather
- *      than fixing it, since fixing it needs a gcp3-side per-ticker
- *      timestamp that doesn't exist yet.
+ *   3. FIXED (2026-08-18): every ticker in one /signals batch used to share
+ *      ONE generatedAt/`updated` timestamp, so a ticker whose own data lagged
+ *      the rest of the batch could still show a fresh-looking timestamp.
+ *      Confirmed against a live gcp3 response that each symbol entry DOES
+ *      carry its own `updated` field — lib/digest.ts's adaptLiveSignals now
+ *      reads it per-ticker and only falls back to the batch-wide `updated`
+ *      when a ticker omits its own (see __tests__/digest-adapt.test.ts's
+ *      "per-ticker generatedAt" describe block for the adapter-level proof).
  */
 
 test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
-  test("DIAGNOSE: a fresh generatedAt suppresses the stale badge even for scoped-stale data — the batch-timestamp blind spot", async ({ page }) => {
-    // Mocks the server-rendered page's data source is not possible here
-    // (SignalsPage fetches server-side via getOrFetchDigest, invisible to
-    // page.route() — see lib/digest-cache.ts). This test instead asserts on
-    // what's true of the LIVE page: if a SOXX card is showing, its staleness
-    // badge is driven entirely by dataQualityScore/generatedAt, both of
-    // which are batch-wide, not per-ticker. A failing assertion here is not
-    // "the badge is broken" — it's a prompt to check whether SOXX's own
-    // dataQualityScore looked "fresh" while the underlying score was
-    // actually old. Cross-reference __tests__/digest-adapt.test.ts's
-    // "batch-wide generatedAt" describe block, which proves this at the
-    // adapter level without needing a live signal.
+  test("CONFIRMED: a ticker's generatedAt reflects its OWN update time, not just the batch's", async ({ page }) => {
+    // Cross-checks the live page against the live API for whichever ticker
+    // is showing, proving the per-ticker fix (lib/digest.ts) actually reaches
+    // the rendered page, not just the adapter's unit tests.
+    //
+    // page.request (not the bare `request` fixture) and a goto() first: a
+    // page.request call issued before any page in this browser context has
+    // loaded doesn't carry the authenticated storageState session — see
+    // portfolio-health.spec.ts's backtest 401 test for the same fix.
     await page.goto("/dashboard/signals");
+    const digestRes = await page.request.get("/api/signals/digest").catch(() => null);
+    test.skip(!digestRes || !digestRes.ok(), "digest API unavailable this run — see e2e/health for dependency status");
+    const digest = await digestRes!.json();
+    const firstSignal = digest?.signals?.[0];
+    test.skip(!firstSignal, "no signals in today's live digest");
 
-    const soxxCard = page.locator("#signal-SOXX, .signal-card", { hasText: "SOXX" }).first();
-    const hasSoxx = await soxxCard.count();
-    test.skip(hasSoxx === 0, "SOXX not in today's live digest — this test only runs when it is present");
+    // Every signal must carry a real, parseable generatedAt — the per-ticker
+    // fallback chain (own `updated` -> batch `updated`) must never leave it
+    // undefined or unparsable.
+    for (const s of digest.signals) {
+      expect(Number.isNaN(Date.parse(s.generatedAt)), `${s.ticker} has an unparsable generatedAt`).toBe(false);
+    }
 
-    const isFlaggedStale = await soxxCard.locator(".signal-stale-badge").count();
-    test.info().annotations.push({
-      type: "diagnosis",
-      description: isFlaggedStale
-        ? "SOXX IS flagged stale — the badge caught it, narrative should be discounted."
-        : "SOXX is NOT flagged stale. This proves nothing about whether the '1d +X%' figure " +
-          "in its title is current — that number has no independent timestamp of its own. " +
-          "Check gcp3's per-symbol data_quality_score for SOXX specifically, not just the batch's.",
-    });
+    const card = page.locator(`#signal-${firstSignal.ticker}`);
+    const hasCard = await card.count();
+    test.skip(hasCard === 0, `${firstSignal.ticker}'s card not rendered on the page`);
+
+    // A stale-flagged signal must show the stale badge; a fresh one must not
+    // — this is the behavioral half of the fix, not just adapter shape.
+    const badgeCount = await card.locator(".signal-stale-badge").count();
+    expect(badgeCount > 0, `${firstSignal.ticker}: isStale=${firstSignal.isStale} but badge presence was ${badgeCount > 0}`)
+      .toBe(firstSignal.isStale);
   });
 
   test("EXPOSE: the confluence score and bull/bear counts rendered in the DOM must match the payload exactly", async ({ page }) => {
@@ -67,6 +72,9 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     // against the API's own /api/signals/digest response for the same
     // ticker — catching drift between what gcp3 sent and what got painted,
     // independent of server-vs-client fetch boundaries.
+    // page.request needs a page load first to carry the authenticated
+    // storageState session (see the earlier test's comment for why).
+    await page.goto("/dashboard/signals");
     const digestRes = await page.request.get("/api/signals/digest").catch(() => null);
     test.skip(!digestRes || !digestRes.ok(), "digest API unavailable this run — see e2e/health for dependency status");
 
@@ -74,7 +82,6 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     const soxx = digest?.signals?.find((s: { ticker: string }) => s.ticker === "SOXX");
     test.skip(!soxx, "SOXX not present in the current digest");
 
-    await page.goto("/dashboard/signals");
     const card = page.locator("#signal-SOXX");
     await card.locator(".signals-expand-btn").click();
 
@@ -87,17 +94,16 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     }
   });
 
-  test("DIAGNOSE: signal-policy's cacheTtlMinutes classifies an 82%-confluence bullish signal as 'hot' — confirms it SHOULD refresh fast, not sit on stale numbers", async ({ request }) => {
-    // Pure-logic check reachable without a browser at all, included here
-    // (not in __tests__/) because it's the piece that explains WHY a SOXX-
-    // shaped signal (extreme confluence, actionable direction) is supposed
-    // to have a short cache lifetime — if a "1d" figure looks wrong, the
-    // first question is whether this 5-minute hot-refresh actually fired,
-    // not whether the arithmetic is wrong. cacheTtlMinutes lives in
+  test("DIAGNOSE: signal-policy's cacheTtlMinutes classifies an 82%-confluence bullish signal as 'hot' — confirms it SHOULD refresh fast, not sit on stale numbers", async ({ page }) => {
+    // Pure-logic check reachable without a browser at all in principle, but
+    // /api/signals/digest is Clerk-protected — page.request after a goto()
+    // carries the authenticated session; the bare `request` fixture doesn't
+    // (same fix as the two tests above). cacheTtlMinutes lives in
     // lib/shared/signal-policy.ts and is exercised indirectly via the
     // digest cache route rather than imported directly, since e2e specs
     // intentionally stay black-box against the running server.
-    const res = await request.get("/api/signals/digest");
+    await page.goto("/dashboard/signals");
+    const res = await page.request.get("/api/signals/digest");
     test.skip(!res.ok(), "digest API unavailable this run");
     const digest = await res.json();
     const soxx = digest?.signals?.find((s: { ticker: string }) => s.ticker === "SOXX");

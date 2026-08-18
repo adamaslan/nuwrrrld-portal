@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NulogDash — Admin Console (Prototype)</title>
+  <link rel="stylesheet" href="nulogdash-admin.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">NulogDash</div>
+      <nav>
+        <a class="active">Overview</a>
+        <a>Signals</a>
+        <a>Users</a>
+        <a>Integrations</a>
+        <a>Settings</a>
+        <a>Audit</a>
+        <a href="/dashboard/nulogdash">Dashboard</a>
+      </nav>
+      <div class="sidebar-footer">Admin: Superuser</div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <h1>NulogDash — Admin Console</h1>
+        <div class="top-actions">
+          <button id="refreshBtn" type="button">Refresh</button>
+          <button id="createUserBtn" type="button" class="primary">Create User</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <div class="card metrics">
+          <h2>Key Metrics</h2>
+          <div class="metrics-grid">
+            <div class="metric">
+              <div class="value">12.4k</div>
+              <div class="label">Signals / day</div>
+            </div>
+            <div class="metric">
+              <div class="value">1.2k</div>
+              <div class="label">Active Users</div>
+            </div>
+            <div class="metric">
+              <div class="value">99.99%</div>
+              <div class="label">Uptime</div>
+            </div>
+            <div class="metric">
+              <div class="value">4</div>
+              <div class="label">Pending Alerts</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card recent">
+          <h2>Recent Signals</h2>
+          <table>
+            <thead><tr><th>Time</th><th>Signal</th><th>Source</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>09:12</td><td>Price spike</td><td>live-feed</td><td><span class="pill warn">Investigate</span></td></tr>
+              <tr><td>08:54</td><td>New issuer</td><td>crawler</td><td><span class="pill ok">OK</span></td></tr>
+              <tr><td>07:30</td><td>Volume surge</td><td>api</td><td><span class="pill ok">OK</span></td></tr>
+              <tr><td>01:22</td><td>Manual note</td><td>admin</td><td><span class="pill info">Note</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card users">
+          <h2>Users</h2>
+          <ul class="user-list">
+            <li><strong>Alice</strong> — alice@example.com <button class="small">Impersonate</button></li>
+            <li><strong>Bob</strong> — bob@example.com <button class="small">Disable</button></li>
+            <li><strong>Carol</strong> — carol@example.com <button class="small">Reset PW</button></li>
+          </ul>
+        </div>
+
+        <div class="card admin-actions">
+          <h2>Admin Actions</h2>
+          <div class="actions">
+            <button id="reindexBtn" type="button">Reindex Signals</button>
+            <button id="backupBtn" type="button">Create Backup</button>
+            <button id="deployBtn" type="button" class="danger">Deploy Config</button>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">Prototype — not connected to production. Use with care.</footer>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <h3 id="modalTitle">Modal</h3>
+      <div id="modalBody">...</div>
+      <div class="modal-actions">
+        <button id="modalClose" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      'use strict';
+
+      function byId(id){ return document.getElementById(id); }
+
+      function on(id, event, handler){
+        var el = byId(id);
+        if(!el){
+          console.warn('[nulogdash-admin] missing element #' + id);
+          return;
+        }
+        el.addEventListener(event, handler);
+      }
+
+      var modal = byId('modal');
+      var modalTitle = byId('modalTitle');
+      var modalBody = byId('modalBody');
+      var lastFocused = null;
+
+      function showModal(title, body){
+        if(!modal || !modalTitle || !modalBody){
+          console.warn('[nulogdash-admin] modal elements missing, falling back to alert');
+          window.alert(title + '\n\n' + body);
+          return;
+        }
+        lastFocused = document.activeElement;
+        modalTitle.textContent = title;
+        modalBody.textContent = body;
+        modal.classList.remove('hidden');
+        var closeBtn = byId('modalClose');
+        if(closeBtn) closeBtn.focus();
+      }
+
+      function hideModal(){
+        if(!modal) return;
+        modal.classList.add('hidden');
+        if(lastFocused && typeof lastFocused.focus === 'function'){
+          lastFocused.focus();
+        }
+      }
+
+      function confirmAction(title, message, cb){
+        var confirmed = false;
+        try {
+          confirmed = window.confirm(title + '\n\n' + message);
+        } catch (err) {
+          console.error('[nulogdash-admin] confirm() failed', err);
+          return;
+        }
+        if(!confirmed) return;
+        try {
+          cb();
+        } catch (err) {
+          console.error('[nulogdash-admin] action failed', err);
+          window.alert('Something went wrong. Check the console for details.');
+        }
+      }
+
+      on('refreshBtn', 'click', function(){
+        try { window.alert('Refreshing data...'); }
+        catch (err) { console.error('[nulogdash-admin] refresh failed', err); }
+      });
+
+      on('createUserBtn', 'click', function(){
+        showModal('Create user', 'This would open a user creation form.');
+      });
+
+      on('reindexBtn', 'click', function(){
+        confirmAction('Reindex signals', 'This may be long-running. Proceed?', function(){
+          window.alert('Reindex started.');
+        });
+      });
+
+      on('backupBtn', 'click', function(){
+        confirmAction('Create backup', 'Create a new backup now?', function(){
+          window.alert('Backup created.');
+        });
+      });
+
+      on('deployBtn', 'click', function(){
+        confirmAction('Deploy config', 'This will apply configuration to production. Proceed?', function(){
+          window.alert('Deployment triggered.');
+        });
+      });
+
+      on('modalClose', 'click', hideModal);
+
+      if(modal){
+        modal.addEventListener('click', function(e){
+          if(e.target === modal) hideModal();
+        });
+      }
+
+      document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape' && modal && !modal.classList.contains('hidden')){
+          hideModal();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

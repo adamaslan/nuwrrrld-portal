@@ -1,0 +1,98 @@
+name: Nightly AI precompute
+
+# Option D of docs/gha-modal-core-feature-coverage.md.
+#
+# OpenRouter's free tier caps the whole API key at some number of requests/day
+# (this account's auth/key endpoint reports `limit: null` — not independently
+# confirmed here as 50 vs. 1000; see docs/max-coverage-simplest-path.md
+# "Correction" section) and resets at UTC midnight. Batch AI work and
+# interactive Nu AI chat share that one bucket, and batch wins by running
+# first. This job spends the allowance a few minutes after the reset — when it
+# is freshest — and stores the results in Neon, so the app serves them at zero
+# quota cost and the rest of the day belongs to calls a user is actually
+# waiting on.
+#
+# This is the GitHub Actions half of a deliberately multi-platform pair; the
+# Modal equivalent is deploy/precompute-ai/modal_app.py. Run ONE of them, not
+# both — two schedulers hitting the same endpoint doubles the quota spend for
+# identical output. GHA is the simpler default (no extra account, secrets
+# already here); Modal is preferable if this ever needs to outlive the 6-hour
+# GHA job ceiling or fan out per-ticker.
+on:
+  schedule:
+    - cron: '10 0 * * *' # 00:10 UTC daily — just after the free-tier reset
+  workflow_dispatch:
+    inputs:
+      maxSubjects:
+        description: 'How many watchlist ticker-sets to precompute'
+        required: false
+        default: '10'
+
+# Read-only: this workflow calls a deployed endpoint and commits nothing.
+permissions:
+  contents: read
+
+# A run still in flight when the next fires would double-spend quota on the
+# same subjects; skip the new one rather than queue it.
+concurrency:
+  group: precompute-ai
+  cancel-in-progress: false
+
+jobs:
+  precompute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger precompute
+        env:
+          PORTAL_URL: ${{ vars.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          MAX_SUBJECTS: ${{ github.event.inputs.maxSubjects || '10' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PORTAL_PUSH_SECRET}" ]; then
+            echo "::error::PORTAL_PUSH_SECRET is not set — the endpoint will reject this run."
+            exit 1
+          fi
+
+          # -sS keeps curl quiet but still prints errors; the body is captured
+          # separately from the status so a non-2xx can be reported with its
+          # payload rather than an opaque exit code.
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST "${PORTAL_URL}/api/pipeline/precompute-ai" \
+            -H "Authorization: Bearer ${PORTAL_PUSH_SECRET}" \
+            -H 'Content-Type: application/json' \
+            --max-time 600 \
+            -d "{\"maxSubjects\": ${MAX_SUBJECTS}}")
+
+          echo "HTTP ${http_status}"
+          cat response.json
+
+          if [ "${http_status}" -lt 200 ] || [ "${http_status}" -ge 300 ]; then
+            echo "::error::precompute endpoint returned ${http_status}"
+            exit 1
+          fi
+
+          generated=$(jq -r '.generated // 0' response.json)
+          attempted=$(jq -r '.attempted // 0' response.json)
+          quota=$(jq -r '.quotaExhausted // false' response.json)
+
+          echo "### Nightly AI precompute" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- generated: **${generated}/${attempted}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- quota exhausted: **${quota}**" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${quota}" = "true" ]; then
+            # Not a failure — the artifacts that were generated are still
+            # valid. But it means something spent the day's allowance before
+            # 00:10 UTC, which is worth a visible warning.
+            echo "::warning::Daily free-model quota was already exhausted; something is spending it before the nightly run."
+          fi
+
+          # Zero generated from a non-zero attempt count means every model call
+          # failed — the job "succeeded" while producing nothing, which should
+          # not read as green.
+          if [ "${attempted}" -gt 0 ] && [ "${generated}" -eq 0 ]; then
+            echo "::error::attempted ${attempted} subject(s) but generated none"
+            exit 1
+          fi

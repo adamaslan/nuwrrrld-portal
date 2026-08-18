@@ -49,7 +49,7 @@
 .port-watch-date { font-size: .72rem; color: var(--dim); }
 .port-watch-remove { background: transparent; border: 1px solid var(--line); color: var(--dim); border-radius: 6px; padding: .2rem .5rem; font-size: .75rem; cursor: pointer; }
 .port-watch-remove:hover { border-color: var(--red); color: var(--red); }
-.port-watch-empty { color: var(--dim); font-size: .88rem; font-style: italic; }
+.port-watch-empty, .port-score-empty, .port-suggestions-empty { color: var(--dim); font-size: .88rem; font-style: italic; }
 .port-watch-error { font-size: .82rem; color: var(--red); margin-top: .5rem; }
 
 /* Sector rotation */

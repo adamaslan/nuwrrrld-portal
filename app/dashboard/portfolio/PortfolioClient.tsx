@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import type { WatchlistItem, PortfolioHealth, OptimizerSuggestion } from "@/lib/portfolio";
+import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
 interface SectorEntry {
@@ -102,7 +102,12 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
           : "Health score unavailable — try again shortly.");
         return;
       }
-      const data = await res.json() as PortfolioHealth;
+      const data: unknown = await res.json();
+      if (!isPortfolioHealth(data)) {
+        setScoreStatus("error");
+        setScoreError("Health score unavailable — try again shortly.");
+        return;
+      }
       setScore(data);
       setScoreStatus("ok");
     } catch {
@@ -276,7 +281,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
           </div>
         )}
         {scoreStatus === "empty" && (
-          <p className="port-watch-empty">Add tickers to your watchlist to get your health score.</p>
+          <p className="port-score-empty">Add tickers to your watchlist to get your health score.</p>
         )}
         {scoreStatus === "error" && (
           <>
@@ -296,7 +301,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
           <p className="port-health-error">Suggestions unavailable — try again shortly.</p>
         )}
         {suggestionsStatus === "ok" && suggestions && suggestions.length === 0 && (
-          <p className="port-watch-empty">No suggestions right now — check back after adding tickers.</p>
+          <p className="port-suggestions-empty">No suggestions right now — check back after adding tickers.</p>
         )}
         {suggestionsStatus === "ok" && suggestions && suggestions.length > 0 && (
           <div className="port-watch-list">

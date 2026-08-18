@@ -67,6 +67,20 @@ Three moving parts:
    Cloud Run hostname; if that URL rotates and the env var is unset, every
    lookup *now* falls back to stale `signal_cache` (TODO2) before returning
    `null` — a rotated host degrades to old-but-real data, not an empty feed.
+4. **`app/api/signals/[ticker]/chat/route.ts` (the per-signal ask-anything
+   proxy to gcp3's `/signals/{ticker}/chat`) has no UI caller anywhere in this
+   repo** — confirmed via `grep -rln "ticker}/chat" app/` returning only the
+   route file itself. It's real, tested infrastructure (POST, Clerk-gated,
+   proper 503/504 error handling) with nothing wired to invoke it from
+   `SignalsClient.tsx` or anywhere else. Separately, **gcp3's own
+   `/signals/{ticker}/chat` currently 404s for every ticker tested**
+   (`SOXX` — in gcp3's tracked universe — plus `MU`/`GOOG`, which aren't),
+   confirmed 2026-08-18 via `e2e/frontend/signals-liveness.spec.ts`
+   ([[concept-live-backend-liveness-tests]]). The portal's route correctly
+   collapses that to a clean `503`, not a crash — but it means this feature is
+   simultaneously unreachable from the UI and non-functional on the backend
+   right now. Worth a deliberate decision (build the UI once gcp3 ships the
+   route, or remove the dead proxy) rather than leaving it silently orphaned.
 
 ## Open questions
 
@@ -80,6 +94,20 @@ Three moving parts:
 - ❓ There is still no freshness contract on `/signals?symbol=X` itself;
   `SignalsClient` renders an `isStale` badge from digest metadata, but the
   single-ticker path infers freshness only from the `signal_cache` timestamp.
+- ✅ **Resolved 2026-08-18 for the digest path** (not the single-ticker path
+  above, which remains open): the digest endpoint (`/signals`, full symbols
+  map) already carries a per-symbol `updated` field on every entry — confirmed
+  against a live gcp3 response (344 KB, 54 symbols). `lib/digest.ts`'s
+  `adaptLiveSignals` previously ignored it and used only the batch-wide
+  `updated` for every ticker's `generatedAt`/`isStale` (the "batch-timestamp
+  blind spot" — see [[entity-playwright-e2e]]'s `signal-timing.spec.ts`,
+  originally written to document this as unfixable without gcp3 changes; it
+  wasn't). Now reads `entry.updated` per ticker, falling back to the
+  batch-wide value only when a ticker omits its own. Closes the failure class
+  behind a signal card showing a fresh timestamp while its own confluence
+  score was actually stale. `__tests__/digest-adapt.test.ts`'s "per-ticker
+  generatedAt" describe block proves this at the adapter level; the e2e
+  suite's "CONFIRMED" test proves it reaches the rendered page.
 
 ## See also
 
@@ -89,5 +117,10 @@ Three moving parts:
 - [[concept-cache-then-degrade]] — the resilience pattern this plane follows
 - [[decision-pending-signals-queue]] — how a watchlist-add reaches `signal_cache`
 - [[entity-live-price-tier]] — the Finnhub live-price lane + Modal drain cron
+- [[entity-playwright-e2e]] — `signal-timing.spec.ts` and the new
+  `signals-liveness.spec.ts` cover this plane end-to-end
+- [[concept-live-backend-liveness-tests]] — the unmocked liveness pattern that
+  confirmed the per-symbol `updated` field's real shape and the chat route's
+  live 404
 - `../findings-signal-loop-hardening.html` — snapshot of the four hardening passes
 - `gcp3/docs/wiki-gcp3/overview.md` — the backend that bakes the signals

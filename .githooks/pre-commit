@@ -45,7 +45,7 @@ staged_files=$(git diff --cached --name-only --diff-filter=ACM)
 [ -z "$staged_files" ] && exit 0
 
 # Placeholder allowlist — mirrors .gitleaks.toml so intentional refs pass.
-allowlist='\{gcp3-backend-url\}|\{openrouter-api-key\}|\{database-url\}|\{clerk-publishable-key\}|\{stripe-secret-key\}|https://…run\.app|gcp3-backend-cif7ppahzq-uc\.a\.run\.app|sk-or-v1-definitely-not-a-real-key'
+allowlist='\{gcp3-backend-url\}|\{openrouter-api-key\}|\{database-url\}|\{clerk-publishable-key\}|\{stripe-secret-key\}|https://…run\.app|gcp3-backend-cif7ppahzq-uc\.a\.run\.app|sk-or-v1-definitely-not-a-real-key|sk-or-v1-test-key-not-real|whsec_placeholder_set_after_creating_endpoint'
 
 # High-signal credential patterns (values, not bare identifier names).
 # Key bodies allow [A-Za-z0-9_-] so dashed/underscored forms like sk-proj-...

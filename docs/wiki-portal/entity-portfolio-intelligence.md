@@ -55,13 +55,45 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
    degrades to an **ungrounded** prompt ("Portfolio health data: unavailable")
    and has been narrating portfolios with no portfolio data behind it since it
    shipped. Mobile's Portfolio tab fails identically via the same route.
+   **Confirmed still live 2026-08-18** via direct `curl` against
+   `{gcp3-backend-url}/api/portfolio/health?tickers=AAPL,MSFT` → `404`, and
+   again through `e2e/frontend/portfolio-liveness.spec.ts` (new, see
+   [[concept-live-backend-liveness-tests]]) → `502` from the portal's own
+   proxy. `/api/portfolio/suggestions` on gcp3 is **also** 404 as of the same
+   check — a second, previously-unconfirmed instance of the same "route never
+   registered" pattern, not yet its own incident page since it's the identical
+   root cause as this one.
 4. **The two sides share no field names.** gcp3 emits `ai_grade`/`ai_*`; the
-   portal expects `score`/`factors[]`/`summary`. Because the portal coerces a
-   missing score to `0`, a naive wiring would silently grade **every user F** —
-   worse than the current error. `lib/portfolio.ts` is single-sourced across
+   portal expects `score`/`factors[]`/`summary`. Because the portal coerced a
+   missing score to `0`, a naive wiring would silently grade **every user F**
+   — worse than an error. `lib/portfolio.ts` is single-sourced across
    portal↔mobile but binds nothing on the gcp3 side of the wire.
+   **Client-side half fixed 2026-08-18:** `PortfolioClient.tsx`'s `runScoreCheck`
+   previously did an unchecked `res.json() as PortfolioHealth` cast — a
+   contract-drift payload (gcp3's `ai_grade`/`ai_insights` shape, no `score`)
+   crashed the component outright (`score.factors.length` on `undefined`)
+   rather than even reaching the silent-F case. Added `isPortfolioHealth()`
+   (`lib/portfolio.ts`), a full-shape runtime validator mirroring
+   `lib/backtest.ts`'s `isBacktestResult()` pattern; a payload that fails
+   validation now routes to the existing `.port-health-error` state instead of
+   crashing OR rendering a fake score. The server route's own defensive
+   parsing (item above this one, `route.ts`'s `typeof data.score === 'number'
+   ? ... : 0`) is unchanged and still the deeper fix gcp3-side wiring needs.
 5. **`health-ai` is unmetered.** Unlike `/api/nuai` it has no rate limit and no
    token accounting, so it bypasses `NU_AI_DAILY_TOKEN_BUDGET` entirely.
+6. ~~**`.port-watch-empty` reused across three co-rendered empty-states.**~~ —
+   **fixed 2026-08-18**, see [[entity-playwright-e2e]] known-failure #5 for
+   the full writeup; split into `port-watch-empty` / `port-score-empty` /
+   `port-suggestions-empty`.
+7. **`health-ai`'s free-model chain can be fully exhausted** — confirmed live
+   2026-08-18: `POST /api/portfolio/health-ai` returned `503 "AI unavailable"`
+   twice consecutively via `page.request.post` with a real watchlist ticker,
+   independent of the gcp3 outage above (this route degrades to an ungrounded
+   prompt when gcp3 fails, it doesn't error — the 503 came from
+   `fetchWithModelFallbackChecked` failing across every model in
+   `FREE_MODEL_CHAIN`). See [[entity-openrouter-client]] for the chain and its
+   known quota-exhaustion failure mode; this is that failure mode observed
+   from the portfolio surface specifically, not a portfolio-side bug.
 
 ## Open questions
 
@@ -93,5 +125,8 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
   failures 2–4 deterministically via route mocking (contract-drift payload,
   ungrounded-narrative signal, generic-502 collapse), each test naming which
   layer broke instead of the ambiguous shared error string
+- [[concept-live-backend-liveness-tests]] — `e2e/frontend/portfolio-liveness.spec.ts`
+  (new 2026-08-18) is the unmocked counterpart: real calls confirming
+  failures 3 and 7 above are live right now, not just reproducible via mock
 - `docs/portfolio-health-ai-workflow.html` — full-stack trace + 11-defect catalogue
 - `gcp3-mobile/docs/wiki-mobile/entity-portfolio.md` — the mobile half, broken by the same route

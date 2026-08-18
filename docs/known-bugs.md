@@ -1,18 +1,23 @@
-# Known Bugs — as of 2026-08-18
+# Known Bugs — last updated 2026-08-18
 
-A snapshot of every confirmed-real bug/gap found while building and reviewing
-the Playwright suite (PR #64), consolidated into one list. This is a status
-doc, not a to-do runbook — see `docs/e2e-next-steps.md`,
-`playwright-todo.md`, and `docs/stripe-todo.md` for the corresponding action
-items. No further testing or fixing was done after this snapshot was taken.
+Bugs and gaps found while building and reviewing the Playwright suite (PR #64),
+consolidated into one list. This is a status doc, not a to-do runbook — see
+`docs/e2e-next-steps.md`, `playwright-todo.md`, and `docs/stripe-todo.md` for
+the corresponding action items.
+
+**Status after PR #65 (2026-08-18):** items 4–11 fixed in `7db2cc1` (PR #64
+fix commit); items 17/18/19 fixed in PR #65 (`c9be487`, CI-verified). Item 1
+fixed this session (Clerk `publicMetadata` patch, see below). All others
+remain open. Open blockers in priority order: item 14 (GCP WIF provisioning),
+item 2 (Stripe price IDs), item 3 (needs re-run now that item 1 is fixed).
 
 ---
 
 ## Blocking the `frontend` Playwright tier
 
-### 1. E2E test user has no Pro-tier entitlement
+### 1. ~~E2E test user has no Pro-tier entitlement~~ — fixed
 
-**The single largest blocker.** `/dashboard/nuai`, `/dashboard/signals`, and
+**Was the single largest blocker.** `/dashboard/nuai`, `/dashboard/signals`, and
 `/dashboard/portfolio` are all entitlement-gated:
 
 ```
@@ -35,9 +40,29 @@ component.
 (the tests hitting `/dashboard/portfolio` specifically — the ones asserting
 only against `page.request` without a `page.goto()` are unaffected).
 
-**Fix:** set the test user's `publicMetadata.subscription_status` to `'pro'`
-via the Clerk dashboard or Backend API. Not done — flagged, not fixed, per
-this session's stop instruction.
+**Fix applied (2026-08-18):** patched via `clerk api` (Backend API,
+key-authenticated). Note the original fix note above was imprecise —
+`subscription_status` has no `'pro'` value; `SubscriptionStatus` values are
+`free | trialing | active | past_due | canceled | paused`, and
+`tierFromStatus()` (`lib/subscription.ts:88`) maps `active`/`trialing`/
+`past_due` → `tier: 'pro'`. Setting `subscription_status: 'pro'` literally
+would have been silently rejected by `isSubscriptionStatus()` and defaulted
+back to `'free'` — reproducing the exact bug. Set instead:
+
+```json
+{
+  "public_metadata": {
+    "subscription_status": "active",
+    "subscription_tier": "pro",
+    "stripe_customer_id": "cus_e2e_test_fixture"
+  }
+}
+```
+
+on user `user_3I47bSNlEq98KzZAShK252pVYDQ`
+(`e2e+clerk_test@nuwrrrld.com`, dev instance). Verified via the API response:
+`public_metadata` now reflects all three fields. Re-run the `frontend`
+Playwright tier to confirm the redirect-to-`/pricing` failures are resolved.
 
 ### 2. `STRIPE_PRICE_ANNUAL` still a placeholder
 
@@ -136,22 +161,19 @@ merge-blocking, none fixed:
     in the UI" gap item 19 referenced — not item 15, which is the separate
     portfolio-entitlement design gap and remains open.)
 
-## CI check state at merge time (2026-08-18)
+## CI check state on `main` after PR #65 merge (2026-08-18)
 
-Six checks red when this PR merged, all traced to causes outside this PR's
-diff:
+Post-merge runs `32099297027` (CI) and `32099296928` (E2E Resiliency) on merge
+commit `c9be487` — same six checks red as at PR #64, none caused by #64 or
+#65 diffs:
 
 | Check | Status | Cause |
 |---|---|---|
-| `shared-drift-check` | fail | Item 12 — predates this branch |
-| `Cloudflare Pages` | fail | Item 13 — predates this branch, known since PR #37 |
+| `shared-drift-check` | fail | Item 12 — cross-repo drift, predates this work |
+| `Cloudflare Pages` | fail | Item 13 — known-broken since PR #37 |
 | `e2e` (shards 1–4) | fail | Item 14 — `GCP_WIF_PROVIDER` never provisioned |
 
-`auth`, `test`, `report`, `CodeRabbit`, `Vercel`, `Vercel Preview Comments`
-all passed. Merged with the six above still red, per explicit instruction —
-none of the six are within this PR's ability to fix (two are cross-repo/
-infra-config issues, four need a one-time `gcloud` provisioning step this
-session didn't run).
+`auth`, `test`, `report`, `Vercel`, `Vercel Preview Comments` pass.
 
 ---
 
@@ -177,9 +199,20 @@ session didn't run).
 
 ---
 
-## Stopped here
+## Open item summary (as of 2026-08-18)
 
-Per instruction, no further tests were run and no further fixes were made
-after this snapshot. This list is the complete, current inventory —
-cross-reference against `playwright-todo.md`'s Optimization/Future-test-ideas
-sections for lower-priority items not repeated here.
+Items that remain unfixed — some need external config, some need code work:
+
+| # | Item | What it blocks | Fix path |
+|---|---|---|---|
+| 1 | ~~E2E test user has no Pro entitlement~~ — fixed 2026-08-18 | Most `frontend` tier tests (exempts `page.request`-only tests in `portfolio-health.spec.ts` — see lines 35–36) | Done — `publicMetadata.subscription_status: 'active'` set via `clerk api` |
+| 2 | `STRIPE_PRICE_ANNUAL` placeholder | `preflight-billing`; `/api/health` Stripe check | `docs/stripe-todo.md` |
+| 3 | Portfolio-suggestions root cause unconfirmed | Diagnosis only | Re-run now that item 1 is fixed |
+| 12 | `lib/subscription.ts` cross-repo drift | `shared-drift-check` CI | Reconcile portal and mobile copies (code change required in both repos) |
+| 13 | Cloudflare Pages integration broken | Cloudflare CI check | Disable via Cloudflare API (see `docs/cloudflare-pages-assessment.md`) |
+| 14 | GCP WIF pool never provisioned | All four `e2e` shards | `bash scripts/sync-e2e-secrets.sh --provision-wif` |
+| 15 | Portfolio page gates on `nu_ai` entitlement, not portfolio-specific | Design clarity | Deliberate review; may be intentional |
+| 16 | Clerk new-device verification worked around | Fragile OTP step in auth setup | Disable on dev Clerk instance |
+
+Cross-reference `playwright-todo.md`'s Optimization/Future-test-ideas sections
+for lower-priority items not listed here.

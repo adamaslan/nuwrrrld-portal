@@ -32,8 +32,3 @@
 
 .nuai-disclaimer, .nuai-footer-disclaimer { font-size: .72rem; color: var(--text-dim); text-align: center; padding-bottom: .5rem; }
 .nuai-footer-disclaimer a { color: var(--text-dim); }
-
-.nuai-limit { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 2rem; }
-.nuai-limit-emoji { font-size: 40px; margin-bottom: .75rem; }
-.nuai-limit-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: .5rem; }
-.nuai-limit-sub { font-size: .95rem; color: var(--text-dim); }
