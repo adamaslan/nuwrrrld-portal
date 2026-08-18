@@ -72,10 +72,26 @@ jobs:
       # — the auth-setup test needs a live /sign-in page, same as any other.
       - name: Sign in and capture session
         env:
+          # Clerk vars are what this job is *about*, but they are not
+          # sufficient: playwright.config.ts's webServer boots the real
+          # `next dev`, and lib/db.ts calls neon(process.env.DATABASE_URL!)
+          # at module scope. That module is reachable from app/page.tsx via
+          # lib/track-record.ts, so without DATABASE_URL the server throws on
+          # every request, never becomes ready, and Playwright fails with a
+          # webServer timeout — an error that says nothing about the missing
+          # variable. Anything `next dev` needs to boot belongs here, even if
+          # the auth flow itself never touches it.
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           E2E_CLERK_TEST_EMAIL: ${{ secrets.E2E_CLERK_TEST_EMAIL }}
           E2E_CLERK_TEST_PASSWORD: ${{ secrets.E2E_CLERK_TEST_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MCP_BACKEND_URL: ${{ secrets.MCP_BACKEND_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          IP_HASH_SECRET: ${{ secrets.IP_HASH_SECRET }}
+          NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
         run: |
           rm -f playwright/.auth/user.json
           npx playwright test --project=auth-setup

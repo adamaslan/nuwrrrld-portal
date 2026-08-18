@@ -47,7 +47,13 @@ export default defineConfig({
     command: "npm run dev",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    // 180s, not 120s: a cold `next dev` on a CI runner has no .next cache and
+    // compiles on first request, which has measured close to the old ceiling.
+    // Note this timeout is also what surfaces a *boot* failure (a missing env
+    // var throwing at module scope), and in that case it will always run the
+    // full duration before reporting — so a webServer timeout is worth
+    // reading as "check the [WebServer] log lines above", not just "too slow".
+    timeout: 180_000,
   },
 
   projects: [
