@@ -5,9 +5,10 @@ consolidated into one list. This is a status doc, not a to-do runbook — see
 `docs/e2e-next-steps.md`, `playwright-todo.md`, and `docs/stripe-todo.md` for
 the corresponding action items.
 
-**Status after PR #65 (2026-08-18):** items 17/18/19 fixed; all others remain
-open. Open blockers in priority order: item 1 (Clerk Pro metadata), item 14
-(GCP WIF provisioning), item 2 (Stripe price IDs).
+**Status after PR #65 (2026-08-18):** items 4–11 fixed in `7db2cc1` (PR #64
+fix commit); items 17/18/19 fixed in PR #65 (`c9be487`, CI-verified). All
+others remain open. Open blockers in priority order: item 1 (Clerk Pro
+metadata), item 14 (GCP WIF provisioning), item 2 (Stripe price IDs).
 
 ---
 
@@ -139,9 +140,11 @@ merge-blocking, none fixed:
     in the UI" gap item 19 referenced — not item 15, which is the separate
     portfolio-entitlement design gap and remains open.)
 
-## CI check state on `main` (after PR #65, 2026-08-18)
+## CI check state on `main` after PR #65 merge (2026-08-18)
 
-Same six checks red as at PR #64 merge — none caused by #64 or #65 diffs:
+Post-merge runs `32099297027` (CI) and `32099296928` (E2E Resiliency) on merge
+commit `c9be487` — same six checks red as at PR #64, none caused by #64 or
+#65 diffs:
 
 | Check | Status | Cause |
 |---|---|---|
@@ -177,14 +180,14 @@ Same six checks red as at PR #64 merge — none caused by #64 or #65 diffs:
 
 ## Open item summary (as of 2026-08-18)
 
-Items that remain unfixed and require action outside a code PR:
+Items that remain unfixed — some need external config, some need code work:
 
 | # | Item | What it blocks | Fix path |
 |---|---|---|---|
-| 1 | E2E test user has no Pro entitlement | All `frontend` tier tests | Clerk dashboard → set `publicMetadata.subscription_status: 'pro'` on the test user |
+| 1 | E2E test user has no Pro entitlement | Most `frontend` tier tests (exempts `page.request`-only tests in `portfolio-health.spec.ts` — see lines 35–36) | Clerk dashboard → set `publicMetadata.subscription_status: 'pro'` on the test user |
 | 2 | `STRIPE_PRICE_ANNUAL` placeholder | `preflight-billing`; `/api/health` Stripe check | `docs/stripe-todo.md` |
 | 3 | Portfolio-suggestions root cause unconfirmed | Diagnosis only | Re-run with item 1 fixed first |
-| 12 | `lib/subscription.ts` cross-repo drift | `shared-drift-check` CI | Reconcile portal and mobile copies |
+| 12 | `lib/subscription.ts` cross-repo drift | `shared-drift-check` CI | Reconcile portal and mobile copies (code change required in both repos) |
 | 13 | Cloudflare Pages integration broken | Cloudflare CI check | Disable via Cloudflare API (see `docs/cloudflare-pages-assessment.md`) |
 | 14 | GCP WIF pool never provisioned | All four `e2e` shards | `bash scripts/sync-e2e-secrets.sh --provision-wif` |
 | 15 | Portfolio page gates on `nu_ai` entitlement, not portfolio-specific | Design clarity | Deliberate review; may be intentional |
