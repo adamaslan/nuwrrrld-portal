@@ -143,10 +143,14 @@ genuine regression, not confirmation of the old incident.
    playwright.yml` (default `npm init playwright` scaffold, no env, no
    sharding) that has since been **deleted and replaced**, not left running
    alongside `e2e-resiliency.yml`.
-4. **No selectors have `data-testid`.** Tests target Tailwind-adjacent class
-   names (`.nuai-error`, `.port-health-error`) and ARIA roles/text, which are
-   more prone to drift than dedicated test hooks. Not yet a decided tradeoff
-   — see open questions.
+4. **Almost no selectors have `data-testid`.** Tests target Tailwind-adjacent
+   class names (`.nuai-error`, `.port-health-error`) and ARIA roles/text, which
+   are more prone to drift than dedicated test hooks. Not yet a decided tradeoff
+   — see open questions. The one exception (added PR #65) is
+   `data-testid="health-banner"` on the new [[concept-graceful-degradation]]
+   dashboard banner: added precisely because the alternative — the generic
+   `role="alert"` — collided with Next.js's always-present route-announcer, the
+   false match that made the EXPOSE test meaningless before.
 
 ## Open questions
 
@@ -158,10 +162,14 @@ genuine regression, not confirmation of the old incident.
 - ❓ `E2E_CLERK_TEST_EMAIL`/`PASSWORD` need a real, dedicated Clerk test user
   provisioned before `auth-setup` can run anywhere — local or CI. Not yet
   created; every `frontend`-project test is currently blocked on this.
-- ❓ Should `e2e/health/dependencies.spec.ts`'s "frontend renders a usable page
-  when `/api/health` reports down" test stay `EXPOSE`-labeled (documenting a
-  known gap — `DashboardCockpit` has no `role="alert"` banner today) or should
-  the gap be fixed first? Currently documents, does not fix.
+- ✅ **Resolved (PR #65):** `e2e/health/dependencies.spec.ts`'s "frontend
+  renders a usable page when `/api/health` reports down" test no longer just
+  documents the gap — the gap was fixed. `app/dashboard/HealthBanner.tsx`
+  (a client component polling `/api/health`, see [[concept-graceful-degradation]])
+  now renders `data-testid="health-banner"` on a `down`/`degraded` verdict, so
+  the test dropped `test.fail()` and its generic `role="alert"` fallback and
+  asserts the real banner — a genuine end-to-end check of the outage path
+  rather than an assertion against a selector nothing produced.
 
 ## See also
 
