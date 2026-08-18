@@ -110,6 +110,31 @@ they aren't mistaken for regressions.
   integration should be disabled via one Cloudflare API call (keep the
   project, turn off GitHub-triggered builds). Not a code problem.
 
+### 4a. The real cause of the CI Clerk failures: a 1-character secret
+
+Worth recording because the symptom pointed nowhere near the cause. CI kept
+failing with *"Publishable key not valid"* while the identical key worked
+locally. The key was fine — **the secret in GitHub was one character long.**
+
+`scripts/sync-e2e-secrets.sh` (via `~/.claude/scripts/sync-secrets.sh`) used:
+
+```bash
+printf '%s' "$value" | gh secret set "$name" --body -   # WRONG
+```
+
+`gh secret set --body` takes the value as a literal **string**, so this stored
+`-`. It reads stdin only when `--body` is omitted entirely:
+
+```bash
+printf '%s' "$value" | gh secret set "$name"            # correct
+```
+
+Fixed in the shared script, so it won't recur in other repos. Confirmed by a
+throwaway workflow echoing `${#PK}`: 1 before, 58 after. **`gh secret list`
+cannot catch this** — it shows the name exists, never that the value is
+intact. If a synced secret ever behaves as though it's wrong, check its
+length before suspecting the credential itself.
+
 ### 4b. `auth` has still never passed in CI
 
 Verified working **locally** (writes `playwright/.auth/user.json`), but every
