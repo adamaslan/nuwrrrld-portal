@@ -85,6 +85,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — production checkout silently failing; a malformed `STRIPE_SECRET_KEY` + a Clerk dev-instance key on the production domain, both root-caused via Vercel telemetry
 - [[incident-2026-08-06-bugmerge1-command-file-loss]] — `/bugmerge1`'s own command file vanished mid-run during git checkouts/stash; now guarded by a self-integrity check + out-of-tree backup ([[concept-wiki-led-development]] feedback-loop instance)
 - [[incident-2026-08-16-stash-recovery-and-cross-repo-drift]] — a stale 5-commit stashed branch's rebase produced a silent `log.md` duplication (caught by full-file review) and exposed a cross-repo drift-gate merge-order dependency; resolved by squash-before-rebase and a companion mobile PR
+- [[incident-2026-08-17-e2e-ci-cascade]] — five stacked failures kept the E2E `auth` job red, each masking the next; root cause was `gh secret set --body -` silently storing one-character secrets, which `gh secret list` cannot detect
 
 The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 

@@ -16,25 +16,34 @@ CLI (`npm run test:e2e`), or CI (`.github/workflows/e2e-resiliency.yml`). Full
 design rationale lives in `docs/e2e.md` (the operating manual this entity page
 summarizes and keeps in sync with, not duplicates).
 
-The suite is organized as four dependent Playwright *projects*, not one flat
-test list — mirroring the same "cheap layer gates the expensive one" instinct
+The suite is organized as dependent Playwright *projects*, not one flat test
+list — mirroring the same "cheap layer gates the expensive one" instinct
 [[concept-test-strategy]] applies to `live` vs `unit`:
 
 | Project | What it checks | Depends on |
 |---|---|---|
-| `preflight` | env var **shape** (key prefixes, no placeholders, no whitespace) and **liveness** (one cheap authenticated call per provider — OpenRouter, Stripe, MCP) — never logs a value | — |
+| `preflight` | **core** credentials only: Clerk, OpenRouter, `DATABASE_URL` — shape (prefix, no placeholder, no whitespace) plus one cheap authenticated call per provider. Never logs a value | — |
+| `preflight-billing` | Stripe shape + liveness, **gating nothing else** | — |
 | `health` | `/api/health`'s aggregate dependency verdict (mcp/neon/stripe/openrouter/clerk) is `ok`, and its latency budget | `preflight` |
-| `auth-setup` | signs in a **dedicated** Clerk test user once via `@clerk/testing`, saves `storageState` to `playwright/.auth/user.json` | `preflight` |
+| `auth-setup` | signs in a **dedicated** Clerk test user once, saves `storageState` to `playwright/.auth/user.json` | `preflight` |
 | `frontend` | route-level fault injection (mocked 429s, stalled SSE, contract-drift payloads) against real components, already authenticated | `auth-setup` |
+| `ci` | `scripts/*.mjs` + their GHA workflows, via subprocess — no browser | — |
 
-`dependencies: [...]` in `playwright.config.ts` means "run all tests" stops at
-the first broken layer — a revoked `OPENROUTER_API_KEY` fails one `preflight`
-test instead of producing forty confusing red `frontend` failures. This is the
-same "blocked is not fail" distinction `scripts/nulogdash.mjs` already applies
-to feature results.
+`dependencies: [...]` means "run all tests" stops at the first broken layer —
+a revoked `OPENROUTER_API_KEY` fails one `preflight` test instead of producing
+forty confusing red `frontend` failures. Same "blocked is not fail"
+distinction `scripts/nulogdash.mjs` already applies to feature results.
 
-**Auth handshake.** `e2e/auth.setup.ts` calls `@clerk/testing`'s
-`clerkSetup()`/`setupClerkTestingToken()` — Clerk's own Playwright integration
+> **The gate is split by concern, and that split was learned the hard way
+> (2026-08-17).** Originally one `preflight` project asserted *every*
+> credential, Stripe included. Because `auth-setup` depended on it,
+> a placeholder `STRIPE_WEBHOOK_SECRET` made a Clerk sign-in test unrunnable —
+> and therefore made a green CI run impossible for a reason unrelated to
+> anything under test. **A gate should block what depends on it, not
+> everything.** `preflight-billing` is deliberately excluded from the CI `e2e`
+> job until `docs/stripe-todo.md`'s unset values are real.
+
+**Auth handshake.** `e2e/auth.setup.ts` uses `@clerk/testing`'s `clerkSetup()`
 — rather than the "copy a `__session` cookie out of devtools" pattern
 `scripts/nulogdash.mjs`'s `NULOGDASH_SESSION_COOKIE` uses. Two credentials
 drive it: `E2E_CLERK_TEST_EMAIL` / `E2E_CLERK_TEST_PASSWORD`, for a dedicated
@@ -110,12 +119,14 @@ genuine regression, not confirmation of the old incident.
 
 ## Known failures
 
-1. **Not yet wired into CI as the default gate.** `e2e-resiliency.yml` exists
-   and runs on push/PR to `main`, but — same contradiction
-   [[concept-test-strategy]] already flags for `npm test` — nothing has
-   confirmed a green run against real repo secrets yet. `GCP_WIF_PROVIDER` /
-   `GCP_SERVICE_ACCOUNT` need a Workload Identity Federation pool configured
-   GCP-side, which this entity page does not cover.
+1. **`auth` has never passed in CI, though it passes locally.** Five separate
+   causes killed it across five runner attempts (2026-08-17), each masking the
+   next — see [[incident-2026-08-17-e2e-ci-cascade]] for the full chain and
+   the lesson about error messages pointing at the wrong layer. As of this
+   writing the app boots correctly in CI and core preflight passes; a green
+   `auth` is still unconfirmed. `GCP_WIF_PROVIDER` / `GCP_SERVICE_ACCOUNT`
+   also still need a Workload Identity Federation pool provisioned GCP-side
+   (`bash scripts/sync-e2e-secrets.sh --provision-wif`).
 2. **`e2e/frontend/*` specs target one page each** (`/dashboard/nuai`,
    `/dashboard/portfolio`, `/dashboard/signals`). `docs/e2e.md`'s illustrative
    §§1–3 examples reference routes that don't exist in this app (`/ai-chat`,
