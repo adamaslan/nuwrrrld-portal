@@ -1,0 +1,445 @@
+<title>Universe Pipeline Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --ink:      #131820;
+    --paper:    #F7F6F3;
+    --surface:  #FFFFFF;
+    --slate:    #5C6672;
+    --hair:     #DFDCD5;
+    --amber:    #9C6414;
+    --amber-dim:#F0E4CE;
+    --good:     #2F7A4F;
+    --warn:     #B8781F;
+    --crit:     #A63A2E;
+    --shadow:   0 1px 2px rgba(19, 24, 32, .06), 0 6px 16px -10px rgba(19, 24, 32, .18);
+
+    --f-display: "Bitter", Georgia, "Times New Roman", serif;
+    --f-body:    "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:      #ECEAE5;
+      --paper:    #14181E;
+      --surface:  #1B2027;
+      --slate:    #97A1AD;
+      --hair:     #2C333C;
+      --amber:    #E3A54B;
+      --amber-dim:#3A2E19;
+      --good:     #5FB183;
+      --warn:     #E3A54B;
+      --crit:     #E0705F;
+      --shadow:   0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px -10px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ink:      #ECEAE5;
+    --paper:    #14181E;
+    --surface:  #1B2027;
+    --slate:    #97A1AD;
+    --hair:     #2C333C;
+    --amber:    #E3A54B;
+    --amber-dim:#3A2E19;
+    --good:     #5FB183;
+    --warn:     #E3A54B;
+    --crit:     #E0705F;
+    --shadow:   0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px -10px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+
+  /* ---- masthead ---- */
+  .masthead { display: flex; flex-direction: column; gap: 10px; }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 42px);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--slate);
+    font-size: 17px;
+  }
+
+  .stamp {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--slate);
+    border-top: 1px solid var(--hair);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+
+  /* ---- metric rail ---- */
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    background: var(--hair);
+    border: 1px solid var(--hair);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .metric { background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 3px; }
+
+  .metric dt {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate);
+  }
+
+  .metric dd {
+    margin: 0;
+    font-family: var(--f-display);
+    font-size: 27px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .metric .sub { font-family: var(--f-body); font-size: 12.5px; color: var(--slate); }
+  .m-good dd { color: var(--good); }
+  .m-crit dd { color: var(--crit); }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 16px; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ink);
+    letter-spacing: -.01em;
+  }
+
+  .lede { margin: 0; color: var(--slate); max-width: 66ch; font-size: 15.5px; }
+
+  /* ---- blocker cards ---- */
+  .blockers { display: flex; flex-direction: column; gap: 12px; }
+
+  .blocker {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-left: 4px solid var(--slate);
+    border-radius: 3px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .b-crit { border-left-color: var(--crit); }
+  .b-warn { border-left-color: var(--warn); }
+  .b-info { border-left-color: var(--slate); }
+
+  .b-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+
+  .b-title { font-family: var(--f-display); font-size: 16.5px; font-weight: 700; margin: 0; }
+
+  .pill {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .p-crit { background: var(--crit); color: var(--surface); }
+  .p-warn { background: var(--warn); color: #1A1206; }
+  .p-info { background: var(--amber-dim); color: var(--amber); }
+
+  .blocker p { margin: 0; font-size: 15px; }
+  .blocker p + p { margin-top: 2px; }
+
+  .who {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--slate);
+    border-top: 1px dashed var(--hair);
+    padding-top: 8px;
+  }
+  .who b { color: var(--ink); font-weight: 700; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .88em;
+    background: var(--amber-dim);
+    color: var(--amber);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  pre {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 14px;
+    border-radius: 3px;
+    overflow-x: auto;
+    margin: 0;
+    line-height: 1.55;
+  }
+  pre code { background: none; color: inherit; padding: 0; }
+
+  /* ---- ledger table ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--hair); border-radius: 3px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 14.5px; }
+
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--hair); vertical-align: top; }
+
+  th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate);
+    font-weight: 700;
+    background: var(--paper);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  td.step { font-family: var(--f-mono); font-weight: 700; white-space: nowrap; }
+  td.pr { font-family: var(--f-mono); font-size: 13px; color: var(--slate); white-space: nowrap; }
+
+  .tick { color: var(--good); font-weight: 700; }
+  .pause { color: var(--slate); font-weight: 700; }
+
+  footer {
+    border-top: 1px solid var(--hair);
+    padding-top: 16px;
+    color: var(--slate);
+    font-size: 13.5px;
+  }
+  footer p { margin: 0 0 6px; }
+
+  a { color: var(--amber); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 2px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .blocker { transition: transform .12s ease; }
+    .blocker:hover { transform: translateX(1px); }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">NuWrrrld Portal · Ticker Universe</div>
+    <h1>What's left after the build-out</h1>
+    <p class="standfirst">
+      Steps 1&ndash;5 of <code>universe-scale-hydration.md</code> are merged. The ranking is
+      correct, readable, and feeding the AI batch. What remains is three blockers &mdash; and
+      only one of them is a coding problem.
+    </p>
+    <div class="stamp">19 Aug 2026 &middot; main @ 3459fae &middot; PRs #70&ndash;#74 merged</div>
+  </header>
+
+  <dl class="rail">
+    <div class="metric m-good">
+      <dt>Universe coverage</dt>
+      <dd>932<span style="font-size:17px;color:var(--slate)">/933</span></dd>
+      <div class="sub">100% &mdash; gap is SKHY, newly listed</div>
+    </div>
+    <div class="metric">
+      <dt>Rankable t1 cards</dt>
+      <dd>918</dd>
+      <div class="sub">was 0 before PR&nbsp;#70</div>
+    </div>
+    <div class="metric m-crit">
+      <dt>Grounding pack</dt>
+      <dd>0</dd>
+      <div class="sub">Tier&nbsp;0 does not exist yet</div>
+    </div>
+    <div class="metric m-crit">
+      <dt>Precomputed AI</dt>
+      <dd>0</dd>
+      <div class="sub">blocked on model quota</div>
+    </div>
+  </dl>
+
+  <section>
+    <h2>Three blockers</h2>
+    <p class="lede">
+      Ordered by what it takes to clear them. None are waiting on more code from me &mdash;
+      two need a credential and one needs a file that isn't on this machine.
+    </p>
+
+    <div class="blockers">
+
+      <article class="blocker b-crit">
+        <div class="b-head">
+          <h3 class="b-title">Scheduled hydration can't authenticate</h3>
+          <span class="pill p-crit">One command</span>
+        </div>
+        <p>
+          <code>hydrate-universe.yml</code> is registered and active, but
+          <code>ALPACA_API_KEY</code> and <code>ALPACA_API_SECRET</code> aren't in repo secrets.
+          Tonight's 22:30&nbsp;UTC run will fail fast with a named error rather than a confusing
+          auth failure &mdash; that's deliberate, but it does mean the lane isn't live yet.
+        </p>
+        <pre><code>cd ~/code/nuwrrrld-portal
+bash scripts/sync-hydration-secrets.sh --dry-run   # names only
+bash scripts/sync-hydration-secrets.sh             # push</code></pre>
+        <p class="who">
+          <b>Yours to run.</b> Secret values must never pass through an agent session &mdash;
+          the script pipes them from <code>.env.local</code> straight into <code>gh secret set</code>.
+          I ran only the dry run; all three variables resolve to real values.
+        </p>
+      </article>
+
+      <article class="blocker b-warn">
+        <div class="b-head">
+          <h3 class="b-title">Grounding pack is empty &mdash; two causes</h3>
+          <span class="pill p-warn">Needs a decision</span>
+        </div>
+        <p>
+          <strong>The corpus isn't here.</strong> <code>corpus/</code> holds two files its own
+          README marks as samples; the real trader Q&amp;A set lives in a sibling repo's
+          <code>DOCS_ROOT</code> that isn't checked out. The README explicitly warns against
+          copying it sight-unseen, and compiling from the engineering docs that <em>are</em>
+          present would fill Tier&nbsp;0 with confident, verbatim-cited, irrelevant rules &mdash;
+          worse than empty, because it looks grounded.
+        </p>
+        <p>
+          <strong>The quota is spent.</strong> Extraction costs one model call per chunk against
+          a 50/day free-tier ceiling, currently at zero remaining. A real corpus of a few hundred
+          chunks can't compile in one day on the free tier at all &mdash; it needs credits,
+          batching, or a multi-day incremental run. Worth planning before the migration, not after.
+        </p>
+        <p class="who">
+          <b>Needs you to decide</b> whether to migrate the corpus and how to pay for extraction.
+          The compiler itself is verified working end-to-end.
+        </p>
+      </article>
+
+      <article class="blocker b-info">
+        <div class="b-head">
+          <h3 class="b-title">e2e is red on every branch</h3>
+          <span class="pill p-info">Pre-existing</span>
+        </div>
+        <p>
+          All four shards fail at <em>Authenticate to GCP (keyless)</em> &mdash;
+          <code>secrets.GCP_WIF_PROVIDER</code> doesn't exist, so the action fails before any test
+          runs. This predates every PR in this session and fails identically on <code>main</code>.
+          Clearing it means provisioning GCP Workload Identity Federation, which the
+          <code>secrets-sync</code> skill covers via <code>--provision-wif</code>.
+        </p>
+        <p class="who"><b>Yours to decide.</b> It's a GCP project and IAM-scope choice, not a code fix.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Build order</h2>
+    <p class="lede">
+      The six steps from <code>universe-scale-hydration.md</code>. Step&nbsp;6 was written as
+      optional and gated on staleness being an actual complaint rather than an anticipated one
+      &mdash; it isn't one, so it stays parked.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Step</th><th>What</th><th>State</th><th>Landed</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="step">1</td><td>Universe table &amp; seeding</td><td><span class="tick">Done</span></td><td class="pr">pre-existing</td></tr>
+          <tr><td class="step">2</td><td>Bulk ingest endpoint</td><td><span class="tick">Done</span></td><td class="pr">pre-existing</td></tr>
+          <tr><td class="step">3</td><td>Per-stock engine &amp; sweep</td><td><span class="tick">Done</span></td><td class="pr">#70, #73, #74</td></tr>
+          <tr><td class="step">4</td><td>Ranking read &amp; policy split</td><td><span class="tick">Done</span></td><td class="pr">#71</td></tr>
+          <tr><td class="step">5</td><td>Signal-gated AI batch</td><td><span class="tick">Done</span></td><td class="pr">#72</td></tr>
+          <tr><td class="step">6</td><td>Hot-set intraday lane</td><td><span class="pause">Parked</span></td><td class="pr">optional by design</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Carried forward, not blocking</h2>
+    <p class="lede">Known and documented. None stop the pipeline; each is worth picking up eventually.</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Why it can wait</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>5 of 6 <code>SEAT_MODELS</code> are retired ids</strong></td>
+            <td>The council degrades correctly &mdash; <code>isRetryableStatus</code> falls through to the live chain. It burns one guaranteed-404 round trip per seat, and the documented "best model on CHAIR" assignment no longer describes what runs.</td>
+          </tr>
+          <tr>
+            <td><strong>Modal lane undeployable</strong></td>
+            <td><code>modal_app.py</code> has never been deployed and has no credentials. By design only one scheduler should run, and GHA is now that one &mdash; so this is a redundancy gap, not an outage.</td>
+          </tr>
+          <tr>
+            <td><strong><code>FREE_MODEL_CHAIN</code> is single-vendor</strong></td>
+            <td>Nominal depth 4, real depth 1: all four entries are <code>nvidia/*</code>, so the chain absorbs nothing when a failure lands at account-tier level &mdash; which is the failure that actually happens.</td>
+          </tr>
+          <tr>
+            <td><strong>gcp3 ETF payload fills 1 of 5 inputs</strong></td>
+            <td>Alpaca-hydrated ETF cards reach <code>dataQuality: 1.0</code>, so this now affects only the gcp3-sourced path. The underlying design question is still unresolved.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>Sources: live Neon queries, <code>gh secret list</code>, and the OpenRouter quota endpoint &mdash; read at publish time, not recalled.</p>
+    <p>Detail lives in <code>docs/wiki-portal/entity-ticker-universe-pipeline.md</code> and <code>docs/universe-by-industry.md</code>.</p>
+  </footer>
+
+</div>

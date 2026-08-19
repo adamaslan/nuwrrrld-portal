@@ -584,3 +584,17 @@ Two bugs in my own first draft of the summary step, both found by testing it aga
 Failure 4 on [[entity-ticker-universe-pipeline]] is now **half-closed**: the GHA lane is scheduled, but the Modal copy of those credentials still does not exist, so failure 6's undeployed `modal_app.py` stays undeployable — and by design only one of the two schedulers should ever run.
 
 Parity ℹ️: CI/scheduler infra plus a local secrets helper, no `lib/` or `app/` surface. Mobile has no cron layer and no universe to hydrate. Neither denominator moves.
+
+## [2026-08-19] ingest | PR #75 fix(council): replace five retired SEAT_MODELS and audit them weekly | pages touched: 3
+
+Closes [[entity-openrouter-client]] failure #5, both halves of it. Five of the six council seat models had been retired by OpenRouter — `qwen3-next-80b` (T2/MACRO/CHAIR), `llama-3.3-70b` (RISK), `mistral-7b` (QUANT) — so each affected seat spent a guaranteed-failed round trip before falling through to `FREE_MODEL_CHAIN`.
+
+**Why it stayed invisible is the part worth keeping.** The `isRetryableStatus` fix landed the day before precisely so a dead primary would degrade to the chain instead of disabling the seat. That was the right fix. Its side effect is that a *fully* rotted seat list still answers every request, so no downstream symptom could ever surface the rot — only a catalog check finds it. A graceful-degradation mechanism and an observability gap are the same mechanism viewed from two directions, and that generalizes well past this file.
+
+Replacements were chosen against two constraints rather than "whatever exists": the §10 size intent (550B on CHAIR synthesis, 9B on QUANT, which also backs `SMALLEST_MODEL` for the 3× CHAIR verdict) and deliberate vendor spread across cohere/google/z-ai/nvidia — so an nvidia-wide outage now degrades some seats rather than removing every primary *and* its all-nvidia fallback simultaneously.
+
+Root cause fixed too: `refresh-free-models.mjs` had faithfully maintained `FREE_MODEL_CHAIN` for months while the other model list in the same file rotted, because nothing looked at it. It now audits `SEAT_MODELS` every weekly run and exits 1 on any dead seat. Two design calls there: it **reports rather than rewrites**, since a seat assignment encodes size and vendor intent a script cannot infer and auto-substitution would satisfy the check while discarding both; and it queries the **full** catalog rather than `fetchFreeModels()`'s `:free`-only list, because T1 legitimately runs a paid model the free-only set would have reported dead. Verified both directions — current seats all ok exit 0, two old ids restored gives DEAD on exactly those two and exit 1.
+
+Failure #6 (single-vendor chain) is *not* closed and is now annotated to say so honestly. A dry run happens to rank `google/gemma-4-31b-it:free` into slot 3 today, giving incidental 2-vendor depth — but that is the catalog shifting, not a constraint, and the next refresh can undo it. The chain still has no vendor-diversity cap.
+
+Parity ℹ️: portal-only. `lib/openrouter.ts` has no mobile counterpart (mobile's council talks to gcp3), no `lib/shared/` module touched, neither denominator moves.
