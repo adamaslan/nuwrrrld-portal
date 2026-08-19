@@ -77,6 +77,14 @@ failures #3 for why).
   demand-side (what someone already holds). `batchThesisSubjects()` packs ten
   tickers per prompt, so a 100-ticker sweep costs 10 requests against the
   50/day ceiling rather than 100 — see [[entity-openrouter-client]] failure #3.
+- `.github/workflows/hydrate-universe.yml` (PR #74) — the scheduled lane,
+  weekdays 22:30 UTC — chosen so the settle margin holds in *both* halves of
+  the year (150 min after the close under EDT, 90 min under EST), since GitHub
+  cron is UTC-only and a single expression must be safe in the worse season. Runs `scripts/hydrate-local.mjs` in the runner rather than calling
+  an endpoint, because the portal never talks to Alpaca — `POST
+  /api/pipeline/hydrate-universe` receives computed rows, it does not fetch
+  bars. That asymmetry is why this workflow needs `ALPACA_*` while
+  `precompute-ai.yml` needs only `PORTAL_PUSH_SECRET`.
 - Still not surfaced in any dashboard UI — this remains coverage/data-plane
   infrastructure one layer below what a user sees. `/api/signals/top` is an
   API consumer, not a screen.
@@ -124,6 +132,15 @@ failures #3 for why).
    dependency rather than a scheduled pipeline. See
    [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 4 and
    failure 3 above for why the Modal secret in particular needs care.
+
+   **Half-closed 2026-08-19 (PR #74):** `.github/workflows/hydrate-universe.yml`
+   now runs the hydration lane on a weekday schedule, and
+   `scripts/sync-hydration-secrets.sh` pushes `ALPACA_API_KEY`/
+   `ALPACA_API_SECRET`/`PORTAL_PUSH_SECRET` into GitHub repo secrets. Once a
+   human runs that sync once, coverage no longer depends on anyone
+   remembering. Still open: the **Modal** copy of those credentials, so
+   failure 6's undeployed `modal_app.py` remains undeployable — and by design
+   only one of the two schedulers should ever run.
 6. **`deploy/universe-hydration/modal_app.py` has never been deployed** —
    `modal deploy` has not been run for this app or either of the other two in
    `deploy/`. The file existing is not the lane running; today the stock
