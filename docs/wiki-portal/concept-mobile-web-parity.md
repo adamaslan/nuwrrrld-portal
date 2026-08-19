@@ -144,6 +144,9 @@ agree in intent but not in code.
 > ℹ️ **Portal PR #74 (2026-08-19) assessed — CI/scheduler infra only, headline unchanged at ~66%.** Adds `.github/workflows/hydrate-universe.yml` (weekday scheduled hydration of the ticker universe) and `scripts/sync-hydration-secrets.sh` (the repo's variable contract for it, wrapping the shared secrets-sync script). Same shape as PR #59's scheduler work: server-side scheduling and a local secrets helper, touching no `lib/`, `lib/shared/`, or `app/` code. Mobile has no equivalent server-side cron layer and no ticker universe to hydrate, so this creates no gap and closes none. Neither denominator moves.
 
 
+> ℹ️ **Portal PR #75 (2026-08-19) assessed — portal-only AI infrastructure, headline unchanged at ~66%.** Replaces five retired `SEAT_MODELS` ids in `lib/openrouter.ts` and teaches `scripts/refresh-free-models.mjs` to audit that list weekly ([[entity-openrouter-client]] failure #5, now resolved). `lib/openrouter.ts` is portal-only — mobile's council talks to gcp3 rather than OpenRouter directly — so there is nothing to port and no `lib/shared/` module is touched. Neither denominator moves. The transferable part is the *failure mode*, not the code: a graceful-degradation fix (a dead primary falling through to a fallback chain) made a fully-rotted config invisible, because a degraded seat answers exactly like a healthy one. Any surface with a fallback chain should expect that trade.
+
+
 ## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:

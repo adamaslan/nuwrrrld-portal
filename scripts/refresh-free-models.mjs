@@ -173,6 +173,78 @@ async function rewriteTarget(models) {
   return true;
 }
 
+/**
+ * Audit SEAT_MODELS against the live catalog.
+ *
+ * Reports, never rewrites. FREE_MODEL_CHAIN is a ranked list this script can
+ * regenerate mechanically, but a seat assignment encodes intent a script has
+ * no way to infer — the largest free model belongs on CHAIR synthesis, the
+ * smallest on QUANT (which is reduced to classification), and vendors are
+ * spread so one account-tier outage cannot take every seat at once. Silently
+ * substituting "some model that exists" would satisfy the check and quietly
+ * discard all three properties.
+ *
+ * Why this exists at all: this script faithfully maintained FREE_MODEL_CHAIN
+ * for months while the other model list in the same file rotted to five dead
+ * ids out of six, because nothing was looking at it. A dead seat model 404s,
+ * falls through to the chain, and still answers — so the rot is invisible from
+ * the outside and only a catalog check finds it.
+ */
+async function fetchAllModelIds() {
+  const res = await fetch(`${OR_BASE}/models`);
+  if (!res.ok) throw new Error(`OpenRouter /models returned ${res.status}`);
+  const body = await res.json();
+  if (!body || !Array.isArray(body.data)) {
+    throw new Error('OpenRouter /models response is missing the "data" array');
+  }
+  return new Set(body.data.map((m) => m?.id).filter((id) => typeof id === 'string'));
+}
+
+async function auditSeatModels(liveIds) {
+  const src = await readFile(TARGET_FILE, 'utf8');
+  const block = /const SEAT_MODELS: Record<CouncilSeat, string> = \{([\s\S]*?)\};/.exec(src);
+  // A missing block means the audit cannot run — which is not the same as an
+  // audit that ran and found nothing. Returning 0 here would convert a silently
+  // disabled check into a passing one, so a rename or reformat of SEAT_MODELS
+  // would let retired ids through with a green run. That is the exact shape of
+  // the bug this audit exists to catch, one level up.
+  if (!block) {
+    throw new Error(
+      `SEAT_MODELS block not found in ${TARGET_FILE} — the seat audit cannot run. ` +
+        'If the declaration was renamed or reformatted, update the pattern in ' +
+        'auditSeatModels() rather than leaving the check disabled.',
+    );
+  }
+
+  const seats = [...block[1].matchAll(/(\w+):\s*'([^']+)'/g)].map((m) => ({
+    seat: m[1],
+    model: m[2],
+  }));
+  if (seats.length === 0) {
+    throw new Error(
+      `SEAT_MODELS in ${TARGET_FILE} parsed to zero seats — the pattern matched the block ` +
+        'but not its entries, so nothing was actually checked.',
+    );
+  }
+
+  const dead = seats.filter((s) => !liveIds.has(s.model));
+
+  console.log(`\nSeat audit — ${seats.length} seat(s) against the live catalog:`);
+  for (const { seat, model } of seats) {
+    console.log(`  ${liveIds.has(model) ? 'ok  ' : 'DEAD'} ${seat.padEnd(6)} ${model}`);
+  }
+
+  if (dead.length > 0) {
+    console.log(
+      `\n${dead.length} seat model(s) no longer exist. Each costs a guaranteed 404 per call ` +
+        'before falling through to FREE_MODEL_CHAIN — the council still answers, so nothing ' +
+        'else will surface this. Update SEAT_MODELS in ' +
+        `${TARGET_FILE} by hand, keeping the size and vendor-spread intent documented there.`,
+    );
+  }
+  return dead.length;
+}
+
 async function main() {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (PROBE && !apiKey) {
@@ -184,7 +256,18 @@ async function main() {
   const free = await fetchFreeModels();
   console.log(`Found ${free.length} $0-priced :free models.`);
 
-  console.log(PROBE ? 'Live-probing in preference order…' : 'Skipping probe (--no-probe).');
+  // Audited before the probe, deliberately. This needs only the catalog, and
+  // the probe's failure modes — quota exhaustion, a vendor outage — are
+  // exactly when a weekly run is most likely to abort early. Leaving the audit
+  // downstream of that gate meant the one report that finds rotted seats went
+  // missing precisely when the account was already unhealthy.
+  //
+  // The FULL catalog, not `free`: a seat may legitimately run a paid model
+  // (T1 does), and checking against the free-only list would report a
+  // perfectly live model as dead.
+  const deadSeats = await auditSeatModels(await fetchAllModelIds());
+
+  console.log(PROBE ? '\nLive-probing in preference order…' : '\nSkipping probe (--no-probe).');
   const working = await selectWorking(apiKey, free);
 
   if (working.length < MIN_WORKING) {
@@ -192,11 +275,19 @@ async function main() {
       `\nOnly ${working.length} working model(s) found (need >= ${MIN_WORKING}). ` +
         'Leaving FREE_MODEL_CHAIN untouched to avoid stranding the app.',
     );
+    if (deadSeats > 0) {
+      console.error(`Note: the seat audit above also found ${deadSeats} dead seat model(s).`);
+    }
     process.exit(1);
   }
 
   console.log(`\nSelected ${working.length} model(s):\n${working.map((m) => `  - ${m}`).join('\n')}`);
   await rewriteTarget(working);
+
+  // Non-fatal to the rewrite, which has already happened: a stale seat is a
+  // degraded council, a stale chain is a dead one, so the chain refresh must
+  // land even when the seats need attention.
+  if (deadSeats > 0) process.exitCode = 1;
 }
 
 main().catch((err) => {
