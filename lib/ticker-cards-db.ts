@@ -164,8 +164,21 @@ export async function upsertCards(
  * This query *is* the ranking API an earlier draft proposed building as an
  * endpoint. The partial index on `data_quality >= 0.8` means the quality gate
  * costs nothing to apply.
+ *
+ * `universe` defaults to `'stock'`, and that default is load-bearing rather
+ * than cosmetic. The card score is a directional read on a price series, and
+ * an inverse or leveraged ETF's series is the *negation* of the exposure its
+ * name implies: SQQQ rising is the Nasdaq falling. Ranking those beside
+ * equities produced a top-100 that was 71% ETFs, recommending a 2x inverse
+ * MicroStrategy fund as a BUY next to JNJ — technically a correct reading of
+ * the series, and a meaningless recommendation. Pass `'etf'` to rank funds
+ * against each other, or `'all'` deliberately when the mix is what you want.
  */
-export async function topCards(horizon: Horizon, limit = 100): Promise<RankedCard[]> {
+export async function topCards(
+  horizon: Horizon,
+  limit = 100,
+  universe: CardUniverse | "all" = "stock",
+): Promise<RankedCard[]> {
   try {
     const rows = await sql`
       SELECT c.*, COUNT(g.state_key) AS grounding_hits
@@ -181,6 +194,7 @@ export async function topCards(horizon: Horizon, limit = 100): Promise<RankedCar
         WHERE c.horizon = ${horizon}
           AND c.data_quality >= 0.8
           AND c.missing_fields = '{}'
+          AND (${universe} = 'all' OR c.universe = ${universe})
         GROUP BY c.ticker, c.horizon
         ORDER BY c.score DESC, c.computed_at DESC
         LIMIT ${limit}

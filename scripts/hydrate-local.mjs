@@ -6,9 +6,15 @@
  * and hitting a local dev server so you can watch every chunk land and inspect
  * the cards before Modal runs unattended.
  *
+ * With no --universe, both lanes run: every active stock, then every active
+ * ETF, each labeled correctly on the way in. The label matters — it is what
+ * keeps a 3x inverse ETF from being ranked as a BUY beside an equity.
+ *
  * Usage:
+ *   node scripts/hydrate-local.mjs                            # stocks, then ETFs
  *   node scripts/hydrate-local.mjs --symbols=AAPL,MSFT,NVDA
- *   node scripts/hydrate-local.mjs --limit=50                # first 50 from universe
+ *   node scripts/hydrate-local.mjs --universe=etf             # ETFs only
+ *   node scripts/hydrate-local.mjs --limit=50                 # first 50 per lane
  *   node scripts/hydrate-local.mjs --dry-run                  # fetch bars, don't POST
  */
 
@@ -72,6 +78,19 @@ if (limitFlag) {
   LIMIT = Number(raw);
 }
 
+// Restricts the run to one lane. Omitted means both, in order. Validated
+// against the same two values `CardUniverse` allows, so a typo can't silently
+// hydrate nothing (a bad ?universe= is ignored server-side and returns all).
+const universeFlag = process.argv.find(a => a.startsWith("--universe="));
+let UNIVERSE = null;
+if (universeFlag) {
+  const raw = universeFlag.slice("--universe=".length).trim().toLowerCase();
+  if (raw !== "stock" && raw !== "etf") {
+    fail("--universe must be 'stock' or 'etf'");
+  }
+  UNIVERSE = raw;
+}
+
 // ── guards ────────────────────────────────────────────────────────────────
 if (!PORTAL_PUSH_SECRET) throw new Error("PORTAL_PUSH_SECRET is not set");
 if (!ALPACA_API_KEY) throw new Error("ALPACA_API_KEY is not set");
@@ -87,7 +106,9 @@ const LOOKBACK_DAYS = 120;
 const MIN_BARS = 40;
 
 // ── vendor fetch ──────────────────────────────────────────────────────────
-async function fetchBars(symbols) {
+
+/** One Alpaca /v2/stocks/bars call. Throws on any non-2xx. */
+async function fetchBarsOnce(symbols) {
   const start = new Date();
   start.setDate(start.getDate() - LOOKBACK_DAYS);
   const startIso = start.toISOString().split("T")[0];
@@ -108,6 +129,41 @@ async function fetchBars(symbols) {
   if (!res.ok) throw new Error(`Alpaca returned ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return data.bars || {};
+}
+
+/**
+ * Bars for a chunk, where one unusable symbol costs only itself.
+ *
+ * Alpaca rejects the whole request with a 400 "invalid symbol: X" if any one
+ * symbol is not a US equity — a crypto pair like BTC-USD does that, and the
+ * chunked caller then loses all ten symbols it asked about. That is how a
+ * 178-symbol ETF run lost 40 rows to 4 bad tickers. On a 400 naming a symbol,
+ * drop that symbol and retry the remainder; anything else (auth, rate limit,
+ * network) still throws, because those are not per-symbol problems and
+ * retrying them one-by-one would just multiply the failure.
+ */
+async function fetchBars(symbols) {
+  let remaining = [...symbols];
+  const dropped = [];
+
+  // Bounded by construction: each pass removes at least one symbol.
+  while (remaining.length > 0) {
+    try {
+      const bars = await fetchBarsOnce(remaining);
+      if (dropped.length) {
+        console.log(`  (skipped ${dropped.length} unusable: ${dropped.join(", ")})`);
+      }
+      return bars;
+    } catch (e) {
+      const bad = /invalid symbol:\s*([^"'}\s]+)/i.exec(e.message)?.[1];
+      if (!bad || !remaining.includes(bad)) throw e;
+      dropped.push(bad);
+      remaining = remaining.filter(s => s !== bad);
+    }
+  }
+
+  console.log(`  (skipped ${dropped.length} unusable: ${dropped.join(", ")})`);
+  return {};
 }
 
 /**
@@ -163,9 +219,9 @@ function rowFor(symbol, barData) {
   }
 }
 
-async function postChunk(rows, runId, barDate) {
+async function postChunk(rows, runId, barDate, universe) {
   if (DRY_RUN) {
-    console.log(`[dry-run] would POST ${rows.length} rows`);
+    console.log(`[dry-run] would POST ${rows.length} rows (universe=${universe})`);
     return { written: rows.length, skipped: 0, failed: 0 };
   }
 
@@ -178,7 +234,7 @@ async function postChunk(rows, runId, barDate) {
     body: JSON.stringify({
       runId,
       source: "hydrate-local",
-      universe: "stock",
+      universe,
       barDate,
       rows,
     }),
@@ -188,9 +244,15 @@ async function postChunk(rows, runId, barDate) {
   return await res.json();
 }
 
-async function getUniverse() {
+/**
+ * Active tickers for one universe. Returned per-universe rather than as one
+ * flat list because `universe` is a POST-body field covering the whole batch:
+ * a chunk mixing stocks and ETFs would have to label one of them wrong, which
+ * is how every card ended up marked 'stock' — leveraged inverse ETFs included.
+ */
+async function getUniverse(universe) {
   const res = await fetch(
-    `${PORTAL_URL}/api/pipeline/hydrate-universe?universe=stock`,
+    `${PORTAL_URL}/api/pipeline/hydrate-universe?universe=${universe}`,
     {
       headers: { "Authorization": `Bearer ${PORTAL_PUSH_SECRET}` },
     }
@@ -200,16 +262,22 @@ async function getUniverse() {
 }
 
 async function main() {
-  let targets;
-
+  // Each lane carries its own `universe` label all the way to the POST body,
+  // so an ETF's card is stored as an ETF. --symbols= is treated as stocks
+  // unless --universe= says otherwise: the flag is for spot-checking, and
+  // guessing a mixed list's membership per-symbol would need a DB round trip.
+  const lanes = [];
   if (SYMBOLS) {
-    targets = SYMBOLS;
+    lanes.push({ universe: UNIVERSE ?? "stock", targets: SYMBOLS });
   } else {
-    const universe = await getUniverse();
-    targets = LIMIT ? universe.slice(0, LIMIT) : universe;
+    for (const universe of UNIVERSE ? [UNIVERSE] : ["stock", "etf"]) {
+      const tickers = await getUniverse(universe);
+      lanes.push({ universe, targets: LIMIT ? tickers.slice(0, LIMIT) : tickers });
+    }
   }
 
-  if (!targets.length) {
+  const total = lanes.reduce((n, lane) => n + lane.targets.length, 0);
+  if (!total) {
     console.error("No targets to hydrate");
     process.exit(1);
   }
@@ -217,7 +285,8 @@ async function main() {
   const barDate = new Date().toISOString().split("T")[0];
   const runId = `hydrate-local:${barDate}:${new Date().getTime()}`;
 
-  console.log(`[hydrate] run=${runId} symbols=${targets.length} chunk=${CHUNK_SIZE}`);
+  const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
+  console.log(`[hydrate] run=${runId} ${laneSummary} chunk=${CHUNK_SIZE}`);
 
   // Three counters, deliberately distinct: rows the portal confirmed it wrote,
   // rows that failed to *compute* locally, and rows lost to a failed POST.
@@ -226,40 +295,45 @@ async function main() {
     calcErrors = 0,
     postFailures = 0;
 
-  for (let i = 0; i < targets.length; i += CHUNK_SIZE) {
-    const chunk = targets.slice(i, i + CHUNK_SIZE);
-    console.log(`\n[${i + 1}–${Math.min(i + CHUNK_SIZE, targets.length)}]`);
+  for (const { universe, targets } of lanes) {
+    if (!targets.length) continue;
+    console.log(`\n=== ${universe} (${targets.length} symbols) ===`);
 
-    try {
-      const barsBySymbol = await fetchBars(chunk);
-      const rows = chunk.map(sym => rowFor(sym, barsBySymbol[sym]));
+    for (let i = 0; i < targets.length; i += CHUNK_SIZE) {
+      const chunk = targets.slice(i, i + CHUNK_SIZE);
+      console.log(`\n[${universe} ${i + 1}–${Math.min(i + CHUNK_SIZE, targets.length)}]`);
 
-      for (const row of rows) {
-        if (row.status === "ok") {
-          console.log(
-            `  ${row.ticker}: score=${row.confluenceScore} direction=${row.direction}`
-          );
-        } else {
-          console.log(`  ${row.ticker}: ERROR ${row.error}`);
-          calcErrors++;
+      try {
+        const barsBySymbol = await fetchBars(chunk);
+        const rows = chunk.map(sym => rowFor(sym, barsBySymbol[sym]));
+
+        for (const row of rows) {
+          if (row.status === "ok") {
+            console.log(
+              `  ${row.ticker}: score=${row.confluenceScore} direction=${row.direction}`
+            );
+          } else {
+            console.log(`  ${row.ticker}: ERROR ${row.error}`);
+            calcErrors++;
+          }
         }
-      }
 
-      // Persistence counters come from the portal's response, and only after
-      // it has actually answered — never from the count we optimistically sent.
-      const result = await postChunk(rows, runId, barDate);
-      written += result.written ?? 0;
-      postFailures += result.failed ?? 0;
-      console.log(`  → posted: written=${result.written} failed=${result.failed}`);
-    } catch (e) {
-      console.error(`  ERROR: ${e.message}`);
-      postFailures += chunk.length;
+        // Persistence counters come from the portal's response, and only after
+        // it has actually answered — never from the count we optimistically sent.
+        const result = await postChunk(rows, runId, barDate, universe);
+        written += result.written ?? 0;
+        postFailures += result.failed ?? 0;
+        console.log(`  → posted: written=${result.written} failed=${result.failed}`);
+      } catch (e) {
+        console.error(`  ERROR: ${e.message}`);
+        postFailures += chunk.length;
+      }
     }
   }
 
   console.log(
     `\n[done] written=${written} calc-errors=${calcErrors} ` +
-      `post-failures=${postFailures} total=${targets.length}`
+      `post-failures=${postFailures} total=${total}`
   );
 }
 
