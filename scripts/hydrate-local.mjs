@@ -219,6 +219,15 @@ function rowFor(symbol, barData) {
   }
 }
 
+/**
+ * POST one chunk of computed rows to the portal's ingest route.
+ *
+ * `universe` labels the whole batch — it is a body field, not per row — so the
+ * caller must send stocks and ETFs as separate chunks. Returns the portal's own
+ * counters rather than the count we sent: a row can be legitimately `skipped`
+ * when the stored card is already better (see `shouldReplaceCard`), and
+ * reporting that as written would overstate coverage.
+ */
 async function postChunk(rows, runId, barDate, universe) {
   if (DRY_RUN) {
     console.log(`[dry-run] would POST ${rows.length} rows (universe=${universe})`);
