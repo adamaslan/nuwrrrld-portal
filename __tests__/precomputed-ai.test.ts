@@ -8,7 +8,12 @@
  * a cold cache, not like a bug.
  */
 import { describe, expect, it } from "vitest";
-import { subjectFromTickers } from "@/lib/shared/precompute-policy";
+import {
+  THESIS_BATCH_SIZE,
+  batchThesisSubjects,
+  resolvePrecomputeSource,
+  subjectFromTickers,
+} from "@/lib/shared/precompute-policy";
 
 describe("subjectFromTickers — the precompute cache key", () => {
   it("is order-independent", () => {
@@ -49,5 +54,71 @@ describe("subjectFromTickers — the precompute cache key", () => {
 
   it("distinguishes genuinely different portfolios", () => {
     expect(subjectFromTickers(["AAPL"])).not.toBe(subjectFromTickers(["AAPL", "MSFT"]));
+  });
+});
+
+describe("resolvePrecomputeSource", () => {
+  it("opts into ranking only on the exact value", () => {
+    expect(resolvePrecomputeSource("ranking")).toBe("ranking");
+  });
+
+  // A scheduled job spends the day's quota. A typo in its body must not
+  // silently redirect that spend at a different pool of tickers, so anything
+  // unrecognized stays on the pre-existing watchlist behavior.
+  it.each([["watchlist"], ["Ranking"], ["rank"], [""], [null], [undefined], [1]])(
+    "falls back to watchlist for %o",
+    (input) => {
+      expect(resolvePrecomputeSource(input)).toBe("watchlist");
+    },
+  );
+});
+
+describe("batchThesisSubjects — the quota arithmetic", () => {
+  const tickers = (n: number) => Array.from({ length: n }, (_, i) => `T${i}`);
+
+  it("packs a full batch into one subject", () => {
+    const out = batchThesisSubjects(tickers(THESIS_BATCH_SIZE));
+    expect(out).toHaveLength(1);
+    expect(out[0].split(",")).toHaveLength(THESIS_BATCH_SIZE);
+  });
+
+  // The whole point: 100 tickers cost 10 requests against a 50/day ceiling,
+  // not 100. If this ever returns one subject per ticker the feature stops
+  // fitting in the free tier at all.
+  it("turns 100 tickers into 10 requests, not 100", () => {
+    expect(batchThesisSubjects(tickers(100))).toHaveLength(10);
+  });
+
+  it("keeps a trailing partial batch", () => {
+    const out = batchThesisSubjects(tickers(THESIS_BATCH_SIZE + 1));
+    expect(out).toHaveLength(2);
+    expect(out[1].split(",")).toHaveLength(1);
+  });
+
+  it("returns nothing for an empty ranking", () => {
+    expect(batchThesisSubjects([])).toEqual([]);
+  });
+
+  // Batch membership follows the ranking so an early stop keeps the best
+  // tickers; the subject *key* is still sorted, by subjectFromTickers.
+  it("keeps the highest-ranked tickers in the first batch", () => {
+    const ranked = ["ZZZ", "AAA", "MMM", "BBB"];
+    const [first] = batchThesisSubjects(ranked, 2);
+    expect(first).toBe(subjectFromTickers(["ZZZ", "AAA"]));
+    expect(first).toBe("AAA,ZZZ");
+  });
+
+  it("de-duplicates across the whole ranking, not just within a batch", () => {
+    const out = batchThesisSubjects(["AAPL", "MSFT", "aapl", "NVDA"], 2);
+    expect(out).toEqual(["AAPL,MSFT", "NVDA"]);
+  });
+
+  it("drops blanks rather than emitting an empty subject", () => {
+    expect(batchThesisSubjects(["AAPL", "", "  ", "MSFT"], 10)).toEqual(["AAPL,MSFT"]);
+  });
+
+  it("treats a nonsense batch size as one per batch", () => {
+    expect(batchThesisSubjects(["A", "B"], 0)).toEqual(["A", "B"]);
+    expect(batchThesisSubjects(["A", "B"], -5)).toEqual(["A", "B"]);
   });
 });

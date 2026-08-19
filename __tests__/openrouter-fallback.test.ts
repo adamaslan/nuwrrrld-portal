@@ -19,6 +19,7 @@ import {
   fetchWithModelFallback,
   fetchWithModelFallbackChecked,
   runSeat,
+  toHeaderSafe,
 } from "@/lib/openrouter";
 
 const KEY = "sk-or-v1-test-key-not-real";
@@ -431,6 +432,40 @@ describe("FREE_MODEL_CHAIN — invariants that hold without network access", () 
   it("uses well-formed vendor/model ids", () => {
     for (const model of FREE_MODEL_CHAIN) {
       expect(model, `${model} is not vendor/model shaped`).toMatch(/^[\w.-]+\/[\w.:-]+$/);
+    }
+  });
+});
+
+describe("toHeaderSafe — X-Title must survive as an HTTP header", () => {
+  // Header values are ByteStrings: a code point above 255 makes fetch() throw
+  // a TypeError *before sending*. Inside the fallback chain that is caught and
+  // treated as an unreachable model, so every model "fails" without recording
+  // a status and the chain reports its initial 503. A real em-dash in one
+  // caller's title made the precompute batch report "all models in chain
+  // failed" while OpenRouter was answering 429 — the wrong cause entirely,
+  // and it suppressed the quota-exhausted early stop that reads that status.
+  it("rewrites dashes that would otherwise throw", () => {
+    expect(toHeaderSafe("NuWrrrld Precompute — Portfolio Health")).toBe(
+      "NuWrrrld Precompute - Portfolio Health",
+    );
+    expect(toHeaderSafe("en–dash")).toBe("en-dash");
+  });
+
+  it("leaves plain ASCII untouched", () => {
+    expect(toHeaderSafe("NuWrrrld Financial Daily Brief")).toBe("NuWrrrld Financial Daily Brief");
+  });
+
+  it("produces a value the Headers constructor accepts", () => {
+    for (const title of [
+      "NuWrrrld Precompute — Portfolio Health",
+      "emoji 🚀 here",
+      "curly \u2018quotes\u2019",
+      "plain",
+    ]) {
+      const safe = toHeaderSafe(title);
+      expect(() => new Headers({ "X-Title": safe })).not.toThrow();
+      // The raw form is what would have thrown; the guard is what makes it safe.
+      expect(safe).toMatch(/^[\x20-\x7E]*$/);
     }
   });
 });

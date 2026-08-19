@@ -134,6 +134,25 @@ export const CHAIR_VERDICT_SYSTEM = [
  * Retries on 402 / 429 / 5xx; other errors propagate immediately.
  * Callers provide baseBody WITHOUT the model field.
  */
+/**
+ * Make a string safe to send as an HTTP header value.
+ *
+ * Header values are ByteStrings: any code point above 255 makes `fetch` throw a
+ * TypeError *before the request is sent*. In a fallback chain that failure is
+ * indistinguishable from an unreachable model — the catch advances to the next
+ * one, every model "fails" without ever recording a status, and the chain ends
+ * with its initial 503 rather than the truth. That is exactly how an em-dash in
+ * one caller's `X-Title` made the precompute batch report "all models in chain
+ * failed" while OpenRouter was answering 429 to everyone else.
+ *
+ * Non-Latin-1 characters are replaced rather than stripped so the title stays
+ * readable, and a run is never lost to a decorative character in a log label.
+ */
+export function toHeaderSafe(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[^\x20-\x7E]/g, (ch) => (ch === '\u2014' || ch === '\u2013' ? '-' : '?'));
+}
+
 export async function fetchWithModelFallback(
   apiKey: string,
   baseBody: Record<string, unknown>,
@@ -150,7 +169,7 @@ export async function fetchWithModelFallback(
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://financial.nuwrrrld.com',
-          'X-Title': appTitle,
+          'X-Title': toHeaderSafe(appTitle),
         },
         body: JSON.stringify({ ...baseBody, model }),
       });
@@ -235,7 +254,7 @@ export async function fetchWithModelFallbackChecked(
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://financial.nuwrrrld.com',
-          'X-Title': appTitle,
+          'X-Title': toHeaderSafe(appTitle),
         },
         body: JSON.stringify({ ...baseBody, model }),
       });
