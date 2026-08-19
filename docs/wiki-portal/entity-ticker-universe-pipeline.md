@@ -108,9 +108,22 @@ failures #3 for why).
    once they're added later. `gen-portal-push-secret.sh` deliberately does
    **not** touch Modal secrets — it prints the exact `modal secret create`
    command with all keys together instead, and leaves running it to a human.
-4. **No Alpaca account confirmed to exist** — the entire non-ETF (~4,300
-   ticker) lane cannot run at all without it. See
-   [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 4.
+4. ~~**No Alpaca account confirmed to exist**~~ — **resolved 2026-08-19.** An
+   account exists and works: `ALPACA_API_KEY`/`ALPACA_API_SECRET` in
+   `.env.local` authenticated hundreds of `/v2/stocks/bars` calls across PRs
+   #70–#73, hydrating 932 tickers and probing two years of history. The
+   original blocker was real when written; it is not what stands in the way
+   now.
+
+   **The remaining limitation is where those credentials are, not whether they
+   exist.** They live only in local `.env.local`. Neither Vercel nor the Modal
+   secret carries them, so the unattended lane —
+   `deploy/universe-hydration/modal_app.py` — still cannot run even once it is
+   deployed (failure 6). Today the universe is hydrated exclusively by a human
+   running `scripts/hydrate-local.mjs` on a laptop, which is a real coverage
+   dependency rather than a scheduled pipeline. See
+   [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 4 and
+   failure 3 above for why the Modal secret in particular needs care.
 6. **`deploy/universe-hydration/modal_app.py` has never been deployed** —
    `modal deploy` has not been run for this app or either of the other two in
    `deploy/`. The file existing is not the lane running; today the stock
