@@ -1,4 +1,14 @@
 <title>Universe Pipeline Ledger</title>
+<script>
+  // Published artifacts are wrapped in a proper <!doctype html> skeleton by the
+  // publisher, which forbids one in this source. Opened directly as a local
+  // file there is no wrapper, so the page would render in quirks mode — where
+  // table and box-model metrics differ. Nudge the document into standards mode
+  // for that case only; under the publisher this is a harmless no-op.
+  if (document.compatMode === "BackCompat") {
+    document.write("<!doctype html>");
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
@@ -416,10 +426,6 @@ bash scripts/sync-hydration-secrets.sh             # push</code></pre>
           <tr><th>Item</th><th>Why it can wait</th></tr>
         </thead>
         <tbody>
-          <tr>
-            <td><strong>5 of 6 <code>SEAT_MODELS</code> are retired ids</strong></td>
-            <td>The council degrades correctly &mdash; <code>isRetryableStatus</code> falls through to the live chain. It burns one guaranteed-404 round trip per seat, and the documented "best model on CHAIR" assignment no longer describes what runs.</td>
-          </tr>
           <tr>
             <td><strong>Modal lane undeployable</strong></td>
             <td><code>modal_app.py</code> has never been deployed and has no credentials. By design only one scheduler should run, and GHA is now that one &mdash; so this is a redundancy gap, not an outage.</td>

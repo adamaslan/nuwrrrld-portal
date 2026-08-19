@@ -57,9 +57,9 @@ export const FREE_MODEL_CHAIN = [
 //      synthesis, the smallest on QUANT, which is reduced to classification.
 //   2. Vendors are spread deliberately. FREE_MODEL_CHAIN is all-nvidia, so it
 //      has nominal depth 4 and real depth 1 against an account-tier failure —
-//      the failure that actually happens. Seats drawing from cohere, nvidia,
-//      google, z-ai and openai mean a single vendor outage degrades some seats
-//      rather than every one at once.
+//      the failure that actually happens. Seats drawing from cohere, google,
+//      z-ai and nvidia mean a single vendor outage degrades some seats rather
+//      than every one at once.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
   T1: 'cohere/command-r7b-12-2024',
   T2: 'google/gemma-4-31b-it:free',
