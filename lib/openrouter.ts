@@ -43,13 +43,30 @@ export const FREE_MODEL_CHAIN = [
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
 // free-tier to keep deliberation (~11 calls) at $0 — see WS2.6 cost control.
+// Refreshed 2026-08-19 against the live catalog. Five of the six previous ids
+// had been retired by OpenRouter — `qwen3-next-80b` (T2/MACRO/CHAIR),
+// `llama-3.3-70b` (RISK) and `mistral-7b` (QUANT) all 404 — so those seats were
+// spending a guaranteed-failed round trip before falling through to
+// FREE_MODEL_CHAIN. The council still answered, which is exactly why the rot
+// stayed invisible: `runSeat`'s isRetryableStatus fix (2026-08-18) made a dead
+// primary degrade instead of break, and a degraded seat looks like a working
+// one from the outside.
+//
+// Two constraints shape the assignment, not just "pick anything that exists":
+//   1. Size follows the job (§10 below) — the largest free model on CHAIR
+//      synthesis, the smallest on QUANT, which is reduced to classification.
+//   2. Vendors are spread deliberately. FREE_MODEL_CHAIN is all-nvidia, so it
+//      has nominal depth 4 and real depth 1 against an account-tier failure —
+//      the failure that actually happens. Seats drawing from cohere, nvidia,
+//      google, z-ai and openai mean a single vendor outage degrades some seats
+//      rather than every one at once.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
   T1: 'cohere/command-r7b-12-2024',
-  T2: 'qwen/qwen3-next-80b-a3b-instruct:free',
-  RISK: 'meta-llama/llama-3.3-70b-instruct:free',
-  MACRO: 'qwen/qwen3-next-80b-a3b-instruct:free',
-  QUANT: 'mistralai/mistral-7b-instruct:free',
-  CHAIR: 'qwen/qwen3-next-80b-a3b-instruct:free',
+  T2: 'google/gemma-4-31b-it:free',
+  RISK: 'z-ai/glm-5.2:free',
+  MACRO: 'google/gemma-4-26b-a4b-it:free',
+  QUANT: 'nvidia/nemotron-nano-9b-v2:free',
+  CHAIR: 'nvidia/nemotron-3-ultra-550b-a55b:free',
 };
 
 // Seat-to-model assignment (docs/council-prompting-small-models.md §10):
