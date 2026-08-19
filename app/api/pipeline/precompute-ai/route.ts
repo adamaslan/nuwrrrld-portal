@@ -28,6 +28,13 @@ import {
   savePrecomputed,
   subjectFromTickers,
 } from "@/lib/precomputed-ai-db";
+import {
+  THESIS_BATCH_SIZE,
+  batchThesisSubjects,
+  resolvePrecomputeSource,
+} from "@/lib/shared/precompute-policy";
+import { topCards } from "@/lib/ticker-cards-db";
+import { resolveHorizon, resolveUniverseScope } from "@/lib/shared/universe-policy";
 import { gradeFromScore, type PortfolioHealth } from "@/lib/portfolio";
 
 export const maxDuration = 300;
@@ -163,20 +170,48 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     maxSubjects?: number;
     subjects?: string[];
+    source?: string;
+    universe?: string;
+    horizon?: string;
   };
   const maxSubjects = Math.min(
     MAX_SUBJECTS_CEILING,
     Math.max(1, Number(body.maxSubjects) || DEFAULT_MAX_SUBJECTS),
   );
+  const source = resolvePrecomputeSource(body.source);
 
-  // An explicit subject list makes the job testable against a known portfolio
-  // without depending on whatever happens to be in the watchlist table.
-  const subjects = body.subjects?.length
-    ? body.subjects.map((s) => subjectFromTickers(s.split(",")))
-    : await listWatchlistSubjects(maxSubjects);
+  // Three ways to choose subjects, in precedence order:
+  //   explicit list  — testable against a known portfolio, independent of
+  //                    whatever happens to be in the watchlist table
+  //   ranking        — supply-side: the strongest cards in the universe,
+  //                    batched so ten tickers cost one request, not ten
+  //   watchlist      — demand-side, the original default: what users hold
+  let subjects: string[];
+  let selection: string;
+  if (body.subjects?.length) {
+    subjects = body.subjects.map((s) => subjectFromTickers(s.split(",")));
+    selection = "explicit";
+  } else if (source === "ranking") {
+    const scope = resolveUniverseScope(body.universe);
+    const horizon = resolveHorizon(body.horizon);
+    // Pull enough cards to fill `maxSubjects` batches, no more: over-fetching
+    // here would rank tickers the run has no quota left to narrate anyway.
+    const cards = await topCards(horizon, maxSubjects * THESIS_BATCH_SIZE, scope);
+    subjects = batchThesisSubjects(cards.map((c) => c.ticker));
+    selection = `ranking:${scope}:${horizon}`;
+  } else {
+    subjects = await listWatchlistSubjects(maxSubjects);
+    selection = "watchlist";
+  }
 
   if (subjects.length === 0) {
-    return NextResponse.json({ ok: true, generated: 0, results: [], note: "no watchlist subjects" });
+    return NextResponse.json({
+      ok: true,
+      generated: 0,
+      results: [],
+      selection,
+      note: source === "ranking" ? "no ranked cards available" : "no watchlist subjects",
+    });
   }
 
   const results: PrecomputeResult[] = [];
@@ -198,7 +233,10 @@ export async function POST(req: NextRequest) {
           temperature: 0.3,
           messages: [{ role: "user", content: prompt }],
         },
-        "NuWrrrld Precompute — Portfolio Health",
+        // ASCII only: this becomes the X-Title HTTP header, and a non-Latin-1
+        // character makes fetch() throw before the request is sent. The em-dash
+        // that used to live here failed every model in the chain silently.
+        "NuWrrrld Precompute - Portfolio Health",
         ctrl.signal,
       );
       const narrative = await collectCompletion(response.body!);
@@ -244,11 +282,16 @@ export async function POST(req: NextRequest) {
 
   const generated = results.filter((r) => r.ok).length;
   console.info(
-    `[precompute-ai] generated=${generated}/${results.length} quotaExhausted=${quotaExhausted}`,
+    `[precompute-ai] selection=${selection} generated=${generated}/${results.length} ` +
+      `quotaExhausted=${quotaExhausted}`,
   );
 
   return NextResponse.json({
     ok: true,
+    // Which pool the subjects came from. Without it, a run that silently fell
+    // back to the watchlist because the ranking was empty is indistinguishable
+    // from one that read the ranking and found those tickers on top.
+    selection,
     generated,
     attempted: results.length,
     quotaExhausted,
