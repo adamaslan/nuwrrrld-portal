@@ -214,12 +214,32 @@ async function extractRules(apiKey, chunk) {
       return [];
     }
     const data = await res.json();
-    const raw = data?.choices?.[0]?.message?.content ?? "[]";
+    // A 2xx carrying nothing usable is a failure, not an empty result. Only a
+    // well-formed `[]` means "this chunk genuinely had no extractable rule";
+    // missing content, no array delimiters, or a non-array payload all mean the
+    // call did not answer the question, and must count toward extractFailures —
+    // otherwise a provider returning 200-with-empty-content reproduces exactly
+    // the silent empty compile this counter exists to catch.
+    const raw = data?.choices?.[0]?.message?.content;
+    if (typeof raw !== "string") {
+      console.warn(`  extract returned no content for ${chunk.chunkId}`);
+      extractFailures++;
+      return [];
+    }
     const start = raw.indexOf("[");
     const end = raw.lastIndexOf("]");
-    if (start === -1 || end === -1 || start > end) return [];
+    if (start === -1 || end === -1 || start > end) {
+      console.warn(`  extract returned no JSON array for ${chunk.chunkId}`);
+      extractFailures++;
+      return [];
+    }
     const parsed = JSON.parse(raw.slice(start, end + 1));
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      console.warn(`  extract returned a non-array payload for ${chunk.chunkId}`);
+      extractFailures++;
+      return [];
+    }
+    return parsed;
   } catch (err) {
     // A dead model id is fatal for the whole run, not survivable per-chunk;
     // let it out past the per-chunk tolerance so the process exits non-zero.
@@ -326,15 +346,30 @@ async function main() {
     // the whole file into one INSERT each instead of one per chunk/rule.
     const chunkResults = [];
     for (const chunk of chunks) {
+      const before = extractFailures;
       const rules = DRY_RUN ? [] : await extractRules(apiKey, chunk);
+      const failed = extractFailures > before;
       const validRules = rules.filter((r) => isValidRule(r, chunk.body));
       totalRejected += rules.length - validRules.length;
       totalRules += validRules.length;
-      chunkResults.push({ chunk, validRules });
+      chunkResults.push({ chunk, validRules, failed });
     }
 
     if (!DRY_RUN) {
-      const chunkRows = chunkResults.map(({ chunk, validRules }) => {
+      // Skip chunks whose extraction call failed. The upsert replaces
+      // `search_terms` outright, so writing a failed chunk would erase terms a
+      // previous good run had compiled — losing data on the strength of a 429.
+      // A chunk that answered with a genuine `[]` is still written: empty terms
+      // are then a real result, not a gap.
+      const writableResults = chunkResults.filter(({ failed }) => !failed);
+      const skippedWrites = chunkResults.length - writableResults.length;
+      if (skippedWrites > 0) {
+        console.warn(
+          `  not persisting ${skippedWrites} chunk(s) whose extraction failed ` +
+            `(existing rows left intact)`,
+        );
+      }
+      const chunkRows = writableResults.map(({ chunk, validRules }) => {
         const searchTerms = validRules.flatMap((r) => r.search_terms ?? []);
         return [chunk.chunkId, chunk.sourceFile, traderFilter, [], chunk.body, searchTerms];
       });
@@ -352,7 +387,7 @@ async function main() {
       // same baseline bucket) don't make Postgres see one INSERT try to
       // "affect row a second time".
       const packRowsByKey = new Map();
-      for (const { chunk, validRules } of chunkResults) {
+      for (const { chunk, validRules } of writableResults) {
         for (const rule of validRules) {
           for (const { stateKey, horizon } of expandRule(rule)) {
             packRowsByKey.set(`${stateKey} ${chunk.chunkId}`, [
@@ -377,7 +412,7 @@ async function main() {
       );
     } else {
       const dryKeys = new Set();
-      for (const { chunk, validRules } of chunkResults) {
+      for (const { chunk, validRules } of writableResults) {
         for (const rule of validRules) {
           for (const { stateKey } of expandRule(rule)) dryKeys.add(`${stateKey} ${chunk.chunkId}`);
         }
@@ -398,7 +433,8 @@ async function main() {
   // Every chunk failed to reach the model: the pack is empty because nothing
   // was asked, not because the corpus had nothing to say. Exiting 0 here is
   // what let a retired model id and an exhausted daily quota both read as a
-  // successful no-op run.
+  // successful no-op run. Nothing was persisted for a failed chunk (see the
+  // writableResults filter), so "left unchanged" is literally true here.
   if (!DRY_RUN && totalChunks > 0 && extractFailures === totalChunks) {
     throw new Error(
       `all ${totalChunks} extraction call(s) failed — no rule could be compiled. ` +
