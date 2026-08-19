@@ -170,6 +170,29 @@ failures #3 for why).
    same shift. The bug was invisible for as long as nothing read `barDate`
    back out — a reminder that an unread field is an untested one.
 
+12. **61 active tickers carried no card, and two of the reasons were the
+   opposite of what they looked like** (PR #73). Coverage sat at 920/981.
+   Probing all 61 against a **two-year** window — rather than the 120 days
+   `hydrate-local.mjs` uses — split them three ways:
+   - **12 were recoverable, not dead.** `BNY`, `BR`, `BRO`, `BSX` and others
+     had a full 83 bars available. They were casualties of the whole-chunk-400
+     bug (failure 9) and had simply never been retried after it was fixed.
+     Hydrating them took coverage to 932.
+   - **Recency, not bar count, separates dead from new.** `SLNO`, `STKL`,
+     `ACLX`, `CTRA` each hold 400+ bars that *stop* in April/May 2026 —
+     acquired or delisted mid-year. `SKHY` holds 28 bars and traded
+     yesterday: newly listed and perfectly alive. A bar-count threshold
+     would have pruned the live symbol and kept the dead ones.
+   - **23 have zero bars in two years** — OTC ADRs and mutual funds Alpaca
+     has never covered (`TCEHY`, `SFTBY`, `VTSAX`), plus 5 Alpaca rejects
+     outright (the four crypto pairs and `SCHW-PD`).
+
+   `scripts/prune-universe.mjs` encodes that classification and deactivated
+   48, keeping `SKHY`. Active coverage is now **932/933 (100%)**, the single
+   gap being `SKHY` by design. `active = false` is reversible and preserves
+   the row, its cards and its history; the script prints the re-enable
+   statement rather than DELETEing anything.
+
 ## Open questions
 
 - ❓ Should `seed-yahoo-portfolio.mjs`'s non-US-suffix filter list

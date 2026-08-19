@@ -556,3 +556,15 @@ Building it surfaced a genuinely nasty transport bug, now [[entity-openrouter-cl
 The pattern worth carrying forward: this is the third failure on that page whose *symptom* named the wrong layer (cf. #5's 404-vs-fallback, #3's "0 working models"). The chain collapsing distinct causes into one terminal status is the recurring hazard, not any individual bug — and it is why "all models failed" should always be read as a question rather than an answer.
 
 Parity is ℹ️ rather than ⚠️ this time: unlike PR #71 this **extends** `lib/shared/precompute-policy.ts` rather than adding a new shared module, so the single-source denominator does not drift further (portal stays at 13 to mobile's 5). `lib/openrouter.ts` is portal-only — mobile's council talks to gcp3 — so `toHeaderSafe()` has nothing to port, though the class of bug is portable to any header assembled from human-readable text.
+
+## [2026-08-19] ingest | PR #73 chore(universe): prune tickers no data source can ever card | pages touched: 3
+
+Coverage maintenance that turned up two inverted assumptions. 61 active tickers carried no card; probing all of them against a **two-year** window rather than `hydrate-local.mjs`'s 120 days split them three ways, and two of the three were the opposite of what the surface reading suggested.
+
+**12 were recoverable, not dead.** `BNY`, `BR`, `BRO`, `BSX` and others had a full 83 bars sitting there. They were casualties of the whole-chunk-400 bug ([[entity-ticker-universe-pipeline]] failure 9, fixed in PR #70) and had simply never been retried afterward — the fix landed but nobody re-ran the symbols it had already cost. Hydrating them moved coverage 920 → 932.
+
+**Recency, not bar count, separates dead from new.** `SLNO`, `STKL`, `ACLX`, `CTRA` each hold 400+ bars that *stop* in April/May 2026 — acquired or delisted mid-year. `SKHY` holds 28 bars and traded yesterday: newly listed, short of the 40-bar minimum, entirely alive. The obvious heuristic (fewest bars = most likely dead) would have pruned the one live symbol and kept four dead ones. Worth remembering next time a threshold looks like it can stand in for a question about *when*.
+
+`scripts/prune-universe.mjs` encodes the classification and refuses to guess from names: `live` / `stale` / `never` / `reject`, each decided by vendor evidence. 48 deactivated, `SKHY` kept. Active coverage is now **932/933 (100%)**. `active = false` is reversible and preserves rows, cards and history — the script prints the re-enable statement rather than DELETEing. `MIN_BARS` is duplicated from `hydrate-local.mjs` on purpose and noted as needing to stay equal; a drift between them would prune symbols that would have worked.
+
+Parity ℹ️: a CLI script and a database state change, no `lib/`, `lib/shared/` or `app/` surface touched. Mobile has no ticker universe to prune. Neither denominator moves.
