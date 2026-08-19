@@ -70,6 +70,13 @@ failures #3 for why).
   summary), split out on the same rationale as
   [[entity-signal-data-plane]]'s `signal-policy.ts`: it unit-tests without
   `DATABASE_URL`, which `@/lib/db` throws on at import time.
+- `app/api/pipeline/precompute-ai/route.ts` (PR #72) — the ranking's second
+  consumer, and the one that closes the loop the universe was built for.
+  `{"source":"ranking"}` pulls subjects from `topCards()` instead of the
+  watchlist: supply-side (what the data says is interesting) rather than
+  demand-side (what someone already holds). `batchThesisSubjects()` packs ten
+  tickers per prompt, so a 100-ticker sweep costs 10 requests against the
+  50/day ceiling rather than 100 — see [[entity-openrouter-client]] failure #3.
 - Still not surfaced in any dashboard UI — this remains coverage/data-plane
   infrastructure one layer below what a user sees. `/api/signals/top` is an
   API consumer, not a screen.

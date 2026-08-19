@@ -133,6 +133,11 @@ agree in intent but not in code.
 >
 > The parity-relevant part is the new `lib/shared/` file. This is the same shape as PR #40's and PR #46's additions and it lands on the same side of the contradiction recorded below: portal now has **13** modules under `lib/shared/` against mobile's **5**, so "shared" continues to describe *portal's* intent rather than a fact about both surfaces. `universe-policy.ts` is not portable today for a concrete reason rather than a stylistic one — it reads a ticker-card universe mobile has no equivalent of (no `ticker_universe`, no `ticker_cards`, no ranking) — so this is a parity *candidate* only if mobile grows a coverage layer, not a de-drift task anyone should pick up now. Feature-domain parity is untouched: no user-visible surface changed on either side.
 
+> ℹ️ **Portal PR #72 (2026-08-19) assessed — portal-only pipeline + a shared-module *fix*, headline unchanged at ~66%.** Adds `{"source":"ranking"}` to `/api/pipeline/precompute-ai` so the AI batch draws subjects from [[entity-ticker-universe-pipeline]]'s ranking instead of the watchlist, with `batchThesisSubjects()` packing ten tickers per prompt (a 100-ticker sweep costs 10 requests against the 50/day ceiling, not 100). Extends the existing `lib/shared/precompute-policy.ts` rather than adding a new shared module — so unlike PR #71 the single-source denominator does **not** drift further; portal stays at 13 shared modules to mobile's 5.
+>
+> The one change with cross-surface reach is `toHeaderSafe()` in `lib/openrouter.ts` ([[entity-openrouter-client]] failure #7): a non-ASCII `X-Title` made `fetch()` throw before sending, which the fallback chain reported as "all models failed" with the wrong status. `lib/openrouter.ts` is portal-only — mobile's council talks to gcp3, not OpenRouter directly — so there is nothing to port. But the *class* of bug is portable and worth knowing on both sides: any header value assembled from human-readable text needs the same guard, and mobile's clients do set custom headers.
+
+
 ## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:
