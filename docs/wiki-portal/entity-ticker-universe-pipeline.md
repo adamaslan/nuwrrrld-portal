@@ -76,10 +76,13 @@ failures #3 for why).
 2. **Every ETF card fails the explain-quality gate, 0/54** — gcp3's ETF
    payload fills only 1 of 5 taxonomy inputs (`confluenceScore`), so every
    card lands at `dataQuality: 0.20` against an `isExplainable()` floor of
-   0.8. `topCards()` returns empty for the entire ETF universe today. Two
-   unreconciled fixes exist (extend gcp3's ETF scoring, or accept ETF as
-   coverage-only forever) — undecided. Full detail:
+   0.8. Two unreconciled fixes exist (extend gcp3's ETF scoring, or accept
+   ETF as coverage-only forever) — undecided. Full detail:
    [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 1.
+   *Partly overtaken by PR #70*: ETF cards hydrated locally via Alpaca
+   (`hydrate-local.mjs`, all five inputs) reach `dataQuality: 1.0`, so the
+   0.20 figure describes the **gcp3-sourced** path specifically, not ETFs
+   inherently. The gcp3 payload gap is still real and still undecided.
 3. **Modal secrets are replaced wholesale, not merged** — `modal secret
    create <name> --force` overwrites every key in the named secret, so
    syncing `PORTAL_PUSH_SECRET` there automatically (before
@@ -103,6 +106,40 @@ failures #3 for why).
    untouched (confirmed via `vercel env ls` timestamps). Worth knowing before
    trusting this script's stdout as proof of what actually happened —
    `vercel env pull` is the reliable way to check what's really live.
+
+7. **`topCards()` returned zero rows for ~50 minutes of wall-clock data, and
+   nothing detected it** (PR #70). Every stored card carried
+   `missing_fields: ["macdCross"]`, which the ranking gate excludes outright,
+   so the ranking was empty rather than degraded. The cards were written
+   minutes *before* the commit that fixed `macdCross`'s omit-vs-null
+   handling; the code was correct and the data was stale. Re-hydrating took
+   the t1 ranking from **0 → 733** eligible cards. The signature to watch
+   for: `dataQuality: 0.8` plus `missing_fields: ["macdCross"]` across the
+   *whole* universe means MACD is being omitted upstream — a genuinely quiet
+   tape produces `null` (computed, no cross) at `dataQuality: 1.0`. Three
+   states, one of which is not a gap — see [[concept-three-state-signal]].
+8. **`hydrate-local.mjs` hardcoded `universe: "stock"` on every POST**, the
+   same defect as `seed-yahoo-portfolio.mjs`, so 306 ETF cards were stored
+   labeled as stocks — drift between `ticker_cards.universe` and
+   `ticker_universe.universe`. Fixed in PR #70 by making the script
+   lane-aware (`stock`, then `etf`, each labeled correctly) with a
+   `--universe=` flag. Worth noting the shape: the label is a **batch-level**
+   POST field, so a chunk mixing both universes must mislabel one of them.
+9. **One bad symbol destroyed its entire chunk.** Alpaca rejects the whole
+   multi-symbol `/v2/stocks/bars` request with `400 invalid symbol: X` if any
+   single symbol is not a US equity, so four crypto pairs (`BTC-USD`,
+   `ETH-USD`, `SOL-USD`, `DOGE-USD`) cost **40 rows** in a 178-symbol ETF
+   run. `fetchBars` now drops the named symbol and retries the remainder;
+   auth/rate-limit/network errors still throw, since those are not
+   per-symbol problems. Post-failures 40 → 0.
+10. **Inverse and leveraged ETFs were ranked as BUY recommendations.** Once
+   ETF cards were complete, the top-100 became **71% ETFs** — `SMST` (2x
+   inverse MicroStrategy) at BUY beside JNJ, 22 inverse/short products in
+   all. Not a scoring bug: the score reads a price series directionally, and
+   an inverse fund's series is the *negation* of its named exposure (SQQQ
+   rising is the Nasdaq falling). `topCards()` now takes a `universe`
+   argument defaulting to `'stock'`; `'etf'` ranks funds among themselves and
+   `'all'` restores the mixed behavior deliberately.
 
 ## Open questions
 

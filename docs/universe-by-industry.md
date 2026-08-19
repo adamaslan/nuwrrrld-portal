@@ -612,7 +612,9 @@ The run log now names the model it is using, so the next stale-id failure is one
 | QUANT | `mistralai/mistral-7b-instruct:free` | **gone** |
 | CHAIR | `qwen/qwen3-next-80b-a3b-instruct:free` | **gone** |
 
-Those seats fall back through `FREE_MODEL_CHAIN`, so the council degrades rather than breaking — but it burns a guaranteed-404 call per seat first, and the seat-to-model assignment documented in `docs/council-prompting-small-models.md` §10 (spend the best model on CHAIR) no longer describes what actually runs. `refresh-free-models.mjs` maintains `FREE_MODEL_CHAIN` but does **not** touch `SEAT_MODELS`, which is why the chain is current and the seats are not. Not fixed here — it is council code, outside this change's blast radius — but it should be the next thing picked up.
+This was already known and is already half-fixed — see `docs/wiki-portal/entity-openrouter-client.md` failure #5. `runSeat`'s `isRetryableStatus(status, isPrimary)` makes a 404 retryable *only* in the primary position, so a retired seat model now warns loudly and falls through to `FREE_MODEL_CHAIN` instead of disabling the seat. The council degrades correctly.
+
+What remains is the stale ids themselves: each affected seat still spends one guaranteed-404 round trip before falling through, and the seat-to-model assignment in `docs/council-prompting-small-models.md` §10 (spend the best free model on CHAIR) no longer describes what actually runs — every rotted seat lands on the same chain head. `refresh-free-models.mjs` maintains `FREE_MODEL_CHAIN` but never validates `SEAT_MODELS`, which is why one list is current and the other rotted. Out of scope here; the wiki page carries the full history.
 
 ### Still outstanding
 
