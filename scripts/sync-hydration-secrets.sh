@@ -16,8 +16,8 @@
 #
 # Requires: gh CLI authenticated (gh auth status); ~/.claude/scripts/sync-secrets.sh present.
 #
-# Why only two variables: the hydration workflow computes indicators in the
-# runner and POSTs finished rows, so it needs the Alpaca pair to fetch bars and
+# Why these three: the hydration workflow computes indicators in the runner and
+# POSTs finished rows, so it needs the Alpaca pair to fetch bars and
 # PORTAL_PUSH_SECRET to be accepted by the portal. PORTAL_PUSH_SECRET is
 # already synced by scripts/sync-e2e-secrets.sh — it is listed here too because
 # this workflow genuinely depends on it, and a contract that omits a dependency

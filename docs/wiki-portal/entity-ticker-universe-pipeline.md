@@ -78,8 +78,9 @@ failures #3 for why).
   tickers per prompt, so a 100-ticker sweep costs 10 requests against the
   50/day ceiling rather than 100 — see [[entity-openrouter-client]] failure #3.
 - `.github/workflows/hydrate-universe.yml` (PR #74) — the scheduled lane,
-  weekdays 21:30 UTC (~75 min after the US close, so Alpaca's daily bar has
-  settled). Runs `scripts/hydrate-local.mjs` in the runner rather than calling
+  weekdays 22:30 UTC — chosen so the settle margin holds in *both* halves of
+  the year (150 min after the close under EDT, 90 min under EST), since GitHub
+  cron is UTC-only and a single expression must be safe in the worse season. Runs `scripts/hydrate-local.mjs` in the runner rather than calling
   an endpoint, because the portal never talks to Alpaca — `POST
   /api/pipeline/hydrate-universe` receives computed rows, it does not fetch
   bars. That asymmetry is why this workflow needs `ALPACA_*` while

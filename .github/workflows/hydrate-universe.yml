@@ -28,18 +28,34 @@ name: Nightly universe hydration
 # anyway.
 on:
   schedule:
-    # 21:30 UTC = 17:30 ET, ~75 min after the 16:00 ET close. Weekdays only:
-    # a weekend run would re-card Friday's bars and burn API calls to write
-    # rows `shouldReplaceCard` correctly refuses to replace.
-    - cron: '30 21 * * 1-5'
+    # 22:30 UTC. GitHub cron is UTC-only with no timezone support, so the one
+    # expression has to clear the settle margin in *both* halves of the year:
+    #
+    #   EDT (summer) 22:30 UTC = 18:30 ET = 150 min after the 16:00 close
+    #   EST (winter) 22:30 UTC = 17:30 ET =  90 min after the 16:00 close
+    #
+    # An earlier draft used 21:30 UTC on the assumption of EDT year-round.
+    # That is 17:30 ET in summer but **16:30 ET in winter** — only 30 minutes
+    # past the bell, well inside the window where Alpaca's daily bar is still
+    # settling, so for five months a year it would have carded every symbol
+    # against a partial last bar and reported a clean run. Pick the time that
+    # is safe in the worse season rather than the season you happen to be in.
+    #
+    # Weekdays only: a weekend run re-cards Friday's bars and burns API calls
+    # writing rows `shouldReplaceCard` correctly refuses to replace.
+    - cron: '30 22 * * 1-5'
   workflow_dispatch:
     inputs:
       universe:
-        description: 'Which lane to hydrate (blank = stock then etf)'
+        description: 'Which lane to hydrate'
         required: false
         type: choice
-        options: ['', 'stock', 'etf']
-        default: ''
+        # 'all' rather than an empty option: actionlint rejects '' in a choice
+        # list, and the script itself accepts only stock|etf — so 'all' is
+        # translated below by *omitting* the flag, which is how the script
+        # already spells "both lanes".
+        options: ['all', 'stock', 'etf']
+        default: 'all'
       limit:
         description: 'Cap symbols per lane (blank = all). Useful for a smoke test.'
         required: false
@@ -54,8 +70,20 @@ on:
 permissions:
   contents: read
 
-# A run still in flight when the next fires would duplicate every vendor call
-# for identical output; skip the new one rather than queue it.
+# Serialize runs: `cancel-in-progress: false` lets an in-flight run finish and
+# holds the next one *pending* — it queues, it does not skip. (A third trigger
+# replaces the pending one rather than stacking, so at most one run waits.)
+#
+# Queueing is the right trade here even though a duplicate run repeats every
+# Alpaca call: the alternative, cancelling the active run, would abandon a
+# partially-written universe halfway through. And a queued duplicate is close
+# to harmless — `shouldReplaceCard` refuses to overwrite same-bar data at equal
+# quality, so the second run writes nothing and mostly costs vendor calls.
+#
+# With one weekday cron and a 45-minute timeout the two can only overlap if a
+# run wedges for a full day, which the timeout already prevents. Manual
+# `workflow_dispatch` while a scheduled run is live is the realistic case, and
+# waiting is the behavior you want there.
 concurrency:
   group: hydrate-universe
   cancel-in-progress: false
@@ -104,7 +132,10 @@ jobs:
           fi
 
           args=()
-          [ -n "${IN_UNIVERSE}" ] && args+=("--universe=${IN_UNIVERSE}")
+          # 'all' means both lanes, which the script expresses as the flag
+          # being absent — it validates --universe strictly and would reject
+          # "all" outright.
+          [ -n "${IN_UNIVERSE}" ] && [ "${IN_UNIVERSE}" != "all" ] && args+=("--universe=${IN_UNIVERSE}")
           [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}")
           [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run")
 
@@ -133,12 +164,14 @@ jobs:
           # attempted" reads as a clean pass. Fail explicitly instead: an
           # absent result is not a zero result.
           if [ -z "$done_line" ]; then
-            echo "### Nightly universe hydration" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**No completion line — the run did not finish.** Last 20 lines:" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            tail -n 20 hydrate.log >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### Nightly universe hydration"
+              echo ""
+              echo "**No completion line — the run did not finish.** Last 20 lines:"
+              echo '```'
+              tail -n 20 hydrate.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::hydration produced no [done] line — the script did not run to completion"
             exit 1
           fi
