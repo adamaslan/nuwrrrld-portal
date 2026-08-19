@@ -141,6 +141,9 @@ agree in intent but not in code.
 > ℹ️ **Portal PR #73 (2026-08-19) assessed — data-plane maintenance, headline unchanged at ~66%.** Adds `scripts/prune-universe.mjs`, which deactivates tickers no data source can card (48 pruned, active coverage 920/981 → 932/933), and recovers 12 that were casualties of an already-fixed bug. Touches no `lib/`, no `lib/shared/`, and no `app/` surface — a CLI script and a database state change. Mobile has no ticker universe to prune. Neither denominator moves.
 
 
+> ℹ️ **Portal PR #74 (2026-08-19) assessed — CI/scheduler infra only, headline unchanged at ~66%.** Adds `.github/workflows/hydrate-universe.yml` (weekday scheduled hydration of the ticker universe) and `scripts/sync-hydration-secrets.sh` (the repo's variable contract for it, wrapping the shared secrets-sync script). Same shape as PR #59's scheduler work: server-side scheduling and a local secrets helper, touching no `lib/`, `lib/shared/`, or `app/` code. Mobile has no equivalent server-side cron layer and no ticker universe to hydrate, so this creates no gap and closes none. Neither denominator moves.
+
+
 ## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:
