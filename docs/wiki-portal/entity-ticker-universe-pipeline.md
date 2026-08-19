@@ -59,9 +59,20 @@ failures #3 for why).
 - `app/api/pipeline/precompute-ai/route.ts` — a sibling route sharing the same
   `PORTAL_PUSH_SECRET` gate and quota-reset scheduling philosophy; see
   [[decision-precompute-ai-at-quota-reset]].
-- Not yet surfaced in any dashboard UI — this is coverage/data-plane
-  infrastructure, one layer below what a user sees. The consumer is
-  `topCards()`, which the top-N AI explain batch is meant to read from.
+- `app/api/signals/top/route.ts` (PR #71) — the read side, and until it
+  landed `topCards()` had **no caller at all**: the ranking existed in the
+  database and nothing in the product could see it. Dual-gated on a Clerk
+  session or `PORTAL_PUSH_SECRET`, matching `/api/signals/digest`, because the
+  precompute-AI batch will read this ranking to pick its subjects and has no
+  Clerk session. Query params `?universe=` / `?horizon=` / `?limit=`.
+- `lib/shared/universe-policy.ts` (PR #71) — the route's decisions as pure
+  functions (scope, horizon, limit, strong-card threshold, card age, page
+  summary), split out on the same rationale as
+  [[entity-signal-data-plane]]'s `signal-policy.ts`: it unit-tests without
+  `DATABASE_URL`, which `@/lib/db` throws on at import time.
+- Still not surfaced in any dashboard UI — this remains coverage/data-plane
+  infrastructure one layer below what a user sees. `/api/signals/top` is an
+  API consumer, not a screen.
 
 ## Known failures
 
@@ -140,6 +151,17 @@ failures #3 for why).
    rising is the Nasdaq falling). `topCards()` now takes a `universe`
    argument defaulting to `'stock'`; `'etf'` ranks funds among themselves and
    `'all'` restores the mixed behavior deliberately.
+11. **`barDate` was silently off by one day west of UTC** (found and fixed in
+   PR #71). `rowToStored()` built it as `String(row.bar_date).slice(0, 10)`,
+   but the Postgres driver returns a JS `Date` for `date` columns, and
+   `String(date)` renders in **local** time — so a bar dated `2026-08-19` came
+   back as the locale string `"Tue Aug 18"`. Two defects in one line: the
+   wrong calendar day for any non-UTC reader, and a string no date parser
+   accepts (it reached the new API as `ageDays: null`, which is how it was
+   noticed). Now read via `toISOString()` in UTC, with already-`YYYY-MM-DD`
+   strings passed through untouched so they are not re-parsed back through the
+   same shift. The bug was invisible for as long as nothing read `barDate`
+   back out — a reminder that an unread field is an untested one.
 
 ## Open questions
 

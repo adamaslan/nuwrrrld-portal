@@ -21,6 +21,7 @@ import {
   type TickerCard,
 } from "@/lib/shared/card-policy";
 import type { Horizon } from "@/lib/grounding/taxonomy";
+import type { UniverseScope } from "@/lib/shared/universe-policy";
 
 export interface StoredCard extends TickerCard {
   source: string;
@@ -177,7 +178,7 @@ export async function upsertCards(
 export async function topCards(
   horizon: Horizon,
   limit = 100,
-  universe: CardUniverse | "all" = "stock",
+  universe: UniverseScope = "stock",
 ): Promise<RankedCard[]> {
   try {
     const rows = await sql`
@@ -247,6 +248,27 @@ export async function getCard(ticker: string, horizon: Horizon): Promise<StoredC
 /** Re-exported so callers deciding a write can share the ingest rule. */
 export { shouldReplaceCard };
 
+/**
+ * A Postgres `date` column as a `YYYY-MM-DD` string.
+ *
+ * The driver hands back a JS `Date` for `date` columns, and `String(date)`
+ * renders it in **local** time — so `String(d).slice(0, 10)` produced
+ * `"Tue Aug 18"` for a bar dated 2026-08-19: not merely a formatting slip but
+ * an off-by-one day for anyone west of UTC, and a string no date parser
+ * accepts. `bar_date` is a calendar date with no time component, so it is read
+ * back in UTC, where the driver placed it.
+ *
+ * Strings pass through untouched — some call paths hand this a value that is
+ * already `YYYY-MM-DD`, and re-parsing those through `Date` would reintroduce
+ * exactly the timezone shift this exists to avoid.
+ */
+function toIsoDate(value: unknown): string {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
+  }
+  return String(value ?? "").slice(0, 10);
+}
+
 function rowToStored(row: Record<string, unknown>): StoredCard {
   return {
     ticker: row.ticker as string,
@@ -262,7 +284,7 @@ function rowToStored(row: Record<string, unknown>): StoredCard {
     missingFields: (row.missing_fields as StoredCard["missingFields"]) ?? [],
     source: row.source as string,
     sourceRunId: (row.source_run_id as string | null) ?? null,
-    barDate: String(row.bar_date).slice(0, 10),
+    barDate: toIsoDate(row.bar_date),
     computedAt: String(row.computed_at),
   };
 }
