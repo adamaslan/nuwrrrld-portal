@@ -138,6 +138,9 @@ agree in intent but not in code.
 > The one change with cross-surface reach is `toHeaderSafe()` in `lib/openrouter.ts` ([[entity-openrouter-client]] failure #7): a non-ASCII `X-Title` made `fetch()` throw before sending, which the fallback chain reported as "all models failed" with the wrong status. `lib/openrouter.ts` is portal-only — mobile's council talks to gcp3, not OpenRouter directly — so there is nothing to port. But the *class* of bug is portable and worth knowing on both sides: any header value assembled from human-readable text needs the same guard, and mobile's clients do set custom headers.
 
 
+> ℹ️ **Portal PR #73 (2026-08-19) assessed — data-plane maintenance, headline unchanged at ~66%.** Adds `scripts/prune-universe.mjs`, which deactivates tickers no data source can card (48 pruned, active coverage 920/981 → 932/933), and recovers 12 that were casualties of an already-fixed bug. Touches no `lib/`, no `lib/shared/`, and no `app/` surface — a CLI script and a database state change. Mobile has no ticker universe to prune. Neither denominator moves.
+
+
 ## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
 
 Two different denominators, deliberately kept separate:

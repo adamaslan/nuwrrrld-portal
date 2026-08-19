@@ -108,9 +108,22 @@ failures #3 for why).
    once they're added later. `gen-portal-push-secret.sh` deliberately does
    **not** touch Modal secrets — it prints the exact `modal secret create`
    command with all keys together instead, and leaves running it to a human.
-4. **No Alpaca account confirmed to exist** — the entire non-ETF (~4,300
-   ticker) lane cannot run at all without it. See
-   [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 4.
+4. ~~**No Alpaca account confirmed to exist**~~ — **resolved 2026-08-19.** An
+   account exists and works: `ALPACA_API_KEY`/`ALPACA_API_SECRET` in
+   `.env.local` authenticated hundreds of `/v2/stocks/bars` calls across PRs
+   #70–#73, hydrating 932 tickers and probing two years of history. The
+   original blocker was real when written; it is not what stands in the way
+   now.
+
+   **The remaining limitation is where those credentials are, not whether they
+   exist.** They live only in local `.env.local`. Neither Vercel nor the Modal
+   secret carries them, so the unattended lane —
+   `deploy/universe-hydration/modal_app.py` — still cannot run even once it is
+   deployed (failure 6). Today the universe is hydrated exclusively by a human
+   running `scripts/hydrate-local.mjs` on a laptop, which is a real coverage
+   dependency rather than a scheduled pipeline. See
+   [[../pipeline-todo-blockers.md|pipeline-todo-blockers.md]] blocker 4 and
+   failure 3 above for why the Modal secret in particular needs care.
 6. **`deploy/universe-hydration/modal_app.py` has never been deployed** —
    `modal deploy` has not been run for this app or either of the other two in
    `deploy/`. The file existing is not the lane running; today the stock
@@ -169,6 +182,29 @@ failures #3 for why).
    strings passed through untouched so they are not re-parsed back through the
    same shift. The bug was invisible for as long as nothing read `barDate`
    back out — a reminder that an unread field is an untested one.
+
+12. **61 active tickers carried no card, and two of the reasons were the
+   opposite of what they looked like** (PR #73). Coverage sat at 920/981.
+   Probing all 61 against a **two-year** window — rather than the 120 days
+   `hydrate-local.mjs` uses — split them three ways:
+   - **12 were recoverable, not dead.** `BNY`, `BR`, `BRO`, `BSX` and others
+     had a full 83 bars available. They were casualties of the whole-chunk-400
+     bug (failure 9) and had simply never been retried after it was fixed.
+     Hydrating them took coverage to 932.
+   - **Recency, not bar count, separates dead from new.** `SLNO`, `STKL`,
+     `ACLX`, `CTRA` each hold 400+ bars that *stop* in April/May 2026 —
+     acquired or delisted mid-year. `SKHY` holds 28 bars and traded
+     yesterday: newly listed and perfectly alive. A bar-count threshold
+     would have pruned the live symbol and kept the dead ones.
+   - **23 have zero bars in two years** — OTC ADRs and mutual funds Alpaca
+     has never covered (`TCEHY`, `SFTBY`, `VTSAX`), plus 5 Alpaca rejects
+     outright (the four crypto pairs and `SCHW-PD`).
+
+   `scripts/prune-universe.mjs` encodes that classification and deactivated
+   48, keeping `SKHY`. Active coverage is now **932/933 (100%)**, the single
+   gap being `SKHY` by design. `active = false` is reversible and preserves
+   the row, its cards and its history; the script prints the re-enable
+   statement rather than DELETEing anything.
 
 ## Open questions
 
