@@ -60,6 +60,7 @@ Cross-cutting patterns and design choices.
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, the stub/live pairing rule, and why nothing runs the suite in CI
 - [[concept-live-backend-liveness-tests]] — how to test the portal against real gcp3/OpenRouter data (add a real ticker, run each panel for real); found 3 live incidents mocked tests couldn't
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
+- [[concept-three-state-signal]] — absent vs measured-negative vs measured-positive; collapsing the first two emptied the entire top-N ranking
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
 - [[concept-global-automation-layer]] — the `~/.claude/` global tier (`/geepr`, `/bugz`, `/reb`, `/rem1`, `/maxtoke`, `/locrun`…), always-on rules, hooks, and the `wiki-guard` PR hook that automate + enforce the build process
