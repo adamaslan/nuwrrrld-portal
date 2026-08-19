@@ -1,0 +1,182 @@
+name: Nightly universe hydration
+
+# Cards every active ticker in `ticker_universe` from Alpaca daily bars, so the
+# ranked universe that /api/signals/top and the precompute batch read from is
+# refreshed without a human running a script on a laptop.
+#
+# Why this exists: until now the only thing that hydrated the universe was
+# `node scripts/hydrate-local.mjs` executed by hand. Coverage was therefore a
+# function of someone remembering, and the Alpaca credentials lived in exactly
+# one place — a local .env.local. That is the gap PR #73's review surfaced when
+# it corrected the wiki's "no Alpaca account exists" claim: the account exists
+# and works; it just was not reachable by anything unattended.
+#
+# Unlike precompute-ai.yml, this job cannot simply call a deployed endpoint:
+# the portal never talks to Alpaca. `POST /api/pipeline/hydrate-universe`
+# *receives* computed indicator rows, it does not fetch bars. So the compute
+# happens here in the runner, which is why this workflow needs ALPACA_* while
+# the precompute one needs only PORTAL_PUSH_SECRET.
+#
+# Runs after the US market close plus a settle margin. Alpaca's daily bar for
+# a session is not final the instant the bell rings, and a run that beats the
+# vendor to its own data cards every symbol against a partial last bar.
+#
+# The Modal equivalent (deploy/universe-hydration/modal_app.py) is the other
+# half of a deliberately multi-platform pair and has never been deployed. Run
+# ONE of them: two schedulers writing the same cards is wasted vendor quota for
+# identical output, and `shouldReplaceCard` would make the second a no-op
+# anyway.
+on:
+  schedule:
+    # 21:30 UTC = 17:30 ET, ~75 min after the 16:00 ET close. Weekdays only:
+    # a weekend run would re-card Friday's bars and burn API calls to write
+    # rows `shouldReplaceCard` correctly refuses to replace.
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      universe:
+        description: 'Which lane to hydrate (blank = stock then etf)'
+        required: false
+        type: choice
+        options: ['', 'stock', 'etf']
+        default: ''
+      limit:
+        description: 'Cap symbols per lane (blank = all). Useful for a smoke test.'
+        required: false
+        default: ''
+      dryRun:
+        description: 'Fetch bars and compute, but POST nothing'
+        required: false
+        type: boolean
+        default: false
+
+# Read-only: this workflow calls a deployed endpoint and commits nothing.
+permissions:
+  contents: read
+
+# A run still in flight when the next fires would duplicate every vendor call
+# for identical output; skip the new one rather than queue it.
+concurrency:
+  group: hydrate-universe
+  cancel-in-progress: false
+
+jobs:
+  hydrate:
+    runs-on: ubuntu-latest
+    # ~930 symbols in chunks of 10 is ~93 sequential Alpaca calls. Generous
+    # against that, far under the 6h ceiling, and low enough that a wedged run
+    # fails visibly the same night instead of occupying a runner until morning.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # The script needs only @neondatabase/serverless-free plain fetch, but it
+      # imports from scripts/lib/, so the repo must be installed to run it.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Hydrate the universe
+        env:
+          PORTAL_URL: ${{ vars.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          IN_UNIVERSE: ${{ github.event.inputs.universe }}
+          IN_LIMIT: ${{ github.event.inputs.limit }}
+          IN_DRY_RUN: ${{ github.event.inputs.dryRun }}
+        run: |
+          set -euo pipefail
+
+          # Named individually rather than in a loop so the error says which
+          # one is missing — "a secret is unset" costs a round trip to find out.
+          if [ -z "${PORTAL_PUSH_SECRET}" ]; then
+            echo "::error::PORTAL_PUSH_SECRET is not set — the portal will reject every POST."
+            exit 1
+          fi
+          if [ -z "${ALPACA_API_KEY}" ] || [ -z "${ALPACA_API_SECRET}" ]; then
+            echo "::error::ALPACA_API_KEY / ALPACA_API_SECRET are not set — run scripts/sync-hydration-secrets.sh locally (see the secrets-sync skill)."
+            exit 1
+          fi
+
+          args=()
+          [ -n "${IN_UNIVERSE}" ] && args+=("--universe=${IN_UNIVERSE}")
+          [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}")
+          [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run")
+
+          # Tee so the summary can be built from the same output the log shows,
+          # rather than re-deriving counts from a second source that could disagree.
+          node scripts/hydrate-local.mjs "${args[@]}" 2>&1 | tee hydrate.log
+
+      - name: Summarize
+        if: always()
+        run: |
+          set -euo pipefail
+          # This step is `if: always()`, so it also runs after the hydrate step
+          # failed — in that case the job is already red and the missing log is
+          # a symptom, not the finding. Report and stay quiet rather than
+          # stacking a second, less informative error on top of the real one.
+          if [ ! -f hydrate.log ]; then
+            echo "::warning::no hydrate.log — see the hydrate step for the actual failure"
+            exit 0
+          fi
+
+          done_line=$(grep -E '^\[done\]' hydrate.log | tail -n1 || true)
+
+          # No summary line at all means the script died before finishing —
+          # a crash, an OOM, the job timing out mid-chunk. Every count below
+          # would then parse as empty and default to 0, and "0 written from 0
+          # attempted" reads as a clean pass. Fail explicitly instead: an
+          # absent result is not a zero result.
+          if [ -z "$done_line" ]; then
+            echo "### Nightly universe hydration" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**No completion line — the run did not finish.** Last 20 lines:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 20 hydrate.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::hydration produced no [done] line — the script did not run to completion"
+            exit 1
+          fi
+
+          written=$(sed -nE 's/.*written=([0-9]+).*/\1/p' <<<"$done_line")
+          calc=$(sed -nE 's/.*calc-errors=([0-9]+).*/\1/p' <<<"$done_line")
+          post=$(sed -nE 's/.*post-failures=([0-9]+).*/\1/p' <<<"$done_line")
+          total=$(sed -nE 's/.*total=([0-9]+).*/\1/p' <<<"$done_line")
+
+          {
+            echo "### Nightly universe hydration"
+            echo ""
+            echo "- cards written: **${written:-?}**"
+            echo "- symbols attempted: **${total:-?}**"
+            echo "- compute errors: **${calc:-?}**"
+            echo "- post failures: **${post:-?}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # A run that wrote nothing "succeeded" while producing no coverage.
+          # That must not read as green — it is the exact shape of the empty
+          # ranking that went unnoticed for a full day in PR #70.
+          if [ "${written:-0}" -eq 0 ] && [ "${total:-0}" -gt 0 ]; then
+            echo "::error::attempted ${total} symbol(s) but wrote no cards"
+            exit 1
+          fi
+
+          # Post failures mean the portal rejected writes the compute produced —
+          # a different fault from a symbol Alpaca could not serve, and worth
+          # surfacing separately rather than folding into the error above.
+          if [ "${post:-0}" -gt 0 ]; then
+            echo "::warning::${post} row(s) failed to post; compute succeeded but the portal rejected them"
+          fi
+
+      - name: Upload hydration log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydrate-log
+          path: hydrate.log
+          retention-days: 7
+          if-no-files-found: ignore

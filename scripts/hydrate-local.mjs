@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 /**
- * hydrate-local — manually run universe hydration against localhost.
+ * hydrate-local — run universe hydration against a portal, local or deployed.
  *
- * Same indicator math as deploy/universe-hydration/modal_app.py, but in JS
- * and hitting a local dev server so you can watch every chunk land and inspect
- * the cards before Modal runs unattended.
+ * Same indicator math as deploy/universe-hydration/modal_app.py, but in JS.
+ * Written to hit a local dev server so you can watch every chunk land and
+ * inspect the cards; it is also what `.github/workflows/hydrate-universe.yml`
+ * runs unattended, since `process.env` takes precedence over `.env.local` and
+ * the file's absence is not an error. The name is kept for the git history and
+ * the wiki references that point at it — "local" describes where it was first
+ * used, not where it can run.
  *
  * With no --universe, both lanes run: every active stock, then every active
  * ETF, each labeled correctly on the way in. The label matters — it is what
