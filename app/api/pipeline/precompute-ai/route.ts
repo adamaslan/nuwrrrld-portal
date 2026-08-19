@@ -34,7 +34,11 @@ import {
   resolvePrecomputeSource,
 } from "@/lib/shared/precompute-policy";
 import { topCards } from "@/lib/ticker-cards-db";
-import { resolveHorizon, resolveUniverseScope } from "@/lib/shared/universe-policy";
+import {
+  resolveHorizon,
+  resolveLimit,
+  resolveUniverseScope,
+} from "@/lib/shared/universe-policy";
 import { gradeFromScore, type PortfolioHealth } from "@/lib/portfolio";
 
 export const maxDuration = 300;
@@ -196,7 +200,12 @@ export async function POST(req: NextRequest) {
     const horizon = resolveHorizon(body.horizon);
     // Pull enough cards to fill `maxSubjects` batches, no more: over-fetching
     // here would rank tickers the run has no quota left to narrate anyway.
-    const cards = await topCards(horizon, maxSubjects * THESIS_BATCH_SIZE, scope);
+    // Through resolveLimit so this path obeys the same MAX_TOP_LIMIT the HTTP
+    // route does — at the MAX_SUBJECTS_CEILING of 25 the naive product is 250,
+    // which would otherwise reach SQL as a raw LIMIT and quietly exceed a
+    // bound the rest of the system treats as fixed.
+    const wanted = resolveLimit(maxSubjects * THESIS_BATCH_SIZE);
+    const cards = await topCards(horizon, wanted, scope);
     subjects = batchThesisSubjects(cards.map((c) => c.ticker));
     selection = `ranking:${scope}:${horizon}`;
   } else {
