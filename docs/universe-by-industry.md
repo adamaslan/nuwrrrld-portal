@@ -587,11 +587,43 @@ This is not a scoring bug. The score is a directional read on a price series, an
 
 Setting the default was free: `topCards` has no callers yet.
 
+### 8. The grounding-pack compiler failed silently on a retired model
+
+`compile_grounding_pack.mjs` hardcoded `qwen/qwen3-next-80b-a3b-instruct:free` as its extraction model. OpenRouter has since retired that id, so **every** extraction call 404'd — and the script warned per-chunk, then exited **0** with `rules_extracted=0`. That output is indistinguishable from "the corpus contained no extractable rules," which is exactly what an empty `corpus/` would legitimately produce.
+
+Three fixes:
+
+| Problem | Fix |
+|---|---|
+| Hardcoded model id goes stale | Default now reads the head of `FREE_MODEL_CHAIN` from `lib/openrouter.ts` — the chain `scripts/refresh-free-models.mjs` already live-probes and maintains. One source of truth instead of two. |
+| A 404 was survivable per-chunk | A 404 is a dead model id, not a chunk problem — now throws and exits non-zero. |
+| Total extraction failure exited 0 | Transport failures (429/5xx/timeout) are counted separately; if *every* chunk failed, the run throws rather than reporting a successful empty compile. |
+
+The run log now names the model it is using, so the next stale-id failure is one line of output away from diagnosis.
+
+**The same latent bug is worse elsewhere.** Probing every id in `SEAT_MODELS` (`lib/openrouter.ts`) against the live catalog: **five of the six council seats point at models that no longer exist.**
+
+| Seat | Model | Status |
+|---|---|---|
+| T1 | `cohere/command-r7b-12-2024` | OK |
+| T2 | `qwen/qwen3-next-80b-a3b-instruct:free` | **gone** |
+| RISK | `meta-llama/llama-3.3-70b-instruct:free` | **gone** |
+| MACRO | `qwen/qwen3-next-80b-a3b-instruct:free` | **gone** |
+| QUANT | `mistralai/mistral-7b-instruct:free` | **gone** |
+| CHAIR | `qwen/qwen3-next-80b-a3b-instruct:free` | **gone** |
+
+Those seats fall back through `FREE_MODEL_CHAIN`, so the council degrades rather than breaking — but it burns a guaranteed-404 call per seat first, and the seat-to-model assignment documented in `docs/council-prompting-small-models.md` §10 (spend the best model on CHAIR) no longer describes what actually runs. `refresh-free-models.mjs` maintains `FREE_MODEL_CHAIN` but does **not** touch `SEAT_MODELS`, which is why the chain is current and the seats are not. Not fixed here — it is council code, outside this change's blast radius — but it should be the next thing picked up.
+
 ### Still outstanding
 
 - **26 dead symbols.** They parse as valid US tickers but Yahoo returns no metadata — acquired, taken private, or renamed (`TWTR` → X, `PXD` → ExxonMobil, `WBA` → taken private, `CFLT`, `CTRA`, `SAGE`, `ACLX`, …). Listed in [Appendix A.3](#delisted--no-longer-quoted-26). Still active; they fail every hydration run. Pruning them is the cheapest reduction in recurring per-symbol failures.
 - **61 active tickers still have no card**, mostly "insufficient history" — genuinely new listings and the 4 crypto pairs Alpaca will never serve from a stocks endpoint.
-- **`grounding_pack` is empty (0 rows).** The `ticker_cards.state_key` → `grounding_pack.state_key` join is what the schema calls "the quiet payoff" — cited, corpus-grounded rules at Tier 0 for zero model calls. Until the pack is compiled, `groundingHits` is 0 for every card and that tier does not exist.
+- **`grounding_pack` is empty (0 rows), and blocked on two things.** The `ticker_cards.state_key` → `grounding_pack.state_key` join is what the schema calls "the quiet payoff" — cited, corpus-grounded rules at Tier 0 for zero model calls. `groundingHits` is 0 on every card until the pack compiles. Two blockers, in order:
+
+  1. **`corpus_chunks` is also empty, and the production corpus is not on this machine.** `corpus/` holds only the two files `corpus/README.md` marks as samples. The real Q&A corpus (`t1-*-100-questions.md`, `t2-*`, `trader-profiles-updated.md`) lives in a sibling repo's `DOCS_ROOT` (`../ai-text-opt/docs/trader-qa`), which is not checked out here — `ai-text-opt-1024` exists but contains engineering docs, not the trader Q&A set. The README is explicit that the corpus was **not** copied "sight-unseen," and compiling a pack from whatever markdown happens to be nearby would fill Tier 0 with confident, verbatim-cited, *irrelevant* rules — worse than an empty pack, because it looks grounded.
+  2. **The OpenRouter free-model daily quota is exhausted** (`free-models-per-day`, 50/day, 0 remaining). Extraction is one model call per chunk, so no rules can be compiled until the daily reset.
+
+  The compiler itself is verified working end-to-end: chunking produces chunks, the model returns well-formed rules, and the verbatim gate rejects the ones that fail it. Only data and quota are missing.
 
 ---
 

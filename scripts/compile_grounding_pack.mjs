@@ -24,6 +24,7 @@
  * Exit codes: 0 = success, 1 = misconfigured / fatal error.
  */
 import { readFile, readdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -36,10 +37,35 @@ const CORPUS_DIR = join(repoRoot, "corpus");
 
 const TAXONOMY_VERSION = "TAXONOMY_V1";
 const OR_BASE = "https://openrouter.ai/api/v1";
-const COMPILE_MODEL = process.env.COMPILE_MODEL ?? "qwen/qwen3-next-80b-a3b-instruct:free";
 const EXTRACT_TIMEOUT_MS = 30_000;
+
+/**
+ * Free model IDs churn — OpenRouter retires them without notice, and a
+ * hardcoded default silently 404s every extraction while still exiting 0
+ * ("chunks=2 rules_extracted=0" reads like an empty corpus, not a dead model).
+ * `scripts/refresh-free-models.mjs` already maintains a live-probed chain in
+ * lib/openrouter.ts; read the head of it rather than keeping a second, staler
+ * copy here. Parsed from source because this is plain-Node ESM with no TS
+ * loader — the same reason refresh-free-models.mjs rewrites that file textually.
+ */
+function firstFreeModelFromChain() {
+  try {
+    const src = readFileSync(join(repoRoot, "lib/openrouter.ts"), "utf8");
+    const block = /export const FREE_MODEL_CHAIN\s*=\s*\[([\s\S]*?)\]/.exec(src)?.[1];
+    return block ? /['"]([^'"]+)['"]/.exec(block)?.[1] ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+const COMPILE_MODEL = process.env.COMPILE_MODEL ?? firstFreeModelFromChain();
 const MAX_EXPANDED_ROWS_PER_RULE = 24; // guards against a Cartesian blow-up on under-constrained rules
 const DRY_RUN = process.argv.includes("--dry-run");
+
+/** Chunks whose extraction call never returned usable JSON (429, 5xx, timeout).
+ *  Tracked so "the corpus yielded no rules" can be told apart from "the model
+ *  was never successfully reached" — those look identical in the totals. */
+let extractFailures = 0;
 
 const RSI = ["oversold", "neutral", "overbought"];
 const MACD = ["bullish_cross", "bearish_cross", "none"];
@@ -173,7 +199,18 @@ async function extractRules(apiKey, chunk) {
       }),
     });
     if (!res.ok) {
+      // 404 means the model id itself is gone, not that this chunk failed.
+      // Warning and continuing would compile an empty pack and exit 0, which
+      // reads identically to "the corpus had nothing to say" — the failure
+      // mode that hid a retired default model behind `rules_extracted=0`.
+      if (res.status === 404) {
+        throw new Error(
+          `model "${COMPILE_MODEL}" returned 404 — it has probably been retired. ` +
+            `Refresh the chain (node scripts/refresh-free-models.mjs) or pass COMPILE_MODEL=<id>.`,
+        );
+      }
       console.warn(`  extract failed [${res.status}] for ${chunk.chunkId}`);
+      extractFailures++;
       return [];
     }
     const data = await res.json();
@@ -184,7 +221,11 @@ async function extractRules(apiKey, chunk) {
     const parsed = JSON.parse(raw.slice(start, end + 1));
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
+    // A dead model id is fatal for the whole run, not survivable per-chunk;
+    // let it out past the per-chunk tolerance so the process exits non-zero.
+    if (err instanceof Error && err.message.includes("returned 404")) throw err;
     console.warn(`  extract error for ${chunk.chunkId}: ${err.message}`);
+    extractFailures++;
     return [];
   } finally {
     clearTimeout(timer);
@@ -251,10 +292,20 @@ async function main() {
     console.error("OPENROUTER_API_KEY is required (or pass --dry-run).");
     process.exit(1);
   }
+  if (!DRY_RUN && !COMPILE_MODEL) {
+    console.error(
+      "No extraction model: COMPILE_MODEL is unset and FREE_MODEL_CHAIN could not be " +
+        "read from lib/openrouter.ts. Pass COMPILE_MODEL=<id> explicitly.",
+    );
+    process.exit(1);
+  }
 
   const sql = neon(dbUrl);
   const version = corpusVersion();
-  console.log(`Compiling grounding pack — corpus_version=${version}, taxonomy=${TAXONOMY_VERSION}`);
+  console.log(
+    `Compiling grounding pack — corpus_version=${version}, taxonomy=${TAXONOMY_VERSION}` +
+      (DRY_RUN ? " (dry run, no extraction)" : `, model=${COMPILE_MODEL}`),
+  );
 
   const files = await walkMarkdown(CORPUS_DIR);
   console.log(`Found ${files.length} corpus file(s) under ${relative(repoRoot, CORPUS_DIR)}/`);
@@ -338,8 +389,22 @@ async function main() {
   }
 
   console.log(
-    `\nDone. chunks=${totalChunks} rules_extracted=${totalRules} rejected(unverbatim/invalid)=${totalRejected} pack_rows=${totalRows}${DRY_RUN ? " (dry-run, nothing written)" : ""}`,
+    `\nDone. chunks=${totalChunks} rules_extracted=${totalRules} ` +
+      `rejected(unverbatim/invalid)=${totalRejected} pack_rows=${totalRows}` +
+      (extractFailures ? ` extract_failures=${extractFailures}` : "") +
+      (DRY_RUN ? " (dry-run, nothing written)" : ""),
   );
+
+  // Every chunk failed to reach the model: the pack is empty because nothing
+  // was asked, not because the corpus had nothing to say. Exiting 0 here is
+  // what let a retired model id and an exhausted daily quota both read as a
+  // successful no-op run.
+  if (!DRY_RUN && totalChunks > 0 && extractFailures === totalChunks) {
+    throw new Error(
+      `all ${totalChunks} extraction call(s) failed — no rule could be compiled. ` +
+        `Check the model id and the OpenRouter quota; the pack was left unchanged.`,
+    );
+  }
 }
 
 main().catch((err) => {
