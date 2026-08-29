@@ -1,117 +1,166 @@
-# Session Handoff
+# Session handoff — auth/cookies plan, Phases 1.3 + 6
 
-Running record. Newest section first. Written per the `end-session` skill —
-each entry is what the *next* session needs to start oriented.
+**Date:** 2026-08-29
+**Branch:** `feat/auth-cookies-phase-1-3-6` (2 commits, ahead of `origin/main` by 2, **not pushed**, **no PR** — per instruction: no PR until every unblocked phase is done)
+**Plan:** `docs/todo-auth-cookies-tracking.md` (exists only on the PR #77 branch, not on `main` yet)
 
 ---
 
-## 2026-08-18 — Playwright e2e suite shipped; health banner unpushed
+## What is DONE on this branch (verified: tsc + eslint + `next build` + 372 unit tests, 23 new)
 
-### State right now
+### Phase 1.3 — close the authorization gaps (`693e36b`)
+- **`lib/http-auth.ts`** — NEW. `timingSafeEqualStr()` + `bearerTokenMatches()`.
+  Pure-JS constant-time compare, **no `node:crypto`** — `middleware.ts` imports it
+  and runs on the Edge runtime where `node:crypto` is unavailable. (First attempt
+  used `node:crypto.timingSafeEqual`; `next build` printed an Ecmascript error for
+  the Edge Middleware bundle. Rewrote to XOR-accumulate loop. Don't reintroduce
+  `node:crypto` here.)
+- **`middleware.ts`** — `isProtectedApiRoute` matcher expanded from 3 prefixes to
+  23; every per-user route now edge-guarded as defense-in-depth. `council/{public,
+  sample}` explicitly excluded via `isPublicCouncilRoute`. `PORTAL_PUSH_SECRET`
+  digest carve-out now uses `bearerTokenMatches`. Webhooks deliberately NOT in the
+  matcher (signature is the auth).
+- **10 internal-secret route handlers** migrated off `===`/`!==` on the
+  `Authorization` header → `bearerTokenMatches()`:
+  `pipeline/hydrate-universe`, `pipeline/precompute-ai`,
+  `signals/{drain,live,refresh,digest,top}`, `launch/remind`,
+  `retention/{digest-email,trial-nudge}`.
+- **`docs/API-ROUTE-AUTH.md`** — NEW. Full route classification table
+  (public / auth-required / internal-secret / webhook-signed). Keep in sync with
+  the matcher.
+- **`lib/env.ts`** — added `LAUNCH_REMIND_SECRET` (was referenced, never declared).
 
-On branch **`fix/postbugmerge-health-banner`**, one commit ahead
-(`4b119fa`), **not pushed, no PR open**. PR #64 is merged into `main`
-(`64f4cee`), which shipped the whole Playwright suite. 21 uncommitted files
-in the working tree, but **all of them are pre-existing untracked docs** that
-have been deliberately excluded from every commit this session (see "Traps"
-below) — plus one stray `docs/clerk-todos.md` typo. Nothing half-applied.
+### Phase 6 remainder — data-subject rights (`1c88dc0`)
+- **`app/api/privacy/rectify/route.ts`** — NEW. GDPR Art. 16. Logs a structured
+  correction request; does not self-mutate. 202 + statutory deadline. Rate-limited
+  5/hr/user.
+- **`lib/privacy-requests-db.ts`** + **`privacy_requests` table** (appended at END
+  of `lib/db/schema.sql`) — statutory-clock ledger: one append-only row per DSAR
+  (export/delete/rectify) with `received_at` + `due_at` (received + 30d). Fail-open
+  writes. Deliberately outside the erasure cascade.
+- **`lib/rate-limit.ts`** — NEW. Dependency-free per-instance sliding-window
+  limiter. `__resetRateLimitState()` for tests.
 
-### Done this session
+---
 
-- **PR #64 merged** (`64f4cee`) — Playwright suite: 34 tests across
-  `preflight` / `preflight-billing` / `health` / `ci` / `auth-setup` /
-  `frontend`, a sharded CI workflow with keyless GCP auth, and a browser-tier
-  merge into the nulogdash dashboard.
-- **`auth` job green in CI** — took 8 distinct fixes across ~8 runner
-  attempts. Full chain in
-  `docs/wiki-portal/incident-2026-08-17-e2e-ci-cascade.md`.
-- **CodeRabbit's 18 findings addressed** (`7db2cc1`), then its 3 follow-up
-  findings addressed in `4b119fa` (unpushed).
-- **Global tooling added**: `secrets-sync` skill +
-  `~/.claude/scripts/sync-secrets.sh`, and this session's `end-session` skill
-  + `SessionEnd` hook.
+## BLOCKED — cannot proceed this session
 
-### Remaining, ranked
+### Phases 1.1, 1.2 — Clerk Production instance + session posture
+Needs Clerk **Dashboard** access + DNS for `clerk.financial.nuwrrrld.com`. Pure
+config, zero code. Ask the user to grant Dashboard access or do it themselves.
 
-1. **Push `4b119fa` and open a PR.** It's finished work sitting only on this
-   machine — the exact failure mode `wiki-guard` exists to catch. It resolves
-   `known-bugs.md` items 17/18/19, including building the real
-   `HealthBanner.tsx` that item 19 said didn't exist.
-   → `git push -u origin fix/postbugmerge-health-banner && gh pr create`
-2. **Give the E2E test user a Pro entitlement.** The single largest blocker
-   on the `frontend` tier — 6+ tests currently redirect to `/pricing` before
-   asserting anything. Set `publicMetadata.subscription_status` to `'pro'` on
-   `E2E_CLERK_TEST_EMAIL` via the Clerk dashboard or Backend API.
-   (`known-bugs.md` item 1.)
-3. **Provision the GCP WIF pool.** All four `e2e` shards fail immediately at
-   "Authenticate to GCP (keyless)" because `GCP_WIF_PROVIDER` is empty.
-   → `bash scripts/sync-e2e-secrets.sh --provision-wif`, then grant the
-   printed service account only `roles/run.invoker` on `gcp3-backend`.
-4. **Fill the three unset secrets** — `STRIPE_WEBHOOK_SECRET`,
-   `STRIPE_PRICE_ANNUAL`, `PORTAL_PUSH_SECRET`. Where to get each:
-   `docs/stripe-todo.md`. Then re-run `bash scripts/sync-e2e-secrets.sh`.
-5. **Decide on the pre-existing untracked docs.** 13 files (audit HTMLs,
-   `Recent Docs/`, etc.) predating this session, classified in
-   `docs/docs-inventory.md` — commit, archive, or gitignore them. Three are
-   personal notes unrelated to this repo entirely.
+### Phases 3, 4, 5, 7 — analytics / ads / profiles / policy rewrite
+**Hard-blocked on PR #77** (`feat/consent-cookies-tracking`), which ships
+`lib/shared/consent.ts` + `lib/consent.ts` that all of Phase 3–4 code imports.
+Attempted a first-party-only slice this session (attribution cookie + a
+consent-gated no-vendor `track()` sink + event-taxonomy doc); **backed it out**
+because it `import`s `@/lib/shared/consent`, which does not exist on `main`. It
+cannot land without either merging #77 first or duplicating its consent module
+(which would then conflict).
 
-### Blocked / needs a human
+Also: Phases 3.1 / 4.2 need a signed vendor DPA + ad-account verification per the
+plan's own ordering — not just a code task.
 
-| Item | Needs |
-|---|---|
-| Pro entitlement (#2) | Clerk dashboard access |
-| GCP WIF (#3) | `gcloud` auth with IAM permissions on the target project |
-| Stripe secrets (#4) | Stripe dashboard access |
-| `shared-drift-check` CI failure | A decision spanning two repos — `lib/subscription.ts` drifted from `gcp3-mobile`; predates this branch |
-| `Cloudflare Pages` CI failure | One Cloudflare API call to disable the integration (`docs/cloudflare-pages-assessment.md`) |
+**PR #77 status as of handoff:** OPEN, `mergeable` but CI RED — `test`,
+`integration`, and all 4 `e2e` jobs failing. Not merging imminently. Not our PR.
 
-### Traps and dead ends
+---
 
-Read this before repeating any of them.
+## RESUME PROCEDURE (run `scripts/resume-auth-phases.sh` or do this by hand)
 
-- **`gh secret set --body -` silently stores a one-character secret.**
-  `--body` takes a literal string; `gh` reads stdin only when `--body` is
-  *omitted*. Every secret synced this way was one byte, and `gh` reported
-  success. `gh secret list` cannot detect it — it proves a name exists, never
-  that the value is intact. Cost several debugging cycles chasing a "valid"
-  Clerk key that failed only in CI. Fixed in the shared script.
-- **A GitHub timeout kill reports as `cancelled`,** indistinguishable from a
-  human cancel or a `cancel-in-progress` supersede. Misread it twice. Use
-  step-level `timeout-minutes` so the failing step names itself.
-- **`getByRole("alert")` matches Next.js's own `#__next-route-announcer__`** —
-  an always-empty, visually-hidden element on every page. It made a broken
-  assertion look like a passing one.
-- **`route.fulfill()` cannot simulate a stalled stream.** It always completes
-  the response. To actually stall, the route handler must never call
-  `fulfill`/`continue`/`abort`.
-- **`??` doesn't fall back on `""`.** `NULOGDASH_BASE_URL` ships *empty* in
-  `.env.example`, so `process.env.X ?? default` yielded `""` and every
-  `page.goto()` failed. Use `||` for env vars that can be empty-not-unset.
-- **Don't `git add docs/`.** It sweeps in 13 pre-existing untracked files and
-  trips the secrets hook on a `whsec_placeholder_*` string. Stage explicit
-  paths.
-- **eslint doesn't read `.gitignore`** — it linted Playwright's generated
-  trace-viewer bundle into 3030 vendor errors until the dirs were added to
-  `eslint.config.mjs`'s `ignores`.
+### Step 0 — is #77 merged yet?
+```
+git fetch origin
+git branch -r --contains origin/feat/consent-cookies-tracking | grep -q origin/main && echo MERGED || echo "still blocked"
+```
 
-### Verification state
+### Step 1 — if NOT merged: only thing to do is push the branch (optional) and stop
+```
+git push -u origin feat/auth-cookies-phase-1-3-6   # branch only, DO NOT open a PR
+```
+Then wait. Nothing else is unblocked.
 
-| Claim | Evidence |
-|---|---|
-| PR #64 merged | `64f4cee` on `main`, confirmed via `gh pr view` |
-| `auth` green in CI | Run `32089144456`, 5 tests / 23.1s |
-| `test` (lint + 218 unit + 88 component) green | Passed on the merged commit |
-| `4b119fa` correct | **Committed but never pushed, never CI-verified** — local only |
-| `frontend` tier working | **No.** Blocked on entitlement (#2); never fully run |
-| `e2e` shards working | **No.** Never run at all — blocked on WIF (#3) |
-| 6 red CI checks at merge | All traced to items 12/13/14; none from PR #64's diff |
+### Step 2 — once #77 IS merged: rebase this branch onto main
+```
+git fetch origin main
+git checkout feat/auth-cookies-phase-1-3-6
+git rebase origin/main
+```
+**Expected conflict: `lib/db/schema.sql`** — both branches append blocks at the
+end. Resolution: keep BOTH #77's `consent_records` / `legal_consent_events`
+blocks AND this branch's `privacy_requests` block, in that order. Pure
+concatenation, no logic overlap.
 
-Merged with those six red deliberately — none were within PR #64's scope to
-fix.
+No other file conflicts expected (middleware.ts, the 10 route handlers, and all
+new files are untouched by #77).
 
-### See also
+### Step 3 — post-rebase wiring (now that lib/consent* exists)
+1. **`app/api/privacy/export/route.ts`** (from #77) — it has a
+   `TODO(privacy): add a per-user rate limit` comment. Wire in:
+   ```ts
+   import { rateLimit } from "@/lib/rate-limit";
+   import { logPrivacyRequest } from "@/lib/privacy-requests-db";
+   // in GET, after auth:
+   const gate = rateLimit(`privacy:export:${userId}`, 3, 60*60_000);
+   if (!gate.ok) return NextResponse.json({error:"rate_limited"},{status:429});
+   await logPrivacyRequest({ userId, kind: "export", ip, userAgent });
+   ```
+2. **`app/api/privacy/delete/route.ts`** (from #77) — add
+   `await logPrivacyRequest({ userId, kind: "delete", ... })` on both the dry-run
+   and the confirmed-execute paths.
+3. **`app/api/privacy/profile/route.ts`** (from #77) — surface the user's own
+   request history: `import { listPrivacyRequests }` and add it to the payload.
 
-- `docs/known-bugs.md` — full 19-item inventory
-- `docs/e2e-next-steps.md` — the e2e-specific checklist
-- `docs/wiki-portal/incident-2026-08-17-e2e-ci-cascade.md` — the 8-cause chain
-- `docs/wiki-portal/entity-playwright-e2e.md` — durable wiki record
+### Step 4 — re-attempt Phases 3.2 / 4.1 (first-party, no vendor)
+The backed-out files are NOT saved anywhere — rewrite from the plan + the
+taxonomy design below. All of this is safe once `lib/shared/consent.ts` exists:
+- `lib/shared/attribution.ts` — `nu_attrib` first-party cookie model (UTM +
+  gclid/fbclid + referrer), `analytics` category, mobile-mirrorable. 90-day,
+  first-touch-only.
+- `lib/attribution-db.ts` + `user_attribution` table (`user_id` PK, `first_touch`
+  jsonb, `last_touch` jsonb) — append at end of schema.sql.
+- `app/api/attribution/route.ts` — consent-gated (`resolveConsent(readConsentFromRequest(req), hdrs)`,
+  bail 204 if `!analytics`), sets the cookie, persists on authed calls.
+- `docs/analytics-event-taxonomy.md` + `lib/analytics.ts` — `track({userId, event,
+  props, consent})`, validates against `EVENT_SCHEMA`, no-op without
+  `consent.choices.analytics`, `deliver()` is an empty stub until a vendor + DPA
+  (Phase 3.1). Event list: signal_viewed, signal_shared, verdict_requested,
+  council_session_started, nuai_prompt_submitted, watchlist_item_added,
+  portfolio_health_run, backtest_viewed, paywall_hit, trial_started,
+  subscription_started, referral_code_copied, disclaimer_acknowledged. Forbidden
+  keys hard-rejected: holdings, positions, amount, portfolio_value, prompt,
+  response, email, name, ip.
+
+### Step 5 — check off the plan
+Edit `docs/todo-auth-cookies-tracking.md` (now on main via #77): tick every
+`[ ]` under **1.3** and the completed **Phase 6** items (export/profile/delete +
+rectify + rate-limit + statutory-clock). Note 1.1/1.2 still pending Dashboard.
+
+### Step 6 — migrate + ship ONE PR
+```
+node --env-file=.env.local scripts/db-migrate.mjs   # applies privacy_requests (+ user_attribution)
+npx tsc --noEmit && npx eslint . && npx vitest run --project unit && npx next build
+git push -u origin feat/auth-cookies-phase-1-3-6
+gh pr create --title "feat(auth): Phase 1.3 + 6 — timing-safe auth, middleware coverage, DSAR rights" --body "..."
+```
+
+### Step 7 — wiki ingest (required by ~/.claude rules on `gh pr create`)
+`docs/wiki-portal/` exists. Follow its `SCHEMA.md` "On Ingest": update/create
+`entity-*` / `concept-*` for the auth-middleware change + DSAR ledger, bump
+`index.md`, append one line to `log.md`. Also recompute
+`concept-mobile-web-parity.md` headline % + matrix per
+`~/.claude/rules/mobile-web-wiki-sync.md` (and mirror into
+`gcp3-mobile/docs/wiki-mobile/`).
+
+---
+
+## Gotchas
+- `.next/types/` goes stale between branches (references #77's routes). `rm -rf
+  .next/types` before every `tsc --noEmit`.
+- `scripts/db-migrate.mjs` reads ONLY `lib/db/schema.sql` — no multi-file
+  migrations. New tables MUST be appended there.
+- A stray local branch `docs/automation-logs` appeared mid-session (a hook
+  artifact) and briefly captured a commit. It's reset to `73396fd` now. Ignore /
+  delete it.
+- Live-DB migration was permission-blocked this session; DDL verified to parse
+  with the migrate splitter. It runs in `prebuild` on deploy regardless.
