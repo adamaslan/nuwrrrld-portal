@@ -51,6 +51,32 @@ function clean(value: string | null | undefined): string | null {
   return trimmed.slice(0, MAX_VALUE_LEN);
 }
 
+/**
+ * Take an untrusted value (a parsed cookie field), keep only `keys` whose value
+ * is a non-empty string, and run each through `clean`. Anything else — a number,
+ * an object, a missing key, a whitespace string — is dropped.
+ */
+function cleanKnownKeys<K extends string>(
+  raw: unknown,
+  keys: readonly K[],
+): Partial<Record<K, string>> {
+  const out: Partial<Record<K, string>> = {};
+  if (!raw || typeof raw !== "object") return out;
+  const src = raw as Record<string, unknown>;
+  for (const key of keys) {
+    const v = src[key];
+    if (typeof v !== "string") continue;
+    const c = clean(v);
+    if (c) out[key] = c;
+  }
+  return out;
+}
+
+/** True only for a string Date can parse to a real instant (covers ISO 8601). */
+function isValidTimestamp(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
 /** Drop a same-origin referrer — internal navigation is not acquisition. */
 export function normaliseReferrer(
   referrer: string | null | undefined,
@@ -110,22 +136,32 @@ export function buildTouch(
   };
 }
 
+/** Serialise a touch for the `nu_attrib` cookie value. Inverse of `parseTouch`. */
 export function serialiseTouch(touch: AttributionTouch): string {
   return JSON.stringify(touch);
 }
 
+/**
+ * Rebuild an AttributionTouch from a raw `nu_attrib` cookie string. The cookie
+ * is client-writable, so every field is treated as untrusted: `utm` / `click_ids`
+ * are filtered to the known keys with string values (via `cleanKnownKeys`), and a
+ * `ts` that is not a parseable timestamp falls back to the epoch. Returns null for
+ * missing input, invalid JSON, or a version mismatch.
+ */
 export function parseTouch(raw: string | null | undefined): AttributionTouch | null {
   if (!raw) return null;
   try {
-    const o = JSON.parse(raw) as Partial<AttributionTouch>;
-    if (!o || typeof o !== "object" || o.v !== ATTRIB_VERSION) return null;
+    const o = JSON.parse(raw) as unknown;
+    if (!o || typeof o !== "object") return null;
+    const rec = o as Record<string, unknown>;
+    if (rec.v !== ATTRIB_VERSION) return null;
     return {
       v: ATTRIB_VERSION,
-      utm: (o.utm ?? {}) as Partial<Record<UtmParam, string>>,
-      click_ids: (o.click_ids ?? {}) as Partial<Record<ClickIdParam, string>>,
-      referrer: typeof o.referrer === "string" ? o.referrer : null,
-      landing_path: typeof o.landing_path === "string" ? o.landing_path : null,
-      ts: typeof o.ts === "string" ? o.ts : new Date(0).toISOString(),
+      utm: cleanKnownKeys(rec.utm, UTM_PARAMS),
+      click_ids: cleanKnownKeys(rec.click_ids, CLICK_ID_PARAMS),
+      referrer: typeof rec.referrer === "string" ? rec.referrer : null,
+      landing_path: typeof rec.landing_path === "string" ? rec.landing_path : null,
+      ts: isValidTimestamp(rec.ts) ? rec.ts : new Date(0).toISOString(),
     };
   } catch {
     return null;
