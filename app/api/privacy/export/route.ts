@@ -4,13 +4,21 @@
  * Each query is independent; failures degrade to empty/null with errors tracked.
  * Returns the payload with Content-Disposition attachment header.
  *
- * TODO(privacy): add a per-user rate limit (e.g. 3/hour) — deferred to the
- * analytics PR which introduces the limiter.
+ * Rate-limited to 3/hour per user: assembling this payload runs a query per
+ * user-keyed table, so it is the most expensive endpoint a signed-in caller can
+ * trigger at will. Every call is also appended to the DSAR ledger
+ * (lib/privacy-requests-db.ts) so the statutory response clock is provable.
  */
 
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
+import { logPrivacyRequest } from "@/lib/privacy-requests-db";
+
+const EXPORT_LIMIT = 3;
+const EXPORT_WINDOW_MS = 60 * 60_000;
 
 interface ExportPayload {
   generated_at: string;
@@ -48,6 +56,24 @@ export async function GET() {
   if (!userId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
+
+  const gate = rateLimit(`privacy:export:${userId}`, EXPORT_LIMIT, EXPORT_WINDOW_MS);
+  if (!gate.ok) {
+    const retryAfter = Math.ceil((gate.resetAt - Date.now()) / 1000);
+    return NextResponse.json(
+      { error: "rate_limited", retry_after_seconds: retryAfter },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
+  const hdrs = await headers();
+  await logPrivacyRequest({
+    userId,
+    kind: "export",
+    status: "fulfilled", // served synchronously in this response
+    ip: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: hdrs.get("user-agent"),
+  });
 
   const user = await currentUser();
 

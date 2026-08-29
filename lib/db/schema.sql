@@ -462,3 +462,19 @@ CREATE INDEX IF NOT EXISTS privacy_requests_user_idx
 CREATE INDEX IF NOT EXISTS privacy_requests_open_idx
   ON privacy_requests (due_at)
   WHERE status IN ('received', 'in_progress');
+
+-- ── First-party acquisition attribution ───────────────────────────────────
+-- Phase 4.1 of docs/todo-auth-cookies-tracking.md. One row per user, written
+-- once at first authenticated load. First-touch is recovered from the
+-- `nu_attrib` cookie set on the anonymous landing visit; last-touch is the
+-- visit during which they signed in. Entirely first-party (UTM params, gclid/
+-- fbclid, referrer) — no third-party pixel — so it sits under `analytics`
+-- consent, never `marketing`. Lets CAC be computed per channel with nothing
+-- shared with an ad platform.
+
+CREATE TABLE IF NOT EXISTS user_attribution (
+  user_id      text        PRIMARY KEY,       -- Clerk userId; one row per user
+  first_touch  jsonb,                          -- serialized AttributionTouch
+  last_touch   jsonb,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
