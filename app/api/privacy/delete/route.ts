@@ -19,6 +19,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import sql from "@/lib/db";
+import { logPrivacyRequest } from "@/lib/privacy-requests-db";
 
 // Every table that stores rows keyed by Clerk userId. Keep this list in sync
 // with lib/db/schema.sql — a missed table is an incomplete erasure.
@@ -82,6 +83,17 @@ export async function POST(req: NextRequest) {
   if (!confirm) {
     const counts: Record<string, number> = {};
     for (const t of USER_TABLES) counts[t] = await countRows(t, userId);
+    // Ledger the request at first ask, not at execution — the statutory clock
+    // starts when the user asks, even if they never confirm.
+    const hdrs0 = await headers();
+    await logPrivacyRequest({
+      userId,
+      kind: "delete",
+      status: "received",
+      details: { stage: "dry_run", will_delete: counts },
+      ip: hdrs0.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      userAgent: hdrs0.get("user-agent"),
+    });
     return NextResponse.json({
       confirm_required: true,
       token: tokenFor(userId, Math.floor(Date.now() / TOKEN_WINDOW_MS)),
@@ -102,6 +114,18 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  // Ledger BEFORE the cascade. privacy_requests is deliberately not in
+  // USER_TABLES, so this row survives the erasure it records.
+  const hdrs1 = await headers();
+  await logPrivacyRequest({
+    userId,
+    kind: "delete",
+    status: "fulfilled",
+    details: { stage: "executed" },
+    ip: hdrs1.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: hdrs1.get("user-agent"),
+  });
 
   const deleted: Record<string, number | string> = {};
   for (const t of USER_TABLES) {

@@ -7,6 +7,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
+import { listPrivacyRequests } from "@/lib/privacy-requests-db";
 
 interface TrialInfo {
   enabled?: boolean;
@@ -33,6 +34,8 @@ interface ProfilePayload {
   engagement: EngagementMetrics;
   interest_tags: string[];
   consent: Record<string, unknown> | null;
+  /** The user's own DSAR history — GDPR Art. 15 transparency. */
+  privacy_requests: unknown[];
   _errors: string[];
 }
 
@@ -60,6 +63,7 @@ export async function GET() {
     },
     interest_tags: [],
     consent: null,
+    privacy_requests: [],
     _errors: [],
   };
 
@@ -142,6 +146,8 @@ export async function GET() {
       `consent: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+
+  payload.privacy_requests = await listPrivacyRequests(userId);
 
   return NextResponse.json(payload);
 }
