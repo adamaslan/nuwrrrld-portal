@@ -433,3 +433,32 @@ CREATE TABLE IF NOT EXISTS legal_consent_events (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS legal_consent_events_uniq_idx
   ON legal_consent_events (user_id, doc, doc_version);
+-- ── Data-subject request ledger (statutory clock) ──────────────────────────
+-- Phase 6 of docs/todo-auth-cookies-tracking.md. Every DSAR the privacy
+-- endpoints handle (access/export, erasure, rectification) writes one row here
+-- at receipt. Purpose: prove the statutory response clock — GDPR Art. 12(3)
+-- is 30 days, CCPA is 45 days — was met, by having `received_at` and `due_at`
+-- on record. Append-mostly: `status` and `resolved_at` are the only columns
+-- ever updated, when a request that needs follow-up (rectification) completes.
+-- Kept intentionally outside the erasure cascade in app/api/privacy/delete —
+-- the ledger of "this user asked to be deleted on DATE" must survive the
+-- deletion it records (it holds no personal data beyond the Clerk userId).
+
+CREATE TABLE IF NOT EXISTS privacy_requests (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      text        NOT NULL,          -- Clerk userId
+  kind         text        NOT NULL CHECK (kind IN ('export', 'delete', 'rectify')),
+  status       text        NOT NULL DEFAULT 'received'
+                 CHECK (status IN ('received', 'fulfilled', 'in_progress', 'rejected')),
+  details      jsonb,                          -- e.g. rectify: which field, requested value
+  received_at  timestamptz NOT NULL DEFAULT now(),
+  due_at       timestamptz NOT NULL,           -- received_at + statutory window
+  resolved_at  timestamptz,
+  ip           inet,
+  user_agent   text
+);
+CREATE INDEX IF NOT EXISTS privacy_requests_user_idx
+  ON privacy_requests (user_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS privacy_requests_open_idx
+  ON privacy_requests (due_at)
+  WHERE status IN ('received', 'in_progress');
