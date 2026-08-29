@@ -80,4 +80,21 @@ describe("serialiseTouch / parseTouch", () => {
     expect(parseTouch(null)).toBeNull();
     expect(parseTouch("")).toBeNull();
   });
+  it("drops non-string utm / click-id values from a tampered cookie", () => {
+    const raw = JSON.stringify({
+      v: "1.0",
+      utm: { utm_source: { $ne: null }, utm_medium: 42, utm_campaign: "sale" },
+      click_ids: { gclid: ["x"], fbclid: "abc" },
+      referrer: null,
+      landing_path: null,
+      ts: new Date().toISOString(),
+    });
+    const parsed = parseTouch(raw)!;
+    expect(parsed.utm).toEqual({ utm_campaign: "sale" });
+    expect(parsed.click_ids).toEqual({ fbclid: "abc" });
+  });
+  it("falls back to the epoch for a non-timestamp ts", () => {
+    const raw = JSON.stringify({ v: "1.0", utm: {}, click_ids: {}, ts: "whenever" });
+    expect(parseTouch(raw)!.ts).toBe(new Date(0).toISOString());
+  });
 });
