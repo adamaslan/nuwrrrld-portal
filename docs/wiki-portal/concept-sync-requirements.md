@@ -92,11 +92,27 @@ backend's own `days` param), scoping to `sections=brief,ai_summary,sentiment`
 would likely cut this well below 16s with no behavior change. Worth a quick
 profiling pass before assuming it's intentional.
 
+### Cookie consent / privacy rights — portal has, mobile *must* get (PR #77)
+
+New with portal PR #77 and different in kind from the rows above: this is not an
+optional port, it is a **compliance obligation that binds both surfaces**. The
+mobile app runs `analytics.ts` + `sentry.ts` today with no consent gate at all;
+GDPR (opt-in) and CPRA (opt-out + GPC + "Do Not Sell or Share") apply to it
+exactly as they apply to the portal.
+
+| Piece | To sync, mobile needs… |
+|-------|------------------------|
+| **Consent model** | Adopt `lib/shared/consent.ts` verbatim (the four categories, `buildConsent`/`acceptAll`/`rejectAll`, `applyDoNotTrack`, `parseConsent`). Portable today — the only platform seam is where the choice is persisted, and `lib/shared/prefs.ts` (SecureStore) already solves that. Add to the drift gate on adoption. |
+| **Legal consent** | Adopt `lib/shared/legal-consent.ts`; add the required unticked ToS/Privacy checkbox to the mobile sign-up flow. A consent event recorded on either surface should satisfy both — the `legal_consent_events` table is already keyed by Clerk `user_id`, not by surface. |
+| **Consent capture UI** | A React Native equivalent of `ConsentBanner` + `ConsentPreferences` (first-run banner, per-category screen, a "Cookie preferences" entry in settings). Honor the OS-level tracking signal (iOS ATT / `expo-tracking-transparency`) as the mobile analogue of GPC — same "browser/OS privacy signal wins" rule. |
+| **Analytics/Sentry gating** | Wrap every `analytics.ts` / `sentry.ts` init behind `isAllowed(record, "analytics")`. This is the concrete action item that makes the existing "Analytics + Sentry" mobile-only row below safe to *keep* mobile-only. |
+| **Privacy-rights endpoints** | `/api/privacy/export|profile|delete` are Clerk-`user_id`-keyed and surface-agnostic — mobile can call the portal's endpoints directly rather than re-implementing them. Deletion cascades across shared tables regardless of which surface triggered it. |
+
 ### Mobile has, portal lacks
 | Feature | To sync portal needs… |
 |---------|----------------------|
 | **Onboarding** (`OnboardingScreen`) | A first-run/onboarding flow in the portal, or a decision that web onboarding is handled by the marketing/landing site instead — PR #42 substantially strengthened that landing site (plain-language copy, brand-aligned tokens, a fixed market-data bug, scroll/parallax motion), making "the landing page is portal's onboarding" a more credible answer than before, though still undecided. |
-| **Analytics + Sentry** (`analytics.ts`, `sentry.ts`) | Portal has no client analytics or error reporting module found. Add equivalents (or wire Vercel Analytics + a Sentry Next.js SDK) for observability parity. |
+| **Analytics + Sentry** (`analytics.ts`, `sentry.ts`) | Portal has no client analytics or error reporting module found. Add equivalents (or wire Vercel Analytics + a Sentry Next.js SDK) for observability parity — **but gated behind `lib/shared/consent.ts`'s `analytics` category from the start** (PR #77), so the portal doesn't repeat mobile's un-gated tracking. This is Phase 3 of `docs/todo-auth-cookies-tracking.md`. |
 | **Schwab health** (`schwab-health.ts`) | A portal health check for the Schwab integration, if that integration is meant to surface on web. |
 
 ## 3. Converge — the AI Council
@@ -122,8 +138,9 @@ parity" is undefined and should not be counted for or against the sync %.
 3. ~~`digest.ts` + `signalCard.ts` de-drift~~ — **done, mobile PR #30 + portal PR #51 (2026-08-07)**. Resolved standing cross-wiki open issue (mobile #6).
 4. ~~Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.~~ — **done, mobile PR #33 + portal PR #52 (2026-08-08).** (An earlier mobile PR #31 attempting this went stale — its content had landed on `main` via other PRs by the time it was reviewed — and was closed in favor of #33, rebased clean.) Original `/sync-pr` batch closed out.
 5. ~~Adopt `lib/shared/signal-policy.ts` + `live-price.ts` before mobile reimplements them.~~ — **done, mobile PR #32 (2026-08-08).** Byte-identical, tracked by the drift gate. Neither is consumed by a mobile feature yet — that's still #6/#7 below.
-6. Record the AI Council convergence decision.
-7. Port observability (analytics/Sentry) to portal; port backtest to mobile (or decide against). Wire mobile up to consume `signal-policy.ts`/`live-price.ts` if the real-time signal tier is ever ported.
+6. **Adopt `lib/shared/consent.ts` + `lib/shared/legal-consent.ts` into `gcp3-mobile` and gate `analytics.ts`/`sentry.ts` behind the `analytics` category (PR #77).** Highest-ROI of the open items because it is a compliance obligation, not a nice-to-have, and the modules are portable today (only the prefs storage seam differs). Add both to the drift gate on adoption.
+7. Record the AI Council convergence decision.
+8. Port observability (analytics/Sentry) to portal — consent-gated from the start (see #6); port backtest to mobile (or decide against). Wire mobile up to consume `signal-policy.ts`/`live-price.ts` if the real-time signal tier is ever ported.
 
 ## Where it appears
 

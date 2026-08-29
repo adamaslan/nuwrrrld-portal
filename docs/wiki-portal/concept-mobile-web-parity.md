@@ -147,16 +147,27 @@ agree in intent but not in code.
 > ℹ️ **Portal PR #75 (2026-08-19) assessed — portal-only AI infrastructure, headline unchanged at ~66%.** Replaces five retired `SEAT_MODELS` ids in `lib/openrouter.ts` and teaches `scripts/refresh-free-models.mjs` to audit that list weekly ([[entity-openrouter-client]] failure #5, now resolved). `lib/openrouter.ts` is portal-only — mobile's council talks to gcp3 rather than OpenRouter directly — so there is nothing to port and no `lib/shared/` module is touched. Neither denominator moves. The transferable part is the *failure mode*, not the code: a graceful-degradation fix (a dead primary falling through to a fallback chain) made a fully-rotted config invisible, because a degraded seat answers exactly like a healthy one. Any surface with a fallback chain should expect that trade.
 
 
-## Headline: ~66% synced (2026-08-08, after mobile PR #32 + mobile PR #33 + portal PR #52 — signal-policy.ts/live-price.ts adopted, drift-gate CI on both repos)
+> ⚠️ **Portal PR #77 (2026-08-29) assessed — a new cross-surface *obligation* domain lands web-only, and two more portal-only `lib/shared/` modules. Headline drops to ~63%.** Adds cookie/tracking consent infrastructure (`ConsentBanner` + `ConsentPreferences` mounted in the root layout, the `nu_consent` first-party cookie via `POST /api/consent`, `consent_records` + `legal_consent_events` tables), an express ToS/Privacy checkbox gating Clerk `<SignUp/>` (`LegalConsentGate` → `/api/legal-consent`), and the data-subject-rights endpoints the privacy policy already promises (`/api/privacy/export|profile|delete`, the last a two-step HMAC-token confirm gate).
+>
+> Two things move the number. First, **`lib/shared/consent.ts` and `lib/shared/legal-consent.ts` are new** — pure, deliberately written to be mirrored in `gcp3-mobile`, but not yet ported. Portal is now at **15** modules under `lib/shared/` against mobile's **5**; same standing-drift-invitation shape as `signal-policy.ts`/`live-price.ts` before mobile PR #32, and the same remedy applies ("claim the module before mobile grows its own copy" — [[concept-sync-requirements]]). Unlike `universe-policy.ts` or `holdfold-map.ts`, these two *are* portable today: consent has no backend or schema dependency mobile lacks, only a storage seam (`lib/shared/prefs.ts` / expo-secure-store) already solved elsewhere in this matrix.
+>
+> Second, consent capture is a **genuine cross-surface obligation** — GDPR/CPRA apply to the mobile app too — so it enters the feature-domain denominator as a real gap, not a portal-only extension like Backtest or the public council demo. Mobile has `analytics.ts` + `sentry.ts` today (tracking with *no* consent gate); this PR makes the portal the only surface that asks. New matrix row below, ⬅️ portal-only but flagged as a required port, not an optional one.
+
+## Headline: ~63% synced (2026-08-29, after portal PR #77 — consent domain lands web-only, +2 portal-only `lib/shared/` modules)
 
 Two different denominators, deliberately kept separate:
 
-- **Feature-domain parity ≈ 82%** — 9 of 11 shared product domains exist and
-  work on both surfaces; only the AI Council is architecturally divergent, and
-  one domain (Nu AI) has a drifted implementation (Signals/Digest moved to
-  Synced this round). Unchanged by PR #40 (which added depth, not a new shared
-  domain).
-- **Single-source (code-identical) parity ≈ 44%** (was ~41%) — mobile PR #29
+- **Feature-domain parity ≈ 76%** (was ~82%) — 9 of 12 shared product domains
+  exist and work on both surfaces. PR #77 adds a 12th, **Cookie consent /
+  privacy rights**, a real cross-surface obligation (GDPR/CPRA bind the mobile
+  app too) that today exists on the portal only — counted as a gap, not a
+  portal-only bonus. The AI Council is still architecturally divergent; Nu AI is
+  still drifted.
+- **Single-source (code-identical) parity ≈ 40%** (was ~44%) — no module was
+  de-drifted or adopted this round, and PR #77 adds two more portal-only files
+  under `lib/shared/` (`consent.ts`, `legal-consent.ts`), so the denominator
+  grows while the numerator holds; portal now carries 15 `lib/shared/` modules
+  to mobile's 5. Prior progress unchanged: mobile PR #29
   ported `parseSubscriptionMetadata()`; portal PR #50 reconciled
   `signalFilters.ts` and confirmed `prefs.ts`'s seam; mobile PR #30 + portal
   PR #51 de-drifted `digest.ts`/`signalCard.ts` (open-issue #6), including a
@@ -171,7 +182,14 @@ Two different denominators, deliberately kept separate:
   as-is since mobile's Hold/Fold client targets a different backend with an
   incompatible verdict shape.
 
-The blended **~66%** reflects the four completed items of the original
+The blended **~63%** (down from ~66%) reflects the earlier de-drift batch
+progress, minus PR #77's two effects: a new required cross-surface domain that
+exists on one surface, and two more unadopted `lib/shared/` modules. The blended
+number sat at ~66% from 2026-08-08 through PR #75 (a run of portal-only infra
+PRs that moved neither denominator); PR #77 is the first since then to move it,
+downward, because it is feature work rather than infra.
+
+The historical ~66% reflected the four completed items of the original
 `/sync-pr` de-drift batch (see `docs/sync-pr-large-scale-run.md`) plus a fifth,
 follow-on item — adopting `signal-policy.ts`/`live-price.ts` — done once the
 drift gate made "adopt before it drifts" enforceable. The drift-detection CI
@@ -203,6 +221,7 @@ between the two denominators.
 | **Push** | `pushNotifications.ts` | `/api/push` | none | 🟡 Present both, unshared |
 | **Referral / share** | `shareSheet.ts` | `/api/referral`, `dashboard/share` | none | 🟡 Present both, unshared |
 | **AI Council** | `clients/council.ts` composer → ai-text RAG backend | 6-seat OpenRouter deliberation, server-side ([[entity-ai-council]]) | none | 🔴 Divergent architectures |
+| **Cookie consent / privacy rights** | — (mobile `analytics.ts`+`sentry.ts` run *without* a consent gate) | `ConsentBanner`+`ConsentPreferences` in root layout, `nu_consent` cookie, `/api/consent`, `/api/legal-consent`, `/api/privacy/{export,profile,delete}`, `consent_records`+`legal_consent_events` (PR #77) | `lib/shared/consent.ts`, `lib/shared/legal-consent.ts` — **portal-only so far, but portable now** (no backend/schema dep mobile lacks; only the prefs storage seam) | ⬅️ Portal-only — **required port**, not optional: GDPR/CPRA bind the mobile app too ([[concept-sync-requirements]] §new) |
 | **Public council demo + share cards** | — | `/api/council/public`, `/api/og/verdict/[ticker]`, `/verdict/[ticker]` (PR #43) | none (reuses `lib/openrouter.ts`) | ⬅️ Portal-only, unauthenticated growth surface |
 | **Backtest** | — | `/api/backtest`, `backtest.ts` ([[entity-backtest-engine]]) | — | ⬅️ Portal-only |
 | **Watchlist store** | (folded into `usePortfolio`) | `watchlist-store.ts` | — | ⬅️ Portal-only |
@@ -223,6 +242,15 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > [[concept-sync-requirements]]. `holdfold-map.ts` can't follow the same path —
 > mobile would first need to switch its Hold/Fold backend and verdict schema to
 > match portal's.
+
+> ⚠️ Contradiction: mobile ships `analytics.ts` + `sentry.ts` (client tracking)
+> with **no consent gate**, while the portal (PR #77) now blocks all
+> non-necessary tracking until the user opts in and honors GPC/DNT. The two
+> surfaces share one Clerk identity and one user base, so a user who opts out on
+> the web is still tracked on the app. Until mobile adopts `lib/shared/consent.ts`
+> and gates its analytics init (see [[concept-sync-requirements]] §"Cookie
+> consent / privacy rights", priority #6), the *product* is non-compliant even
+> though the portal in isolation is not.
 
 > ⚠️ Contradiction: the mobile wiki's
 > `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`

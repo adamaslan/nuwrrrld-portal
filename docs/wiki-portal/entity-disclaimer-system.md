@@ -73,6 +73,9 @@ recorded alongside the ack for audit purposes.
 
 - [[concept-cache-then-degrade]] — the general cache-vs-user-data failure-policy
   split this entity's asymmetric read/write policy is a variant of
+- [[entity-consent-system]] — PR #77 reused this entity's whole shape (hash/version
+  identity, Neon store with fail-open write / fail-closed read, gating client
+  component) for cookie + legal consent
 - [[entity-holdfold-cache]] — sibling Neon store, and where the new
   `analyze_cache` table (same session) lives
 - [[decision-second-analyze-backend]] — the live-analysis feature this entity
