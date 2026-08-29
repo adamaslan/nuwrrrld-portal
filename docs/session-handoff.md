@@ -66,6 +66,15 @@ plan's own ordering — not just a code task.
 
 ---
 
+## AUTO-RESUME
+
+A cloud routine `trig_01Fdk8meWiHp2yN8FmSLgWmu` ("Resume auth-cookies plan when
+consent PR merges") runs daily at 13:05 UTC. Each run executes
+`scripts/resume-auth-phases.sh`: if PR #77 is unmerged it exits clean and does
+nothing; once #77 merges it rebases this branch and completes Steps 3-7 below,
+opening the single PR. Manage at
+https://claude.ai/code/routines/trig_01Fdk8meWiHp2yN8FmSLgWmu
+
 ## RESUME PROCEDURE (run `scripts/resume-auth-phases.sh` or do this by hand)
 
 ### Step 0 — is #77 merged yet?
