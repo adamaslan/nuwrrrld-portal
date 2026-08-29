@@ -1,0 +1,241 @@
+/* Styles for ConsentBanner, ConsentPreferences, and CookiePreferencesLink.
+   Uses the same dark-theme design tokens as disclaimer.css for brand consistency. */
+
+/* ===== Banner (fixed bottom) ===== */
+
+.consent-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 16px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.consent-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.consent-banner-text {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 100%;
+}
+
+.consent-banner-text strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.consent-banner-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Buttons: accept, reject, manage — all equal visual weight.
+   Legal requirement: primary and secondary must have identical padding, font-size, height.
+   They differ only in fill (background, text color, border).
+   This ensures neither button is perceptually favored over the other. */
+
+.consent-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--neon-yellow);
+  color: #0d1018;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.consent-btn:hover {
+  opacity: 0.9;
+}
+
+.consent-btn-secondary {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.consent-btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--neon-yellow) 60%, var(--border));
+  background: color-mix(in srgb, var(--neon-yellow) 8%, transparent);
+}
+
+/* ===== Note variant (GPC/DNT honored) ===== */
+
+.consent-note {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: 0;
+}
+
+/* ===== Modal (overlay + dialog) ===== */
+
+.consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 101;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 85%, black);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.consent-modal {
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
+  background: var(--surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.consent-modal-header {
+  flex-shrink: 0;
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.consent-modal-header h2 {
+  color: var(--text);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+
+.consent-modal-header p {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 0;
+}
+
+.consent-modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 16px 24px;
+}
+
+.consent-category-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.consent-category-row:last-child {
+  border-bottom: none;
+}
+
+.consent-category-label {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.consent-category-desc {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.consent-toggle {
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  position: relative;
+  cursor: pointer;
+  accent-color: var(--neon-yellow);
+}
+
+/* Checkbox styling for broader browser support */
+input[type="checkbox"].consent-toggle {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  accent-color: var(--neon-yellow);
+}
+
+input[type="checkbox"].consent-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.consent-modal-footer {
+  flex-shrink: 0;
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.consent-footer-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-dim);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: 500;
+}
+
+.consent-footer-link:hover {
+  color: var(--text);
+}
+
+/* ===== Responsive: stack actions below text on small screens ===== */
+
+@media (max-width: 640px) {
+  .consent-banner-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .consent-banner-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .consent-btn,
+  .consent-btn-secondary {
+    width: 100%;
+  }
+
+  .consent-modal {
+    max-width: calc(100% - 32px);
+  }
+}

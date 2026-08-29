@@ -387,6 +387,53 @@ CREATE INDEX IF NOT EXISTS ticker_cards_state_idx
 CREATE INDEX IF NOT EXISTS ticker_cards_freshness_idx
   ON ticker_cards (bar_date DESC, computed_at DESC);
 
+-- ── Cookie / tracking consent (signed-in users) ─────────────────────────────
+-- Append-only, one row per consent CHANGE (grant, withdraw, version bump, an
+-- automatic GPC/DNT opt-out). Never UPDATE a row. Regulators ask for the
+-- history, not just the current value — getLatestConsentRecord() reads the
+-- newest row; the privacy export ships the whole trail.
+--
+-- The `nu_consent` first-party cookie is the fast path and the only store for
+-- signed-out visitors (lib/shared/consent.ts). This table makes a signed-in
+-- user's choice survive a cookie clear and follow the account to gcp3-mobile.
+-- `record` is the full serialized ConsentRecord (v, choices, source, ts) so a
+-- CONSENT_VERSION bump can be reconstructed exactly as it was stored.
+
+CREATE TABLE IF NOT EXISTS consent_records (
+  id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id         text        NOT NULL,      -- Clerk userId
+  consent_version text        NOT NULL,      -- CONSENT_VERSION at write time
+  source          text        NOT NULL,      -- banner_accept_all | banner_reject_all | preferences | gpc | dnt | default
+  preferences     boolean     NOT NULL,
+  analytics       boolean     NOT NULL,
+  marketing       boolean     NOT NULL,
+  record          jsonb       NOT NULL,      -- full serialized ConsentRecord
+  user_agent      text,
+  ip              inet,                       -- coarse; for the audit trail only
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS consent_records_user_idx
+  ON consent_records (user_id, created_at DESC);
+
+-- ── Express legal consent at sign-up (ToS + Privacy Policy) ─────────────────
+-- Phase 1.4 of docs/todo-auth-cookies-tracking.md. A bare boolean is not
+-- evidence of consent; a versioned, timestamped, per-document record is.
+-- One row per (user, document, version) accepted. `doc_version` lets a
+-- material policy change trigger a re-prompt without losing the prior record.
+
+CREATE TABLE IF NOT EXISTS legal_consent_events (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      text        NOT NULL,         -- Clerk userId
+  doc          text        NOT NULL CHECK (doc IN ('tos', 'privacy')),
+  doc_version  text        NOT NULL,
+  accepted_at  timestamptz NOT NULL DEFAULT now(),
+  ip           inet,
+  user_agent   text,
+  surface      text                           -- 'web' | 'mobile'
+);
+CREATE UNIQUE INDEX IF NOT EXISTS legal_consent_events_uniq_idx
+  ON legal_consent_events (user_id, doc, doc_version);
+
 -- ── Data-subject request ledger (statutory clock) ──────────────────────────
 -- Phase 6 of docs/todo-auth-cookies-tracking.md. Every DSAR the privacy
 -- endpoints handle (access/export, erasure, rectification) writes one row here

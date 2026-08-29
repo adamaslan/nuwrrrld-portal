@@ -598,3 +598,23 @@ Root cause fixed too: `refresh-free-models.mjs` had faithfully maintained `FREE_
 Failure #6 (single-vendor chain) is *not* closed and is now annotated to say so honestly. A dry run happens to rank `google/gemma-4-31b-it:free` into slot 3 today, giving incidental 2-vendor depth — but that is the catalog shifting, not a constraint, and the next refresh can undo it. The chain still has no vendor-diversity cap.
 
 Parity ℹ️: portal-only. `lib/openrouter.ts` has no mobile counterpart (mobile's council talks to gcp3), no `lib/shared/` module touched, neither denominator moves.
+
+## [2026-08-29] ingest | PR #77 feat(consent): cookie consent + sign-up legal consent + privacy rights | pages touched: 6
+
+Portal PR #77 implements Phases 2, 1.4 and 6 of `docs/todo-auth-cookies-tracking.md`.
+New [[entity-consent-system]]: `lib/shared/consent.ts` (four categories, `strictly_necessary`
+always on, rest denied-until-chosen; `buildConsent` as the single symmetric constructor;
+`applyDoNotTrack` for GPC/DNT), the `nu_consent` first-party cookie + append-only
+`consent_records` table (fail-open write / fail-closed read, same asymmetry as
+[[entity-disclaimer-system]]), an unticked ToS/Privacy checkbox gating Clerk `<SignUp/>`
+(`legal_consent_events`), and `/api/privacy/{export,profile,delete}` (delete is a two-step
+HMAC-token confirm gate; Clerk account deleted last, Stripe left for 7-year retention).
+
+Parity ⚠️: **headline ~66% → ~63%.** Feature-domain parity ~82% → ~76% — "Cookie consent /
+privacy rights" is a genuine cross-surface obligation (GDPR/CPRA bind the mobile app too)
+that exists web-only, so it counts as a gap. Single-source ~44% → ~40% — no de-drift this
+round and two new portal-only `lib/shared/` modules (`consent.ts`, `legal-consent.ts`),
+15 shared modules now to mobile's 5. Both are portable today (only the prefs storage seam
+differs) — [[concept-sync-requirements]] priority #6. New contradiction logged: mobile
+tracks with no consent gate while the portal now blocks tracking until opt-in, so the
+shared-identity product is non-compliant until mobile adopts the module.
