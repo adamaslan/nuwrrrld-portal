@@ -654,3 +654,10 @@ a policy rewrite, which §7 gates on qualified legal review.
 Parity: ~63% → ~62%. The data-subject-rights surface is web-only, so a user can
 exercise GDPR access/erasure on web but not on mobile against the same account —
 a second compliance asymmetry alongside the consent gap already logged.
+
+## [2026-08-29] ingest | resume-safe run complete | pages touched: 4
+
+No checkpoint was needed — context peaked near 41%, below the Tier 4 threshold,
+so the run completed in one window. HTML summary at
+docs/reports/resume-safe-2026-08-29.html (Artifact publish was permission-denied;
+local file only).

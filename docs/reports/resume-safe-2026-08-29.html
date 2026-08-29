@@ -1,0 +1,352 @@
+<title>Consent &amp; Rights Buildout</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground: #FBFAF8;
+    --raised: #FFFFFF;
+    --ink: #1C1A17;
+    --ink-soft: #55504A;
+    --ink-faint: #8A837A;
+    --rule: #E3DFD8;
+    --accent: #2F5D50;
+    --accent-soft: #EAF0ED;
+    --amber: #8A6A1F;
+    --amber-soft: #F7F0DE;
+    --plum: #6B5563;
+    --plum-soft: #F1ECEF;
+    --shadow: 0 1px 2px rgba(28, 26, 23, .05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #161513;
+      --raised: #1F1D1B;
+      --ink: #EDEAE4;
+      --ink-soft: #B0A99F;
+      --ink-faint: #7E766C;
+      --rule: #302D29;
+      --accent: #7FB8A5;
+      --accent-soft: #1D2C27;
+      --amber: #D0AC63;
+      --amber-soft: #2A2418;
+      --plum: #B294A6;
+      --plum-soft: #262024;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #161513;
+    --raised: #1F1D1B;
+    --ink: #EDEAE4;
+    --ink-soft: #B0A99F;
+    --ink-faint: #7E766C;
+    --rule: #302D29;
+    --accent: #7FB8A5;
+    --accent-soft: #1D2C27;
+    --amber: #D0AC63;
+    --amber-soft: #2A2418;
+    --plum: #B294A6;
+    --plum-soft: #262024;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 4rem 1.5rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 44rem; margin: 0 auto; display: flex; flex-direction: column; gap: 3rem; }
+
+  header { display: flex; flex-direction: column; gap: .75rem; }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .7rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); margin: 0;
+  }
+
+  h1 {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: clamp(2rem, 5vw, 2.9rem); font-weight: 600;
+    line-height: 1.12; letter-spacing: -.015em;
+    text-wrap: balance; margin: 0;
+  }
+
+  .standfirst {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: 1.2rem; font-style: italic; color: var(--ink-soft);
+    max-width: 34rem; margin: 0; text-wrap: pretty;
+  }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .4rem 1.25rem;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .75rem; color: var(--ink-faint);
+    border-top: 1px solid var(--rule); padding-top: .9rem; margin-top: .5rem;
+  }
+  .meta span { white-space: nowrap; }
+  .meta b { color: var(--ink-soft); font-weight: 500; }
+
+  section { display: flex; flex-direction: column; gap: 1rem; }
+
+  h2 {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: 1.5rem; font-weight: 600; letter-spacing: -.01em;
+    margin: 0; padding-bottom: .5rem; border-bottom: 1px solid var(--rule);
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: .8rem; font-weight: 600; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--ink-faint); margin: 0;
+  }
+
+  p { margin: 0; max-width: 40rem; text-wrap: pretty; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .85em; background: var(--accent-soft);
+    padding: .1em .35em; border-radius: 3px; color: var(--ink);
+  }
+
+  .scroll { overflow-x: auto; }
+
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th {
+    text-align: left; font-size: .7rem; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-faint);
+    font-weight: 600; padding: 0 .8rem .5rem 0; border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td { padding: .7rem .8rem .7rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* Status stripe encodes state at a glance — done / deferred / blocked. */
+  .phase td:first-child {
+    border-left: 3px solid var(--rule);
+    padding-left: .8rem;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .85rem; font-weight: 500; white-space: nowrap;
+  }
+  .done td:first-child { border-left-color: var(--accent); }
+  .deferred td:first-child { border-left-color: var(--amber); }
+  .blocked td:first-child { border-left-color: var(--plum); }
+
+  .pill {
+    display: inline-block; font-size: .68rem; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase;
+    padding: .18em .5em; border-radius: 3px; white-space: nowrap;
+  }
+  .p-done { background: var(--accent-soft); color: var(--accent); }
+  .p-deferred { background: var(--amber-soft); color: var(--amber); }
+  .p-blocked { background: var(--plum-soft); color: var(--plum); }
+
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .fig { background: var(--raised); padding: 1rem; display: flex; flex-direction: column; gap: .2rem; }
+  .fig-n {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 1.5rem; font-weight: 500; color: var(--ink);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .fig-l { font-size: .72rem; color: var(--ink-faint); letter-spacing: .03em; }
+
+  .callout {
+    background: var(--raised); border: 1px solid var(--rule);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 4px 4px 0; padding: 1.25rem 1.4rem;
+    display: flex; flex-direction: column; gap: .6rem; box-shadow: var(--shadow);
+  }
+  .callout h3 { color: var(--amber); }
+
+  ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .5rem; }
+  li { max-width: 38rem; text-wrap: pretty; }
+  li::marker { color: var(--ink-faint); }
+
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .step { display: grid; grid-template-columns: 5.5rem 1fr; gap: 1rem; padding: .8rem 0; border-bottom: 1px solid var(--rule); }
+  .step:last-child { border-bottom: none; }
+  .step-k {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .72rem; color: var(--ink-faint); padding-top: .15rem;
+  }
+  .step-v { font-size: .92rem; }
+  .step-v b { font-weight: 600; }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 1.25rem;
+    font-size: .8rem; color: var(--ink-faint);
+    display: flex; flex-direction: column; gap: .4rem;
+  }
+
+  @media (max-width: 32rem) {
+    body { padding: 2.5rem 1.1rem 4rem; }
+    .step { grid-template-columns: 1fr; gap: .2rem; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Run summary · nuwrrrld-portal</p>
+    <h1>Consent &amp; Rights Buildout</h1>
+    <p class="standfirst">Every phase of the auth, cookies and tracking plan that didn&rsquo;t need a dashboard login, a signed DPA, or a lawyer.</p>
+    <div class="meta">
+      <span><b>2026-08-29</b></span>
+      <span>branch <b>feat/auth-cookies-phase-1-3-6</b></span>
+      <span>PR <b>#78</b></span>
+      <span>base <b>#77</b></span>
+    </div>
+  </header>
+
+  <section>
+    <div class="figures">
+      <div class="fig"><span class="fig-n">432</span><span class="fig-l">unit tests passing</span></div>
+      <div class="fig"><span class="fig-n">46</span><span class="fig-l">files changed</span></div>
+      <div class="fig"><span class="fig-n">23</span><span class="fig-l">edge-guarded API prefixes</span></div>
+      <div class="fig"><span class="fig-n">62%</span><span class="fig-l">mobile ⇄ web parity</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the plan asked for, and what it got</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Phase</th><th>State</th><th>Outcome</th></tr>
+        </thead>
+        <tbody>
+          <tr class="phase done">
+            <td>1.3</td><td><span class="pill p-done">Done</span></td>
+            <td>Constant-time bearer compares across ten internal routes; middleware matcher widened from 3 prefixes to 23 so a handler-level auth regression fails closed at the edge.</td>
+          </tr>
+          <tr class="phase blocked">
+            <td>1.1 / 1.2</td><td><span class="pill p-blocked">Needs access</span></td>
+            <td>Clerk Production instance and session posture. Dashboard login plus DNS — configuration, not code.</td>
+          </tr>
+          <tr class="phase done">
+            <td>2 / 1.4</td><td><span class="pill p-done">Done</span></td>
+            <td>Consent infrastructure and sign-up legal consent, inherited from the branch this one builds on.</td>
+          </tr>
+          <tr class="phase done">
+            <td>3.2</td><td><span class="pill p-done">Done</span></td>
+            <td>Thirteen-event taxonomy written before the first <code>track()</code> call. The sink validates and drops; forbidden keys throw in development.</td>
+          </tr>
+          <tr class="phase deferred">
+            <td>3.1</td><td><span class="pill p-deferred">Awaiting DPA</span></td>
+            <td>No analytics vendor. <code>deliver()</code> is an empty function — that is the entire integration surface.</td>
+          </tr>
+          <tr class="phase done">
+            <td>3.3</td><td><span class="pill p-done">Decided: off</span></td>
+            <td>No session replay on authenticated financial screens. The recording risk exceeds the debugging value.</td>
+          </tr>
+          <tr class="phase done">
+            <td>4.1</td><td><span class="pill p-done">Done</span></td>
+            <td>First-party attribution only — UTM parameters, click IDs and referrer the browser already sent. No third-party pixel.</td>
+          </tr>
+          <tr class="phase deferred">
+            <td>4.2–4.4</td><td><span class="pill p-deferred">Gated</span></td>
+            <td>Ad pixels, Consent Mode v2 and the CPRA opt-out link all wait on a vendor and a legal read.</td>
+          </tr>
+          <tr class="phase done">
+            <td>5.1 / 5.2</td><td><span class="pill p-done">Done</span></td>
+            <td>Every field classified; every segment ships the rule that produced it. A guard throws if financial data approaches a boundary.</td>
+          </tr>
+          <tr class="phase deferred">
+            <td>5.3</td><td><span class="pill p-deferred">Targets only</span></td>
+            <td>Retention windows are documented. No job enforces them yet, so the policy must not publish them.</td>
+          </tr>
+          <tr class="phase done">
+            <td>6</td><td><span class="pill p-done">Done</span></td>
+            <td>Access, portability, erasure and rectification endpoints, plus a ledger that makes the statutory response clock provable.</td>
+          </tr>
+          <tr class="phase deferred">
+            <td>7</td><td><span class="pill p-deferred">Register only</span></td>
+            <td>Cookie table, processor register, retention targets and legal bases written. The policy page itself is untouched.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Three decisions worth keeping</h2>
+
+    <h3>The ledger outlives the erasure it records</h3>
+    <p><code>privacy_requests</code> is deliberately absent from the delete cascade. The record that someone asked to be erased on a given date has to survive that erasure, or the compliance artifact destroys itself. It holds nothing personal beyond the account ID, so keeping it is not in tension with the deletion.</p>
+
+    <h3>A build that passed while being broken</h3>
+    <p>The timing-safe compare first used <code>node:crypto</code>, which the Edge middleware bundle cannot load. <code>next build</code> printed an Ecmascript error <em>and exited zero</em>. It was rewritten as a pure-JavaScript constant-time loop. Anyone reaching for a crypto import in middleware-reachable code will hit this again.</p>
+
+    <h3>The consent gate lives on the server</h3>
+    <p>The attribution endpoint returns <code>204</code> and stores nothing unless analytics consent is granted. A client-side-only check would be both bypassable and unauditable, so the decision is made where it can be enforced.</p>
+  </section>
+
+  <section>
+    <h2>The finding underneath the parity number</h2>
+    <div class="callout">
+      <h3>One account, two different sets of rights</h3>
+      <p>Parity moved from 63% to 62%, which undersells what changed. The web portal now serves GDPR access, erasure and rectification, and blocks tracking until a visitor opts in. The mobile app does neither — against the same Clerk identity.</p>
+      <p>So a person can exercise their data rights on the website and has no mechanism in the app, and is tracked there without the gate the website enforces. That is two compliance asymmetries on one shared account, and it is a product problem rather than a code-sharing one.</p>
+      <p>The cheapest correct fix is for mobile to adopt the shared consent module and link out to the portal&rsquo;s endpoints, keeping the erasure cascade and the ledger single-copy. Both wikis now carry this as the top open item.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>How the run went</h2>
+    <div class="timeline">
+      <div class="step">
+        <div class="step-k">Blocked</div>
+        <div class="step-v"><b>Four phases stalled</b> on a consent module that existed only on an unmerged branch with failing CI.</div>
+      </div>
+      <div class="step">
+        <div class="step-k">Diagnosed</div>
+        <div class="step-v"><b>The premise was wrong.</b> A merge-tree check showed exactly one overlapping file between the branches, and the base branch reported mergeable. Waiting was never required.</div>
+      </div>
+      <div class="step">
+        <div class="step-k">Unblocked</div>
+        <div class="step-v">Merged the base branch in locally. One conflict, both sides append-only schema. Four phases opened up at once.</div>
+      </div>
+      <div class="step">
+        <div class="step-k">Built</div>
+        <div class="step-v">Rights endpoints, the ledger, the analytics taxonomy and sink, attribution, profile classification, and the privacy register.</div>
+      </div>
+      <div class="step">
+        <div class="step-k">Verified</div>
+        <div class="step-v">Type check, lint, shared-module drift check and production build all clean. 432 tests pass. Migration applied by the repo owner.</div>
+      </div>
+      <div class="step">
+        <div class="step-k">Ingested</div>
+        <div class="step-v">Both wikis updated and agreeing at 62%. A duplicate mobile ingest was caught mid-run and rebuilt as a stacked delta instead.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Still open</h2>
+    <ul>
+      <li><b>Clerk Production instance</b> — dashboard access and DNS. The only item that is purely someone pressing buttons.</li>
+      <li><b>An analytics vendor</b>, once a data-processing agreement is signed. The sink is built and waiting for one function body.</li>
+      <li><b>Retention enforcement.</b> Until a job actually deletes on schedule, the published policy would be promising something that doesn&rsquo;t happen.</li>
+      <li><b>Restriction of processing</b> — promised in section 8 of the policy, still the one right with no mechanism behind it.</li>
+      <li><b>The model-provider question.</b> Prompt text reaches third-party inference providers. Nobody has confirmed zero-retention terms in writing, and the model chain changes on its own.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>Generated during a <code>/resume-safe</code> run. Full detail in <code>docs/todo-auth-cookies-tracking.md</code>, <code>docs/privacy-register.md</code> and <code>docs/API-ROUTE-AUTH.md</code>.</span>
+    <span>Nothing here is legal advice. Phase 7 requires review by someone qualified before the privacy policy changes.</span>
+  </footer>
+
+</div>
