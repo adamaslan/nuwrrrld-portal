@@ -40,7 +40,8 @@ One page per named component. These are the hubs — everything links to entitie
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
 - [[entity-disclaimer-system]] — hash-derived disclaimer text + Neon-backed acknowledgement gating `/verdict`, `/signals`, `/portfolio-intelligence`, `/dashboard/holdfold/[ticker]`; `lib/disclaimer.ts`, `lib/disclaimer-db.ts`
-- [[entity-consent-system]] — cookie/tracking consent (`nu_consent` cookie, `consent_records`), express ToS/Privacy consent at sign-up (`legal_consent_events`), and data-subject-rights endpoints (`/api/privacy/{export,profile,delete}`); `lib/shared/consent.ts`, `lib/consent-db.ts`, `app/api/consent`, PR #77
+- [[entity-consent-system]] — cookie/tracking consent (`nu_consent` cookie, `consent_records`) and express ToS/Privacy consent at sign-up (`legal_consent_events`); `lib/shared/consent.ts`, `lib/consent-db.ts`, `app/api/consent`, PR #77
+- [[entity-data-subject-rights]] — the GDPR/CCPA rights endpoints (`/api/privacy/{export,profile,delete,rectify}`), the `privacy_requests` statutory-clock ledger that survives its own erasure, field classification + the financial-field guard, and documented segment derivations; `lib/privacy-requests-db.ts`, `lib/customer-profile-rules.ts`, `lib/rate-limit.ts`
 
 **Dev Tooling / Workflow**
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`, `/local-check`, `/nulogdash`; guardrails + the pre-PR conflict guard

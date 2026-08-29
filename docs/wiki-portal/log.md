@@ -618,3 +618,39 @@ round and two new portal-only `lib/shared/` modules (`consent.ts`, `legal-consen
 differs) — [[concept-sync-requirements]] priority #6. New contradiction logged: mobile
 tracks with no consent gate while the portal now blocks tracking until opt-in, so the
 shared-identity product is non-compliant until mobile adopts the module.
+
+## [2026-08-29] ingest | auth hardening + DSAR rights + analytics/attribution scaffolding | pages touched: 4
+
+Built on PR #77's consent branch merged in locally — Phases 3–7 of
+docs/todo-auth-cookies-tracking.md import `lib/shared/consent.ts`, and #77's CI
+was red, so waiting for it to reach main would have blocked every remaining
+phase. Cost exactly one merge conflict (`lib/db/schema.sql`, both sides
+append-only DDL).
+
+Phase 1.3 closed the authorization gaps: `lib/http-auth.ts` gives a
+constant-time bearer compare (pure JS, NOT `node:crypto` — the Edge Middleware
+bundle cannot load it, and `next build` reported that as an Ecmascript error
+while still exiting 0), adopted by ten internal-secret routes and by
+`middleware.ts`, whose matcher went from 3 prefixes to 23 so a handler-level
+auth regression now fails closed at the edge. `docs/API-ROUTE-AUTH.md` records
+the full public / auth-required / internal-secret / webhook-signed
+classification and must stay in sync with the matcher.
+
+Phase 6 gave the privacy policy's §8 promises real mechanisms:
+`/api/privacy/rectify` plus a `privacy_requests` ledger that stamps
+`received_at`/`due_at` on every DSAR so the statutory clock is provable. The
+ledger sits deliberately outside the erasure cascade — the record that a user
+asked to be deleted has to survive the deletion it records. Export is now
+rate-limited 3/hr.
+
+Phases 3.2/4.1/5 are scaffolding with the vendor deliberately absent:
+`lib/analytics.ts` validates against a written taxonomy and drops (its
+`deliver()` is the one function a signed DPA turns on), `lib/shared/attribution.ts`
+is first-party only, and `lib/customer-profile-rules.ts` classifies every field
+and documents every segment derivation so an Art. 15/22 "how was this inferred"
+question is answerable. Phase 7 produced `docs/privacy-register.md` rather than
+a policy rewrite, which §7 gates on qualified legal review.
+
+Parity: ~63% → ~62%. The data-subject-rights surface is web-only, so a user can
+exercise GDPR access/erasure on web but not on mobile against the same account —
+a second compliance asymmetry alongside the consent gap already logged.

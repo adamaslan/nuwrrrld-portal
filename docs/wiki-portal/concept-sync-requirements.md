@@ -139,7 +139,20 @@ parity" is undefined and should not be counted for or against the sync %.
 4. ~~Add a drift-detection CI gate so `lib/shared/` can't silently diverge again.~~ — **done, mobile PR #33 + portal PR #52 (2026-08-08).** (An earlier mobile PR #31 attempting this went stale — its content had landed on `main` via other PRs by the time it was reviewed — and was closed in favor of #33, rebased clean.) Original `/sync-pr` batch closed out.
 5. ~~Adopt `lib/shared/signal-policy.ts` + `live-price.ts` before mobile reimplements them.~~ — **done, mobile PR #32 (2026-08-08).** Byte-identical, tracked by the drift gate. Neither is consumed by a mobile feature yet — that's still #6/#7 below.
 6. **Adopt `lib/shared/consent.ts` + `lib/shared/legal-consent.ts` into `gcp3-mobile` and gate `analytics.ts`/`sentry.ts` behind the `analytics` category (PR #77).** Highest-ROI of the open items because it is a compliance obligation, not a nice-to-have, and the modules are portable today (only the prefs storage seam differs). Add both to the drift gate on adoption.
-7. Record the AI Council convergence decision.
+7. **Adopt `lib/shared/attribution.ts` into `gcp3-mobile`.** First-party
+   acquisition attribution (UTM/gclid/fbclid/referrer, `nu_attrib` 90-day
+   first-touch). Portable today — the only seam is cookie vs. `expo-secure-store`,
+   the same seam `consent.ts` has. Lower urgency than #6 (a measurement gap, not
+   a compliance one), but it should be adopted *before* mobile grows its own
+   attribution, not after.
+8. **Give mobile a data-subject-rights path.** The portal now serves
+   `/api/privacy/{export,profile,delete,rectify}` against the shared Clerk
+   identity; mobile serves none. A user can exercise GDPR access/erasure/
+   rectification on web but not in the app, against the same account. Cheapest
+   correct fix is for mobile to link out to the portal's endpoints rather than
+   reimplement them — the ledger and cascade should stay single-copy. This is a
+   compliance asymmetry, same class as #6.
+9. Record the AI Council convergence decision.
 8. Port observability (analytics/Sentry) to portal — consent-gated from the start (see #6); port backtest to mobile (or decide against). Wire mobile up to consume `signal-policy.ts`/`live-price.ts` if the real-time signal tier is ever ported.
 
 ## Where it appears
