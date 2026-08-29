@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# ---
+# ARCHIVED: 2026-08-29
+# REASON: Its premise — "wait for PR #77 to merge into main" — was resolved by
+# merging #77's branch into feat/auth-cookies-phase-1-3-6 directly. Kept per the
+# archive-never-delete rule; do not run it.
+# ---
 # Resume the auth/cookies plan (Phases 1.3 + 6 done; 3-7 blocked on PR #77).
 # Full procedure: docs/session-handoff.md. This script only does Step 0-2 and
 # reports; the wiring (Step 3+) needs judgment and is left to the session.
