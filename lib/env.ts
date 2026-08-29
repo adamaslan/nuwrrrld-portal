@@ -29,6 +29,8 @@ const envSchema = z.object({
   // analysis and the batch /signals feed are two different upstream services.
   MCP_ANALYZE_URL: z.string().url().optional(),
   RESEND_API_KEY: z.string().optional(),
+  // Bearer secret for the one-shot Product Hunt launch-reminder route.
+  LAUNCH_REMIND_SECRET: z.string().optional(),
   DISCORD_FEEDBACK_WEBHOOK_URL: z.string().url().optional(),
   SIGNALS_ENGINE_URL: z.string().url().optional(),
   NULOGDASH_ADMIN_EMAILS: z.string().optional(),
