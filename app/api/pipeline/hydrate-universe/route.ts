@@ -25,6 +25,7 @@
  * URL or a model key.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { buildCard, type CardUniverse } from "@/lib/shared/card-policy";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import {
@@ -150,7 +151,7 @@ function requirePushSecret(req: NextRequest): NextResponse | null {
     );
     return NextResponse.json({ error: "PORTAL_PUSH_SECRET not configured" }, { status: 503 });
   }
-  if ((req.headers.get("authorization") ?? "") !== `Bearer ${secret}`) {
+  if (!bearerTokenMatches(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   return null;

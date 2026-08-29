@@ -17,6 +17,7 @@
  */
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { topCards } from "@/lib/ticker-cards-db";
 import {
   cardAgeDays,
@@ -33,8 +34,7 @@ export async function GET(req: NextRequest) {
   // server-to-server caller bearing PORTAL_PUSH_SECRET. The precompute-AI
   // batch reads this ranking to pick its subjects and has no Clerk session.
   const secret = process.env.PORTAL_PUSH_SECRET;
-  const isInternal =
-    Boolean(secret) && req.headers.get("authorization") === `Bearer ${secret}`;
+  const isInternal = bearerTokenMatches(req.headers.get("authorization"), secret);
 
   if (!userId && !isInternal) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

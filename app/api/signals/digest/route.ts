@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { getOrFetchDigest } from "@/lib/digest-cache";
 
 export async function GET(req: NextRequest) {
@@ -8,8 +9,7 @@ export async function GET(req: NextRequest) {
   // Allow trusted internal callers (e.g. retention digest-email route) via shared secret.
   // This avoids retention emails silently losing signals when no Clerk session exists.
   const secret = process.env.PORTAL_PUSH_SECRET;
-  const isInternal =
-    Boolean(secret) && req.headers.get("authorization") === `Bearer ${secret}`;
+  const isInternal = bearerTokenMatches(req.headers.get("authorization"), secret);
 
   if (!userId && !isInternal) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

@@ -22,6 +22,7 @@
  * meant to protect.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
 import {
   listWatchlistSubjects,
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ error: "PORTAL_PUSH_SECRET not configured" }, { status: 503 });
   }
-  if ((req.headers.get("authorization") ?? "") !== `Bearer ${secret}`) {
+  if (!bearerTokenMatches(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
