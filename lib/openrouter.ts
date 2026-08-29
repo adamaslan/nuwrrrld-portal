@@ -166,7 +166,7 @@ export const CHAIR_VERDICT_SYSTEM = [
  * readable, and a run is never lost to a decorative character in a log label.
  */
 export function toHeaderSafe(value: string): string {
-  // eslint-disable-next-line no-control-regex
+
   return value.replace(/[^\x20-\x7E]/g, (ch) => (ch === '\u2014' || ch === '\u2013' ? '-' : '?'));
 }
 

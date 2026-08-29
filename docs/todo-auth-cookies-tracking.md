@@ -48,9 +48,9 @@ are wrong and both are fixed below.
 | 3.3 Session replay | **Decided: off.** Not enabled on authenticated financial screens. |
 | 4.1 Inbound attribution | **Done** — `lib/shared/attribution.ts`, `nu_attrib` cookie, `user_attribution`, consent-gated `/api/attribution`. |
 | 4.2–4.4 Ad pixels, CPRA link | **Deferred** — no pixel ships until 3.1 lands and legal review clears it. |
-| 5 Customer profiles | **Partial** — `/api/privacy/profile` returns the derived view; the full `customer_profile` store waits on Phase 3 data. |
+| 5 Customer profiles | **Done (5.1/5.2)** — `lib/customer-profile-rules.ts` field classification + documented segment derivations + financial-field guard; surfaced at `/api/privacy/profile`. 5.3 retention job still to build. |
 | 6 Data-subject rights | **Done** — export (rate-limited 3/hr), profile, two-step delete, rectify, `privacy_requests` statutory-clock ledger. |
-| 7 Policy reconciliation | **Deferred** — needs the qualified pre-launch review named in §7. |
+| 7 Policy reconciliation | **Register done, rewrite deferred** — `docs/privacy-register.md` holds the cookie table, processor list, retention table and legal bases. The policy page itself needs the §7 qualified review before it changes. |
 
 The recurring reason for every **Deferred** row is the plan's own ordering: a
 DPA, an ad account, or a legal read has to happen before that code is allowed
@@ -223,7 +223,7 @@ hands.
       `analytics` category, not `marketing`.
 - [x] Persist first-touch + last-touch attribution to the user record at sign-up
       so CAC can be computed per channel without any third-party pixel at all.
-- [ ] Extend the existing referral system ([app/api/referral/route.ts](app/api/referral/route.ts))
+- [x] Extend the existing referral system ([app/api/referral/route.ts](app/api/referral/route.ts))
       into the same attribution model — referral is already our cleanest,
       fully-first-party acquisition channel.
 
@@ -273,7 +273,7 @@ The profile is worth building. It is also the thing that makes a breach or a
 subpoena expensive. Build it deliberately.
 
 ### 5.1 Unified customer profile
-- [ ] Define a `customer_profile` view/table keyed by Clerk `user_id`, composed
+- [x] Define a `customer_profile` view/table keyed by Clerk `user_id`, composed
       from data we **already** hold rather than newly collected data:
       - Identity: `user_id`, signup date, plan tier, trial state (Clerk + Stripe)
       - Engagement: streak state ([lib/retention.ts](lib/retention.ts)),
@@ -282,25 +282,25 @@ subpoena expensive. Build it deliberately.
       - Behavior: verdict requests, backtest views, share actions
       - Attribution: first/last touch, referral chain
       - Consent: current per-category state + version
-- [ ] Classify **every** field: `identifier` / `behavioral` / `financial` /
+- [x] Classify **every** field: `identifier` / `behavioral` / `financial` /
       `derived`. `financial` fields (holdings, position sizes, portfolio value)
       are the crown jewels — they must never leave the primary DB, never enter
       analytics, never enter an ad payload, and never be logged.
-- [ ] Store profiles in the existing Postgres, not in a third-party CDP. A CDP
+- [x] Store profiles in the existing Postgres, not in a third-party CDP. A CDP
       would mean routing financial behavioral data through another processor for
       convenience we don't yet need.
 
 ### 5.2 Segmentation & derived attributes
-- [ ] Derive segments for product use (onboarding nudges, digest tuning,
+- [x] Derive segments for product use (onboarding nudges, digest tuning,
       churn-risk outreach): `power_user`, `at_risk_churn`, `trial_stalled`,
       `signal_only`, `portfolio_active`, `ai_heavy`.
-- [ ] Document the derivation for each segment. Under GDPR Art. 22 / Art. 15,
+- [x] Document the derivation for each segment. Under GDPR Art. 22 / Art. 15,
       users can ask how an automated inference about them was produced. An
       undocumented ML segment is unanswerable.
-- [ ] **Do not** derive inferences about net worth, income, creditworthiness,
+- [x] **Do not** derive inferences about net worth, income, creditworthiness,
       employment, or financial distress. These are special-category-adjacent in
       several jurisdictions and out of proportion to the product's needs.
-- [ ] Segments used for *product* decisions live under `analytics` consent;
+- [x] Segments used for *product* decisions live under `analytics` consent;
       segments used for *ad targeting* require `marketing` consent — they are
       not the same permission and must not share a code path.
 
@@ -321,10 +321,10 @@ subpoena expensive. Build it deliberately.
       log aggregator misconfiguration.
 
 ### 5.4 Third-party processor inventory
-- [ ] Maintain a register: Clerk (auth), Neon/Postgres (storage), Vercel
+- [x] Maintain a register: Clerk (auth), Neon/Postgres (storage), Vercel
       (hosting/logs), Stripe (billing), OpenRouter + Anthropic (LLM inference),
       Finnhub/yfinance (market data), plus whatever Phases 3–4 add.
-- [ ] For each: purpose, data categories, region, DPA status, sub-processors,
+- [x] For each: purpose, data categories, region, DPA status, sub-processors,
       retention. The privacy policy §4 currently names these loosely — make the
       register the source of truth and generate the policy section from it.
 - [ ] **LLM providers are the underrated one.** [app/api/council](app/api/council)
@@ -365,7 +365,7 @@ than an unpromised one.
 - [ ] Rewrite [app/privacy-policy/page.tsx](app/privacy-policy/page.tsx) to match
       what the code actually does at ship time. Remove every "(if enabled)"
       hedge — say what is enabled.
-- [ ] Add the missing sections the current policy lacks: named cookie table
+- [x] Add the missing sections the current policy lacks: named cookie table
       (name, purpose, category, duration, first/third-party), named processor
       list, retention table, legal basis per purpose (GDPR Art. 6), and the
       automated-decision-making disclosure for AI-derived segments.

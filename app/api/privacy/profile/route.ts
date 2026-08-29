@@ -8,6 +8,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { listPrivacyRequests } from "@/lib/privacy-requests-db";
+import { buildCustomerProfile } from "@/lib/customer-profile";
 
 interface TrialInfo {
   enabled?: boolean;
@@ -36,6 +37,8 @@ interface ProfilePayload {
   consent: Record<string, unknown> | null;
   /** The user's own DSAR history — GDPR Art. 15 transparency. */
   privacy_requests: unknown[];
+  /** Derived segments + the rule that produced each (GDPR Art. 15/22). */
+  derived_profile: unknown | null;
   _errors: string[];
 }
 
@@ -64,6 +67,7 @@ export async function GET() {
     interest_tags: [],
     consent: null,
     privacy_requests: [],
+    derived_profile: null,
     _errors: [],
   };
 
@@ -148,6 +152,20 @@ export async function GET() {
   }
 
   payload.privacy_requests = await listPrivacyRequests(userId);
+
+  // Art. 15/22: the user may ask how an automated inference about them was
+  // produced. buildCustomerProfile ships the derivation rule alongside each
+  // assigned segment, so this answers that question rather than just asserting
+  // the label. Degrades to null rather than failing the whole response.
+  try {
+    payload.derived_profile = await buildCustomerProfile(userId, {
+      planTier: payload.plan ?? undefined,
+    });
+  } catch (err) {
+    payload._errors.push(
+      `derived_profile: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 
   return NextResponse.json(payload);
 }
