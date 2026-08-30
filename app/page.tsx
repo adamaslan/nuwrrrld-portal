@@ -12,6 +12,7 @@ import { CouncilScrollDebate } from "@/components/landing/CouncilScrollDebate";
 import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
+import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 import "./landing.css";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
@@ -542,6 +543,13 @@ export default async function Home() {
       <footer>
         <span>NWF · NuWrrrld Financial</span>
         <span>Six AI analysts. One straight answer.</span>
+        <span>
+          <Link href="/privacy-policy">Privacy</Link>
+          {" · "}
+          <Link href="/terms-of-service">Terms</Link>
+          {" · "}
+          <CookiePreferencesLink />
+        </span>
       </footer>
     </div>
   );
