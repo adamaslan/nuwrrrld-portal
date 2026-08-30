@@ -16,7 +16,15 @@ const HAS_DB = !!process.env.DATABASE_URL;
 describe.skipIf(!HAS_DB)("pending_signals queue (integration)", () => {
   let sql: typeof import("@/lib/db").default;
   let queue: typeof import("@/lib/signal-queue");
-  const TICKER = `ZTEST${Math.floor(Math.random() * 1000)}`;
+  // Letters only, and it matters: normalizeTicker() accepts /^[A-Z][A-Z.\-]{0,9}$/
+  // — no digits. The previous `ZTEST${randomInt}` fixture was rejected by that
+  // guard, so enqueueSignalRefresh() returned at its early `if (!symbol) return`
+  // and never inserted. Every assertion downstream then failed against an empty
+  // table, and because enqueue swallows its own errors there was nothing in the
+  // output pointing at the cause. Three random letters keep runs from colliding.
+  const TICKER = `ZTEST${Array.from({ length: 3 }, () =>
+    String.fromCharCode(65 + Math.floor(Math.random() * 26)),
+  ).join("")}`;
   const USER = "test-user";
 
   beforeAll(async () => {
