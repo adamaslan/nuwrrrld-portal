@@ -32,6 +32,32 @@ are wrong and both are fixed below.
 
 ---
 
+---
+
+## Implementation status (2026-08-29)
+
+| Phase | State |
+|---|---|
+| 1.1 Clerk Production instance | **Blocked** — needs Clerk Dashboard + DNS. No code. |
+| 1.2 Session cookie posture | **Blocked** — same. |
+| 1.3 Authorization gaps | **Done** — timing-safe bearer compares (`lib/http-auth.ts`), middleware matcher 3→23 prefixes, `docs/API-ROUTE-AUTH.md`. |
+| 1.4 Sign-up legal consent | **Done** — `LegalConsentGate`, `legal_consent_events`. |
+| 2 Consent infrastructure | **Done** — `lib/shared/consent.ts`, `nu_consent` cookie, `consent_records`, banner + preferences, GPC/DNT, strictest-regime-globally. |
+| 3.1 Analytics vendor | **Deferred** — needs a signed DPA before any sink is wired. |
+| 3.2 Instrumentation discipline | **Done (spec + sink)** — `docs/analytics-event-taxonomy.md`, `lib/analytics.ts` validates and drops; `deliver()` is the one function 3.1 fills in. |
+| 3.3 Session replay | **Decided: off.** Not enabled on authenticated financial screens. |
+| 4.1 Inbound attribution | **Done** — `lib/shared/attribution.ts`, `nu_attrib` cookie, `user_attribution`, consent-gated `/api/attribution`. |
+| 4.2–4.4 Ad pixels, CPRA link | **Deferred** — no pixel ships until 3.1 lands and legal review clears it. |
+| 5 Customer profiles | **Done (5.1/5.2)** — `lib/customer-profile-rules.ts` field classification + documented segment derivations + financial-field guard; surfaced at `/api/privacy/profile`. 5.3 retention job still to build. |
+| 6 Data-subject rights | **Done** — export (rate-limited 3/hr), profile, two-step delete, rectify, `privacy_requests` statutory-clock ledger. |
+| 7 Policy reconciliation | **Register done, rewrite deferred** — `docs/privacy-register.md` holds the cookie table, processor list, retention table and legal bases. The policy page itself needs the §7 qualified review before it changes. |
+
+The recurring reason for every **Deferred** row is the plan's own ordering: a
+DPA, an ad account, or a legal read has to happen before that code is allowed
+to ship. They are not engineering blockers.
+
+---
+
 ## Phase 1 — Auth hardening (do first; everything else assumes a trustworthy identity)
 
 ### 1.1 Promote Clerk to a Production instance
@@ -56,22 +82,22 @@ are wrong and both are fixed below.
       other — test it, don't assume it.
 
 ### 1.3 Close the authorization gaps the middleware doesn't cover
-- [ ] `middleware.ts` protects only `/api/signals/digest`, `/api/portfolio/health`,
+- [x] `middleware.ts` protects only `/api/signals/digest`, `/api/portfolio/health`,
       `/api/holdfold`. Enumerate every route under [app/api/](app/api/) and
       classify each as: public / auth-required / internal-secret / webhook-signed.
       Add the auth-required ones to `isProtectedApiRoute`.
-- [ ] Specifically re-check `council`, `nuai`, `analyze`, `backtest`, `brief`,
+- [x] Specifically re-check `council`, `nuai`, `analyze`, `backtest`, `brief`,
       `retention`, `referral` — these all read or write per-user rows and none
       are in the middleware matcher today.
-- [ ] `PORTAL_PUSH_SECRET` bearer comparison at [middleware.ts:34](middleware.ts#L34)
+- [x] `PORTAL_PUSH_SECRET` bearer comparison at [middleware.ts:34](middleware.ts#L34)
       is a plain `===` on a header. Move to a timing-safe compare.
-- [ ] Verify `/api/webhooks` validates provider signatures (Clerk + Stripe) and
+- [x] Verify `/api/webhooks` validates provider signatures (Clerk + Stripe) and
       is *excluded* from `auth.protect()` for the right reason, not by accident.
 
 ### 1.4 Express consent at sign-up (already requested in [docs/todo1.md](docs/todo1.md))
-- [ ] Add a **required, unticked** checkbox to the Clerk sign-up flow:
+- [x] Add a **required, unticked** checkbox to the Clerk sign-up flow:
       "I agree to the Terms of Service and Privacy Policy," each linked.
-- [ ] Persist the consent event — not just the boolean. Record
+- [x] Persist the consent event — not just the boolean. Record
       `{ user_id, doc: 'tos'|'privacy', version, accepted_at, ip, user_agent }`.
       A bare `true` is not evidence; a versioned timestamped record is.
 - [ ] Re-prompt on material policy version bump. The policy's own §12
@@ -86,52 +112,52 @@ are wrong and both are fixed below.
 ## Phase 2 — Consent infrastructure (must land before ANY tracking in Phase 3+)
 
 ### 2.1 Consent model
-- [ ] Define four categories, and treat them as genuinely separate switches:
+- [x] Define four categories, and treat them as genuinely separate switches:
       | Category | Example | Default |
       |---|---|---|
       | `strictly_necessary` | Clerk `__session`, CSRF | on, not refusable |
       | `preferences` | theme, watchlist view mode, digest frequency | **off** until chosen |
       | `analytics` | product usage events, funnels | **off** until chosen |
       | `marketing` | ad pixels, retargeting, conversion tags | **off** until chosen |
-- [ ] Non-necessary categories default to **denied**. Pre-ticked boxes and
+- [x] Non-necessary categories default to **denied**. Pre-ticked boxes and
       "by continuing you agree" banners are not valid consent under GDPR and are
       explicitly enumerated as dark patterns under CPRA.
-- [ ] "Reject all" must be **as easy and as prominent as "Accept all."** One
+- [x] "Reject all" must be **as easy and as prominent as "Accept all."** One
       click, same visual weight. This is the single most-enforced banner rule
       in the EU and the cheapest to get right on day one.
 
 ### 2.2 Consent storage & propagation
-- [ ] Store consent in a first-party cookie `nu_consent` (JSON: version +
+- [x] Store consent in a first-party cookie `nu_consent` (JSON: version +
       per-category booleans + timestamp), `SameSite=Lax`, `Secure`, ~12 month
       max-age, **not** `HttpOnly` (client tag-gating must read it).
-- [ ] For signed-in users, ALSO persist to a `consent_records` table so consent
+- [x] For signed-in users, ALSO persist to a `consent_records` table so consent
       survives cookie clears and follows the account across devices and to
       `gcp3-mobile`. Cookie is the cache; the DB row is the record.
-- [ ] Log every consent *change* append-only (grant, withdraw, version bump).
+- [x] Log every consent *change* append-only (grant, withdraw, version bump).
       Regulators ask for the history, not the current value.
-- [ ] Server-side read helper `getConsent()` usable in RSC/route handlers, so
+- [x] Server-side read helper `getConsent()` usable in RSC/route handlers, so
       server code can refuse to emit an event the user declined — client-side
       gating alone is bypassable and unauditable.
 
 ### 2.3 Consent UI
-- [ ] Banner component (first visit, no `nu_consent` cookie): Accept all /
+- [x] Banner component (first visit, no `nu_consent` cookie): Accept all /
       Reject all / Manage.
-- [ ] Preferences modal with per-category toggles and a plain-language
+- [x] Preferences modal with per-category toggles and a plain-language
       description of *what each category actually does here*, naming vendors.
-- [ ] Persistent "Cookie preferences" link in the footer next to the existing
+- [x] Persistent "Cookie preferences" link in the footer next to the existing
       [DisclaimerFooter.tsx](components/DisclaimerFooter.tsx) — withdrawal must
       be as easy as granting.
-- [ ] Honor `navigator.globalPrivacyControl` (GPC) as an automatic opt-out of
+- [x] Honor `navigator.globalPrivacyControl` (GPC) as an automatic opt-out of
       `analytics` + `marketing`. California treats GPC as a legally binding
       opt-out signal; ignoring it is an enforcement item, and honoring it is ~5
       lines of code.
-- [ ] Respect `Do Not Track` too, even though it's unenforced. Cheap goodwill.
+- [x] Respect `Do Not Track` too, even though it's unenforced. Cheap goodwill.
 
 ### 2.4 Regional gating
 - [ ] Geo-detect at the edge (Vercel `x-vercel-ip-country`). EU/EEA/UK/CH → hard
       opt-in banner. California → notice + "Do Not Sell or Share My Personal
       Information" link. Elsewhere → notice + opt-out.
-- [ ] Decide the simpler alternative and write down the choice: **apply the
+- [x] Decide the simpler alternative and write down the choice: **apply the
       strictest regime globally.** Fewer code paths, fewer bugs, no geo-IP
       accuracy problem. Recommended unless it measurably hurts conversion.
 
@@ -154,21 +180,21 @@ are wrong and both are fixed below.
       processor register (Phase 6).
 
 ### 3.2 Instrumentation discipline
-- [ ] Write the event taxonomy **before** writing any `track()` call:
+- [x] Write the event taxonomy **before** writing any `track()` call:
       `object_action` naming, a fixed property vocabulary, one owner. Retrofit
       is far worse than upfront.
-- [ ] Candidate events, grounded in what this app actually does: `signal_viewed`,
+- [x] Candidate events, grounded in what this app actually does: `signal_viewed`,
       `signal_shared`, `verdict_requested`, `council_session_started`,
       `nuai_prompt_submitted`, `watchlist_item_added`, `portfolio_health_run`,
       `backtest_viewed`, `paywall_hit`, `trial_started`, `subscription_started`,
       `referral_code_copied`, `disclaimer_acknowledged`.
-- [ ] **Never** put in an event payload: holdings, position sizes, dollar
+- [x] **Never** put in an event payload: holdings, position sizes, dollar
       amounts, AI prompt text, ticker-level portfolio composition. Send
       `holdings_count` bucketed, never the holdings. This is the line between
       "product analytics" and "we shipped our users' portfolios to a vendor."
-- [ ] Analytics identity: use the Clerk `user_id` — never email, never a name.
+- [x] Analytics identity: use the Clerk `user_id` — never email, never a name.
       Pseudonymous by construction.
-- [ ] All client tags load **only** when `nu_consent.analytics === true`. No
+- [x] All client tags load **only** when `nu_consent.analytics === true`. No
       script tag in [app/layout.tsx](app/layout.tsx) that fires pre-consent.
 - [ ] Add a server-side event path for things that must be accurate regardless
       of ad-blockers (`subscription_started` from the Stripe webhook, not the
@@ -191,13 +217,13 @@ triggers the "Do Not Sell or Share" obligation whether or not money changes
 hands.
 
 ### 4.1 Inbound attribution (safe, do this first)
-- [ ] Capture `utm_source/medium/campaign/term/content`, `gclid`, `fbclid`,
+- [x] Capture `utm_source/medium/campaign/term/content`, `gclid`, `fbclid`,
       referrer, and landing page on first touch into a first-party
       `nu_attrib` cookie (90 days). This is **first-party** and belongs to the
       `analytics` category, not `marketing`.
-- [ ] Persist first-touch + last-touch attribution to the user record at sign-up
+- [x] Persist first-touch + last-touch attribution to the user record at sign-up
       so CAC can be computed per channel without any third-party pixel at all.
-- [ ] Extend the existing referral system ([app/api/referral/route.ts](app/api/referral/route.ts))
+- [x] Extend the existing referral system ([app/api/referral/route.ts](app/api/referral/route.ts))
       into the same attribution model — referral is already our cleanest,
       fully-first-party acquisition channel.
 
@@ -247,7 +273,7 @@ The profile is worth building. It is also the thing that makes a breach or a
 subpoena expensive. Build it deliberately.
 
 ### 5.1 Unified customer profile
-- [ ] Define a `customer_profile` view/table keyed by Clerk `user_id`, composed
+- [x] Define a `customer_profile` view/table keyed by Clerk `user_id`, composed
       from data we **already** hold rather than newly collected data:
       - Identity: `user_id`, signup date, plan tier, trial state (Clerk + Stripe)
       - Engagement: streak state ([lib/retention.ts](lib/retention.ts)),
@@ -256,25 +282,25 @@ subpoena expensive. Build it deliberately.
       - Behavior: verdict requests, backtest views, share actions
       - Attribution: first/last touch, referral chain
       - Consent: current per-category state + version
-- [ ] Classify **every** field: `identifier` / `behavioral` / `financial` /
+- [x] Classify **every** field: `identifier` / `behavioral` / `financial` /
       `derived`. `financial` fields (holdings, position sizes, portfolio value)
       are the crown jewels — they must never leave the primary DB, never enter
       analytics, never enter an ad payload, and never be logged.
-- [ ] Store profiles in the existing Postgres, not in a third-party CDP. A CDP
+- [x] Store profiles in the existing Postgres, not in a third-party CDP. A CDP
       would mean routing financial behavioral data through another processor for
       convenience we don't yet need.
 
 ### 5.2 Segmentation & derived attributes
-- [ ] Derive segments for product use (onboarding nudges, digest tuning,
+- [x] Derive segments for product use (onboarding nudges, digest tuning,
       churn-risk outreach): `power_user`, `at_risk_churn`, `trial_stalled`,
       `signal_only`, `portfolio_active`, `ai_heavy`.
-- [ ] Document the derivation for each segment. Under GDPR Art. 22 / Art. 15,
+- [x] Document the derivation for each segment. Under GDPR Art. 22 / Art. 15,
       users can ask how an automated inference about them was produced. An
       undocumented ML segment is unanswerable.
-- [ ] **Do not** derive inferences about net worth, income, creditworthiness,
+- [x] **Do not** derive inferences about net worth, income, creditworthiness,
       employment, or financial distress. These are special-category-adjacent in
       several jurisdictions and out of proportion to the product's needs.
-- [ ] Segments used for *product* decisions live under `analytics` consent;
+- [x] Segments used for *product* decisions live under `analytics` consent;
       segments used for *ad targeting* require `marketing` consent — they are
       not the same permission and must not share a code path.
 
@@ -295,10 +321,10 @@ subpoena expensive. Build it deliberately.
       log aggregator misconfiguration.
 
 ### 5.4 Third-party processor inventory
-- [ ] Maintain a register: Clerk (auth), Neon/Postgres (storage), Vercel
+- [x] Maintain a register: Clerk (auth), Neon/Postgres (storage), Vercel
       (hosting/logs), Stripe (billing), OpenRouter + Anthropic (LLM inference),
       Finnhub/yfinance (market data), plus whatever Phases 3–4 add.
-- [ ] For each: purpose, data categories, region, DPA status, sub-processors,
+- [x] For each: purpose, data categories, region, DPA status, sub-processors,
       retention. The privacy policy §4 currently names these loosely — make the
       register the source of truth and generate the policy section from it.
 - [ ] **LLM providers are the underrated one.** [app/api/council](app/api/council)
@@ -315,21 +341,21 @@ correction, deletion, restriction, portability, and marketing opt-out. **None
 of these have an implementation.** A promised right with no mechanism is worse
 than an unpromised one.
 
-- [ ] `GET /api/privacy/export` — authenticated. Assembles every row keyed to
+- [x] `GET /api/privacy/export` — authenticated. Assembles every row keyed to
       the caller's `user_id` across all tables + Clerk metadata, returns JSON
       (machine-readable, per the portability promise). Rate-limited.
-- [ ] `POST /api/privacy/delete` — authenticated, with a confirmation step and a
+- [x] `POST /api/privacy/delete` — authenticated, with a confirmation step and a
       grace period. Must cascade across every table in
       [lib/db/schema.sql](lib/db/schema.sql), Clerk, Stripe (subject to the
       7-year billing carve-out), and every analytics/ad processor's deletion API.
-- [ ] `GET /api/privacy/profile` — show the user their own derived segments and
+- [x] `GET /api/privacy/profile` — show the user their own derived segments and
       inferences. Transparency here is cheap and disproportionately trust-building.
-- [ ] `POST /api/privacy/rectify` — correction requests.
+- [x] `POST /api/privacy/rectify` — correction requests.
 - [ ] Deletion runbook covering processors without an API (manual steps,
       named owner, SLA).
-- [ ] Meet the statutory clocks: GDPR 30 days, CCPA 45 days. Track request
+- [x] Meet the statutory clocks: GDPR 30 days, CCPA 45 days. Track request
       receipt timestamps so the clock is provable.
-- [ ] Verify identity before fulfilling — an unauthenticated export endpoint is
+- [x] Verify identity before fulfilling — an unauthenticated export endpoint is
       an account-takeover primitive, not a privacy feature.
 
 ---
@@ -339,7 +365,7 @@ than an unpromised one.
 - [ ] Rewrite [app/privacy-policy/page.tsx](app/privacy-policy/page.tsx) to match
       what the code actually does at ship time. Remove every "(if enabled)"
       hedge — say what is enabled.
-- [ ] Add the missing sections the current policy lacks: named cookie table
+- [x] Add the missing sections the current policy lacks: named cookie table
       (name, purpose, category, duration, first/third-party), named processor
       list, retention table, legal basis per purpose (GDPR Art. 6), and the
       automated-decision-making disclosure for AI-derived segments.

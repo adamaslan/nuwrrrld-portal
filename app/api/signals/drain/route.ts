@@ -14,6 +14,7 @@
  * instead of dying permanently, and terminal rows are purged opportunistically.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { fetchTickerEntry, saveTickerEntry, normalizeTicker } from "@/lib/shared/signal-lookup";
 import {
   claimPendingSignals,
@@ -30,13 +31,12 @@ const TIME_BUDGET_MS = 25_000; // stay well under typical serverless limits
 const PURGE_AFTER_DAYS = 7;
 
 function checkAuth(req: NextRequest): NextResponse | null {
-  const auth = req.headers.get("authorization") ?? "";
   const secret = process.env.PORTAL_PUSH_SECRET;
   if (!secret) {
     console.error("[signals/drain] CONFIG_ERROR: PORTAL_PUSH_SECRET is not set.");
     return NextResponse.json({ error: "PORTAL_PUSH_SECRET not configured" }, { status: 503 });
   }
-  if (auth !== `Bearer ${secret}`) {
+  if (!bearerTokenMatches(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   return null;

@@ -10,18 +10,18 @@
  * /api/signals/refresh and /api/signals/drain. GET is unauthenticated read.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { parseLivePriceBatch } from "@/lib/shared/live-price";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { upsertLivePrices, getLivePrice } from "@/lib/live-price-db";
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get("authorization") ?? "";
   const secret = process.env.PORTAL_PUSH_SECRET;
   if (!secret) {
     console.error("[signals/live] CONFIG_ERROR: PORTAL_PUSH_SECRET is not set.");
     return NextResponse.json({ error: "PORTAL_PUSH_SECRET not configured" }, { status: 503 });
   }
-  if (auth !== `Bearer ${secret}`) {
+  if (!bearerTokenMatches(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

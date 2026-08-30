@@ -6,12 +6,12 @@
  * Auth: Bearer PORTAL_PUSH_SECRET (server-to-server, not user-facing)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { normaliseDigest, type DigestPayload } from "@/lib/digest";
 import { globalDigestCache } from "@/lib/digest-cache";
 import { saveDigest } from "@/lib/digest-cache-db";
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get("authorization") ?? "";
   const secret = process.env.PORTAL_PUSH_SECRET;
 
   if (!secret) {
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "PORTAL_PUSH_SECRET not configured" }, { status: 503 });
   }
 
-  if (auth !== `Bearer ${secret}`) {
+  if (!bearerTokenMatches(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

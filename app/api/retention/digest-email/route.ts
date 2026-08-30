@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
+import { bearerTokenMatches } from "@/lib/http-auth";
 import { adaptLiveSignals } from "@/lib/digest";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
@@ -16,9 +17,8 @@ function escHtml(s: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get("authorization") ?? "";
   const secret = process.env.CRON_SECRET;
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!bearerTokenMatches(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
