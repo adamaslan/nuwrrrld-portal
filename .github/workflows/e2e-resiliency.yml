@@ -13,11 +13,12 @@ concurrency:
   group: e2e-resiliency-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least privilege: only the jobs that actually need id-token/pull-requests
-# grant them (e2e and report respectively, below). A workflow-level grant
-# applies to every job, including `auth`, which holds the Clerk test
-# password — no reason for that job to carry GCP or PR-write scope it
-# never uses. Flagged by zizmor (excessive-permissions).
+# Least privilege: only the job that actually needs pull-requests grants it
+# (`report`, below). A workflow-level grant applies to every job, including
+# `auth`, which holds the Clerk test password — no reason for that job to
+# carry PR-write scope it never uses. Flagged by zizmor
+# (excessive-permissions). No job needs `id-token` any more; see the `e2e`
+# job's permissions block.
 permissions:
   contents: read
 
@@ -137,8 +138,10 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
+      # `id-token: write` used to live here for the WIF exchange. That auth step
+      # is gone (see the comment where it stood), and minting an OIDC token
+      # nothing consumes is privilege for its own sake — so it goes with it.
       contents: read
-      id-token: write # only job that authenticates to GCP via WIF
     strategy:
       fail-fast: false
       matrix:
