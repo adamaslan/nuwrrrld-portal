@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CONSENT_CATEGORIES,
   CATEGORY_INFO,
@@ -22,6 +22,22 @@ export default function ConsentPreferences({ open, onClose }: Props) {
     marketing: false,
   });
   const [loading, setLoading] = useState(true);
+  // `fetch` resolves for non-2xx, so a rejected write used to close the modal
+  // anyway, leaving the user believing preferences were saved when nothing was.
+  const [saveError, setSaveError] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // `tabIndex={-1}` alone only makes the overlay *focusable*; nothing moved
+  // focus into it, so focus stayed on the trigger outside the dialog. Escape
+  // (handled by onKeyDown on the overlay) therefore never reached the handler,
+  // and keyboard users kept tabbing through the page behind an aria-modal
+  // dialog. Move focus in on open and restore it to the trigger on close.
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => previouslyFocused?.focus?.();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,27 +72,33 @@ export default function ConsentPreferences({ open, onClose }: Props) {
   }, [open]);
 
   async function savePreferences() {
+    setSaveError(false);
     try {
-      await fetch("/api/consent", {
+      const res = await fetch("/api/consent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ choices, source: "preferences" }),
       });
+      if (!res.ok) throw new Error(`consent write failed: ${res.status}`);
     } catch {
-      // Fail gracefully
+      setSaveError(true);
+      return;
     }
     onClose();
   }
 
   async function rejectAll() {
+    setSaveError(false);
     try {
-      await fetch("/api/consent", {
+      const res = await fetch("/api/consent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ choices: {}, source: "preferences" }),
       });
+      if (!res.ok) throw new Error(`consent write failed: ${res.status}`);
     } catch {
-      // Fail gracefully
+      setSaveError(true);
+      return;
     }
     onClose();
   }
@@ -92,6 +114,7 @@ export default function ConsentPreferences({ open, onClose }: Props) {
   return (
     <div
       className="consent-overlay"
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="consent-prefs-title"
@@ -145,6 +168,12 @@ export default function ConsentPreferences({ open, onClose }: Props) {
             );
           })}
         </div>
+
+        {saveError && (
+          <p className="consent-note" role="alert">
+            We couldn&apos;t save those preferences. Nothing has been changed — please try again.
+          </p>
+        )}
 
         <div className="consent-modal-footer">
           <button className="consent-btn" onClick={savePreferences} disabled={loading}>

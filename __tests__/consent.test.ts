@@ -37,7 +37,9 @@ describe("consent model", () => {
 
     it("always forces strictly_necessary=true regardless of input", () => {
       const record = buildConsent(
-        { strictly_necessary: false } as any,
+        // Deliberately invalid: the type forbids overriding this, and the point
+        // of the test is that the runtime forces it true anyway.
+        { strictly_necessary: false } as never,
         "preferences",
       );
       expect(record.choices.strictly_necessary).toBe(true);
@@ -145,7 +147,7 @@ describe("consent model", () => {
         ts: new Date().toISOString(),
         source: "preferences",
         choices: {
-          strictly_necessary: false as any,
+          strictly_necessary: false as never,
           preferences: true,
           analytics: true,
           marketing: false,

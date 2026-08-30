@@ -14,6 +14,7 @@ import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { requiredConsentEvents } from "@/lib/shared/legal-consent";
 import { hasCurrentLegalConsent, recordLegalConsent } from "@/lib/legal-consent-db";
+import { auditIp } from "@/lib/consent-db";
 
 export async function GET() {
   const { userId } = await auth();
@@ -33,8 +34,7 @@ export async function POST(req: NextRequest) {
       : "web";
 
   const hdrs = await headers();
-  const ip =
-    hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() || hdrs.get("x-real-ip") || undefined;
+  const ip = auditIp(hdrs);
   const userAgent = hdrs.get("user-agent") ?? undefined;
 
   for (const { doc, version } of requiredConsentEvents()) {

@@ -32,6 +32,17 @@ interface ExportPayload {
   _errors: string[];
 }
 
+/**
+ * `_errors` ships to the client inside the export file, so a raw Postgres
+ * message would disclose schema names, column lists, and fragments of the
+ * failing query to anyone who can trigger the failure. The user only needs to
+ * know that a section is incomplete; the detail belongs in the server log.
+ */
+function describeExportError(err: unknown): string {
+  console.error("[privacy-export] section query failed:", err);
+  return "unavailable";
+}
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) {
@@ -73,7 +84,7 @@ export async function GET() {
     payload.council_sessions = sessions;
   } catch (err) {
     payload._errors.push(
-      `council_sessions: ${err instanceof Error ? err.message : String(err)}`,
+      `council_sessions: ${describeExportError(err)}`,
     );
   }
 
@@ -88,7 +99,7 @@ export async function GET() {
     payload.council_messages = messages;
   } catch (err) {
     payload._errors.push(
-      `council_messages: ${err instanceof Error ? err.message : String(err)}`,
+      `council_messages: ${describeExportError(err)}`,
     );
   }
 
@@ -100,7 +111,7 @@ export async function GET() {
     payload.council_usage = usage;
   } catch (err) {
     payload._errors.push(
-      `council_usage: ${err instanceof Error ? err.message : String(err)}`,
+      `council_usage: ${describeExportError(err)}`,
     );
   }
 
@@ -112,7 +123,7 @@ export async function GET() {
     payload.nuai_usage = usage;
   } catch (err) {
     payload._errors.push(
-      `nuai_usage: ${err instanceof Error ? err.message : String(err)}`,
+      `nuai_usage: ${describeExportError(err)}`,
     );
   }
 
@@ -124,7 +135,7 @@ export async function GET() {
     payload.watchlist_items = items;
   } catch (err) {
     payload._errors.push(
-      `watchlist_items: ${err instanceof Error ? err.message : String(err)}`,
+      `watchlist_items: ${describeExportError(err)}`,
     );
   }
 
@@ -136,7 +147,7 @@ export async function GET() {
     payload.disclaimer_acks = acks;
   } catch (err) {
     payload._errors.push(
-      `disclaimer_acks: ${err instanceof Error ? err.message : String(err)}`,
+      `disclaimer_acks: ${describeExportError(err)}`,
     );
   }
 
@@ -148,7 +159,7 @@ export async function GET() {
     payload.user_digest_cache = result.length > 0 ? result[0] : null;
   } catch (err) {
     payload._errors.push(
-      `user_digest_cache: ${err instanceof Error ? err.message : String(err)}`,
+      `user_digest_cache: ${describeExportError(err)}`,
     );
   }
 
@@ -160,7 +171,7 @@ export async function GET() {
     payload.consent_records = records;
   } catch (err) {
     payload._errors.push(
-      `consent_records: ${err instanceof Error ? err.message : String(err)}`,
+      `consent_records: ${describeExportError(err)}`,
     );
   }
 
@@ -172,13 +183,17 @@ export async function GET() {
     payload.legal_consent_events = events;
   } catch (err) {
     payload._errors.push(
-      `legal_consent_events: ${err instanceof Error ? err.message : String(err)}`,
+      `legal_consent_events: ${describeExportError(err)}`,
     );
   }
 
   return NextResponse.json(payload, {
     headers: {
       "Content-Disposition": 'attachment; filename="nuwrrrld-data-export.json"',
+      // A full personal-data export must never be written to a browser or
+      // intermediary cache where a later visitor on the same device could
+      // retrieve it.
+      "Cache-Control": "no-store",
     },
   });
 }

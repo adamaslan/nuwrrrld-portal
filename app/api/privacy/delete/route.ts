@@ -103,27 +103,52 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Count first — a bare DELETE returns no rows, so this is how we report the
+  // erasure size back to the user. Counting is read-only and safe to do before
+  // the transaction; a count that goes stale in between costs nothing.
   const deleted: Record<string, number | string> = {};
   for (const t of USER_TABLES) {
     try {
-      // Count first — a bare DELETE returns no rows, so this is how we report
-      // the erasure size back to the user.
-      const n = await countRows(t, userId);
-      await sql.query(`DELETE FROM ${t} WHERE user_id = $1`, [userId]);
-      deleted[t] = n;
-    } catch (e) {
-      deleted[t] = `error: ${e instanceof Error ? e.message : "unknown"}`;
+      deleted[t] = await countRows(t, userId);
+    } catch {
+      deleted[t] = 0;
     }
   }
 
-  // Clerk account last — only reached if the loop above didn't throw out.
+  // The erasure itself is all-or-nothing. Previously each DELETE had its own
+  // try/catch, so a failure was recorded into `deleted` and the loop continued
+  // — and the Clerk deletion below still ran, despite a comment claiming it was
+  // "only reached if the loop above didn't throw out". The result was the worst
+  // possible outcome for a GDPR erasure: the account is gone, some rows remain,
+  // the response says ok:true, and the user can no longer authenticate to
+  // retry. One transaction, aborting on the first failure, removes that state.
+  try {
+    await sql.transaction(
+      USER_TABLES.map((t) => sql.query(`DELETE FROM ${t} WHERE user_id = $1`, [userId])),
+    );
+  } catch (e) {
+    console.error("[privacy-delete] erasure transaction failed, rolled back:", e);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "erasure_failed",
+        // The Clerk account is deliberately untouched, so the user can still
+        // sign in and retry — which is why aborting here is the safe outcome.
+        hint: "No data was deleted and your account is intact. Please try again.",
+      },
+      { status: 500 },
+    );
+  }
+
+  // Clerk account last — genuinely only reached once the cascade has committed.
   let clerkDeleted = false;
   try {
     const client = await clerkClient();
     await client.users.deleteUser(userId);
     clerkDeleted = true;
   } catch (e) {
-    deleted["_clerk_error"] = e instanceof Error ? e.message : "unknown";
+    console.error("[privacy-delete] clerk deletion failed after db erasure:", e);
+    deleted["_clerk_error"] = "unavailable";
   }
 
   const hdrs = await headers();

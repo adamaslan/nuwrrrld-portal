@@ -23,7 +23,7 @@ import {
   type ConsentChoices,
   type ConsentRecord,
 } from "@/lib/shared/consent";
-import { getLatestConsentRecord, insertConsentRecord } from "@/lib/consent-db";
+import { auditIp, getLatestConsentRecord, insertConsentRecord } from "@/lib/consent-db";
 
 const VALID_SOURCES: ConsentRecord["source"][] = [
   "banner_accept_all",
@@ -44,12 +44,22 @@ function cookieOptions() {
   };
 }
 
+/**
+ * Every GET response here varies by the `nu_consent` cookie and by the signed-in
+ * account, so none of them may be stored by a browser or a shared intermediary —
+ * a cached response would hand one visitor's consent state to the next.
+ */
+function noStore(res: NextResponse): NextResponse {
+  res.headers.set("Cache-Control", "no-store");
+  return res;
+}
+
 /** GET /api/consent — current consent for the caller. */
 export async function GET() {
   const cookieStore = await cookies();
   const fromCookie = parseConsent(cookieStore.get(CONSENT_COOKIE)?.value);
   if (fromCookie) {
-    return NextResponse.json({ record: fromCookie });
+    return noStore(NextResponse.json({ record: fromCookie }));
   }
 
   // No usable cookie. For signed-in users, recover the last stored choice and
@@ -58,13 +68,13 @@ export async function GET() {
   if (userId) {
     const fromDb = await getLatestConsentRecord(userId);
     if (fromDb) {
-      const res = NextResponse.json({ record: fromDb });
+      const res = noStore(NextResponse.json({ record: fromDb }));
       res.cookies.set(CONSENT_COOKIE, JSON.stringify(fromDb), cookieOptions());
       return res;
     }
   }
 
-  return NextResponse.json({ record: null });
+  return noStore(NextResponse.json({ record: null }));
 }
 
 /** POST /api/consent — record a consent change. */
@@ -103,11 +113,9 @@ export async function POST(req: NextRequest) {
 
   const { userId } = await auth();
   if (userId) {
-    const ip =
-      hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() || hdrs.get("x-real-ip") || undefined;
     await insertConsentRecord(userId, record, {
       userAgent: hdrs.get("user-agent") ?? undefined,
-      ip,
+      ip: auditIp(hdrs),
     });
   }
 

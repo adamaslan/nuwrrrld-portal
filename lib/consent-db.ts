@@ -9,6 +9,25 @@
  * fails CLOSED (returns null) because an outage must not grant a category the
  * user never chose.
  */
+import { clientIpFromHeaders } from "@/lib/shared/public-demo-policy";
+
+/**
+ * The `ip` columns on `consent_records` and `legal_consent_events` are Postgres
+ * `inet`, which rejects anything that isn't a real address. Both writers swallow
+ * their errors (see the asymmetry note above), so a non-address value doesn't
+ * surface as a 500 — it silently loses the audit record we're legally obliged to
+ * keep. Two rules, both load-bearing:
+ *
+ *   1. Read the address from Vercel's `x-real-ip`, which the edge proxy sets and
+ *      overwrites, never from client-supplied `x-forwarded-for`. Otherwise any
+ *      caller can write an arbitrary string into the compliance audit trail.
+ *   2. `clientIpFromHeaders` returns the literal "unknown" off Vercel (local dev,
+ *      tests) — not an address, so map it to undefined and store SQL NULL.
+ */
+export function auditIp(headers: Headers): string | undefined {
+  const ip = clientIpFromHeaders(headers);
+  return ip === "unknown" ? undefined : ip;
+}
 
 import sql from "@/lib/db";
 import { parseConsent, type ConsentRecord } from "@/lib/shared/consent";

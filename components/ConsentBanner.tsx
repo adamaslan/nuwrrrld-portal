@@ -10,6 +10,10 @@ export default function ConsentBanner() {
   const [showBanner, setShowBanner] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [gpcActive, setGpcActive] = useState(false);
+  // `fetch` resolves for non-2xx, so a rejected write used to dismiss the banner
+  // anyway — the user believed they had chosen while no cookie or audit row was
+  // written. Keep the banner up and say so instead.
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,8 +39,17 @@ export default function ConsentBanner() {
 
         if (cancelled) return;
 
-        // If GPC/DNT is active and user hasn't made a choice, auto-opt-out
-        if (gpc && needsPrompt(data.record)) {
+        // GPC/DNT is a legally binding opt-out under CPRA and applies
+        // "regardless of any prior choice" (see applyDoNotTrack in
+        // lib/shared/consent.ts). Gating this on needsPrompt() contradicted
+        // that: a visitor who accepted analytics and *later* enabled GPC kept
+        // being tracked, because their existing record made needsPrompt false.
+        // Post the opt-out whenever the signal is active and the stored record
+        // doesn't already reflect it.
+        const alreadyOptedOut =
+          data.record?.choices?.analytics === false &&
+          data.record?.choices?.marketing === false;
+        if (gpc && !alreadyOptedOut) {
           try {
             await fetch("/api/consent", {
               method: "POST",
@@ -94,8 +107,9 @@ export default function ConsentBanner() {
   }, []);
 
   async function acceptAll() {
+    setSaveError(false);
     try {
-      await fetch("/api/consent", {
+      const res = await fetch("/api/consent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -103,15 +117,18 @@ export default function ConsentBanner() {
           source: "banner_accept_all",
         }),
       });
+      if (!res.ok) throw new Error(`consent write failed: ${res.status}`);
     } catch {
-      // Fail gracefully
+      setSaveError(true);
+      return;
     }
     setShowBanner(false);
   }
 
   async function rejectAll() {
+    setSaveError(false);
     try {
-      await fetch("/api/consent", {
+      const res = await fetch("/api/consent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -119,8 +136,10 @@ export default function ConsentBanner() {
           source: "banner_reject_all",
         }),
       });
+      if (!res.ok) throw new Error(`consent write failed: ${res.status}`);
     } catch {
-      // Fail gracefully
+      setSaveError(true);
+      return;
     }
     setShowBanner(false);
   }
@@ -178,6 +197,12 @@ export default function ConsentBanner() {
                   product usage, and deliver targeted content. You control which categories to
                   allow.
                 </div>
+                {saveError && (
+                  <div className="consent-banner-text" role="alert">
+                    <strong>We couldn&apos;t save that choice.</strong> Nothing has been changed —
+                    please try again.
+                  </div>
+                )}
                 <div className="consent-banner-actions">
                   <button className="consent-btn" onClick={acceptAll}>
                     Accept all
