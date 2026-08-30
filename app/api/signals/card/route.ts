@@ -16,6 +16,13 @@ const VALID_DIRECTIONS = new Set(['bullish', 'bearish', 'neutral']);
 const VALID_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const VALID_TIMEFRAMES = new Set(['intraday', 'short', 'medium', 'long']);
 
+// The other three params are enum-validated, so an oversized value is already
+// discarded. `ticker` is free text and is echoed into the response, where
+// escapeXml expands each character up to 5x ('&' -> '&amp;') — an unbounded
+// input is therefore a response-amplification vector on a public, uncached
+// endpoint. Real tickers fit well inside this.
+const MAX_TICKER_LENGTH = 12;
+
 function escapeXml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -33,7 +40,7 @@ export async function GET(request: NextRequest) {
   const rawConfidence = searchParams.get('confidence') || 'low';
   const rawTimeframe = searchParams.get('timeframe') || 'medium';
 
-  const ticker = escapeXml(rawTicker);
+  const ticker = escapeXml(rawTicker.slice(0, MAX_TICKER_LENGTH));
   const direction = VALID_DIRECTIONS.has(rawDirection) ? rawDirection : 'neutral';
   const confidence = VALID_CONFIDENCES.has(rawConfidence) ? rawConfidence : 'low';
   const timeframe = VALID_TIMEFRAMES.has(rawTimeframe) ? rawTimeframe : 'medium';
