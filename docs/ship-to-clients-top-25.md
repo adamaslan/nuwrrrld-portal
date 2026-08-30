@@ -7,7 +7,7 @@ question: *does this stand between a stranger's credit card and a working
 product?* Nice-to-haves that don't touch that path are excluded.
 
 This is not a generic checklist. Each item was verified against the actual
-repo state on 2026-08-30 — 42 API routes, 24 unit test files, a 34-test
+repo state on 2026-08-30 — 44 API route files, 24 unit test files, a 34-test
 Playwright suite, 7 GitHub Actions workflows, and the open blockers in
 `docs/known-bugs.md`, `docs/pipeline-todo-blockers.md`, and
 `docs/session-handoff.md`.
@@ -32,7 +32,7 @@ A rough effort marker is on each: **S** (under an hour), **M** (a session),
 
 ---
 
-# Tier 1 — Revenue Blockers
+## Tier 1 — Revenue Blockers
 
 Nothing else on this list matters until these six are done. Each one is a way
 to take someone's money and fail to deliver, or to deliver and fail to get
@@ -139,7 +139,7 @@ Leaving it a placeholder is the only wrong answer, because it makes
 
 ---
 
-# Tier 2 — Trust Blockers
+## Tier 2 — Trust Blockers
 
 The app works. These are the items that determine whether a *bad day* is a
 five-minute fix or a customer discovering your outage before you do.
@@ -150,7 +150,7 @@ five-minute fix or a customer discovering your outage before you do.
 opentelemetry` returns **nothing**. There is no error reporting in this
 codebase at all.
 
-You have 42 API routes and no way to know when one of them throws in
+You have 44 API route files and no way to know when one of them throws in
 production. Today, the detection mechanism for a broken paid feature is a
 customer emailing you — which means your mean-time-to-detect equals your
 customer's patience.
@@ -197,16 +197,24 @@ you'd write from memory.
 **This item originally claimed 41 of 42 routes were unprotected. That was
 wrong, and the correction is worth more than the original claim.**
 
-A full inventory of all **44** route files (the count was also stale — PR #81
-added routes) found the exposure is far smaller than a naive grep suggests,
-because most routes authenticate by a mechanism the grep didn't look for:
+A full inventory of every `app/api/**/route.ts` file (there are **44** — the
+count was also stale, PR #81 added routes) found the exposure is far smaller
+than a naive grep suggests, because most routes authenticate by a mechanism
+the grep didn't look for. Each file is classified once, by the primary guard
+on its handler:
 
 | Protection | Routes |
 |---|---|
-| Clerk session (`auth()` / `currentUser()`) | 29 |
+| Clerk session (`auth()` / `currentUser()`) | 30 |
 | Bearer secret (`PORTAL_PUSH_SECRET`, `CRON_SECRET`, `LAUNCH_REMIND_SECRET`) | 8 |
 | Webhook signature (Svix / Stripe `constructEvent`) | 2 |
 | **Genuinely unauthenticated** | **4** |
+| **Total** | **44** |
+
+A handful of routes accept *both* a Clerk session and a bearer secret (e.g.
+`portfolio/suggestions`, `privacy/delete`, `signals/digest`, `signals/top` —
+called either by a signed-in user or by a cron job); those are counted under
+Clerk session above, since an unauthenticated caller still cannot reach them.
 
 And all four unauthenticated routes are already defended appropriately:
 
@@ -292,7 +300,7 @@ should land near it.
 
 ---
 
-# Tier 3 — Product Truth
+## Tier 3 — Product Truth
 
 Billing and reliability are table stakes. These six are about whether the thing
 you're charging for actually produces its output.
@@ -411,7 +419,7 @@ this is about pointing it at the disclaimer.
 
 ---
 
-# Tier 4 — Retention & Polish
+## Tier 4 — Retention & Polish
 
 These don't block launch. They determine month two.
 
@@ -489,7 +497,13 @@ TODO files is the first thing they'll read.
 
 ## The honest short version
 
-If you do only five things:
+**Non-negotiable, before any of the below:** rotate and revoke the exposed
+`STRIPE_SECRET_KEY` (#13). It is a billing-capable credential — a valid copy
+can create charges and issue refunds — so until the old value is revoked in
+the Stripe dashboard, nothing else on this list is safe to act on. Treat this
+as already-complete or do it first.
+
+Then, if you do only five things:
 
 1. **`STRIPE_WEBHOOK_SECRET`** (#1) — you are currently unable to record a payment.
 2. **`STRIPE_PRICE_ANNUAL`** (#2) — you are advertising a plan you cannot sell.
@@ -498,7 +512,7 @@ If you do only five things:
 5. **Consolidate the two rate limiters** (#9) — smaller than this doc first claimed; read the corrected item before acting on it.
 
 Items 1, 2, and 13 all block on the same Stripe dashboard session. Do them in
-one sitting.
+one sitting, and do #13 first.
 
 ---
 
