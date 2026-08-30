@@ -620,3 +620,5 @@ tracks with no consent gate while the portal now blocks tracking until opt-in, s
 shared-identity product is non-compliant until mobile adopts the module.
 
 ## [2026-08-29] ingest | PR #79 fix(stripe): repair broken annual checkout, consolidate onto one product | pages touched: 2
+
+## [2026-08-30] ingest | PR #82 fix(app): error boundaries + bound the public share-card ticker | pages touched: 3

@@ -2,7 +2,7 @@
 date: 2026-07-20
 type: concept
 tags: [resilience, degradation, fallback, non-fatal, persistence]
-sources: [../../lib/council-grounding.ts, ../../lib/council-db.ts, ../../lib/grounding/resolve.ts, ../../app/api/council/deliberate/route.ts, PR#37]
+sources: [../../lib/council-grounding.ts, ../../lib/council-db.ts, ../../lib/grounding/resolve.ts, ../../app/api/council/deliberate/route.ts, ../../app/error.tsx, ../../app/global-error.tsx, ../../app/not-found.tsx, PR#37, PR#82]
 ---
 
 # Concept: Graceful Degradation
@@ -27,6 +27,7 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 - [[entity-ai-council]] — per-seat isolation, `degradedSeats`, CHAIR informed of gaps
 - `lib/council-db.ts` — non-fatal persistence
 - `app/dashboard/HealthBanner.tsx` (PR #65) — the **UI-facing** end of the pattern: turns `/api/health`'s `down`/`degraded` verdict into a user-visible banner, the "and say so" clause made visible rather than logged. Asserted by [[entity-playwright-e2e]]'s health EXPOSE test.
+- `app/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx` (PR #82) — the **render-time** end of the pattern. `error.tsx` catches a thrown route segment; `global-error.tsx` catches the root layout itself (which `error.tsx` cannot see, since it does not wrap the layout above it in its own segment); `not-found.tsx` catches the typo'd dynamic segment, reachable on `/verdict/[ticker]` and `/dashboard/holdfold/[ticker]`, which accept arbitrary strings.
 - Contrast: **CHAIR synthesis is the one exception** — if it fails, `deliberate` returns a hard 503 `Council synthesis unavailable`, because there's no meaningful degraded output without a synthesizer.
 
 ## Contradictions / tensions
@@ -34,6 +35,8 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 > The stance is a double edge: a fully-degraded deliberation (grounding miss + several seats down + no persistence) still returns `200 OK` with a verdict. Nothing in the response schema signals *how* degraded it was to the end user — `degradedSeats` is returned but the UI's use of it isn't verified here.
 
 > ❓ Open question: silent degradation optimizes for availability. For a financial-advice-adjacent product, is "always answer, even ungrounded" the right default, or should a total grounding miss surface a visible "low-confidence, ungrounded" banner to the user rather than only logging it?
+
+> ✅ Further answer (PR #82): the pattern reached the **render** layer, which had been its largest hole. Until now the app had no `error.tsx`, `global-error.tsx`, or `not-found.tsx` at all — so the one failure mode with *no* defined lesser state was a component throwing during render, which fell through to Next.js's unstyled default screen. That is the exact inverse of this concept's rule: not a degraded-but-honest result, but an un-branded dead end with no recovery affordance, on paid routes. The three boundaries close it, and each surfaces `error.digest` — the hash that ties what the user saw to a server log line, making "tells them what was unavailable" actionable rather than merely polite. Note the Next.js 16 detail that makes this non-obvious to write: the retry prop is `unstable_retry`, not the older `reset`, so a from-memory implementation yields a button that silently does nothing — itself a silent-degradation bug.
 
 > ✅ Partial answer (PR #65): at the *infrastructure* layer the "make it loud" side won. `app/dashboard/HealthBanner.tsx` polls `/api/health` on dashboard mount and renders a visible banner naming the affected dependency (market data / database / billing / Nu AI / sign-in) whenever one is `down` or `degraded` — the first UI surface that tells the user degradation is happening rather than only logging it. It deliberately treats `not_configured` as inert (expected in previews) and ignores its own `AbortError` on unmount, so it fires only on real degradation. This closes the "loud, not silent" question for backend-dependency health; the narrower grounding-miss case (per-request ungrounded answers) still degrades silently and remains open.
 
