@@ -7,7 +7,7 @@ import type { SubscriptionStatus } from "@/lib/subscription";
 import { CheckoutButton } from "@/app/pricing/CheckoutButton";
 import "./upgrade.css";
 
-export const metadata: Metadata = { title: "Upgrade to Annual · Save 34%" };
+export const metadata: Metadata = { title: "Upgrade to Annual · Save 33%" };
 
 export default async function UpgradePage() {
   const { userId } = await auth();
@@ -25,11 +25,11 @@ export default async function UpgradePage() {
       <Link href="/dashboard" className="upgrade-back">← Dashboard</Link>
 
       <div className="upgrade-hero">
-        <span className="upgrade-badge">Save 34%</span>
+        <span className="upgrade-badge">Save 33%</span>
         <h1>Switch to annual billing</h1>
         <p className="upgrade-sub">
-          You&apos;re paying $9.99/mo. Switch to annual and pay just $6.58/mo —
-          that&apos;s $79/yr vs $119.88/yr. Same everything, lower price.
+          You&apos;re paying $9.99/mo. Switch to annual and pay just $6.67/mo —
+          that&apos;s $79.99/yr vs $119.88/yr. Same everything, lower price.
         </p>
       </div>
 
@@ -42,12 +42,12 @@ export default async function UpgradePage() {
         <div className="upgrade-arrow">→</div>
         <div className="upgrade-plan upgrade-plan--annual">
           <p className="plan-label">Annual</p>
-          <p className="plan-price">$6.58<span>/mo</span></p>
-          <p className="plan-total">$79/yr · save $40.88</p>
+          <p className="plan-price">$6.67<span>/mo</span></p>
+          <p className="plan-total">$79.99/yr · save $39.89</p>
         </div>
       </div>
 
-      <CheckoutButton plan="annual" label="Switch to annual — save 34%" />
+      <CheckoutButton plan="annual" label="Switch to annual — save 33%" />
 
       <p className="upgrade-note">
         Your monthly subscription will be cancelled and the annual plan starts immediately.

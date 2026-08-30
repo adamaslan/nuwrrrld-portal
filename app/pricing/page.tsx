@@ -55,10 +55,10 @@ export default async function PricingPage({
 
         {/* Annual */}
         <div className="pricing-card pricing-card--featured">
-          <div className="plan-badge">Best value — save 34%</div>
+          <div className="plan-badge">Best value — save 33%</div>
           <div className="plan-name">Annual</div>
           <div className="plan-price">
-            <span className="price-amount">$79</span>
+            <span className="price-amount">$79.99</span>
             <span className="price-period">/yr</span>
           </div>
           <ul className="plan-features">
