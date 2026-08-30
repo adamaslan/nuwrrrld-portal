@@ -13,11 +13,12 @@ concurrency:
   group: e2e-resiliency-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least privilege: only the jobs that actually need id-token/pull-requests
-# grant them (e2e and report respectively, below). A workflow-level grant
-# applies to every job, including `auth`, which holds the Clerk test
-# password — no reason for that job to carry GCP or PR-write scope it
-# never uses. Flagged by zizmor (excessive-permissions).
+# Least privilege: only the job that actually needs pull-requests grants it
+# (`report`, below). A workflow-level grant applies to every job, including
+# `auth`, which holds the Clerk test password — no reason for that job to
+# carry PR-write scope it never uses. Flagged by zizmor
+# (excessive-permissions). No job needs `id-token` any more; see the `e2e`
+# job's permissions block.
 permissions:
   contents: read
 
@@ -137,8 +138,10 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
+      # `id-token: write` used to live here for the WIF exchange. That auth step
+      # is gone (see the comment where it stood), and minting an OIDC token
+      # nothing consumes is privilege for its own sake — so it goes with it.
       contents: read
-      id-token: write # only job that authenticates to GCP via WIF
     strategy:
       fail-fast: false
       matrix:
@@ -186,11 +189,18 @@ jobs:
           name: clerk-storage-state
           path: playwright/.auth/
 
-      - name: Authenticate to GCP (keyless)
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      # No GCP authentication step here, deliberately. It was added alongside
+      # this workflow in PR #64 and never had a consumer: nothing downstream
+      # runs gcloud/gsutil, the app pulls in no @google-cloud client library,
+      # and the one Google-hosted dependency (gcp3-backend on Cloud Run, via
+      # MCP_BACKEND_URL) answers unauthenticated — verified HTTP 200 on
+      # /market-overview with no credential. Meanwhile GCP_WIF_PROVIDER and
+      # GCP_SERVICE_ACCOUNT were never created (no workload identity pool
+      # exists in either GCP project), so google-github-actions/auth failed
+      # every run and took all four shards red with it.
+      #
+      # If a future step genuinely needs GCP, re-add the auth step *with* that
+      # step, and provision the pool at the same time.
 
       # Every project runs here (preflight/health/frontend). `frontend`
       # consumes the storageState restored above instead of re-authenticating
