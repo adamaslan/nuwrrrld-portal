@@ -58,6 +58,7 @@ Cross-cutting patterns and design choices.
 - [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~64%, 2026-08-07 after mobile PR #30 + portal PR #51) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
+- [[concept-public-surface-audit]] — which 4 of 44 routes are truly unauthenticated, the amplification bug found on the cheapest one, and why a grep can't prove a property is absent
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, the stub/live pairing rule, and why nothing runs the suite in CI
 - [[concept-live-backend-liveness-tests]] — how to test the portal against real gcp3/OpenRouter data (add a real ticker, run each panel for real); found 3 live incidents mocked tests couldn't
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
