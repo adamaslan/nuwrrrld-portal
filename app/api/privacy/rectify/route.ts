@@ -17,6 +17,7 @@ import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { logPrivacyRequest } from "@/lib/privacy-requests-db";
+import { auditIp } from "@/lib/consent-db";
 
 const MAX_FIELD_LEN = 120;
 const MAX_VALUE_LEN = 2_000;
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
       reason,
       contact_email: user?.emailAddresses?.[0]?.emailAddress ?? null,
     },
-    ip: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    ip: auditIp(hdrs) ?? null,
     userAgent: hdrs.get("user-agent"),
   });
 

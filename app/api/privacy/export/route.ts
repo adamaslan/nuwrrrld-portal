@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { logPrivacyRequest } from "@/lib/privacy-requests-db";
+import { auditIp } from "@/lib/consent-db";
 
 const EXPORT_LIMIT = 3;
 const EXPORT_WINDOW_MS = 60 * 60_000;
@@ -71,7 +72,7 @@ export async function GET() {
     userId,
     kind: "export",
     status: "fulfilled", // served synchronously in this response
-    ip: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    ip: auditIp(hdrs) ?? null,
     userAgent: hdrs.get("user-agent"),
   });
 
