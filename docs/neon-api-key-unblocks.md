@@ -26,7 +26,7 @@ attributing the failure to the key alone:
 | Name | Shape | Where it comes from |
 |---|---|---|
 | `NEON_API_KEY` | `napi_…` — an **account** API key | Neon console → Account settings → API keys → Generate |
-| `NEON_PROJECT_ID` | `lingering-rain-31058530` (per the `.env.local` comment — verify) | Neon console → Project settings → General |
+| `NEON_PROJECT_ID` | Neon console → Project settings → General. Also recorded in the `.env.local` comment above `DATABASE_URL`. | `integration-tests.yml` |
 
 They are **GitHub Actions repo secrets**, not local env vars. Putting them in
 `.env.local` accomplishes nothing — no local code path reads them. This is the
@@ -219,7 +219,7 @@ a chat session:
 gh secret set NEON_API_KEY
 
 # verify this against Neon console → Project settings → General first
-gh secret set NEON_PROJECT_ID --body 'lingering-rain-31058530'
+gh secret set NEON_PROJECT_ID --body '<NEON_PROJECT_ID>'
 ```
 
 Then re-run the failed job on either PR:
