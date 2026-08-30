@@ -598,3 +598,5 @@ Root cause fixed too: `refresh-free-models.mjs` had faithfully maintained `FREE_
 Failure #6 (single-vendor chain) is *not* closed and is now annotated to say so honestly. A dry run happens to rank `google/gemma-4-31b-it:free` into slot 3 today, giving incidental 2-vendor depth — but that is the catalog shifting, not a constraint, and the next refresh can undo it. The chain still has no vendor-diversity cap.
 
 Parity ℹ️: portal-only. `lib/openrouter.ts` has no mobile counterpart (mobile's council talks to gcp3), no `lib/shared/` module touched, neither denominator moves.
+
+## [2026-08-29] ingest | PR #79 fix(stripe): repair broken annual checkout, consolidate onto one product | pages touched: 2
