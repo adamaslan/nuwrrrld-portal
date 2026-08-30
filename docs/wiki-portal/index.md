@@ -66,6 +66,7 @@ Cross-cutting patterns and design choices.
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
 - [[concept-global-automation-layer]] — the `~/.claude/` global tier (`/geepr`, `/bugz`, `/reb`, `/rem1`, `/maxtoke`, `/locrun`…), always-on rules, hooks, and the `wiki-guard` PR hook that automate + enforce the build process
+- [[concept-followed-tickers-tracking]] — the monthly bear/bull cohort: the app's 10 strongest bearish + 10 strongest bullish signals, frozen for a month and scored daily through backtest + signal + council
 
 ---
 

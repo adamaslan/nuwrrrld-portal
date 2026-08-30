@@ -1,0 +1,193 @@
+name: Track Followed Tickers (daily)
+
+# Every trading day, run this month's followed cohort (the 20 tickers frozen by
+# select-followed-tickers.yml) through the three analysis features the product
+# already has — backtest hit-rates, the live signal, and an AI-council verdict
+# — and append the day's readings to docs/tickers-followed.md.
+#
+# Pattern copied from afternoon-pipeline.yml (see
+# docs/wiki-portal/decision-afternoon-pipeline-cron-split.md): market-hours
+# gate on the real NY wall clock (both EST/EDT cron entries fire year-round;
+# the gate makes the off-season one a no-op instead of a duplicate live run),
+# workflow_dispatch with dry_run, secret verification, concurrency guard, step
+# summary, artifact upload, failure issue.
+#
+# ROUTE STATUS: /api/pipeline/followed-tickers does NOT exist yet. Orchestration
+# shipped ahead of its endpoint. Passes gate + secret check, then 404s on the
+# trigger call until a follow-up PR lands the handler. Path namespaced under
+# /api/pipeline/ so the 404 is loud, not a silent 401 against an unrelated
+# working route (the /api/signals/refresh reuse bug that decision doc records).
+
+on:
+  schedule:
+    # 3:30 PM EST (UTC-5) — active approx Nov–Mar. 15 min after afternoon-pipeline
+    # so the signal refresh it depends on has landed.
+    - cron: '30 20 * * 1-5'
+    # 3:30 PM EDT (UTC-4) — active approx Mar–Nov.
+    - cron: '30 19 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      skip_market_check:
+        description: 'Skip weekday/market-hours gate'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Log readings but do not persist writes'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: track-followed-tickers
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Gate ────────────────────────────────────────────────────────────────
+  gate:
+    name: Market-hours gate
+    runs-on: ubuntu-latest
+    outputs:
+      is_trading_day: ${{ steps.check.outputs.is_trading_day }}
+    steps:
+      - id: check
+        name: Weekday + single-fire (America/New_York 15:xx) check
+        run: |
+          DAY=$(date -u +%u)   # 1=Mon … 7=Sun
+          # Two schedule entries (EST/EDT) fire year-round; only one is the
+          # correct local hour on any given day. Gate on the actual NY wall
+          # clock so the off-season entry is a no-op, not a duplicate live run
+          # an hour apart.
+          NY_HOUR=$(TZ="America/New_York" date +%H)
+          if [[ "$DAY" -ge 6 ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "Weekend — skipping."
+          elif [[ "$NY_HOUR" != "15" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NY local hour is ${NY_HOUR}, not 15 — off-season cron entry, skipping."
+          else
+            echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Track ───────────────────────────────────────────────────────────────
+  track:
+    name: Score the cohort through backtest + signal + council
+    needs: gate
+    if: needs.gate.outputs.is_trading_day == 'true' || inputs.skip_market_check
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    outputs:
+      track_status: ${{ steps.track.outputs.status }}
+    steps:
+      - name: Verify required secrets exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'PORTAL_URL'  || { echo "PORTAL_URL secret missing"; exit 1; }
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'CRON_SECRET' || { echo "CRON_SECRET secret missing"; exit 1; }
+
+      - name: Run the daily cohort scoring
+        id: track
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          # The route reads this month's cohort from docs/tickers-followed.md
+          # (or its own store) and, per ticker, calls fetchBacktest + re-reads
+          # the ranked card + runs one grounded council seat, then writes the
+          # four columns back into the doc.
+          STATUS=$(curl -sS -o /tmp/track.json -w '%{http_code}' \
+            -X POST "$PORTAL_URL/api/pipeline/followed-tickers" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            --max-time 600 \
+            -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"followed-daily\"}")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "track HTTP $STATUS"
+          jq . /tmp/track.json 2>/dev/null || cat /tmp/track.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::followed-tickers returned HTTP $STATUS (route not built yet — see docs/tickers-followed.md)"
+            exit 1
+          fi
+
+      - name: Thesis-flip check
+        id: flips
+        if: steps.track.outputs.status == '200'
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # A cohort where every council verdict came back 'neutral' means the
+          # grounded call degraded to a non-answer for the whole list — the
+          # same uniform-output regression class as issue #12. Warn loudly;
+          # do not fail the run (the backtest + signal columns are still real).
+          FLIPPED=$(jq -r '[.readings[]? | select(.thesis_holding == false)] | length' /tmp/track.json 2>/dev/null || echo 0)
+          NEUTRAL=$(jq -r '[.readings[]? | select(.council.direction == "neutral")] | length' /tmp/track.json 2>/dev/null || echo 0)
+          TOTAL=$(jq -r '(.readings // []) | length' /tmp/track.json 2>/dev/null || echo 0)
+          echo "flipped=$FLIPPED neutral=$NEUTRAL total=$TOTAL"
+          if [[ "$TOTAL" -gt 0 && "$NEUTRAL" == "$TOTAL" ]]; then
+            echo "::warning::All ${TOTAL} council verdicts came back neutral — grounded call likely degraded for the whole cohort."
+          fi
+          echo "flipped=$FLIPPED" >> "$GITHUB_OUTPUT"
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Followed-tickers daily tracking — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| track HTTP | ${{ steps.track.outputs.status || '—' }} |"
+            echo "| theses flipped today | ${{ steps.flips.outputs.flipped || '—' }} |"
+            echo "| dry_run | ${{ inputs.dry_run || false }} |"
+            if [[ -f /tmp/track.json ]]; then
+              echo ""
+              echo '```json'
+              jq '{scored: (.readings // [] | length), degraded: .meta.degraded, backtest_engine: .meta.backtest_available}' \
+                /tmp/track.json 2>/dev/null || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload tracking artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: followed-tickers-daily-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/track.json
+          retention-days: 30
+
+  # ── Notify on failure ──────────────────────────────────────────────────
+  notify:
+    name: Failure notification
+    needs: [gate, track]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Followed-tickers daily tracking failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          **Track:** ${{ needs.track.outputs.track_status || 'skipped' }}
+
+          Expected while \`/api/pipeline/followed-tickers\` is unbuilt — see docs/tickers-followed.md." \
+            --label "pipeline-failure"

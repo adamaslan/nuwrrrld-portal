@@ -1,0 +1,193 @@
+name: Select Followed Tickers (monthly cohort)
+
+# Once a month, ask the app which tickers it feels most strongly about and
+# freeze the top 10 bear + top 10 bull as that month's tracked cohort. The
+# daily scorer (track-followed-tickers.yml) then runs those 20 through
+# backtest + signal + council every trading day until the next refresh.
+#
+# Pattern copied from afternoon-pipeline.yml (see
+# docs/wiki-portal/decision-afternoon-pipeline-cron-split.md): market-aware
+# gate, workflow_dispatch with dry_run, secret verification before any call,
+# concurrency guard, step summary, artifact upload, failure issue.
+#
+# ROUTE STATUS: /api/pipeline/followed-tickers-select does NOT exist yet. This
+# workflow is orchestration shipped ahead of its endpoint, exactly as
+# afternoon-pipeline.yml was. It will pass the gate + secret check and then
+# 404 on the trigger call until a follow-up PR lands the handler. The path is
+# namespaced under /api/pipeline/ (no existing occupant) so that 404 is loud,
+# not a silent 401 against an unrelated working route.
+
+on:
+  schedule:
+    # 14:00 UTC on the 1st of every month — ~10 AM ET (EDT) / ~9 AM ET (EST).
+    # Not market-clock-critical: a monthly cohort pick can slip an hour.
+    - cron: '0 14 1 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute the cohort and log it, but do not commit the doc'
+        required: false
+        type: boolean
+        default: false
+      universe:
+        description: 'Signal universe to rank (stock|etf|all)'
+        required: false
+        type: string
+        default: 'all'
+
+# Finish a run in flight; queue the next. A monthly job overlapping itself
+# would mean two rewrites of the same doc section.
+concurrency:
+  group: select-followed-tickers
+  cancel-in-progress: false
+
+# Least privilege by default; the selection job needs contents:write to commit
+# the refreshed cohort table, and the notify job elevates issues:write.
+permissions:
+  contents: read
+
+jobs:
+  # ── Gate ────────────────────────────────────────────────────────────────
+  gate:
+    name: First-weekday-of-month single-fire check
+    runs-on: ubuntu-latest
+    outputs:
+      run_it: ${{ steps.check.outputs.run_it }}
+    steps:
+      - id: check
+        run: |
+          # The cron fires on the 1st regardless of weekday. If the 1st is a
+          # weekend the signal ranking is a Friday-close snapshot, which is
+          # fine for a monthly pick — so this gate does NOT skip weekends. It
+          # only guards against a manual re-dispatch on the wrong day being
+          # mistaken for the scheduled monthly run.
+          DOM=$(TZ="America/New_York" date +%d)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "run_it=true" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch — running regardless of date."
+          elif [[ "$DOM" == "01" ]]; then
+            echo "run_it=true" >> "$GITHUB_OUTPUT"
+            echo "1st of the month (NY) — running monthly cohort selection."
+          else
+            echo "run_it=false" >> "$GITHUB_OUTPUT"
+            echo "NY day-of-month is ${DOM}, not 01 — not the monthly fire, skipping."
+          fi
+
+  # ── Select ──────────────────────────────────────────────────────────────
+  select:
+    name: Pick the monthly bear/bull cohort
+    needs: gate
+    if: needs.gate.outputs.run_it == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    outputs:
+      select_status: ${{ steps.select.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required secrets exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'PORTAL_URL'  || { echo "PORTAL_URL secret missing"; exit 1; }
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'CRON_SECRET' || { echo "CRON_SECRET secret missing"; exit 1; }
+
+      - name: Request monthly cohort selection
+        id: select
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          UNIVERSE: ${{ inputs.universe || 'all' }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -sS -o /tmp/cohort.json -w '%{http_code}' \
+            -X POST "$PORTAL_URL/api/pipeline/followed-tickers-select" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            --max-time 300 \
+            -d "{\"universe\": \"${UNIVERSE}\", \"count\": 10, \"dry_run\": ${{ inputs.dry_run || false }}}")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "select HTTP $STATUS"
+          jq . /tmp/cohort.json 2>/dev/null || cat /tmp/cohort.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::followed-tickers-select returned HTTP $STATUS (route not built yet — see docs/tickers-followed.md)"
+            exit 1
+          fi
+
+      - name: Commit refreshed cohort table
+        if: steps.select.outputs.status == '200' && (inputs.dry_run || false) == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The route is expected to have edited docs/tickers-followed.md in the
+          # deployed repo checkout OR to return the new tables in cohort.json
+          # for this step to apply. Until the route exists this step never
+          # runs (guarded by the 200 check above).
+          if git diff --quiet -- docs/tickers-followed.md; then
+            echo "No change to docs/tickers-followed.md — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/tickers-followed.md
+          git commit -m "chore(followed-tickers): monthly cohort refresh $(date -u '+%Y-%m')"
+          git push
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Monthly followed-tickers selection — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| select HTTP | ${{ steps.select.outputs.status || '—' }} |"
+            echo "| dry_run | ${{ inputs.dry_run || false }} |"
+            if [[ -f /tmp/cohort.json ]]; then
+              echo ""
+              echo '```json'
+              jq '{bulls: (.bulls // [] | length), bears: (.bears // [] | length), universe: .universe}' \
+                /tmp/cohort.json 2>/dev/null || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload cohort artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: followed-tickers-cohort-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/cohort.json
+          retention-days: 90
+
+  # ── Notify on failure ──────────────────────────────────────────────────
+  notify:
+    name: Failure notification
+    needs: [gate, select]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Followed-tickers monthly selection failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          **Select:** ${{ needs.select.outputs.select_status || 'skipped' }}
+
+          Expected while \`/api/pipeline/followed-tickers-select\` is unbuilt — see docs/tickers-followed.md." \
+            --label "pipeline-failure"
