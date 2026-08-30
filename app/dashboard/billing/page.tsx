@@ -74,7 +74,7 @@ export default async function BillingPage() {
               <ManageBillingButton />
               {status === "active" && (
                 <Link href="/dashboard/upgrade" className="billing-upgrade-btn billing-upgrade-btn--annual">
-                  Switch to annual — save 34%
+                  Switch to annual — save 33%
                 </Link>
               )}
             </>

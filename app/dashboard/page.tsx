@@ -204,7 +204,7 @@ export default async function Dashboard({
 
         {isPro && status === "active" && (
           <div className="upgrade-banner upgrade-banner--annual">
-            <strong>Save 34%</strong> — switch to annual billing and pay $6.58/mo instead of $9.99/mo.{" "}
+            <strong>Save 33%</strong> — switch to annual billing and pay $6.67/mo instead of $9.99/mo.{" "}
             <Link href="/dashboard/upgrade" className="upgrade-banner-link">Switch to annual →</Link>
           </div>
         )}
