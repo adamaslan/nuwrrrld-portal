@@ -622,3 +622,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-08-29] ingest | PR #79 fix(stripe): repair broken annual checkout, consolidate onto one product | pages touched: 2
 
 ## [2026-08-30] ingest | PR #82 fix(app): error boundaries + bound the public share-card ticker | pages touched: 3
+
+## [2026-08-30] ingest | PR (feat): followed-tickers monthly cohort — select + track workflows shipped ahead of their /api/pipeline/* routes | pages touched: 3
