@@ -2,6 +2,10 @@
 
 Found and fixed 2026-08-29, verified against the live Stripe API.
 
+> Identifiers are written as `<PLACEHOLDER>` throughout. Real product and price
+> IDs live in the Stripe dashboard and in `.env.local` / Vercel project env
+> vars — never in a doc, a commit, or a chat transcript.
+
 ---
 
 ## The bug
@@ -27,7 +31,7 @@ malformed ID to Stripe, so the account looked healthy from outside.
 ## The fix
 
 Both plans are now prices on the **single** product `NuWrrrld_Monthly`
-(`prod_UgjzQZfEkzHxDE` — formerly named "NuWrrrld Financial Pro"; same object,
+(`<STRIPE_PRODUCT_MAIN>` — formerly named "NuWrrrld Financial Pro"; same object,
 renamed, so nothing referencing it broke).
 
 **Why one product.** Stripe's subscription *update* flow — swapping a
@@ -44,10 +48,10 @@ because the consolidated price already existed at that amount.
 
 | Product | Amount | State | Env var |
 |---|---|---|---|
-| `NuWrrrld_Monthly` `prod_UgjzQZfEkzHxDE` | $9.99/mo | **active** | `STRIPE_PRICE_MONTHLY` ✅ |
-| `NuWrrrld_Monthly` `prod_UgjzQZfEkzHxDE` | $79.99/yr | **active** | `STRIPE_PRICE_ANNUAL` ✅ |
-| `NuWrrrld_Monthly` `prod_UgjzQZfEkzHxDE` | $10.00/mo | archived | — (was the monthly) |
-| `Nuwrrrld_Yearly` `prod_VAE0g8yfWdJ4Z9` | $79.00/yr | active, **redundant** | — |
+| `NuWrrrld_Monthly` `<STRIPE_PRODUCT_MAIN>` | $9.99/mo | **active** | `STRIPE_PRICE_MONTHLY` ✅ |
+| `NuWrrrld_Monthly` `<STRIPE_PRODUCT_MAIN>` | $79.99/yr | **active** | `STRIPE_PRICE_ANNUAL` ✅ |
+| `NuWrrrld_Monthly` `<STRIPE_PRODUCT_MAIN>` | $10.00/mo | archived | — (was the monthly) |
+| `Nuwrrrld_Yearly` `<STRIPE_PRODUCT_YEARLY_OLD>` | $79.00/yr | active, **redundant** | — |
 
 > **Stripe prices can never be deleted** — only archived (`active: false`).
 > Archiving blocks new checkouts on that price; existing subscriptions on it keep
@@ -95,7 +99,7 @@ kept the old values.
 
 ## Still to do
 
-- [ ] **Archive the redundant `Nuwrrrld_Yearly` product** (`prod_VAE0g8yfWdJ4Z9`).
+- [ ] **Archive the redundant `Nuwrrrld_Yearly` product** (`<STRIPE_PRODUCT_YEARLY_OLD>`).
       Its $79/yr price cannot be archived on its own — Stripe refuses with *"this
       price cannot be archived because it is the default price of its product."*
       Archive the **product** in the dashboard and the price goes inactive with
