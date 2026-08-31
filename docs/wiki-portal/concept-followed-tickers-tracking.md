@@ -90,13 +90,19 @@ Markdown is the *rendering*; three tables (`followed_ticker_picks`,
 scoring run that had to parse markdown to find its previous state would
 eventually corrupt it.
 
-The two workflows copy [[decision-afternoon-pipeline-cron-split]] wholesale:
+The workflows copy [[decision-afternoon-pipeline-cron-split]] wholesale:
 market-hours gate on the real NY wall clock, `workflow_dispatch` with
 `dry_run`, secret verification before any call, `concurrency` guard, step
-summary, artifact upload, failure-issue notification. They are **orchestration
-shipped ahead of their routes** — `/api/pipeline/followed-tickers-select` and
-`/api/pipeline/followed-tickers` do not exist yet; the jobs pass their gate
-and secret check, then 404. Two bugs from that decision doc are pre-empted:
+summary, artifact upload, failure-issue notification. `select` and `track`
+shipped **ahead of their routes**; as of PR #88 **all three routes exist** —
+`/api/pipeline/followed-tickers-select` (monthly), `/api/pipeline/followed-tickers`
+(daily observer + horizon resolution), and `/api/pipeline/followed-tickers-judge`
+(weekly, gold-gated, `judge-followed-tickers.yml`). They gate on `CRON_SECRET`.
+Until `db:migrate` runs against prod the routes degrade to empty results rather
+than erroring. The outcome math (`lib/eval-scoring.ts`) and judge rubric
+(`lib/eval-judge.ts`) are pure and unit-tested; the doc's marker-delimited
+sections are rewritten by `lib/followed-tickers-render.ts`. Two bugs from that
+decision doc are pre-empted:
 route paths namespaced under `/api/pipeline/` (no existing occupant, so a
 misconfig 404s loudly instead of silently 401ing against a working endpoint),
 and the daily job's EST+EDT cron pair gated on NY wall-clock hour so the
@@ -118,10 +124,15 @@ off-season entry is a no-op, not a duplicate live run an hour apart.
   runs before it.
 - `lib/track-record.ts` — the existing *backward*-looking aggregate over
   `backtest_hit_rates`; the scoreboard is its forward-looking counterpart.
-- Future: `/api/pipeline/followed-tickers-select`,
-  `/api/pipeline/followed-tickers`, `/api/pipeline/followed-tickers-judge`,
-  `lib/eval-scoring.ts`, `lib/eval-judge.ts`, and the three new tables
-  (follow-up PRs).
+- `app/api/pipeline/followed-tickers-select/route.ts`,
+  `app/api/pipeline/followed-tickers/route.ts`,
+  `app/api/pipeline/followed-tickers-judge/route.ts` — the three routes (PR #88).
+- `lib/eval-scoring.ts` — pure outcome math (dead-band, n<30 suppression,
+  baselines, `daysHeld`); `lib/eval-judge.ts` — rubric + gold-set gate;
+  `lib/followed-tickers-db.ts` / `lib/followed-tickers-render.ts` — store access
+  and the doc-section rewriter; `lib/shared/followed-tickers-policy.ts` — pure
+  cohort selection.
+- `__tests__/fixtures/followed-tickers-gold-set.json` — the judge's anchor set.
 - `docs/ship-to-clients-top-25.md` item #14 — the same council explain-quality
   output this cohort exercises daily.
 
