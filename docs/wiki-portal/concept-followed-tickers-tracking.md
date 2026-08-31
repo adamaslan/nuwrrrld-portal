@@ -174,10 +174,15 @@ off-season entry is a no-op, not a duplicate live run an hour apart.
 > ([[concept-free-tier-resilience]]) swaps models without notice, so this is
 > not a hypothetical drift risk.
 
-> ❓ Open question: whether any of the scoreboard becomes user-facing. The
-> `n<30` suppression and baseline-relative reporting exist so that it *could*
-> be, but a published hit-rate carries compliance weight
-> ([[entity-disclaimer-system]]) and that is a product decision, not a default.
+> ✅ Resolved (PR #92): the scoreboard **is** user-facing on the portal, at
+> `/dashboard/followed-tickers`, gated on the `pro_signals` entitlement — not
+> the [[entity-disclaimer-system]] modal. This is a *published track record*,
+> not trade-shaped advice (closer to `lib/track-record.ts`'s public receipts
+> stat), so a plain footer disclaimer carries the "not advice / past accuracy ≠
+> future results" text and the harness's own `n<30` suppression is what makes
+> publishing safe. `GET /api/followed-tickers` + the pure
+> `lib/shared/followed-tickers-view.ts` view-model back it; the mobile screen
+> ([[concept-mobile-web-parity]] / [[concept-sync-requirements]]) is still open.
 
 ## See also
 
