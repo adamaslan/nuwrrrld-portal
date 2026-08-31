@@ -313,6 +313,12 @@ sides hides both.
 
 ## Current cohort
 
+The two tables below are rewritten in place between the `FT:COHORT` markers by
+`select-followed-tickers.yml` (monthly) and `track-followed-tickers.yml`
+(daily) — never by hand. See `lib/followed-tickers-render.ts` and
+`app/api/pipeline/followed-tickers-select/route.ts`.
+
+<!-- FT:COHORT:START -->
 **Selection run:** _not yet executed_ — this table is populated by the first
 monthly run of `select-followed-tickers.yml` (see *Automation*). Until then
 the rows are the shape the run will fill, not real picks.
@@ -328,15 +334,18 @@ the rows are the shape the run will fill, not real picks.
 | Ticker | Direction | Added | Entry | Latest signal | Backtest | Council | Judge /10 | Days held | Thesis holding? |
 |---|---|---|---|---|---|---|---|---|---|
 | _pending selection run_ | bear | — | — | — | — | — | — | — | — |
+<!-- FT:COHORT:END -->
 
 ---
 
 ## Scoreboard
 
-Outcome accuracy by horizon. Rewritten by the scoring run as each horizon
-resolves. `n` is resolved picks (hits + misses; flats and voids excluded from
-the rate but counted in their own columns).
+Outcome accuracy by horizon. Rewritten by the scoring run (between the
+`FT:SCOREBOARD` markers) as each horizon resolves. `n` is resolved picks (hits
++ misses; flats and voids excluded from the rate but counted in their own
+columns).
 
+<!-- FT:SCOREBOARD:START -->
 **As of:** _no scoring run has executed_
 
 | Horizon | n | Hit | Miss | Flat | Void | Hit-rate | Mean ret % | vs always-long | vs SPY | vs backtest prior |
@@ -348,6 +357,7 @@ the rate but counted in their own columns).
 | `m6` | 0 | — | — | — | — | `not yet available` | — | — | — | — |
 | `ytd` | 0 | — | — | — | — | `not yet available` | — | — | — | — |
 | `y1` | 0 | — | — | — | — | `not yet available` | — | — | — | — |
+<!-- FT:SCOREBOARD:END -->
 
 ### Split by side
 
@@ -371,14 +381,17 @@ monotonically down the table.
 
 ## Judge scorecard
 
-Reasoning quality, independent of outcome. **Judge version:** `v1` (rubric
-above, 5 criteria × 0–2).
+Reasoning quality, independent of outcome. Rewritten by the weekly judge run
+between the `FT:JUDGE` markers. **Judge version:** `v1` (rubric above, 5
+criteria × 0–2).
 
+<!-- FT:JUDGE:START -->
 **As of:** _no judge run has executed_
 
 | Period | Verdicts graded | Mean /10 | Grounding | Falsifiability | Consistency | Specificity | Calibration | Gold-set agreement |
 |---|---|---|---|---|---|---|---|---|
 | _pending first judge run_ | 0 | — | — | — | — | — | — | — |
+<!-- FT:JUDGE:END -->
 
 ### Quadrant distribution
 
@@ -476,24 +489,29 @@ failure-issue notification.
 |---|---|---|---|
 | `.github/workflows/select-followed-tickers.yml` | `0 14 1 * *` — 1st of the month, ~10 AM ET | `POST /api/pipeline/followed-tickers-select` | Ranks the universe, picks 10+10, stamps entry prices, writes `followed_ticker_picks`, rewrites *Current cohort*, archives the prior table. |
 | `.github/workflows/track-followed-tickers.yml` | `30 20 * * 1-5` — weekdays 3:30 PM ET (after the afternoon pipeline has refreshed signals) | `POST /api/pipeline/followed-tickers` | Appends the day's `followed_ticker_observations` for all live picks, resolves any horizon that came due, updates *Current cohort*. |
-| `.github/workflows/judge-followed-tickers.yml` *(not yet written)* | weekly, Sat ~12:00 ET | `POST /api/pipeline/followed-tickers-judge` | Grades that week's verdicts against the rubric, re-grades the gold set, aborts and publishes nothing if gold agreement < 80%. |
+| `.github/workflows/judge-followed-tickers.yml` | `0 16 * * 6` — Saturday ~12:00 ET | `POST /api/pipeline/followed-tickers-judge` | Grades that week's verdicts against the rubric, re-grades the gold set, aborts and publishes nothing if gold agreement < 80%. |
 
 Running the judge on a Saturday is deliberate: it is off-market, so it
 competes with neither the afternoon pipeline nor interactive Nu AI traffic for
 the shared free-tier quota.
 
-### Route status — shipped ahead of its endpoints
+### Route status — now shipped
 
-Exactly as `afternoon-pipeline.yml` was merged before its `/api/pipeline/*`
-routes existed ([[decision-afternoon-pipeline-cron-split]]): **the workflows
-are orchestration only.** The routes they call —
-`/api/pipeline/followed-tickers-select`, `/api/pipeline/followed-tickers`, and
-`/api/pipeline/followed-tickers-judge` — **do not exist yet.** The workflows
-pass their gate and secret-check steps and then 404 on the trigger call until
-follow-up PRs land the handlers. This is deliberate: the route work touches
-`lib/backtest.ts`, the signal-lookup layer, the council-grounding path, and
-three new tables, and needs its own route tests. Holding the scheduler infra
-hostage to it is the anti-pattern that decision doc calls out.
+The `select-followed-tickers.yml` and `track-followed-tickers.yml` workflows
+shipped ahead of their endpoints (exactly as `afternoon-pipeline.yml` did —
+[[decision-afternoon-pipeline-cron-split]]). As of this PR **all three routes
+exist**:
+
+- `POST /api/pipeline/followed-tickers-select` — `route.ts` under
+  `app/api/pipeline/followed-tickers-select/`.
+- `POST /api/pipeline/followed-tickers` — the daily observer.
+- `POST /api/pipeline/followed-tickers-judge` — the weekly judge (shipped in
+  the same PR as `judge-followed-tickers.yml`, not ahead of it).
+
+All three gate on `CRON_SECRET` (not `PORTAL_PUSH_SECRET`). Until
+`scripts/db-migrate.mjs` has run against the target DB, they return `ok:true`
+with an empty result rather than erroring — a `getLivePicks()` against a
+missing table degrades to `[]`.
 
 The route paths are **namespaced under `/api/pipeline/`** — a prefix with no
 existing occupant — so a misconfiguration 404s loudly against a route that
@@ -511,41 +529,45 @@ something else (the `/api/signals/refresh` reuse bug from
 
 ## Follow-up work
 
-Ordered by dependency — each item unblocks the next.
+Items 1–8 are **implemented** (this PR); 9–10 remain product/architecture
+decisions and are deliberately not code.
 
-1. **Schema migration** — the three tables above, via `scripts/db-migrate.mjs`.
-   Nothing else can land first; the routes have nowhere to write.
-2. **`POST /api/pipeline/followed-tickers-select`** — reads `/api/signals/top`,
-   splits by direction, takes the extremes, stamps entry prices from
-   `live_prices`, inserts `followed_ticker_picks`, edits this file's *Current
-   cohort* in place, moves the old table to *Cohort history*.
-3. **`POST /api/pipeline/followed-tickers`** — the daily observer: for each
-   live pick, append an observation row (close, signal direction, backtest
-   rate, council verdict JSON), then resolve any horizon that came due into
-   `followed_ticker_scores`.
-4. **`lib/eval-scoring.ts`** — pure functions for the outcome math: `directional`,
-   the per-horizon dead-band table, `outcome` classification, aggregate
-   hit-rate with `n<30` suppression, and the four baselines. Pure and
-   dependency-free so it is unit-testable without a DB, which matters because
-   a scoring bug is invisible — it produces plausible numbers.
-5. **`POST /api/pipeline/followed-tickers-judge` + `lib/eval-judge.ts`** — the
-   rubric prompt, the gold-set comparison, the <80%-agreement abort, and the
-   `judge_version` stamp. Depends on `lib/council-validate.ts` running first
-   as the pre-filter.
-6. **The gold set** — ~20 hand-scored verdicts spanning the quality range,
-   checked in as a fixture. This is manual work and cannot be generated by the
-   model being evaluated; without it, judge rule 5 is unenforceable and the
-   judge column is unfalsifiable.
-7. **Distribution guard** — the same forced-distribution check
-   `afternoon-pipeline.yml` runs, so a month of uniform `neutral` council
-   verdicts fails loudly (issue #12 regression class).
-8. **Scoreboard rendering** — the run rewrites the *Scoreboard* and *Judge
-   scorecard* sections from the tables, never by hand.
-9. **Public surface** — decide whether any of this is user-facing. The
+1. ✅ **Schema migration** — `followed_ticker_picks` / `_observations` /
+   `_scores` in `lib/db/schema.sql`. Applied by `scripts/db-migrate.mjs`
+   (idempotent, `prebuild` step) — **not yet run against production**; the
+   routes degrade to empty results until it is.
+2. ✅ **`POST /api/pipeline/followed-tickers-select`** — ranks the universe via
+   `topCards()`, splits by direction (`lib/shared/followed-tickers-policy.ts`
+   `selectCohort`), stamps entry prices from `live_prices`, inserts the cohort.
+   A pick with no live price is skipped, not frozen with a guess. Re-running
+   for a month that already has a cohort is a no-op.
+3. ✅ **`POST /api/pipeline/followed-tickers`** — the daily observer: appends an
+   observation (close, signal direction, backtest rate, council verdict JSON)
+   for each live pick, then resolves every horizon that has come due into
+   `followed_ticker_scores`. `ytd` re-resolves in place until Dec 31.
+4. ✅ **`lib/eval-scoring.ts`** — pure outcome math: `directionalReturn`, the
+   per-horizon dead-band table, `classifyOutcome`, `aggregate` with `n<30`
+   suppression, `computeBaselines` (coin-flip / always-long / buy-hold-SPY /
+   backtest-prior), `daysHeld`. No DB, no dates-from-now — fully unit-tested.
+5. ✅ **`POST /api/pipeline/followed-tickers-judge` + `lib/eval-judge.ts`** —
+   the 5-criterion rubric, outcome-blind prompt, five-integer parser,
+   gold-set comparison (±1 on the 0–10 sum), `<80%`-agreement abort, and the
+   `JUDGE_VERSION` stamp. Judge seat is `QUANT` (smallest model, never a T1/T2
+   author). Verdicts are pre-filtered by `lib/council-validate.ts` at write time.
+6. ✅ **The gold set** — `__tests__/fixtures/followed-tickers-gold-set.json`.
+   Three seed entries (excellent / mediocre / ungrounded); expand toward ~20
+   as real verdicts accumulate. Hand-scored — must not be model-generated.
+7. ✅ **Distribution guard** — the daily workflow's "Thesis-flip check" step
+   already warns when every council verdict comes back `neutral`
+   (issue #12 regression class). The route reports `meta.degraded` for it.
+8. ✅ **Scoreboard rendering** — `lib/followed-tickers-render.ts` rewrites the
+   `FT:COHORT` / `FT:SCOREBOARD` / `FT:JUDGE` marker-delimited sections of this
+   file from the tables. Pure string work; the caller does the file I/O.
+9. ⬜ **Public surface** — decide whether any of this is user-facing. The
    `n<30` and baseline rules exist so that it *could* be, but that is a
-   product decision with compliance weight (`docs/wiki-portal/entity-disclaimer-system.md`), not a
-   default.
-10. **Mobile parity** — decide whether `gcp3-mobile` surfaces the cohort or
+   product decision with compliance weight
+   (`docs/wiki-portal/entity-disclaimer-system.md`), not a default.
+10. ⬜ **Mobile parity** — decide whether `gcp3-mobile` surfaces the cohort or
     the scoreboard ([[concept-mobile-web-parity]] / [[concept-sync-requirements]]).
 
 ---
@@ -556,9 +578,12 @@ Ordered by dependency — each item unblocks the next.
 |---|---|
 | `select-followed-tickers.yml` YAML parse | _validate before commit_ |
 | `track-followed-tickers.yml` YAML parse | _validate before commit_ |
-| `judge-followed-tickers.yml` exists | **no** — follow-up |
-| Routes called exist | **no** — documented above, follow-up PRs |
-| Schema tables exist | **no** — migration is follow-up item 1 |
+| `judge-followed-tickers.yml` exists | **yes** — shipped this PR |
+| Routes called exist | **yes** — all three, `app/api/pipeline/followed-tickers*` |
+| `lib/eval-scoring.ts` unit tests pass | see `__tests__/eval-scoring.test.ts` |
+| `lib/eval-judge.ts` unit tests pass | see `__tests__/eval-judge.test.ts` |
+| `lib/shared/followed-tickers-policy.ts` unit tests pass | see `__tests__/followed-tickers-policy.test.ts` |
+| Schema tables exist in `schema.sql` | **yes** — `db:migrate` not yet run on prod |
 | Ran against live data | **no** — no selection run has executed |
 | Any published hit-rate | **no** — and none may be published under `n=30` |
 

@@ -127,10 +127,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # The route is expected to have edited docs/tickers-followed.md in the
-          # deployed repo checkout OR to return the new tables in cohort.json
-          # for this step to apply. Until the route exists this step never
-          # runs (guarded by the 200 check above).
+          # The route runs on a read-only serverless FS, so it returns the
+          # rendered *Current cohort* section in cohort.json (`renderedCohort`).
+          # Splice it between the FT:COHORT markers in docs/tickers-followed.md.
+          RENDERED=$(jq -r '.renderedCohort // empty' /tmp/cohort.json)
+          if [[ -z "$RENDERED" ]]; then
+            echo "No renderedCohort in the response — nothing to splice."
+            exit 0
+          fi
+          node - <<'EOF'
+          const fs = require("fs");
+          const path = "docs/tickers-followed.md";
+          const rendered = JSON.parse(fs.readFileSync("/tmp/cohort.json", "utf8")).renderedCohort;
+          const [start, end] = ["<!-- FT:COHORT:START -->", "<!-- FT:COHORT:END -->"];
+          const doc = fs.readFileSync(path, "utf8");
+          const s = doc.indexOf(start), e = doc.indexOf(end);
+          if (s === -1 || e === -1 || e < s) { console.error("FT:COHORT markers missing"); process.exit(1); }
+          fs.writeFileSync(path, doc.slice(0, s + start.length) + "\n" + rendered.trimEnd() + "\n" + doc.slice(e));
+          EOF
           if git diff --quiet -- docs/tickers-followed.md; then
             echo "No change to docs/tickers-followed.md — nothing to commit."
             exit 0

@@ -34,6 +34,7 @@ import {
   insertCohort,
   type NewPick,
 } from "@/lib/followed-tickers-db";
+import { renderCohort, type CohortRow } from "@/lib/followed-tickers-render";
 
 export const maxDuration = 300;
 
@@ -131,6 +132,23 @@ export async function POST(req: NextRequest) {
 
   const inserted = await insertCohort(priced);
 
+  // The route runs on a read-only serverless FS and cannot edit the doc itself.
+  // It returns the rendered *Current cohort* section so the workflow's commit
+  // step can splice it between the FT:COHORT markers (see
+  // lib/followed-tickers-render.ts `replaceSection`).
+  const cohortRows: CohortRow[] = inserted.map((p) => ({
+    ticker: p.ticker,
+    direction: p.direction,
+    added: p.cohortMonth,
+    entry: p.entryPrice,
+    latestSignal: "—",
+    backtest: "—",
+    council: "—",
+    judge: null,
+    daysHeld: null,
+    thesisHolding: true,
+  }));
+
   return NextResponse.json({
     ok: true,
     cohortMonth,
@@ -139,5 +157,6 @@ export async function POST(req: NextRequest) {
     bulls: inserted.filter((p) => p.direction === "bull").map((p) => p.ticker),
     bears: inserted.filter((p) => p.direction === "bear").map((p) => p.ticker),
     skippedNoPrice: skipped,
+    renderedCohort: renderCohort(cohortRows, `${cohortMonth} (${inserted.length} picks)`),
   });
 }
