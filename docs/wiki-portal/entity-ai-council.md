@@ -49,13 +49,19 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 
 1. **Seat returns empty/unparsable after retry.** In `/api/council` a failed parse after one strict-format retry returns `council_response_invalid` (502) rather than rendering raw text — this is the fix for the 2026-07-15 chain-of-thought leak. In `deliberate`, an empty seat lands in `degradedSeats` and the CHAIR is told which seats were unavailable.
 2. **All models in `FREE_MODEL_CHAIN` fail.** `runSeat` throws after exhausting the chain; `deliberate` isolates this per-seat, but if CHAIR synthesis itself fails the whole route returns 503 `Council synthesis unavailable`.
-3. **Grounding silently degrades.** If every grounding source misses, the brief falls back to "reason from general knowledge and say so" with no hard failure — see [[entity-grounding-tier-ladder#known-failures]].
+3. **A caller stops reading the route's response shape.** Distinct from 1: the
+   council succeeds and the verdict is persisted, but the client renders an
+   error because it reads a key the route no longer returns. Broke signal-card
+   "Go Deeper" for ~6 weeks — see
+   [[incident-2026-08-31-signals-go-deeper-contract-drift]].
+4. **Grounding silently degrades.** If every grounding source misses, the brief falls back to "reason from general knowledge and say so" with no hard failure — see [[entity-grounding-tier-ladder#known-failures]].
 
 ## Open questions
 
 - ❓ The `SEAT_MODELS` primary assignments predate the §10 residual-difficulty analysis; only the CHAIR verdict call currently uses `SMALLEST_MODEL`. Should T1/T2/MACRO be reassigned once Layer-B flag-rate telemetry exists?
 - ❓ RISK's counter-slice uses the *live signal* direction as the majority proxy at brief-build time (there's no real majority yet). Does that match the actual round-1 majority often enough to be useful?
 - ❓ No live-model golden tests run in CI — the deterministic Vitest suite covers parsing/critique/validation logic but not whether a real 7B produces parseable output. Deferred in PR #37.
+- ❓ Nothing asserts that each caller of `/api/council` still reads the shape the route returns. This is cheap to cover deterministically and would have caught [[incident-2026-08-31-signals-go-deeper-contract-drift]] on day one.
 
 ## See also
 

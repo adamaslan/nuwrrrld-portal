@@ -202,6 +202,8 @@ Hold/Fold backend unification) is backlog, not batch scope. The portal still
 pulls ahead on the signal/Hold-Fold data plane; the risk lives in the gap
 between the two denominators.
 
+> ℹ️ **Portal PR fix(signals) (2026-08-31) assessed — portal-only bug fix, headline unchanged.** Repairs signal-card "Go Deeper", which had rendered every successful T1 council call as an error since the four-field migration ([[incident-2026-08-31-signals-go-deeper-contract-drift]]): `/api/council` returns `{ verdict, model, seat }` and `SignalsClient` still read `data.answer`. Adds one new `lib/shared/` module, **`councilErrors.ts`** (the `/api/council` error-code → sentence map, previously private to `HoldFoldClient`), and edits `lib/shared/prompts.ts` to drop prose tails that contradicted the structured-verdict instruction. Neither is mobile-reachable: `gcp3-mobile` has no `/api/council` caller and carries neither `prompts.ts` nor `councilErrors.ts` — the council remains the divergent flagship ([[entity-ai-council]]). Same shape as `universe-policy.ts` in PR #71: a new portal-only shared module is a *parity candidate* only if mobile ever grows a council surface, not a drift of an existing shared file. Neither denominator moves.
+
 ## Domain parity matrix
 
 | Domain | Mobile | Portal | Shared module | Status |
