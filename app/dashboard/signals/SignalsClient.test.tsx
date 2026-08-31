@@ -20,7 +20,7 @@ function makeSignal(overrides: Partial<SignalPayload> = {}): SignalPayload {
     id: "sig-1",
     ticker: "AAPL",
     direction: "bullish",
-    timeframe: "1-5d",
+    timeframe: "short",
     confidence: "high",
     title: "RSI reclaim",
     explanation: "Momentum turned up.",

@@ -10,10 +10,17 @@ export const COUNCIL_ERROR_MESSAGES: Record<string, string> = {
   unauthenticated: "Sign in to consult the AI council.",
 };
 
-/** Resolve an error payload + status into a sentence safe to show a user. */
+/**
+ * Resolve an error payload + status into a sentence safe to show a user.
+ * `code` comes off a parsed JSON body, so it can be any inherited key
+ * (`toString`, `constructor`, `__proto__`) — an own-property check keeps a
+ * function or object from reaching the UI where a string is expected.
+ */
 export function councilErrorMessage(code: unknown, status: number): string {
-  return (
-    (typeof code === "string" ? COUNCIL_ERROR_MESSAGES[code] : undefined) ??
-    `Council unavailable (HTTP ${status}).`
-  );
+  const known =
+    typeof code === "string" &&
+    Object.prototype.hasOwnProperty.call(COUNCIL_ERROR_MESSAGES, code)
+      ? COUNCIL_ERROR_MESSAGES[code]
+      : undefined;
+  return known ?? `Council unavailable (HTTP ${status}).`;
 }
