@@ -136,9 +136,13 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       Stripe charges their card, the portal never learns about it, and they stay
       on the free tier. They paid and got nothing, with no error visible to
       them. This is the single most expensive open item in the repo.
-      Stripe shows the signing secret **once** at endpoint creation. **Roll
-      secret** invalidates the old value immediately — only roll if you can
-      update `.env.local`, Vercel, and GHA secrets in the same window.
+      Stripe reveals the endpoint signing secret in **Workbench → Webhooks**
+      (view it any time, not only at creation). Rotation offers two expiry
+      modes: **expire immediately** (old secret invalid at once) or **keep the
+      previous secret valid for up to 24 h** (Stripe signs with both during the
+      window). Pick the 24 h delay unless you can update `.env.local`, Vercel,
+      and GHA secrets in one window; document which mode you chose, and verify
+      every deployed copy holds the new value before the old one expires.
       `app/api/health` surfaces the current state; check it rather than trusting
       the env file.
 - [ ] **`STRIPE_PRICE_ANNUAL` — create the price, then set it.** Unset today, so
@@ -150,12 +154,22 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       immutable, so changing it later means archive-and-recreate, and archiving
       only affects new subscriptions — you would be grandfathering the wrong
       number. Also confirm `STRIPE_PRICE_MONTHLY` is a **live-mode** ID.
-      Fixing this one variable also re-enables the whole `preflight-billing`
-      Playwright tier, which is disabled by design while `/api/health` reports
-      Stripe `not_configured`.
-- [ ] **Rotate `STRIPE_SECRET_KEY`.** Recorded as already exposed in
+      Note the state of each value before pushing (§2): a **configured** live ID,
+      an **empty** string, a **placeholder** literal, or **absent** entirely —
+      only the first is safe to `gh secret set`, and §2's list must not push the
+      others as if they were real.
+      Setting this ID alone does **not** re-enable billing while
+      `STRIPE_WEBHOOK_SECRET` is still a placeholder (the webhook route rejects
+      every event). Re-enable the `preflight-billing` Playwright tier only after
+      *all* required live Stripe values are configured and `/api/health` reports
+      Stripe healthy.
+- [ ] **Rotate `STRIPE_SECRET_KEY` — before §2 pushes secrets, or re-push
+      after.** Recorded as already exposed in
       [docs/env-rotation.md](env-rotation.md), separate from the unset values
-      above. This is a create-charges-and-issue-refunds credential. After
+      above. This is a create-charges-and-issue-refunds credential. Ordering
+      matters: §2's sync copies `STRIPE_SECRET_KEY` from `.env.local` to GitHub
+      Actions, so rotating *after* that leaves CI on the old key. Either rotate
+      first, or add an explicit re-sync of this one value after rotation. After
       rotating, confirm the old key is **revoked**, not merely superseded — a
       rotated-but-still-valid key is not rotated.
 - [ ] Point the production webhook endpoint at `/api/webhooks/stripe` and verify
@@ -167,12 +181,14 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       entitlement-gated routes (`/dashboard/nuai`, `/dashboard/signals`,
       `/dashboard/portfolio`) render instead of redirecting to `/pricing`.
       **The trap:** `subscription_status` has no `'pro'` value. Valid values are
-      `free | trialing | active | past_due | canceled | paused`, and
-      `tierFromStatus()` (`lib/subscription.ts:88`) derives the tier from them.
-      Writing `'pro'` literally is silently rejected by `isSubscriptionStatus()`
-      and falls back to `'free'` — a paying customer with no access and no error
-      anywhere. Assert on the **rendered gated page**, never on the metadata
-      write succeeding.
+      `free | trialing | active | past_due | canceled | paused`, and the Stripe
+      webhook writes `sub.status` (`app/api/webhooks/stripe/route.ts`), never
+      `'pro'`. A manual `'pro'` metadata write *does* store, but
+      `tierFromStatus()` and `parseSubscriptionMetadata()`
+      (`lib/subscription.ts`) both read it as `'free'` — `isSubscriptionStatus()`
+      guards *reads*, not the write. Result: a paying customer with no access and
+      no error anywhere. Assert on the **rendered gated page**, never on the
+      metadata write succeeding.
 - [ ] **Verify cancellation and downgrade**, the path nobody tests until a
       chargeback arrives. Confirm `customer.subscription.deleted` and
       `invoice.payment_failed` are both in the endpoint's event list and handled.
@@ -245,10 +261,12 @@ learn to ignore it, which also masks the real failures underneath.
 Not dashboard-blocked in the same way as the sections above, but both need an
 account and a decision, so they belong on a human's list.
 
-- [ ] **Wire error monitoring.** There is none: grepping `lib/` and `app/` for
-      `sentry|posthog|datadog|opentelemetry` returns nothing across all 44 API
-      route files. Today the detection mechanism for a broken paid feature is a
-      customer emailing you, so mean-time-to-detect equals customer patience.
+- [ ] **Wire error monitoring.** There is none, by behavior not just by grep:
+      `app/error.tsx` and `app/global-error.tsx` only `console.error`,
+      `lib/analytics.ts` drops validated events, and `package.json`,
+      `next.config.ts`, and `middleware.ts` carry no monitoring integration.
+      Today the detection mechanism for a broken paid feature is a customer
+      emailing you, so mean-time-to-detect equals customer patience.
       Sentry's Next.js SDK is the shortest path. The bar is low — *any* alerting
       beats none. Wire it, trigger one deliberate error, confirm it lands.
       (Note this pairs with the analytics DPA decision in §6: if PostHog is
@@ -294,16 +312,19 @@ These need a signature or a qualified review, not a login.
       The live pipeline run in
       [docs/pipeline-todo-blockers.md](pipeline-todo-blockers.md) proved the
       coverage claim is real (54 symbols, 108 cards, **0 model calls**, 100% of
-      the active universe). It also proved this: `topCards()` — the
-      explain-eligible ranking the AI batch reads from — returns **empty**.
-      Every ETF card fails `isExplainable()`, which needs `dataQuality >= 0.8`
-      and zero missing fields. gcp3's ETF payload fills **1 of 5** taxonomy
-      inputs (`confluenceScore`); `rsi`, `macdCross`, `adx`, and
-      `volatilityPercentile` are out of scope for its ETF model entirely. Every
-      card lands at `dataQuality: 0.20`.
-      **Plainly: the AI-explanation feature behind the paid tier returns nothing
-      for the entire current universe, today, permanently, until one of these
-      ships.**
+      the active universe). Two facts, kept separate because the code paths are:
+      **(1)** every ETF card lands at `dataQuality: 0.20` — gcp3's ETF payload
+      fills only **1 of 5** taxonomy inputs (`confluenceScore`); `rsi`,
+      `macdCross`, `adx`, and `volatilityPercentile` are out of scope for its
+      ETF model entirely — so every ETF card fails `isExplainable()`
+      (`dataQuality >= 0.8`, zero missing fields). **(2)** the scheduled
+      precompute job (`deploy/precompute-ai/modal_app.py`) sends only
+      `maxSubjects`, so it runs the **watchlist** path, not `topCards()`;
+      `topCards()` feeds the batch only when a caller explicitly passes
+      `source: "ranking"`, and on that path it currently yields no ETF subjects.
+      **Plainly: the AI-explanation feature behind the paid tier has no
+      explain-eligible subjects in the current universe, today, until one of
+      these ships.**
       - **(a)** Extend gcp3 to compute RSI/MACD/ADX/volatility for its 54 ETFs.
         It already has `features_rsi.py` and friends; they are simply not wired
         into the ETF path. Lower ceiling, much shorter runway.
@@ -340,9 +361,10 @@ separate logins.
    cannot record a payment, and you are advertising a plan you cannot sell.
    Everything else assumes revenue works.
 2. **Neon API key + project ID** (§1) — turns CI green on both open PRs.
-3. **Push the existing secrets** (§2) — unblocks the e2e and pipeline workflows.
-4. **Clerk Production** (§3) — the live production bug.
-5. **Rotate `STRIPE_SECRET_KEY`** (§4) — same dashboard session as step 1.
+3. **Rotate `STRIPE_SECRET_KEY`** (§4) — do this *before* step 4 so the synced
+   value is the rotated one; same dashboard session as step 1.
+4. **Push the existing secrets** (§2) — unblocks the e2e and pipeline workflows.
+5. **Clerk Production** (§3) — the live production bug.
 6. **Decide the explain-quality path** (§6b) — the AI tier currently produces
    nothing; this gates whether the paid feature exists at all.
 7. **Error monitoring + uptime check** (§5c) — cheap, and until then an outage
