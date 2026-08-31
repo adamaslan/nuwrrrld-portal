@@ -630,3 +630,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-08-31] ingest | PR #88 feat(followed-tickers): implement the eval harness — schema, scoring, judge, routes | pages touched: 2
 
 ## [2026-08-31] ingest | PR #89 fix(stripe): correct both price IDs, add webhook-endpoint provisioning | pages touched: 3
+
+## [2026-08-31] ingest | PR #92 feat(followed-tickers): dashboard surface — /dashboard/followed-tickers, GET /api/followed-tickers, shared view-model | pages touched: 2
