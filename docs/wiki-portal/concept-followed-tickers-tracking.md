@@ -24,11 +24,18 @@ The human-readable face is `docs/tickers-followed.md`. This page is the *why*.
 
 **Freeze the app's loudest calls, then check them against reality.**
 
-Once a month a *selection* run reads `/api/signals/top?universe=all&limit=200`
-(the same ranked universe the dashboard signal list is built from), splits the
-cards by direction, takes the top 10 by strength from each side, and writes
-those 20 tickers into `docs/tickers-followed.md` as that month's cohort. The
-cohort is then **held for the month even if the ranking moves under it**.
+Once a month a *selection* run ranks the signal universe, splits the cards by
+direction, takes the top 10 by strength from each side, and writes those 20
+tickers into `docs/tickers-followed.md` as that month's cohort. The cohort is
+then **held for the month even if the ranking moves under it**.
+
+The ranking read is **bipolar** — `bipolarCards()` takes candidates from *both*
+tails of the score distribution, 1000 per side. This is not interchangeable with
+a plain top-N. Selection originally pulled a single signed `score DESC` cut of
+200 rows, which returns the 200 most *bullish* cards; the bears sit past the
+cut. That held while the universe was small enough for 200 rows to reach into
+negative scores, and broke silently as it grew — see
+[[incident-2026-08-31-bear-side-starved-at-universe-scale]].
 
 Every trading day, a *tracking* run puts each of the 20 through three features
 and appends the readings:
