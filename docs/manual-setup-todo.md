@@ -1,10 +1,18 @@
 # Manual setup TODO — things only a human with dashboard access can do
 
-Everything in this file is blocked on a login, a signature, or a value that
-does not exist yet. None of it is a code change. It is the complete set of
-external tasks standing between the current branch and a production-ready
-deploy, gathered 2026-08-29 while finishing
+Everything in this file is blocked on a login, a signature, a value that does
+not exist yet, or a decision only the owner can make. None of it is a code
+change. It is the complete set of external tasks standing between the current
+branch and a production-ready deploy, gathered 2026-08-29 while finishing
 [docs/todo-auth-cookies-tracking.md](todo-auth-cookies-tracking.md).
+
+**Updated 2026-08-30** with the blocked items from
+[docs/ship-to-clients-top-25.md](ship-to-clients-top-25.md) — that document
+ranks *all* remaining work by revenue impact; this one holds only the subset a
+human has to unblock. Where they overlap, this file is the checklist and that
+one is the reasoning. New here: the expanded Stripe section (§4), CI/test
+infrastructure (§5b), observability (§5c), and the explain-quality product
+decision (§6b).
 
 Ordered by what unblocks the most.
 
@@ -114,15 +122,90 @@ correct; dev mode in production is the bug.
 
 ---
 
-## 4. Stripe
+## 4. Stripe — **this section is where money is actually lost**
 
-- [ ] Confirm `STRIPE_WEBHOOK_SECRET` is a real `whsec_…` for the **production**
-      endpoint, not a placeholder or a CLI-forwarding secret.
-      `app/api/health` already surfaces this — check it before trusting the env.
-- [ ] Confirm `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL` are live-mode price
-      IDs. Checkout 500s on a placeholder, and the health route flags it.
+Ranked by revenue consequence, not effort. The first two items are the reason
+this app cannot currently take a paying customer end-to-end. Full reasoning and
+retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
+[docs/ship-to-clients-top-25.md](ship-to-clients-top-25.md) items 1–6.
+
+- [ ] **`STRIPE_WEBHOOK_SECRET` — a real `whsec_…` for the production endpoint.**
+      Currently a `whsec_placeholder_*` value. Until it's real,
+      `app/api/webhooks/stripe/route.ts` logs a `CONFIG_ERROR` and **rejects
+      every event Stripe sends**. Concretely: a customer completes checkout,
+      Stripe charges their card, the portal never learns about it, and they stay
+      on the free tier. They paid and got nothing, with no error visible to
+      them. This is the single most expensive open item in the repo.
+      Stripe reveals the endpoint signing secret in **Workbench → Webhooks**
+      (view it any time, not only at creation). Rotation offers two expiry
+      modes: **expire immediately** (old secret invalid at once) or **keep the
+      previous secret valid for up to 24 h** (Stripe signs with both during the
+      window). Pick the 24 h delay unless you can update `.env.local`, Vercel,
+      and GHA secrets in one window; document which mode you chose, and verify
+      every deployed copy holds the new value before the old one expires.
+      `app/api/health` surfaces the current state; check it rather than trusting
+      the env file.
+- [ ] **`STRIPE_PRICE_ANNUAL` — create the price, then set it.** Unset today, so
+      `lib/stripe.ts`'s `PRICES.annual` resolves to `''`. The pricing page
+      advertises the annual plan ("Best value — save 34%"), and selecting it
+      sends an empty price ID to Checkout, which errors. **You are advertising a
+      plan you cannot sell.**
+      Decide the amount *before* creating it: Stripe price objects are
+      immutable, so changing it later means archive-and-recreate, and archiving
+      only affects new subscriptions — you would be grandfathering the wrong
+      number. Also confirm `STRIPE_PRICE_MONTHLY` is a **live-mode** ID.
+      Note the state of each value before pushing (§2): a **configured** live ID,
+      an **empty** string, a **placeholder** literal, or **absent** entirely —
+      only the first is safe to `gh secret set`, and §2's list must not push the
+      others as if they were real.
+      Setting this ID alone does **not** re-enable billing while
+      `STRIPE_WEBHOOK_SECRET` is still a placeholder (the webhook route rejects
+      every event). Re-enable the `preflight-billing` Playwright tier only after
+      *all* required live Stripe values are configured and `/api/health` reports
+      Stripe healthy.
+- [ ] **Rotate `STRIPE_SECRET_KEY` — before §2 pushes secrets, or re-push
+      after.** Recorded as already exposed in
+      [docs/env-rotation.md](env-rotation.md), separate from the unset values
+      above. This is a create-charges-and-issue-refunds credential. Ordering
+      matters: §2's sync copies `STRIPE_SECRET_KEY` from `.env.local` to GitHub
+      Actions, so rotating *after* that leaves CI on the old key. Either rotate
+      first, or add an explicit re-sync of this one value after rotation. After
+      rotating, confirm the old key is **revoked**, not merely superseded — a
+      rotated-but-still-valid key is not rotated.
 - [ ] Point the production webhook endpoint at `/api/webhooks/stripe` and verify
       a test event is accepted (signature verification is already implemented).
+      Confirm the endpoint's selected event list actually includes what the
+      route's switch handles — check the file, don't select "all events".
+- [ ] **Verify one real paid signup end to end**, not a unit test: checkout →
+      webhook received → Clerk `publicMetadata.subscription_status` → the three
+      entitlement-gated routes (`/dashboard/nuai`, `/dashboard/signals`,
+      `/dashboard/portfolio`) render instead of redirecting to `/pricing`.
+      **The trap:** `subscription_status` has no `'pro'` value. Valid values are
+      `free | trialing | active | past_due | canceled | paused`, and the Stripe
+      webhook writes `sub.status` (`app/api/webhooks/stripe/route.ts`), never
+      `'pro'`. A manual `'pro'` metadata write *does* store, but
+      `tierFromStatus()` and `parseSubscriptionMetadata()`
+      (`lib/subscription.ts`) both read it as `'free'` — `isSubscriptionStatus()`
+      guards *reads*, not the write. Result: a paying customer with no access and
+      no error anywhere. Assert on the **rendered gated page**, never on the
+      metadata write succeeding.
+- [ ] **Verify cancellation and downgrade**, the path nobody tests until a
+      chargeback arrives. Confirm `customer.subscription.deleted` and
+      `invoice.payment_failed` are both in the endpoint's event list and handled.
+      A canceled subscriber should lose access at period end — not immediately
+      (charging through the 28th and cutting off on the 3rd is a refund request)
+      and not never.
+      Decide `past_due` explicitly: `tierFromStatus()` currently maps it to
+      `pro`, so a failed payment keeps full access. That is a defensible grace
+      period, but make it a bounded *choice* rather than an accident.
+- [ ] **Decide `PORTAL_PUSH_SECRET` — generate it or delete the dependency.**
+      Binary, and deferring it again is the only wrong answer. If either caller
+      is real (`refresh-signals.py` pushing to `/api/signals/refresh`, or an
+      internal reader of `/api/signals/digest`), run `openssl rand -hex 32` and
+      set the same value in both places. If neither is deployed, it is dead
+      config — `/api/signals/refresh` rejects pushes and `/api/signals/digest`
+      correctly falls back to requiring a Clerk session. Remove the placeholder
+      so `sync-e2e-secrets.sh` stops reporting a permanent false blocker.
 
 ---
 
@@ -139,6 +222,60 @@ correct; dev mode in production is the bug.
 - [ ] Decide a retention/backup posture for `privacy_requests` — it is
       deliberately excluded from the erasure cascade and is the evidentiary
       record that a deletion request happened.
+
+---
+
+## 5b. CI and test-infrastructure blockers
+
+These keep a 34-test Playwright suite and two CI checks permanently red. A suite
+that always fails for an environmental reason is worse than no suite: people
+learn to ignore it, which also masks the real failures underneath.
+
+- [ ] **Provision the GCP Workload Identity Federation pool.** All four `e2e`
+      shards fail immediately at "Authenticate to GCP (keyless)" because
+      `GCP_WIF_PROVIDER` is empty (§1 above).
+      → `bash scripts/sync-e2e-secrets.sh --provision-wif`, then grant the
+      printed service account **only** `roles/run.invoker` on `gcp3-backend`.
+      Resist broader roles to make it work faster — a CI service account with
+      excess IAM is a finding on any client security review.
+      Needs `gcloud` auth with IAM permissions on the target project.
+- [ ] **Re-run the `frontend` Playwright tier and confirm two known bugs are
+      actually closed.** The E2E user's Pro entitlement was patched
+      (`known-bugs.md` item 1) but the tier was **never re-run to verify**. Item
+      3 (portfolio-suggestions failure) is explicitly suspected to be the same
+      redirect-to-`/pricing` cause. You may be one command from closing both,
+      and right now you don't know which recorded failures are still real.
+- [ ] **Resolve `shared-drift-check`.** `lib/subscription.ts` has drifted from
+      its `gcp3-mobile` counterpart. This is a genuine cross-repo decision —
+      which repo owns the canonical tier logic — not a lint failure to suppress.
+      Note it guards exactly the file whose `subscription_status` semantics the
+      §4 trap lives in: drift here means the two surfaces can disagree about who
+      is a paying customer.
+- [ ] **Disable the Cloudflare Pages integration.** One API call; see
+      [docs/cloudflare-pages-assessment.md](cloudflare-pages-assessment.md).
+
+---
+
+## 5c. Observability — you currently cannot detect an outage
+
+Not dashboard-blocked in the same way as the sections above, but both need an
+account and a decision, so they belong on a human's list.
+
+- [ ] **Wire error monitoring.** There is none, by behavior not just by grep:
+      `app/error.tsx` and `app/global-error.tsx` only `console.error`,
+      `lib/analytics.ts` drops validated events, and `package.json`,
+      `next.config.ts`, and `middleware.ts` carry no monitoring integration.
+      Today the detection mechanism for a broken paid feature is a customer
+      emailing you, so mean-time-to-detect equals customer patience.
+      Sentry's Next.js SDK is the shortest path. The bar is low — *any* alerting
+      beats none. Wire it, trigger one deliberate error, confirm it lands.
+      (Note this pairs with the analytics DPA decision in §6: if PostHog is
+      chosen there, it can cover part of this.)
+- [ ] **Point an external uptime monitor at `/api/health`.** The route already
+      exists and reports per-dependency status — it is what surfaces the Stripe
+      misconfiguration in §4. Nothing is watching it. This is the cheapest item
+      in this file and covers the half that Sentry cannot: out-of-process death,
+      as opposed to in-process exceptions.
 
 ---
 
@@ -167,6 +304,37 @@ These need a signature or a qualified review, not a login.
 
 ---
 
+## 6b. The one product decision only you can make
+
+- [ ] **Decide how to close the explain-quality gate — before selling the AI
+      tier, not after.** This is the largest open item in the whole project and
+      the least visible from outside.
+      The live pipeline run in
+      [docs/pipeline-todo-blockers.md](pipeline-todo-blockers.md) proved the
+      coverage claim is real (54 symbols, 108 cards, **0 model calls**, 100% of
+      the active universe). Two facts, kept separate because the code paths are:
+      **(1)** every ETF card lands at `dataQuality: 0.20` — gcp3's ETF payload
+      fills only **1 of 5** taxonomy inputs (`confluenceScore`); `rsi`,
+      `macdCross`, `adx`, and `volatilityPercentile` are out of scope for its
+      ETF model entirely — so every ETF card fails `isExplainable()`
+      (`dataQuality >= 0.8`, zero missing fields). **(2)** the scheduled
+      precompute job (`deploy/precompute-ai/modal_app.py`) sends only
+      `maxSubjects`, so it runs the **watchlist** path, not `topCards()`;
+      `topCards()` feeds the batch only when a caller explicitly passes
+      `source: "ranking"`, and on that path it currently yields no ETF subjects.
+      **Plainly: the AI-explanation feature behind the paid tier has no
+      explain-eligible subjects in the current universe, today, until one of
+      these ships.**
+      - **(a)** Extend gcp3 to compute RSI/MACD/ADX/volatility for its 54 ETFs.
+        It already has `features_rsi.py` and friends; they are simply not wired
+        into the ETF path. Lower ceiling, much shorter runway.
+      - **(b)** Ship the Modal stock lane and accept that ETF cards stay
+        coverage-only forever — real coverage, never explainable.
+      Every other item in this file is recoverable after a customer complains.
+      This one means the complaint is "the product does nothing."
+
+---
+
 ## 7. Engineering work that is still open (for completeness)
 
 Not blocked on you — listed so this file is the full picture.
@@ -185,9 +353,23 @@ Not blocked on you — listed so this file is the full picture.
 
 ## Suggested order
 
-1. **Neon API key + project ID** (§1) — turns CI green on both open PRs.
-2. **Push the existing secrets** (§2) — unblocks the e2e and pipeline workflows.
-3. **Clerk Production** (§3) — the live production bug.
-4. **Stripe verification** (§4) — cheap, and checkout silently breaks without it.
-5. **LLM provider terms** (§6) — the biggest unexamined risk here.
-6. Everything else.
+**One Stripe dashboard session covers three items** — the webhook secret, the
+annual price, and the key rotation (§4). Do them together rather than three
+separate logins.
+
+1. **Stripe: webhook secret + annual price** (§4) — until these are set you
+   cannot record a payment, and you are advertising a plan you cannot sell.
+   Everything else assumes revenue works.
+2. **Neon API key + project ID** (§1) — turns CI green on both open PRs.
+3. **Rotate `STRIPE_SECRET_KEY`** (§4) — do this *before* step 4 so the synced
+   value is the rotated one; same dashboard session as step 1.
+4. **Push the existing secrets** (§2) — unblocks the e2e and pipeline workflows.
+5. **Clerk Production** (§3) — the live production bug.
+6. **Decide the explain-quality path** (§6b) — the AI tier currently produces
+   nothing; this gates whether the paid feature exists at all.
+7. **Error monitoring + uptime check** (§5c) — cheap, and until then an outage
+   is detected by customer email.
+8. **GCP WIF + re-run the frontend tier** (§5b) — turns the e2e suite from
+   decorative back into a gate.
+9. **LLM provider terms** (§6) — the biggest unexamined legal risk here.
+10. Everything else.
