@@ -315,3 +315,111 @@ export async function saveJudgeScore(
     WHERE pick_id = ${pickId} AND horizon = ${horizon}
   `;
 }
+
+// ── Dashboard read (follow-up item 9) ──────────────────────────────────────
+
+export interface ViewData {
+  cohortMonth: string | null;
+  picks: Array<{
+    id: string;
+    cohortMonth: string;
+    ticker: string;
+    direction: Direction;
+    entryPrice: number;
+    confidence: "low" | "medium" | "high" | null;
+    droppedAt: string | null;
+  }>;
+  observationsByPick: Record<
+    string,
+    Array<{
+      pickId: string;
+      observedOn: string;
+      closePrice: number;
+      signalDir: string | null;
+      backtestRate: number | null;
+      councilJson: unknown;
+    }>
+  >;
+  scores: Array<{
+    pickId: string;
+    horizon: Horizon;
+    outcome: Outcome;
+    directional: number | null;
+    returnPct: number | null;
+    judgeScore: number | null;
+  }>;
+}
+
+/**
+ * One batched read for the whole dashboard: the most recent cohort's picks,
+ * every observation for those picks, and every resolved score for them. Three
+ * queries. Returns an empty shell (never throws) so the page can render its
+ * "no selection run yet" state on a fresh/missing DB.
+ */
+export async function getViewData(): Promise<ViewData> {
+  const empty: ViewData = { cohortMonth: null, picks: [], observationsByPick: {}, scores: [] };
+  try {
+    const month = await getLatestCohortMonth();
+    if (!month) return empty;
+
+    const pickRows = await sql`
+      SELECT id, cohort_month, ticker, direction, entry_price, confidence, dropped_at
+      FROM followed_ticker_picks
+      WHERE cohort_month = ${month}
+      ORDER BY direction, ticker
+    `;
+    if (pickRows.length === 0) return { ...empty, cohortMonth: month };
+    const ids = pickRows.map((r) => r.id as string);
+
+    const [obsRows, scoreRows] = await Promise.all([
+      sql`
+        SELECT pick_id, observed_on, close_price, signal_dir, backtest_rate, council_json
+        FROM followed_ticker_observations
+        WHERE pick_id = ANY(${ids}::uuid[])
+        ORDER BY observed_on ASC
+      `,
+      sql`
+        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score
+        FROM followed_ticker_scores
+        WHERE pick_id = ANY(${ids}::uuid[])
+      `,
+    ]);
+
+    const observationsByPick: ViewData["observationsByPick"] = {};
+    for (const r of obsRows) {
+      const pid = r.pick_id as string;
+      (observationsByPick[pid] ??= []).push({
+        pickId: pid,
+        observedOn: new Date(r.observed_on as string).toISOString().slice(0, 10),
+        closePrice: Number(r.close_price),
+        signalDir: (r.signal_dir as string) ?? null,
+        backtestRate: r.backtest_rate == null ? null : Number(r.backtest_rate),
+        councilJson: r.council_json ?? null,
+      });
+    }
+
+    return {
+      cohortMonth: month,
+      picks: pickRows.map((r) => ({
+        id: r.id as string,
+        cohortMonth: new Date(r.cohort_month as string).toISOString().slice(0, 10),
+        ticker: r.ticker as string,
+        direction: r.direction as Direction,
+        entryPrice: Number(r.entry_price),
+        confidence: (r.confidence as "low" | "medium" | "high" | null) ?? null,
+        droppedAt: r.dropped_at ? new Date(r.dropped_at as string).toISOString() : null,
+      })),
+      observationsByPick,
+      scores: scoreRows.map((r) => ({
+        pickId: r.pick_id as string,
+        horizon: r.horizon as Horizon,
+        outcome: r.outcome as Outcome,
+        directional: r.directional == null ? null : Number(r.directional),
+        returnPct: r.return_pct == null ? null : Number(r.return_pct),
+        judgeScore: r.judge_score == null ? null : Number(r.judge_score),
+      })),
+    };
+  } catch {
+    return empty;
+  }
+}

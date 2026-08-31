@@ -117,6 +117,7 @@ export default async function Dashboard({
           <Link href="/dashboard/holdfold">Hold/Fold</Link>
           <Link href="/dashboard/nuai">Nu AI</Link>
           <Link href="/dashboard/portfolio">Portfolio</Link>
+          <Link href="/dashboard/followed-tickers">Followed</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
@@ -192,6 +193,15 @@ export default async function Dashboard({
             </div>
             <p>Watchlist manager, sector rotation, and AI health check — grounded in real factor data.</p>
             <span className="tool-cta">Open portfolio →</span>
+          </Link>
+
+          <Link href="/dashboard/followed-tickers" className="tool tool--link">
+            <div className="tool-head">
+              <h2>Followed Tickers</h2>
+              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
+            </div>
+            <p>The app&apos;s 10 strongest bull and bear calls each month, frozen and scored against real prices across seven horizons — with an LLM grading the reasoning.</p>
+            <span className="tool-cta">See the track record →</span>
           </Link>
         </div>
 
