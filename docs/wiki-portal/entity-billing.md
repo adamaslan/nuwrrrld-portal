@@ -83,6 +83,31 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
   *app itself* needs, distinct from the subscriber-tier entitlements this
   entity page otherwise covers.
 
+## Known issues
+
+- ⚠️ **Both price IDs were wrong until PR #89 (2026-08-31).**
+  `STRIPE_PRICE_ANNUAL` held the literal `price_annual_placeholder` and
+  `STRIPE_PRICE_MONTHLY` pointed at an `active: false` archived $10.00 price,
+  so **neither plan was purchasable**. The annual half is the notable part:
+  PR #79 (2026-08-29) recorded that exact defect as repaired, but the value
+  never reached `.env.local` — the code path and docs were fixed while the
+  running app kept the placeholder. Nothing failed loudly, because a bad price
+  ID only surfaces at Checkout. Corrected to the live active pair under the
+  `NuWrrrld_Monthly` product: `price_1U9tjM…NC2Ff3TZ` ($9.99/mo) and
+  `price_1U9tjM…FynIImG5` ($79.99/yr), matching the "Save 33%" copy already
+  hardcoded in `app/pricing` and `app/dashboard/{upgrade,billing}`.
+- ⚠️ **No webhook endpoint exists for the portal.** The account's only live
+  endpoint (`we_1ThMVu…`) targets the `gcp3-backend` Cloud Run service, so
+  nothing is registered for `/api/webhooks/stripe` and **no events reach the
+  sync engine described above**. This reframes the long-open
+  `STRIPE_WEBHOOK_SECRET` gap: the missing secret was a symptom, not the cause
+  — there was no endpoint to have a secret for. That endpoint also omits
+  `customer.subscription.created`, which this repo's handler switches on.
+  `scripts/create-stripe-webhook.sh` provisions it with all five event types
+  and captures the once-shown `whsec_…` into `.env.local`. Until it is run and
+  the secret propagated to Vercel, a completed checkout charges the card and
+  never grants entitlement.
+
 ## Open questions
 
 - ❓ Whether the Clerk dev-instance key alone would have blocked signups,

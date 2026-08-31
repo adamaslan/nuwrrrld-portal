@@ -81,10 +81,33 @@ fi
 echo
 echo "created $WID"
 echo "STRIPE_WEBHOOK_SECRET written to $ENV_FILE (${#WSEC} chars, not printed)"
+
+# Push straight to Vercel Production. The value is piped from this shell into
+# the CLI; it is never echoed and never reaches a chat transcript. Production
+# currently holds a whsec_placeholder..., so this replaces rather than adds.
+if command -v vercel >/dev/null 2>&1 && [ -f .vercel/project.json ]; then
+  printf '\nPush STRIPE_WEBHOOK_SECRET to Vercel Production now? [y/N] '
+  read -r vans
+  if [ "$vans" = "y" ] || [ "$vans" = "Y" ]; then
+    vercel env rm STRIPE_WEBHOOK_SECRET production --yes >/dev/null 2>&1 || true
+    if printf '%s' "$WSEC" | vercel env add STRIPE_WEBHOOK_SECRET production >/dev/null 2>&1; then
+      echo "  ✓ Vercel Production updated"
+      echo "  ! redeploy for it to take effect: vercel --prod"
+    else
+      echo "  ✗ Vercel update failed — set it manually in the dashboard" >&2
+    fi
+  else
+    echo "  skipped Vercel; production keeps the placeholder and will reject events"
+  fi
+else
+  echo
+  echo "vercel CLI or .vercel/project.json missing — set STRIPE_WEBHOOK_SECRET in the dashboard"
+fi
+
 cat <<'NOTE'
 
 Next:
-  1. Copy the same value into Vercel (Production) — the portal verifies against it.
+  1. Redeploy so production picks up the new secret:  vercel --prod
   2. ./scripts/push-github-secrets.sh
   3. Send a test event from the Stripe dashboard and confirm a 200.
 
