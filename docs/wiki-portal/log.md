@@ -624,3 +624,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-08-30] ingest | PR #82 fix(app): error boundaries + bound the public share-card ticker | pages touched: 3
 
 ## [2026-08-30] ingest | PR (feat): followed-tickers monthly cohort — select + track workflows shipped ahead of their /api/pipeline/* routes | pages touched: 3
+
+## [2026-08-30] ingest | PR (docs): followed-tickers cohort expanded into a benchmark/eval harness — 7 horizons, outcome scoring, LLM-as-judge rubric | pages touched: 3
