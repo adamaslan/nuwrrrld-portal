@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { HoldFoldPayload, HoldFoldVerdict } from "@/app/api/holdfold/route";
 import { buildCouncilPrompt, type CouncilSeat } from "@/lib/shared/prompts";
+import { councilErrorMessage } from "@/lib/shared/councilErrors";
 
 interface Props {
   data: HoldFoldPayload;
@@ -65,12 +66,6 @@ function WatchlistButton({ ticker }: { ticker: string }) {
   );
 }
 
-const COUNCIL_ERROR_MESSAGES: Record<string, string> = {
-  council_response_invalid:
-    "The council's response didn't come back in a usable format — please try again.",
-  upgrade_required: "Upgrade to Pro to consult the AI council.",
-};
-
 function StrengthBadge({ strength }: { strength: string }) {
   const s = strength.toUpperCase();
   const cls =
@@ -101,7 +96,7 @@ function CouncilSeatPanel({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const message = COUNCIL_ERROR_MESSAGES[data.error] ?? `Council unavailable (HTTP ${res.status}).`;
+        const message = councilErrorMessage(data?.error, res.status);
         setCouncil({ status: "error", error: message });
         return;
       }

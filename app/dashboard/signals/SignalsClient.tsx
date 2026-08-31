@@ -7,6 +7,8 @@ import { SignalAskAnything } from "@/components/SignalAskAnything";
 import { filterSignals, sortSignals, type Direction, type SortKey } from "@/lib/shared/signalFilters";
 import { buildSignalPrompt } from "@/lib/shared/prompts";
 import { getPref, setPref } from "@/lib/shared/prefs";
+import { councilErrorMessage } from "@/lib/shared/councilErrors";
+import type { StructuredVerdict } from "@/lib/council-verdict";
 
 const FILTER_PREF_KEY = "signals-filter";
 
@@ -16,7 +18,8 @@ interface Props {
 
 interface GoDeeper {
   status: "idle" | "loading" | "ok" | "error";
-  answer?: string;
+  verdict?: StructuredVerdict;
+  model?: string;
   error?: string;
 }
 
@@ -66,21 +69,23 @@ export function SignalsClient({ signals }: Props) {
       const res = await fetch("/api/council", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildSignalPrompt(sig), seat: "T1" }),
+        body: JSON.stringify({ prompt: buildSignalPrompt(sig), seat: "T1", ticker: sig.ticker }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const msg = data?.error === "upgrade_required" ? "Pro feature — upgrade to use Go Deeper." : `Error ${res.status}`;
-        setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "error", error: msg } }));
+        setGoDeeper(prev => ({
+          ...prev,
+          [sig.id]: { status: "error", error: councilErrorMessage(data?.error, res.status) },
+        }));
         return;
       }
-      const data = await res.json();
-      const answer = data.answer ?? "";
-      if (!answer) {
+      // The route responds { verdict, model, seat } — a 200 without a parsed
+      // verdict means the contract changed, so surface it rather than render blank.
+      if (!data?.verdict) {
         setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "error", error: "Council returned an empty response — try again." } }));
         return;
       }
-      setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "ok", answer } }));
+      setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "ok", verdict: data.verdict, model: data.model } }));
     } catch (err) {
       setGoDeeper(prev => ({ ...prev, [sig.id]: { status: "error", error: err instanceof Error ? err.message : "Failed" } }));
     }
@@ -236,10 +241,18 @@ export function SignalsClient({ signals }: Props) {
                     {deeper?.status === "loading" && (
                       <p className="signal-deeper-loading">Council is analyzing {sig.ticker}…</p>
                     )}
-                    {deeper?.status === "ok" && deeper.answer && (
+                    {deeper?.status === "ok" && deeper.verdict && (
                       <div className="signal-deeper-result">
-                        <p className="signal-deeper-label">T1 Council · 1–5 day framing</p>
-                        <p className="signal-deeper-answer">{deeper.answer}</p>
+                        <p className="signal-deeper-label">
+                          T1 Council · 1–5 day framing
+                          {deeper.model && <span className="signal-deeper-model"> · {deeper.model.split("/").pop()}</span>}
+                        </p>
+                        <dl className="signal-deeper-fields">
+                          <dt>Outlook</dt><dd>{deeper.verdict.outlook}</dd>
+                          <dt>Because</dt><dd>{deeper.verdict.because}</dd>
+                          <dt>Invalidation</dt><dd>{deeper.verdict.invalidation}</dd>
+                          <dt>Execution</dt><dd>{deeper.verdict.execution}</dd>
+                        </dl>
                       </div>
                     )}
                     {deeper?.status === "error" && (
