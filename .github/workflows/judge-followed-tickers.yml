@@ -1,0 +1,138 @@
+name: Judge Followed Tickers (weekly)
+
+# Once a week (Saturday, off-market), grade the quality of that week's council
+# verdicts for the followed-tickers cohort against the five-criterion rubric in
+# docs/tickers-followed.md, then re-grade the checked-in gold set. If the
+# judge's agreement with the gold set drops below 80%, the route publishes
+# nothing — the only defense against silent judge drift when the free-tier
+# model chain swaps a model out from under the harness.
+#
+# Saturday is deliberate: off-market, so it competes with neither the afternoon
+# pipeline nor interactive Nu AI traffic for the shared free-tier quota.
+#
+# Pattern copied from afternoon-pipeline.yml / track-followed-tickers.yml:
+# workflow_dispatch with dry_run, secret verification before any call,
+# concurrency guard, step summary, artifact upload, failure issue.
+#
+# ROUTE STATUS: /api/pipeline/followed-tickers-judge ships in the same PR as
+# this workflow (unlike select/track, which shipped ahead of their routes).
+
+on:
+  schedule:
+    # 16:00 UTC Saturday — ~12:00 ET (EDT) / ~11:00 ET (EST). Not clock-critical.
+    - cron: '0 16 * * 6'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Grade and log, but do not persist judge scores'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: judge-followed-tickers
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  judge:
+    name: Grade the week's verdicts + re-grade the gold set
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    outputs:
+      judge_status: ${{ steps.judge.outputs.status }}
+    steps:
+      - name: Verify required secrets exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'PORTAL_URL'  || { echo "PORTAL_URL secret missing"; exit 1; }
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'CRON_SECRET' || { echo "CRON_SECRET secret missing"; exit 1; }
+
+      - name: Run the weekly judge
+        id: judge
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -sS -o /tmp/judge.json -w '%{http_code}' \
+            -X POST "$PORTAL_URL/api/pipeline/followed-tickers-judge" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            --max-time 600 \
+            -d "{\"dry_run\": ${{ inputs.dry_run || false }}}")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "judge HTTP $STATUS"
+          jq . /tmp/judge.json 2>/dev/null || cat /tmp/judge.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::followed-tickers-judge returned HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Gold-gate check
+        if: steps.judge.outputs.status == '200'
+        run: |
+          PUBLISHED=$(jq -r '.published' /tmp/judge.json 2>/dev/null || echo "unknown")
+          AGREE=$(jq -r '.goldAgreement // 0' /tmp/judge.json 2>/dev/null || echo 0)
+          echo "published=$PUBLISHED goldAgreement=$AGREE"
+          if [[ "$PUBLISHED" == "false" ]]; then
+            REASON=$(jq -r '.reason // "unknown"' /tmp/judge.json 2>/dev/null)
+            echo "::warning::Judge run published nothing — ${REASON}"
+          fi
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Followed-tickers weekly judge — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| judge HTTP | ${{ steps.judge.outputs.status || '—' }} |"
+            echo "| dry_run | ${{ inputs.dry_run || false }} |"
+            if [[ -f /tmp/judge.json ]]; then
+              echo ""
+              echo '```json'
+              jq '{published, goldAgreement, verdictsGraded, meanTotal, reason}' \
+                /tmp/judge.json 2>/dev/null || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload judge artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: followed-tickers-judge-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/judge.json
+          retention-days: 90
+
+  notify:
+    name: Failure notification
+    needs: [judge]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Followed-tickers weekly judge failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          **Judge:** ${{ needs.judge.outputs.judge_status || 'skipped' }}" \
+            --label "pipeline-failure"

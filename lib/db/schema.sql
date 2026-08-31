@@ -478,3 +478,63 @@ CREATE TABLE IF NOT EXISTS user_attribution (
   last_touch   jsonb,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
+
+-- ── Followed-tickers benchmark / eval harness ─────────────────────────────
+-- docs/tickers-followed.md. A frozen monthly cohort of the app's own strongest
+-- directional calls, scored against realized prices across seven horizons and
+-- graded for reasoning quality by an LLM judge. The markdown tables in that
+-- doc are a rendering of these tables, never the store.
+
+-- One row per pick per cohort. Written once at selection, never updated
+-- (except dropped_at/drop_reason on a delisting/halt). Any retroactive edit to
+-- entry_price/direction/invalidation voids the pick — see the doc's benchmark
+-- integrity rules.
+CREATE TABLE IF NOT EXISTS followed_ticker_picks (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cohort_month    date        NOT NULL,       -- first of the selection month
+  ticker          text        NOT NULL,
+  direction       text        NOT NULL CHECK (direction IN ('bull', 'bear')),
+  entry_price     numeric     NOT NULL,
+  strength        real,
+  signal_category text,
+  invalidation    text,                       -- from the council verdict
+  confidence      text CHECK (confidence IS NULL OR confidence IN ('low', 'medium', 'high')),
+  selected_at     timestamptz NOT NULL DEFAULT now(),
+  dropped_at      timestamptz,                -- delisting/halt only
+  drop_reason     text,
+  UNIQUE (cohort_month, ticker)
+);
+CREATE INDEX IF NOT EXISTS followed_ticker_picks_cohort_idx
+  ON followed_ticker_picks (cohort_month DESC);
+
+-- Daily append. The price series outcome scoring reads. One row per pick per
+-- trading day. A gap here makes every horizon crossing it unresolvable, so the
+-- daily tracking run treats a missed write as a hard failure.
+CREATE TABLE IF NOT EXISTS followed_ticker_observations (
+  pick_id       uuid        NOT NULL REFERENCES followed_ticker_picks(id) ON DELETE CASCADE,
+  observed_on   date        NOT NULL,
+  close_price   numeric     NOT NULL,
+  signal_dir    text,                         -- today's direction, for days_held
+  backtest_rate real,
+  council_json  jsonb,                        -- the structured verdict, verbatim
+  PRIMARY KEY (pick_id, observed_on)
+);
+
+-- One row per pick per horizon, written when that horizon resolves. Every
+-- horizon writes once, except `ytd`, which re-resolves daily until Dec 31 and
+-- carries the as-of date in resolved_on.
+CREATE TABLE IF NOT EXISTS followed_ticker_scores (
+  pick_id       uuid        NOT NULL REFERENCES followed_ticker_picks(id) ON DELETE CASCADE,
+  horizon       text        NOT NULL,          -- d1|w1|m1|m3|m6|ytd|y1
+  resolved_on   date        NOT NULL,
+  exit_price    numeric,
+  return_pct    real,
+  directional   real,                          -- sign-corrected for direction
+  outcome       text        NOT NULL CHECK (outcome IN ('hit', 'miss', 'flat', 'void')),
+  judge_score   int,                           -- 0-10, null until judged
+  judge_detail  jsonb,                         -- per-criterion scores + justifications
+  judge_version text,
+  PRIMARY KEY (pick_id, horizon)
+);
+CREATE INDEX IF NOT EXISTS followed_ticker_scores_horizon_idx
+  ON followed_ticker_scores (horizon, resolved_on DESC);
