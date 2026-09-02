@@ -39,6 +39,7 @@ One page per named component. These are the hubs — everything links to entitie
 
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`
+- [[entity-clerk]] — Clerk identity layer itself: dev/prod instances, `middleware.ts` route protection, free-plan constraints (no MFA, no satellite domains)
 - [[entity-disclaimer-system]] — hash-derived disclaimer text + Neon-backed acknowledgement gating `/verdict`, `/signals`, `/portfolio-intelligence`, `/dashboard/holdfold/[ticker]`; `lib/disclaimer.ts`, `lib/disclaimer-db.ts`
 - [[entity-consent-system]] — cookie/tracking consent (`nu_consent` cookie, `consent_records`), express ToS/Privacy consent at sign-up (`legal_consent_events`), and data-subject-rights endpoints (`/api/privacy/{export,profile,delete}`); `lib/shared/consent.ts`, `lib/consent-db.ts`, `app/api/consent`, PR #77
 
@@ -83,6 +84,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner
 - [[decision-self-implemented-totp-over-clerk-pro]] — nulogdash's admin mutation gate self-implements TOTP instead of paying for Clerk's $25/mo Pro plan or migrating identity providers
+- [[decision-clerk-subdomain-without-satellite]] — financial.nuwrrrld.com uses `allowed_origins`, not Clerk's paid satellite-domain feature; `change_domain` silently no-ops if misused as an "add a subdomain" call
 
 ---
 

@@ -636,3 +636,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-08-31] ingest | PR #91 fix(signals): Go Deeper renders the council verdict instead of erroring | pages touched: 3
 
 ## [2026-08-31] ingest | PR #94 fix(followed-tickers): bipolar ranking + signals-app confluence port + 950-ticker universe | pages touched: 3
+
+## [2026-09-02] ingest | PR #96 docs(clerk): free-plan dev-to-prod guide + satellite/change_domain pitfalls | pages touched: 5
