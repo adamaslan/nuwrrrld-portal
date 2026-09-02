@@ -33,6 +33,19 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const PORTAL_URL = (process.env.PORTAL_URL ?? "http://localhost:3000").replace(/\/$/, "");
+
+// PORTAL_PUSH_SECRET rides in an Authorization header on every registration
+// POST, so refuse to send it over cleartext HTTP to anything but loopback.
+{
+  const u = new URL(PORTAL_URL);
+  const isLoopback = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(u.hostname);
+  if (u.protocol !== "https:" && !isLoopback) {
+    throw new Error(
+      `PORTAL_URL must be https:// for a non-local host (got ${PORTAL_URL}) — ` +
+        `refusing to send PORTAL_PUSH_SECRET over cleartext`,
+    );
+  }
+}
 const DRY_RUN = process.argv.includes("--dry-run");
 const ONLY = process.argv.find((a) => a.startsWith("--only="))?.split("=")[1] ?? null;
 const CSV_PATH =
@@ -40,8 +53,12 @@ const CSV_PATH =
   join(homedir(), "code", "signals-app", "seed", "universe_symbols.csv");
 
 // Same guard as seed-universe.mjs: a truncated read or a changed file layout
-// should fail loud rather than silently register a handful of rows.
-const MIN_ROWS = 800;
+// should fail loud rather than silently register a handful of rows. Each run
+// mode gets its own floor so `--only=stock` can't slip a truncated CSV through
+// the way a single shared minimum would.
+const MIN_ROWS = 800; // full run (stock + etf)
+const MIN_STOCK_ROWS = 600; // --only=stock  (universe carries ~780)
+const MIN_ETF_ROWS = 120; // --only=etf    (universe carries ~172)
 
 const TICKER_RE = /^[A-Z][A-Z.\-]{0,9}$/;
 
@@ -129,11 +146,15 @@ async function main() {
     process.stdout.write(`  skipped ${skipped.badTicker.length} malformed ticker(s): ${skipped.badTicker.join(", ")}\n`);
   }
 
-  // Only enforce the floor on a full run; --only=etf legitimately yields ~172.
-  if (!ONLY && entries.length < MIN_ROWS) {
+  // Enforce a floor in every mode — a truncated CSV is just as wrong for
+  // --only=stock as for a full run; the minimum simply differs by mode.
+  const floor =
+    ONLY === "stock" ? MIN_STOCK_ROWS : ONLY === "etf" ? MIN_ETF_ROWS : MIN_ROWS;
+  if (entries.length < floor) {
     throw new Error(
-      `parsed only ${entries.length} tickers, expected at least ${MIN_ROWS} — ` +
-        `refusing to register a partial universe (is ${CSV_PATH} truncated?)`,
+      `parsed only ${entries.length} tickers${ONLY ? ` for --only=${ONLY}` : ""}, ` +
+        `expected at least ${floor} — refusing to register a partial universe ` +
+        `(is ${CSV_PATH} truncated?)`,
     );
   }
 

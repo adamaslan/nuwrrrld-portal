@@ -57,10 +57,12 @@ _SECRET = modal.Secret.from_name("nuwrrrld-hydration")
 # rows; staying under it means a chunk failure costs one chunk, not the night.
 CHUNK_SIZE = 200
 
-# Trading days of history to pull. ADX needs ~2× its 14-period lookback to
-# stabilize, and a long weekend plus a holiday can eat four sessions, so this is
-# deliberately generous — the fetch is the cheap part.
-LOOKBACK_DAYS = 120
+# Calendar days of history to pull. The binding constraint is the 50/200
+# moving-average detector (_ma_position_votes), which needs >= 200 daily bars
+# before it can vote at all. ~200 trading sessions span ~280 calendar days;
+# a full 365 clears that with margin for weekends and market holidays. The
+# fetch is the cheap part, so err generous.
+LOOKBACK_DAYS = 365
 
 HTTP_TIMEOUT_S = 120.0
 
