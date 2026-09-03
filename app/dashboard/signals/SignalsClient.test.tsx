@@ -50,10 +50,13 @@ async function expandAndAskDeeper() {
 // in CI. Applied per-suite so a slow environment can't produce a false failure.
 describe("SignalsClient — Go Deeper (T1 council)", { timeout: 30000 }, () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    // stubGlobal (not direct assignment) so unstubAllGlobals restores the
+    // real fetch — vi.restoreAllMocks only tracks vi.spyOn, not `global.x =`.
+    vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
