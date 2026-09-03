@@ -11,13 +11,17 @@ import {
   CARD_SCORE_VERSION,
   MIN_EXPLAIN_QUALITY,
   actionFromScore,
+  barQuality,
   buildCard,
+  completeness,
   dataQuality,
   explainCallCount,
   isExplainable,
   missingInputFields,
+  qualityReport,
   scoreCard,
   shouldReplaceCard,
+  type FrameStats,
 } from "@/lib/shared/card-policy";
 import { TAXONOMY_VERSION, type SignalStateInput, type StateKeyParts } from "@/lib/grounding/taxonomy";
 
@@ -247,6 +251,71 @@ describe("replacement rule", () => {
 
   it("refuses an identical re-post, so a retried batch is a no-op", () => {
     expect(shouldReplaceCard({ barDate: "2026-08-18", dataQuality: 1 }, stored)).toBe(false);
+  });
+});
+
+describe("real data quality — bar-series health (Phase 3.2)", () => {
+  const CLEAN: FrameStats = { barCount: 252, nanRatio: 0, staleTradingDays: 0 };
+
+  it("completeness() is the old dataQuality: linear over the five fields", () => {
+    expect(completeness(FULL)).toBe(1);
+    expect(completeness({})).toBe(0);
+    expect(completeness({ rsi: 1, adx: 1 })).toBeCloseTo(2 / 5);
+  });
+
+  it("dataQuality without frame stats is unchanged — completeness only", () => {
+    expect(dataQuality(FULL)).toBe(1);
+    expect(dataQuality(FULL, null)).toBe(1);
+  });
+
+  it("a clean full window does not reduce quality below completeness", () => {
+    expect(dataQuality(FULL, CLEAN)).toBeCloseTo(1);
+    expect(barQuality(CLEAN).factor).toBeCloseTo(1);
+    expect(barQuality(CLEAN).reasons).toEqual([]);
+  });
+
+  it("a truncated window pulls a 5-of-5 card down", () => {
+    const short: FrameStats = { barCount: 90, nanRatio: 0, staleTradingDays: 0 };
+    expect(dataQuality(FULL, short)).toBeLessThan(1);
+    expect(barQuality(short).reasons.join()).toMatch(/short history/);
+  });
+
+  it("gappy and stale series each deduct, with a stated reason", () => {
+    expect(barQuality({ barCount: 252, nanRatio: 0.05, staleTradingDays: 0 }).factor).toBeLessThan(1);
+    expect(barQuality({ barCount: 252, nanRatio: 0, staleTradingDays: 10 }).factor).toBeLessThan(1);
+    expect(
+      barQuality({ barCount: 252, nanRatio: 0, staleTradingDays: 10 }).reasons.join(),
+    ).toMatch(/stale/);
+  });
+
+  it("makes a stale 5-of-5 card rank below a fresh one — the §4 ETF accident", () => {
+    const freshFull = dataQuality(FULL, CLEAN);
+    const staleFull = dataQuality(FULL, { barCount: 252, nanRatio: 0, staleTradingDays: 15 });
+    expect(staleFull).toBeLessThan(freshFull);
+  });
+
+  it("qualityReport lists missing fields and every bar-quality deduction", () => {
+    const r = qualityReport(
+      { rsi: 50 },
+      { barCount: 50, nanRatio: 0.1, staleTradingDays: 8 },
+    );
+    expect(r.quality).toBeLessThan(0.2);
+    expect(r.reasons.join(" ")).toMatch(/missing fields/);
+    expect(r.reasons.join(" ")).toMatch(/short history/);
+    expect(r.reasons.join(" ")).toMatch(/NaN/);
+    expect(r.reasons.join(" ")).toMatch(/stale/);
+  });
+
+  it("buildCard threads frame stats into the stored dataQuality", () => {
+    const clean = buildCard("AAA", "stock", FULL, "t1", CLEAN);
+    const stale = buildCard("BBB", "stock", FULL, "t1", {
+      barCount: 252,
+      nanRatio: 0,
+      staleTradingDays: 20,
+    });
+    expect(clean.dataQuality).toBeGreaterThan(stale.dataQuality);
+    // No frame stats → identical to the pre-Phase-3 card.
+    expect(buildCard("CCC", "stock", FULL, "t1").dataQuality).toBe(1);
   });
 });
 

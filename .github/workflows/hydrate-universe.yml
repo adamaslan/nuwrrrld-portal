@@ -66,9 +66,11 @@ on:
         type: boolean
         default: false
 
-# Read-only: this workflow calls a deployed endpoint and commits nothing.
+# Calls a deployed endpoint and commits nothing, but opens/updates a tracking
+# issue on failure (Phase 1.4) so eleven silent red runs cannot happen again.
 permissions:
   contents: read
+  issues: write
 
 # Serialize runs: `cancel-in-progress: false` lets an in-flight run finish and
 # holds the next one *pending* — it queues, it does not skip. (A third trigger
@@ -110,7 +112,10 @@ jobs:
 
       - name: Hydrate the universe
         env:
-          PORTAL_URL: ${{ vars.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+          # PORTAL_URL is registered as a *secret*, not a variable — the old
+          # `vars.PORTAL_URL` lookup always missed and fell through to the
+          # default. Harmless (the default is correct) but misleading. (Phase 1.3)
+          PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
@@ -213,3 +218,55 @@ jobs:
           path: hydrate.log
           retention-days: 7
           if-no-files-found: ignore
+
+      # Phase 1.4 — make the silence audible. Eleven consecutive red runs went
+      # unnoticed for 15 days because a failed scheduled workflow notifies
+      # nobody by default. This opens ONE tracking issue on the first failure
+      # and adds a comment on each subsequent one, so the outage is visible on
+      # the issues tab and via issue notifications. Closing the issue is the
+      # human ack; a later green run does not auto-close it.
+      - name: Open or update the hydration-failure tracking issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'hydration-failure';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Nightly universe hydration failed.`,
+              ``,
+              `- run: ${runUrl}`,
+              `- workflow: \`${context.workflow}\``,
+              `- trigger: \`${context.eventName}\``,
+              `- commit: ${context.sha}`,
+              ``,
+              `The most common cause is a missing repo secret ` +
+              `(\`PORTAL_PUSH_SECRET\`, \`ALPACA_API_KEY\`, \`ALPACA_API_SECRET\`) — ` +
+              `see \`scripts/sync-hydration-secrets.sh\` and \`docs/manual-setup-todo.md\`. ` +
+              `Close this issue once a run is green again.`,
+            ].join('\n');
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+              per_page: 1,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body: `Another failed run — ${runUrl}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Nightly universe hydration is failing',
+                body,
+                labels: [label],
+              });
+            }

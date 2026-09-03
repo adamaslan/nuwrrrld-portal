@@ -20,6 +20,31 @@ export function normalizeTicker(input: unknown): string | null {
   return /^[A-Z][A-Z.\-]{0,9}$/.test(t) ? t : null;
 }
 
+/**
+ * Does this symbol look like a crypto pair? (Phase 2.4 of
+ * docs/signal-engine-three-phase-plan.md.)
+ *
+ * The card pipeline's horizons and the trading-day math in
+ * followed-tickers-policy assume a Mon–Fri session calendar, which 24/7 crypto
+ * violates — a registered `BTC-USD` produces wrong `days_held` on every
+ * horizon. `BTC-USD`/`ETH-USD`/… also 400 the whole Alpaca chunk they land in
+ * (see fetchBars' header), which is the incident that motivated this guard.
+ *
+ * `seed-signals-universe.mjs` already drops crypto (`scopeFor` → null), so any
+ * crypto row currently in `ticker_universe` came from another seeder or
+ * predates the CSV. Rejecting the shape at registration means no seeder can
+ * re-add one.
+ *
+ * Matches `<base>-<fiat>` where fiat is a known settlement currency. Deliberately
+ * narrow: real preferred-share notation (`SCHW-PD`) and share classes (`BRK.B`)
+ * do not end in `-USD`/`-USDT`/`-USDC`/`-EUR`/`-GBP`.
+ */
+const CRYPTO_PAIR_RE = /-(USD|USDT|USDC|EUR|GBP|BTC|ETH)$/;
+export function isCryptoShaped(input: unknown): boolean {
+  if (typeof input !== "string") return false;
+  return CRYPTO_PAIR_RE.test(input.trim().toUpperCase());
+}
+
 /** Is `generatedAt` within `maxAgeMinutes` of `now`? Unparseable → not fresh. */
 export function isCacheFresh(generatedAt: string | Date, maxAgeMinutes: number, now: Date = new Date()): boolean {
   const gen = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);

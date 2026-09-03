@@ -14,7 +14,138 @@ one is the reasoning. New here: the expanded Stripe section (§4), CI/test
 infrastructure (§5b), observability (§5c), and the explain-quality product
 decision (§6b).
 
+**Updated 2026-09-03** with §0a — the nightly universe hydration has been dead
+for 15 days on three missing secrets. This is now the top item in the file. The
+`gh secret list` caveat below has also been **resolved**: the command was
+re-run successfully and its output is recorded in §2.
+
 Ordered by what unblocks the most.
+
+---
+
+## 0a. 🔴 The nightly universe hydration has been dead since 2026-08-19
+
+**Verified 2026-09-03**, and this outranks everything else in this file:
+`ticker_cards` holds 1,864 rows whose newest `bar_date` is **2026-08-19**.
+Today is 2026-09-03. The universe has not been carded in 15 days.
+
+Eleven consecutive scheduled runs have failed, each in ~25 seconds, before
+touching Alpaca:
+
+```
+$ gh run list --workflow=hydrate-universe.yml --limit 12
+completed  failure  Nightly universe hydration  schedule  2026-09-03T00:30:33Z  27s
+completed  failure  Nightly universe hydration  schedule  2026-09-02T00:24:45Z  30s
+… unbroken back to 2026-08-19 …
+
+$ gh run view 33699802622 --log-failed
+##[error]PORTAL_PUSH_SECRET is not set — the portal will reject every POST.
+```
+
+Cause: **`PORTAL_PUSH_SECRET`, `ALPACA_API_KEY` and `ALPACA_API_SECRET` do not
+exist as repository secrets.** Seventeen others do (§2). All three exist in
+`.env.local` — this is purely the §2 sync that was never run.
+
+- [ ] `scripts/sync-hydration-secrets.sh`, then
+      `gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA'` → expect 3 rows
+- [ ] Smoke test: `gh workflow run hydrate-universe.yml -f limit=25`
+- [ ] Confirm `max(bar_date) FROM ticker_cards` advances to the last trading day
+
+**The workflow's own guard worked perfectly** — it named the missing secret and
+failed red rather than writing zero cards and reporting green. What is missing
+is anything that tells a human the red exists. Two follow-ups, both code, both
+in Phase 1 of
+[docs/signal-engine-three-phase-plan.md](signal-engine-three-phase-plan.md):
+
+- [x] An `if: failure()` notification step on the workflow. **Done on
+      `feat/signal-engine-phases-1-3`** — opens/updates a `hydration-failure`
+      tracking issue on every red run (`issues: write` added to the workflow).
+- [x] A **freshness check independent of the writer**. **Done** —
+      `scripts/check-card-freshness.mjs` + `.github/workflows/signal-freshness-check.yml`
+      (weekday 13:00 UTC) read `GET ?meta=freshness` and go red when
+      `max(bar_date)` is more than `MAX_STALE_TRADING_DAYS` (default 3) old.
+      Test the alert with `MAX_STALE_TRADING_DAYS=0`, not by waiting.
+
+Also verified while here: `hydrate-universe.yml` reads `${{ vars.PORTAL_URL }}`,
+but `PORTAL_URL` is registered as a **secret**, not a variable. The lookup
+misses and falls through to the hardcoded `https://financial.nuwrrrld.com`.
+That default is correct, so nothing is broken — but the reference reads as
+configurable and is not.
+
+- [x] Changed the workflow to `secrets.PORTAL_URL` on
+      `feat/signal-engine-phases-1-3`. Registering `PORTAL_URL` as a *variable*
+      instead is still fine if you prefer that; either way the misleading
+      `vars.` lookup is gone.
+
+### Still blocking — only a human can do these (unchanged by the code PR)
+
+- [ ] **Push the three secrets** — `scripts/sync-hydration-secrets.sh`, then
+      `gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA'` → expect 3 rows.
+      Nothing in `feat/signal-engine-phases-1-3` can do this; the whole pipeline
+      stays dead until it runs.
+- [ ] **Smoke test** (Phase 1.2): `gh workflow run hydrate-universe.yml -f limit=25`,
+      then `gh run watch`. Expect green, `written=50`, `calc-errors=0`.
+- [ ] **First full scheduled run green**, then confirm `max(bar_date)` is the
+      last trading day and the new freshness workflow passes.
+- [ ] **Add repo labels** `hydration-failure` and `stale-signals` (or let the
+      first failing run create them — `github-script` will 422 without
+      pre-existing labels on some repo configs; safest to create them once).
+- [ ] **(signals-app, Phase 1.6)** `OPENROUTER_API_KEY` is missing from that
+      repo's secrets and blocks its production run — structurally identical to
+      this outage. Do it in the same session.
+
+Full analysis: [docs/signal-engine-parity-across-hosts.md](signal-engine-parity-across-hosts.md) §0.1.
+
+---
+
+## 0b. Signal-engine three-phase plan — what `feat/signal-engine-phases-1-3` did, and what it deliberately did not
+
+That branch implements the **code-only** parts of Phases 1–3 of
+[docs/signal-engine-three-phase-plan.md](signal-engine-three-phase-plan.md):
+
+**Landed (code + tests):**
+
+- Phase 1.3/1.4/1.5 — workflow `secrets.PORTAL_URL` fix, failure→issue alert,
+  independent freshness check (see §0a).
+- Phase 2.1 — Alpaca `next_page_token` pagination in `scripts/hydrate-local.mjs`
+  with a per-chunk `pages= symbols=X/Y bars=` log line and a `pages>1` warning.
+- Phase 2.2 — `lib/shared/hydration-constants.json` as the single source
+  (`LOOKBACK_DAYS=365`, `CHUNK_SIZE=35`, `feed=iex`, `adjustment=split`,
+  `MIN_BARS=40`, `MIN_COVERAGE_RATIO=0.95`), re-exported by `.ts` and `.mjs`,
+  drift-pinned by a test. **Modal (`deploy/universe-hydration/modal_app.py`) is
+  NOT wired to the JSON twin yet** — it lives in this repo but Modal reads its
+  own constants. Porting that is the remaining half of 2.2.
+- Phase 2.3 — `normalizeToAlpaca()` in `seed-signals-universe.mjs` rewrites
+  `BRK-B`→`BRK.B` at ingest. **`BRK-B`/`BF-B` are still deactivated in
+  `ticker_universe`** — re-run the seeder and `prune-universe.mjs --dry-run` to
+  reactivate them (Phase 2.5), and verify `SCHW-PD` separately.
+- Phase 2.4 — `isCryptoShaped()` rejects `*-USD`-style pairs at the `PUT`
+  registration route. Existing crypto rows already in `ticker_universe` are not
+  retroactively removed — deactivate them once (`UPDATE ticker_universe SET
+  active=false WHERE ticker ~ '-USD$'`).
+- Phase 3.2 — real `dataQuality`: `completeness(input) × barQuality(frameStats)`
+  where `frameStats` (`barCount`, `nanRatio`, `staleTradingDays`) is measured by
+  the compute host and threaded through the ingest route. Backward compatible —
+  a host that omits `frameStats` gets the old completeness-only number.
+
+**Deferred — needs a decision, a migration, or a full-universe run first:**
+
+- [ ] **Phase 3.2 `reasons` persistence.** `qualityReport()` returns
+      human-readable reasons but there is **no `ticker_cards` column** to store
+      them. Adding one is a schema migration (`migrations/`) — do it deliberately,
+      not as a drive-by. Until then reasons are compute-time only.
+- [ ] **Phase 3.1 — one confluence implementation.** Not started. The plan wants
+      confluence computed once in `lib/shared/card-policy.ts` with Modal and
+      `hydrate-local.mjs` deleting their copies. The interim drift-pinning test
+      (JS `confluence` vs captured Python `_confluence`) also needs **reference
+      values captured by running `modal_app.py`'s `_confluence`** — do that
+      capture before writing the test, or it pins nothing.
+- [ ] **Phase 3.3 — relative strength / sector rank.** Not started. Needs the
+      full ~950-symbol run to exist (Phase 2.6) and a server-side or
+      second-pass computation — it cannot run inside a 35-symbol chunk. The CSV's
+      `sector_group` column is parsed and discarded today.
+- [ ] **Phase 3.4–3.6 — remaining detector families, MTF composite.** Not
+      started; gated on 3.1 landing so detectors aren't ported twice.
 
 ---
 
@@ -30,15 +161,16 @@ ERROR: Cannot run interactive auth in CI
 ```
 
 `.github/workflows/integration-tests.yml` creates an ephemeral Neon branch per
-run. With no API key, `neonctl` falls back to interactive auth and dies. This is
-the single highest-value fix in this document: it turns CI green on two PRs at
-once.
+run. With no API key, `neonctl` falls back to interactive auth and dies.
 
-> **A caution about the lists below.** `gh secret list` returned 14 secrets early
-> in the session and 0 rows minutes later, so any "missing from GitHub" claim
-> here is unverified. What *is* verified: `NEON_API_KEY` resolved empty at
-> runtime in the failing job, and the six values in §1 are absent from
-> `.env.local`. Re-run `gh secret list` yourself before acting on §2.
+> **The earlier caution about `gh secret list` is resolved.** That command was
+> flaky during the 2026-08-30 session (14 secrets, then 0 rows), so every
+> "missing from GitHub" claim was marked unverified. It was re-run cleanly on
+> **2026-09-03** and returned 17 secrets; the resulting present/absent split is
+> recorded in §2 and is now fact, not assumption. Note that `NEON_API_KEY` and
+> `NEON_PROJECT_ID` **do now exist** (set 2026-08-30) — so §1's first two rows
+> are done, and the integration job's failure, if it persists, has a different
+> cause than the one recorded above. Re-run it and re-read the log.
 
 **Also broken (verified 2026-09-03 by live probe):** the `afternoon-pipeline.yml`
 scheduler has no routes to call — `/api/pipeline/{signals-refresh,theses-score,
@@ -57,14 +189,18 @@ routes are deployed but 503 unauthenticated. Full breakdown + probe table:
 These are not in `.env.local`, so there is nothing to copy. Each has to be
 generated or retrieved from a dashboard.
 
-| Secret | Where to get it | Needed by |
-|---|---|---|
-| `NEON_API_KEY` | Neon console → Account settings → API keys → Generate | `integration-tests.yml` **(the live failure)** |
-| `NEON_PROJECT_ID` | Neon console → Project settings → General. Looks like `wispy-forest-12345678` | `integration-tests.yml` |
-| `CRON_SECRET` | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. Not in `.env.local` today — only `PORTAL_PUSH_SECRET` is, and it is **not** interchangeable. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` |
-| `PORTAL_URL` | Just the deployed origin, e.g. `https://financial.nuwrrrld.com`. Also add to `.env.local` — `scripts/local-trigger.mjs` Path C reads it there. | `afternoon-pipeline.yml` + the other scheduled callers |
-| `GCP_WIF_PROVIDER` | GCP → IAM → Workload Identity Federation. Full resource path. | `e2e-resiliency.yml` |
-| `GCP_SERVICE_ACCOUNT` | GCP → IAM → Service accounts. The `...@....iam.gserviceaccount.com` address. | `e2e-resiliency.yml` |
+| Secret | Where to get it | Needed by | Status 2026-09-03 |
+|---|---|---|---|
+| `NEON_API_KEY` | Neon console → Account settings → API keys → Generate | `integration-tests.yml` | ✅ **set 2026-08-30** |
+| `NEON_PROJECT_ID` | Neon console → Project settings → General. Looks like `wispy-forest-12345678` | `integration-tests.yml` | ✅ **set 2026-08-30** |
+| `PORTAL_URL` | Just the deployed origin, e.g. `https://financial.nuwrrrld.com`. Also add to `.env.local` — `scripts/local-trigger.mjs` Path C reads it there. | `afternoon-pipeline.yml` + the other scheduled callers | ✅ set — but as a *secret*, see §0a |
+| `CRON_SECRET` | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. Not in `.env.local` today — only `PORTAL_PUSH_SECRET` is, and it is **not** interchangeable. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` | ❌ absent |
+| `GCP_WIF_PROVIDER` | GCP → IAM → Workload Identity Federation. Full resource path. | `e2e-resiliency.yml` | ❌ absent |
+| `GCP_SERVICE_ACCOUNT` | GCP → IAM → Service accounts. The `...@....iam.gserviceaccount.com` address. | `e2e-resiliency.yml` | ❌ absent |
+
+Three of the six are now done. **If the `integration` job is still red, its
+cause has changed** — re-run it and read the current log rather than acting on
+§0's recorded diagnosis.
 
 The `secrets-sync` skill can provision the two GCP ones (keyless WIF, no JSON key
 file) if you'd rather not click through it.
@@ -73,16 +209,41 @@ file) if you'd rather not click through it.
 
 ## 2. Values that exist locally — push them to GitHub Actions
 
-These are all in `.env.local` already. **Verify what's actually set first**
-(`gh secret list`), then push only what's genuinely absent.
+These are all in `.env.local` already. **`gh secret list` was re-run cleanly on
+2026-09-03** — the split below is verified, not assumed. Push only the absent
+column.
+
+**Absent from GitHub Actions — push these:**
+
+| Secret | Consequence today |
+|---|---|
+| `PORTAL_PUSH_SECRET` | 🔴 **nightly hydration dead 15 days** (§0a) |
+| `ALPACA_API_KEY` | 🔴 same job, second guard |
+| `ALPACA_API_SECRET` | 🔴 same job, third guard |
+| `STRIPE_WEBHOOK_SECRET` | every Stripe event rejected (§4) |
+| `STRIPE_PRICE_ANNUAL` | annual plan advertised, unsellable (§4) |
+
+The last two are **not** simple pushes — both are placeholder/empty locally, so
+§4 must create real values first. Only the three Alpaca/portal secrets are a
+straight file-to-CLI copy, and they are the highest-value three in this file.
+
+**Already present (verified 2026-09-03) — do not re-push blindly:**
 
 ```
-ALPACA_API_KEY  ALPACA_API_SECRET  CLERK_SECRET_KEY  DATABASE_URL
-IP_HASH_SECRET  MCP_BACKEND_URL  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  NULOGDASH_ADMIN_EMAILS
-OPENROUTER_API_KEY  PORTAL_PUSH_SECRET  STRIPE_PRICE_ANNUAL
-STRIPE_PRICE_MONTHLY  STRIPE_SECRET_KEY  STRIPE_WEBHOOK_SECRET
+CLERK_SECRET_KEY  CLOUDFLARE_ACCOUNT_ID  CLOUDFLARE_API_TOKEN  DATABASE_URL
+E2E_CLERK_TEST_EMAIL  E2E_CLERK_TEST_PASSWORD  IP_HASH_SECRET  MCP_BACKEND_URL
+NEON_API_KEY  NEON_PROJECT_ID  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  NULOGDASH_ADMIN_EMAILS  OPENROUTER_API_KEY
+PORTAL_URL  STRIPE_PRICE_MONTHLY  STRIPE_SECRET_KEY
 ```
+
+Two notes on that list. `NEON_API_KEY` / `NEON_PROJECT_ID` were set 2026-08-30,
+which closes §1's first two rows. And `PORTAL_URL` is present as a **secret**,
+which is why `hydrate-universe.yml`'s `vars.PORTAL_URL` lookup silently misses
+(§0a).
+
+Still absent and still blocking, per §1: `CRON_SECRET`, `GCP_WIF_PROVIDER`,
+`GCP_SERVICE_ACCOUNT`.
 
 Do it locally so no value passes through a chat session:
 
@@ -208,14 +369,18 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       Decide `past_due` explicitly: `tierFromStatus()` currently maps it to
       `pro`, so a failed payment keeps full access. That is a defensible grace
       period, but make it a bounded *choice* rather than an accident.
-- [ ] **Decide `PORTAL_PUSH_SECRET` — generate it or delete the dependency.**
-      Binary, and deferring it again is the only wrong answer. If either caller
-      is real (`refresh-signals.py` pushing to `/api/signals/refresh`, or an
-      internal reader of `/api/signals/digest`), run `openssl rand -hex 32` and
-      set the same value in both places. If neither is deployed, it is dead
-      config — `/api/signals/refresh` rejects pushes and `/api/signals/digest`
-      correctly falls back to requiring a Clerk session. Remove the placeholder
-      so `sync-e2e-secrets.sh` stops reporting a permanent false blocker.
+- [x] ~~**Decide `PORTAL_PUSH_SECRET` — generate it or delete the dependency.**~~
+      **Answered 2026-09-03, by evidence rather than by decision: the caller is
+      real.** This item framed it as possibly-dead config, weighing
+      `refresh-signals.py` and `/api/signals/digest`. It missed the actual
+      consumer — **`.github/workflows/hydrate-universe.yml`**, a live scheduled
+      job that has been failing nightly on this exact secret since 2026-08-19.
+      The value already exists in `.env.local`; it was never pushed. See §0a —
+      it is now the top item in this file.
+      The lesson worth keeping: "is this dependency real?" was answerable the
+      whole time by grepping the workflows for the secret name, and deferring it
+      as a *decision* cost 15 days of universe coverage. A secret referenced by
+      a scheduled workflow is never dead config.
 
 ---
 
@@ -422,13 +587,18 @@ nudge the review bot, then re-run `/bugmerge1` (or `/bugz`) on them:
 annual price, and the key rotation (§4). Do them together rather than three
 separate logins.
 
+0. **Push the three hydration secrets** (§0a) — **5 minutes, no dashboard, no
+   decision.** It is the cheapest item in this file and the only one where the
+   product is currently producing nothing at all. Every signal the app shows is
+   15 days stale until this runs.
 1. **Stripe: webhook secret + annual price** (§4) — until these are set you
    cannot record a payment, and you are advertising a plan you cannot sell.
    Everything else assumes revenue works.
-2. **Neon API key + project ID** (§1) — turns CI green on both open PRs.
+2. ~~**Neon API key + project ID** (§1)~~ — **done 2026-08-30.** Re-run the
+   integration job and read the current failure, if any.
 3. **Rotate `STRIPE_SECRET_KEY`** (§4) — do this *before* step 4 so the synced
    value is the rotated one; same dashboard session as step 1.
-4. **Push the existing secrets** (§2) — unblocks the e2e and pipeline workflows.
+4. **Push the remaining existing secrets** (§2) — unblocks the e2e workflows.
 5. **Clerk Production** (§3) — the live production bug.
 6. **Decide the explain-quality path** (§6b) — the AI tier currently produces
    nothing; this gates whether the paid feature exists at all.

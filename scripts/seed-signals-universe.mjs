@@ -89,6 +89,28 @@ function parseCsvLine(line) {
   return out.map((f) => f.trim());
 }
 
+/**
+ * Normalize a yfinance-shaped ticker to Alpaca's spelling at ingest (Phase 2.3
+ * of docs/signal-engine-three-phase-plan.md).
+ *
+ * seed/universe_symbols.csv is maintained by ~/code/signals-app, which fetches
+ * through **yfinance**. yfinance spells a share class with a hyphen (`BRK-B`,
+ * `BF-B`); Alpaca — the portal's vendor — spells it with a dot (`BRK.B`,
+ * `BF.B`). Left alone, Alpaca 400s the hyphen form and `prune-universe.mjs`
+ * correctly deactivates two of the most liquid names on the tape as if
+ * delisted. The CSV is correct for its own vendor, so the fix belongs here.
+ *
+ * Scope is deliberately narrow: `LETTERS-<single letter>` only. Preferred-share
+ * notation like `SCHW-PD` is a genuinely different scheme (Alpaca writes it
+ * `SCHW.PR.D`), not a separator swap, so it is left untouched and verified
+ * separately.
+ */
+const SHARE_CLASS_RE = /^([A-Z]+)-([A-Z])$/;
+export function normalizeToAlpaca(ticker) {
+  const m = SHARE_CLASS_RE.exec(ticker);
+  return m ? `${m[1]}.${m[2]}` : ticker;
+}
+
 /** Map the CSV's asset_type onto the portal's UniverseScope values, or null to skip. */
 function scopeFor(assetType) {
   const t = (assetType ?? "").toLowerCase();
@@ -112,11 +134,14 @@ function loadUniverse() {
 
   const byTicker = new Map();
   const skipped = { badTicker: [], unsupportedType: [] };
+  const normalized = [];
 
   for (const line of lines.slice(1)) {
     const f = parseCsvLine(line);
-    const ticker = (f[col.ticker] ?? "").toUpperCase();
-    if (!TICKER_RE.test(ticker)) { skipped.badTicker.push(ticker || "(blank)"); continue; }
+    const rawTicker = (f[col.ticker] ?? "").toUpperCase();
+    const ticker = normalizeToAlpaca(rawTicker);
+    if (ticker !== rawTicker) normalized.push(`${rawTicker}→${ticker}`);
+    if (!TICKER_RE.test(ticker)) { skipped.badTicker.push(rawTicker || "(blank)"); continue; }
 
     const universe = scopeFor(f[col.assetType]);
     if (!universe) { skipped.unsupportedType.push(ticker); continue; }
@@ -125,7 +150,7 @@ function loadUniverse() {
     byTicker.set(ticker, { ticker, universe, name: f[col.name] || null });
   }
 
-  return { entries: [...byTicker.values()], skipped };
+  return { entries: [...byTicker.values()], skipped, normalized };
 }
 
 async function main() {
@@ -134,7 +159,12 @@ async function main() {
   }
 
   process.stdout.write(`Reading ${CSV_PATH}\n`);
-  const { entries, skipped } = loadUniverse();
+  const { entries, skipped, normalized } = loadUniverse();
+  if (normalized.length) {
+    process.stdout.write(
+      `  normalized ${normalized.length} share-class ticker(s) yfinance→Alpaca: ${normalized.join(", ")}\n`,
+    );
+  }
 
   const stocks = entries.filter((e) => e.universe === "stock").length;
   const etfs = entries.filter((e) => e.universe === "etf").length;
@@ -190,7 +220,11 @@ async function main() {
   process.stdout.write(`Done — ${registered} tickers registered in ticker_universe.\n`);
 }
 
-main().catch((err) => {
-  process.stderr.write(`seed-signals-universe failed: ${err.message}\n`);
-  process.exit(1);
-});
+// Guarded so `normalizeToAlpaca` can be imported by a unit test without the
+// seeder running as a side effect.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    process.stderr.write(`seed-signals-universe failed: ${err.message}\n`);
+    process.exit(1);
+  });
+}

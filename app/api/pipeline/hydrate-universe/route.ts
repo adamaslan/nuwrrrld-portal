@@ -26,10 +26,11 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
-import { buildCard, type CardUniverse } from "@/lib/shared/card-policy";
-import { normalizeTicker } from "@/lib/shared/signal-policy";
+import { buildCard, type CardUniverse, type FrameStats } from "@/lib/shared/card-policy";
+import { isCryptoShaped, normalizeTicker } from "@/lib/shared/signal-policy";
 import {
   coverageForDate,
+  latestCardBarDate,
   listActiveTickers,
   upsertCards,
   upsertUniverse,
@@ -58,6 +59,13 @@ interface HydrateRow {
   volatilityPercentile?: number | null;
   confluenceScore?: number | null;
   direction?: VerdictDirection | null;
+  /** Bar-series health measured by the compute host (Phase 3.2). Optional: a
+   *  host that omits it makes `dataQuality` fall back to field-completeness. */
+  frameStats?: {
+    barCount?: number;
+    nanRatio?: number;
+    staleTradingDays?: number | null;
+  } | null;
   error?: string;
 }
 
@@ -79,7 +87,18 @@ export async function GET(req: NextRequest) {
   const auth = requirePushSecret(req);
   if (auth) return auth;
 
-  const universeParam = new URL(req.url).searchParams.get("universe");
+  const params = new URL(req.url).searchParams;
+
+  // ?meta=freshness — the newest bar_date in ticker_cards and how many trading
+  // days stale it is. Read from outside the write path so a broken writer is
+  // still detectable (Phase 1.5). scripts/check-card-freshness.mjs consumes it.
+  if (params.get("meta") === "freshness") {
+    const latestBarDate = await latestCardBarDate();
+    const staleTradingDays = latestBarDate ? tradingDaysBetween(latestBarDate, todayIso()) : null;
+    return NextResponse.json({ ok: true, latestBarDate, staleTradingDays });
+  }
+
+  const universeParam = params.get("universe");
   const universe: CardUniverse | undefined =
     universeParam === "etf" || universeParam === "stock" ? universeParam : undefined;
 
@@ -122,6 +141,13 @@ export async function PUT(req: NextRequest) {
   const clean: { ticker: string; universe: CardUniverse; name?: string }[] = [];
   const rejected: string[] = [];
   for (const entry of entries) {
+    // Crypto is rejected at the shape, before normalization: the session-calendar
+    // math downstream is wrong for a 24/7 asset regardless of which seeder sent
+    // it. See isCryptoShaped() and Phase 2.4 of the three-phase plan.
+    if (isCryptoShaped(entry?.ticker)) {
+      rejected.push(String(entry?.ticker ?? ""));
+      continue;
+    }
     const ticker = normalizeTicker(entry?.ticker);
     if (!ticker) {
       rejected.push(String(entry?.ticker ?? ""));
@@ -217,8 +243,9 @@ export async function POST(req: NextRequest) {
       direction: isDirection(row.direction) ? row.direction : null,
     };
 
+    const frameStats = parseFrameStats(row.frameStats);
     for (const horizon of HORIZONS) {
-      const card = buildCard(ticker, universe, input, horizon);
+      const card = buildCard(ticker, universe, input, horizon, frameStats);
       cards.push({ ...card, source, sourceRunId: body.runId ?? null, barDate, computedAt: new Date().toISOString() });
     }
   }
@@ -266,6 +293,24 @@ function numOrNull(v: unknown): number | null {
 }
 
 /**
+ * A well-formed `FrameStats`, or null when the host sent nothing usable.
+ * `barCount` and `nanRatio` are required for the object to count; a missing
+ * `staleTradingDays` is allowed (older compute hosts, or a series whose last
+ * bar date could not be read) and passes through as null.
+ */
+function parseFrameStats(raw: HydrateRow["frameStats"]): FrameStats | null {
+  if (!raw || typeof raw !== "object") return null;
+  const barCount = numOrNull(raw.barCount);
+  const nanRatio = numOrNull(raw.nanRatio);
+  if (barCount === null || nanRatio === null) return null;
+  return {
+    barCount,
+    nanRatio,
+    staleTradingDays: numOrNull(raw.staleTradingDays),
+  };
+}
+
+/**
  * Preserves the three-way MACD distinction across the wire. A row that omits
  * `macdCross` entirely yields `undefined` (not computed → counted as missing);
  * an explicit `null` yields `null` (computed, no cross → a real observation).
@@ -285,4 +330,25 @@ function normalizeBarDate(v: unknown): string | null {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
   const d = new Date(`${v}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? null : v;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Weekdays strictly between two ISO dates (UTC), i.e. trading sessions the
+ *  later date is ahead of the earlier. Holidays are not netted out — being off
+ *  by one around a holiday week does not change the freshness verdict. */
+function tradingDaysBetween(fromIso: string, toIso: string): number {
+  const from = new Date(`${fromIso}T00:00:00Z`);
+  const to = new Date(`${toIso}T00:00:00Z`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from) return 0;
+  let count = 0;
+  const cursor = new Date(from);
+  while (cursor < to) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count;
 }
