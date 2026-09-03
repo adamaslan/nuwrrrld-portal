@@ -87,7 +87,11 @@ const WORKFLOWS = {
       { path: "/api/pipeline/signals-refresh", session: "afternoon", dryRunnable: true },
       { path: "/api/pipeline/theses-score", session: "afternoon", dryRunnable: true },
       { path: "/api/pipeline/council-run", session: "afternoon", dryRunnable: true },
-      { path: "/api/pipeline/council-validate-distribution", dryRunnable: false },
+      {
+        path: "/api/pipeline/council-validate-distribution",
+        dryRunnable: false,
+        requiresConfirm: true, // no dry_run param; route contract unverified
+      },
     ],
   },
   "track-followed-tickers": {
@@ -149,6 +153,9 @@ const WORKFLOWS = {
       {
         path: "/api/pipeline/precompute-ai",
         dryRunnable: false,
+        // handler does INSERT ... ON CONFLICT DO UPDATE and spends AI quota
+        // unconditionally — never send it on the default path.
+        requiresConfirm: true,
         body: () => ({ maxSubjects: 3 }),
       },
     ],
@@ -186,20 +193,40 @@ const ALIASES = {
 };
 
 // ── arg parsing ──────────────────────────────────────────────────────────
+class UsageError extends Error {}
+
 function parseArgs(argv) {
   const positional = [];
   const opts = { input: [] };
+  // A value-bearing flag with no operand (or another flag as its operand) is a
+  // usage error, not a silent `undefined` that blows up later in a path fn.
+  const takeValue = (flag, i) => {
+    const v = argv[i + 1];
+    if (v === undefined || v.startsWith("--")) {
+      throw new UsageError(`${flag} requires a value`);
+    }
+    return v;
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--input") opts.input.push(argv[++i]);
-    else if (a === "--ref") opts.ref = argv[++i];
-    else if (a === "--job") opts.job = argv[++i];
-    else if (a === "--url") opts.url = argv[++i];
-    else if (a === "--local") opts.local = true;
+    if (a === "--input") {
+      opts.input.push(takeValue(a, i));
+      i++;
+    } else if (a === "--ref") {
+      opts.ref = takeValue(a, i);
+      i++;
+    } else if (a === "--job") {
+      opts.job = takeValue(a, i);
+      i++;
+    } else if (a === "--url") {
+      opts.url = takeValue(a, i);
+      i++;
+    } else if (a === "--local") opts.local = true;
     else if (a === "--no-dry-run") opts.noDryRun = true;
     else if (a === "--yes") opts.yes = true;
     else if (a === "--print") opts.print = true;
     else if (a === "-h" || a === "--help") opts.help = true;
+    else if (a.startsWith("--")) throw new UsageError(`unknown option ${a}`);
     else positional.push(a);
   }
   return { positional, opts };
@@ -325,19 +352,50 @@ function pathB(w, opts) {
   return run(cmd);
 }
 
+// A --url destination gets the bearer CRON_SECRET attached, so only allow
+// HTTPS origins or an explicit loopback host — never an arbitrary http:// host.
+function assertSafeUrl(raw) {
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new UsageError(`--url is not a valid URL: ${raw}`);
+  }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+  if (u.protocol !== "https:" && !loopback) {
+    throw new UsageError(
+      `--url must be https:// (or a loopback host); refusing to send CRON_SECRET to ${u.origin}`,
+    );
+  }
+  return u.toString().replace(/\/$/, "");
+}
+
 async function pathC(w, opts) {
   const env = { ...loadEnvLocal(), ...process.env };
   const base = opts.url
-    ? opts.url.replace(/\/$/, "")
+    ? assertSafeUrl(opts.url)
     : opts.local
       ? "http://localhost:3000"
       : (env.PORTAL_URL || DEFAULT_PORTAL_URL).replace(/\/$/, "");
 
-  // hydrate-universe is script-driven, not a raw curl.
+  const dryRun = !opts.noDryRun;
+  const confirmed = opts.noDryRun && opts.yes;
+  if (opts.noDryRun && !opts.yes) {
+    console.error(
+      "\x1b[31m--no-dry-run writes to production. Re-run with --yes to confirm.\x1b[0m",
+    );
+    return 2;
+  }
+
+  // hydrate-universe is script-driven, not a raw curl. Honor --no-dry-run here
+  // too — otherwise the script always no-ops its POST regardless of the flag.
   if (!w.calls && w.scriptForC) {
-    if (opts.print) return console.log(w.scriptForC), 0;
-    console.log(`(hydrate runs against ${base})`);
-    return run(w.scriptForC, { PORTAL_URL: base });
+    const cmd = confirmed
+      ? w.scriptForC.replace(/\s*--dry-run\b/, "")
+      : w.scriptForC;
+    if (opts.print) return console.log(cmd), 0;
+    console.log(`(hydrate runs against ${base}${confirmed ? " — WRITES" : ""})`);
+    return run(cmd, { PORTAL_URL: base });
   }
   if (!w.calls) {
     console.error(
@@ -348,13 +406,6 @@ async function pathC(w, opts) {
     return 2;
   }
 
-  const dryRun = !opts.noDryRun;
-  if (!dryRun && !opts.yes) {
-    console.error(
-      "\x1b[31m--no-dry-run writes to production. Re-run with --yes to confirm.\x1b[0m",
-    );
-    return 2;
-  }
   const secret = env.CRON_SECRET;
   if (!secret && !opts.print) {
     console.error(
@@ -365,6 +416,16 @@ async function pathC(w, opts) {
 
   let worst = 0;
   for (const call of w.calls) {
+    // A call with no dry_run contract (route unimplemented, or writes
+    // unconditionally) cannot be made safe by the default — gate it.
+    if (call.requiresConfirm && !confirmed) {
+      console.error(
+        `\x1b[31m${call.path} has no dry-run contract — it can write / consume quota.\n` +
+          `Re-run with --no-dry-run --yes to send it, or skip this workflow.\x1b[0m`,
+      );
+      worst = 2;
+      continue;
+    }
     const body = call.body
       ? call.body(dryRun)
       : {
@@ -486,4 +547,12 @@ async function main() {
   return 1;
 }
 
-main().then((code) => process.exit(code ?? 0));
+main()
+  .then((code) => process.exit(code ?? 0))
+  .catch((err) => {
+    if (err instanceof UsageError) {
+      console.error(`\x1b[31m${err.message}\x1b[0m\n\n${USAGE}`);
+      process.exit(2);
+    }
+    throw err;
+  });

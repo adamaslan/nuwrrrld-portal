@@ -50,11 +50,17 @@ debugging tool.
 | `precompute-ai.yml` | `10 0 * * *` | `/api/pipeline/precompute-ai` | `maxSubjects` |
 
 **The two-cron pattern.** Four of these list *two* schedule entries — one for EST,
-one for EDT — because GitHub cron is UTC-only with no timezone support. A `gate`
-job then checks `TZ="America/New_York" date +%H` and no-ops the off-season entry.
-Without that gate you'd get two live runs an hour apart for half the year. See
-the comment block at the top of `hydrate-universe.yml` for the fuller reasoning
-(it picks the time that is safe in the *worse* season, not the current one).
+one for EDT — with a `gate` job that checks `TZ="America/New_York" date +%H` and
+no-ops the off-season entry. Without that gate you'd get two live runs an hour
+apart for half the year. See the comment block at the top of `hydrate-universe.yml`
+for the fuller reasoning (it picks the time that is safe in the *worse* season,
+not the current one).
+
+This is a **repo convention, not a platform requirement.** `schedule:` runs in
+UTC by default, but GitHub Actions added an optional `on.schedule[].timezone`
+field (IANA names like `America/New_York`) in March 2026. The workflows here
+predate it and still use the dual-cron + gate; new ones may use `timezone:`
+instead — the gate's DST logic is then unnecessary.
 
 ### Shape 3 — Scheduled committers (cron → run a script → open a PR)
 
@@ -177,9 +183,14 @@ act --container-architecture linux/amd64 -l
 
 ```bash
 # .secrets — gitignore this; never commit it
-PORTAL_URL=https://financial.nuwrrrld.com
-CRON_SECRET=...
+PORTAL_URL=http://localhost:3000
+CRON_SECRET=<a dedicated local dev secret, NOT the prod value>
 ```
+
+**Never point Path B at production.** `act` runs unreviewed step logic in a
+local container; give it `http://localhost:3000` and a throwaway `CRON_SECRET`
+that matches your local dev env. The production `PORTAL_URL` / `CRON_SECRET`
+have no place in a `.secrets` file.
 
 Its limits are worth stating up front, because they decide whether path B is
 useful for a given workflow:
@@ -260,9 +271,17 @@ gh run download <run-id>               # artifacts (e2e report, etc.)
 **Always prefer `--log-failed` over `--log`.** The e2e workflow's full log is
 tens of thousands of lines and the failing assertion is four of them.
 
-`dry_run: true` is honored by every pipeline workflow that has it — it runs the
-whole path and skips the persist. That makes path A safe to use liberally on the
-schedulers; it is *not* safe without the flag, since these write to production.
+`dry_run: true` is honored by every pipeline workflow *that passes it through* —
+it runs the whole path and skips the persist. That makes path A safe to use
+liberally on those; it is *not* safe without the flag, since they write to
+production.
+
+Two calls are **not** covered by that guarantee: `council-validate-distribution`
+(afternoon-pipeline) and `precompute-ai` take no `dry_run` parameter, and
+`precompute-ai`'s handler writes unconditionally (`INSERT … ON CONFLICT DO
+UPDATE`) and spends AI quota. `local-trigger.mjs` marks both `requiresConfirm`
+and refuses to send them on Path C without `--no-dry-run --yes`. Don't describe
+the afternoon pipeline as fully dry-run-safe end to end.
 
 ### Path B — `act`
 
@@ -329,8 +348,11 @@ node scripts/hydrate-local.mjs               # hydrate-universe.yml, local varia
 And the portable remote wrapper, runnable anywhere:
 
 ```bash
-OPENROUTER_API_KEY=... GH_TOKEN=... bash scripts/run-refresh-remote.sh
-OPEN_PR=0 ... bash scripts/run-refresh-remote.sh   # push straight to main
+# Put the secrets in a gitignored env file, not on the command line (they'd
+# otherwise land in shell history and the process list).
+set -a; source .env.refresh; set +a
+bash scripts/run-refresh-remote.sh
+OPEN_PR=0 bash scripts/run-refresh-remote.sh   # push straight to main
 ```
 
 ---
@@ -385,7 +407,10 @@ hitting the same portal endpoints, plus the GitHub secrets, in one run:
 ```bash
 gcloud auth login && gcloud config set project <PROJECT_ID>
 gh auth login
-CRON_SECRET=<value> bash .github/scripts/setup-schedulers.sh
+# Read CRON_SECRET into the env without it touching shell history or argv.
+# The script also expands it into `gcloud --headers`, so keep it out of `ps`.
+read -rs CRON_SECRET && export CRON_SECRET
+bash .github/scripts/setup-schedulers.sh
 ```
 
 It upserts (describe → update, else create), so it is safe to re-run. Note this
@@ -491,8 +516,10 @@ gh run rerun <run-id> --failed
 
 ## 8. Adding a new scheduled workflow — the checklist
 
-1. Cron in **UTC**. If the local hour matters, add both EST and EDT entries *and*
-   a `gate` job keyed on `TZ="America/New_York" date +%H`.
+1. Cron. If the local hour matters, either set `on.schedule[].timezone:
+   "America/New_York"` (GitHub Actions, since March 2026), or follow the older
+   repo convention — both EST and EDT entries in UTC *and* a `gate` job keyed on
+   `TZ="America/New_York" date +%H`. Don't mix the two.
 2. `concurrency:` — `cancel-in-progress: true` for CI, `false` for anything that
    writes (finish the run in flight, queue the next).
 3. `workflow_dispatch:` with a `dry_run` boolean, always. It is what makes path A
