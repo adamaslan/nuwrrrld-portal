@@ -551,4 +551,6 @@ sketched in under a backup doc's afterword.
 - `lib/db/schema.sqlite.sql` — SQLite translation of `lib/db/schema.sql`
 - `scripts/backup-to-sqlite.mjs` — Neon → SQLite snapshot exporter
 - `backups/.gitignore` — keeps snapshot files out of version control
+- `.github/workflows/backup-to-sqlite.yml` — runs the exporter daily in CI, uploads the result as a 14-day artifact
+- [`sqlite-backup-code.md`](sqlite-backup-code.md) — code-only companion: every command from this doc plus the CI workflow, no narrative
 - This file

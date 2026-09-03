@@ -2,7 +2,7 @@
 date: 2026-09-03
 type: entity
 tags: [database, backup, sqlite, neon, offline]
-sources: [../../scripts/backup-to-sqlite.mjs, ../../lib/db/schema.sqlite.sql, ../local-sqlite-backup-and-offline-dev.md, PR#98]
+sources: [../../scripts/backup-to-sqlite.mjs, ../../lib/db/schema.sqlite.sql, ../../.github/workflows/backup-to-sqlite.yml, ../local-sqlite-backup-and-offline-dev.md, ../sqlite-backup-code.md, PR#98]
 ---
 
 # Entity: SQLite Backup (`scripts/backup-to-sqlite.mjs`)
@@ -36,12 +36,22 @@ native build step.
 
 ## Where used
 
-- Manual/on-demand only: `node --env-file=.env.local scripts/backup-to-sqlite.mjs`.
+- **Manual, local:** `node --env-file=.env.local scripts/backup-to-sqlite.mjs`.
   Nothing in the app reads the resulting file — this is backup, not a live
-  data path. See `docs/local-sqlite-backup-and-offline-dev.md` for the full
-  usage guide, including how to reproduce what each scheduled GitHub Actions
-  workflow writes by pointing its underlying script/curl call at `localhost`
-  instead of production.
+  data path.
+- **Scheduled, CI:** `.github/workflows/backup-to-sqlite.yml` — daily at
+  03:00 UTC (after `hydrate-universe`'s 22:30 UTC and `precompute-ai`'s
+  00:10 UTC runs, so the snapshot captures both), plus manual
+  `workflow_dispatch` with `tables`/`exclude` inputs mapping straight to the
+  script's own flags. Requires Node 22+ in `setup-node` (`node:sqlite`'s
+  hard floor) — every other workflow in this repo can use `'20'` or `'22'`
+  interchangeably; this one can't drop to 20. Uploads the result as a
+  14-day workflow artifact (`nuwrrrld-sqlite-backup-<run-id>`) — a rolling
+  convenience copy, not durable archival; there's no push-to-storage step.
+- See `docs/local-sqlite-backup-and-offline-dev.md` for the full usage guide
+  (including how to reproduce each scheduled GitHub Actions *pipeline's* own
+  writes by pointing its underlying script/curl call at `localhost`) and
+  `docs/sqlite-backup-code.md` for a code-only reference covering both paths.
 
 ## Known failures
 

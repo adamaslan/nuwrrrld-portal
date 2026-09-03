@@ -1,0 +1,105 @@
+name: Backup Neon to SQLite
+
+# Daily point-in-time snapshot of the Neon database into a local SQLite file
+# (scripts/backup-to-sqlite.mjs), uploaded as a workflow artifact. See
+# docs/local-sqlite-backup-and-offline-dev.md and docs/sqlite-backup-code.md.
+#
+# This is NOT a substitute for Neon's own backup/PITR — it's a portable,
+# credential-free, offline-inspectable copy for disaster recovery and local
+# debugging. Read-only against Neon: this job only SELECTs.
+#
+# Requires Node 22+ for the built-in `node:sqlite` module the backup script
+# uses (no npm dependency) — do not lower node-version below 22 here.
+on:
+  schedule:
+    # 03:00 UTC daily — after hydrate-universe's 22:30 UTC weekday run and
+    # precompute-ai's 00:10 UTC daily run, so the snapshot captures both.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      tables:
+        description: 'Comma-separated table allowlist (blank = all 30 tables)'
+        required: false
+        default: ''
+      exclude:
+        description: 'Comma-separated tables to skip (e.g. corpus_chunks,grounding_pack)'
+        required: false
+        default: ''
+
+# Read-only: this workflow only reads from Neon and uploads an artifact.
+permissions:
+  contents: read
+
+# A run still in flight when the next fires would produce two half-uploaded
+# artifacts for no benefit; skip the new one rather than queue it.
+concurrency:
+  group: backup-to-sqlite
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the backup
+        id: backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IN_TABLES: ${{ github.event.inputs.tables }}
+          IN_EXCLUDE: ${{ github.event.inputs.exclude }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::DATABASE_URL is not set — cannot back up."
+            exit 1
+          fi
+
+          args=()
+          [ -n "${IN_TABLES}" ]  && args+=("--tables=${IN_TABLES}")
+          [ -n "${IN_EXCLUDE}" ] && args+=("--exclude=${IN_EXCLUDE}")
+
+          node scripts/backup-to-sqlite.mjs "${args[@]}" 2>&1 | tee backup.log
+
+          out_path=$(grep -oE 'backups/[^ ]+\.sqlite' backup.log | tail -n1 || true)
+          if [ -z "${out_path}" ]; then
+            echo "::error::backup script produced no output path — see backup.log"
+            exit 1
+          fi
+          echo "out_path=${out_path}" >> "$GITHUB_OUTPUT"
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "### Neon → SQLite backup — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            if [ -f backup.log ]; then
+              echo '```'
+              cat backup.log
+              echo '```'
+            else
+              echo "backup.log missing — see the backup step for the actual failure."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload backup artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuwrrrld-sqlite-backup-${{ github.run_id }}
+          path: backups/*.sqlite
+          # A rolling window, not durable archival — this is a convenience
+          # copy for debugging/disaster recovery, not the system of record.
+          retention-days: 14
+          if-no-files-found: error
