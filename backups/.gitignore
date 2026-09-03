@@ -1,0 +1,6 @@
+# Local SQLite backups — see docs/local-sqlite-backup-and-offline-dev.md.
+# These are point-in-time snapshots of production data (potentially including
+# user identifiers) and must never be committed.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
