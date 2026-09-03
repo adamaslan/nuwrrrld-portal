@@ -64,6 +64,7 @@ Cross-cutting patterns and design choices.
 - [[concept-live-backend-liveness-tests]] — how to test the portal against real gcp3/OpenRouter data (add a real ticker, run each panel for real); found 3 live incidents mocked tests couldn't
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 - [[concept-three-state-signal]] — absent vs measured-negative vs measured-positive; collapsing the first two emptied the entire top-N ranking
+- [[concept-signal-engine-host-parity]] — three engines write one `ticker_cards` table; the raw indicators are pinned, but `confluence` drifted (Modal = full signals-app port, JS = pre-port vote) and the portal's re-score absorbs the sign but not the posted direction/magnitude
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
 - [[concept-global-automation-layer]] — the `~/.claude/` global tier (`/geepr`, `/bugz`, `/reb`, `/rem1`, `/maxtoke`, `/locrun`…), always-on rules, hooks, and the `wiki-guard` PR hook that automate + enforce the build process
@@ -98,6 +99,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-08-18-modal-under-recommended]] — Modal routed around across six separate decisions despite fitting the hydration lane; each deferral locally reasonable, the pattern never evaluated, and three `modal_app.py` files read as coverage while zero have ever been deployed
 - [[incident-2026-08-31-signals-go-deeper-contract-drift]] — `/api/council` changed its response shape in the four-field migration and only one of two callers was updated; signal-card "Go Deeper" turned every success into "empty response" for ~6 weeks, billing a full model call each time, while the deterministic suite stayed green
 - [[incident-2026-08-31-bear-side-starved-at-universe-scale]] — monthly cohort selection took a signed `score DESC` top-200, which is the 200 most *bullish* cards; the bear side silently emptied as the universe grew toward 950 tickers, returning HTTP 200 with a half-empty benchmark
+- [[incident-2026-09-03-nightly-hydration-dead-15-days]] — `hydrate-universe.yml` failed red on its own missing-secret guard for 11 consecutive scheduled runs (the sync script from PR #74 was never run); no alerting, `max(bar_date)` frozen 15 days; the cron has never once hydrated the universe
 
 The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 

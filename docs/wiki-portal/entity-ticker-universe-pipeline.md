@@ -141,6 +141,14 @@ failures #3 for why).
    remembering. Still open: the **Modal** copy of those credentials, so
    failure 6's undeployed `modal_app.py` remains undeployable — and by design
    only one of the two schedulers should ever run.
+
+   **Not actually closed — 2026-09-03 (PR #100).** The sync script was never
+   run. `PORTAL_PUSH_SECRET`, `ALPACA_API_KEY`, `ALPACA_API_SECRET` do not
+   exist as repo secrets, so every scheduled `hydrate-universe.yml` run since
+   2026-08-19 failed red in ~25s on its own preflight guard — 11 consecutive
+   failures, no alerting, `max(bar_date)` frozen at 2026-08-19 for 15 days.
+   The workflow's cron has never once hydrated the universe.
+   [[incident-2026-09-03-nightly-hydration-dead-15-days]].
 6. **`deploy/universe-hydration/modal_app.py` has never been deployed** —
    `modal deploy` has not been run for this app or either of the other two in
    `deploy/`. The file existing is not the lane running; today the stock
@@ -265,6 +273,19 @@ shifted RSI by ~0.5 and ADX by ~0.9 while still looking plausible:
 `__tests__/hydrate-indicators.test.ts` pins all four indicators against values
 captured from the Python functions across eight series, at a 1e-9 tolerance —
 tight enough to still catch exactly these seeding bugs.
+
+**The port has since drifted where it is not pinned — 2026-09-03 (PR #100).**
+The four *indicators* remain in parity. `confluence` does **not**: the test
+covers it only for internal properties, never against Python `_confluence`,
+and Modal has since been upgraded to the full signals-app port (7 detectors,
+strength-weighted votes, gated direction, signed −100..100 score) while the JS
+still runs the pre-port 2-indicator vote (unsigned 0..100, any lean →
+direction). The portal re-scores from tokens, which absorbs the score's sign
+but not the posted `direction` or `confluenceScore` magnitude — so a symbol's
+stored `score`/`action`/`state_key` depends on which host wrote it. Every
+stored card is `hydrate-local`, so production runs the pre-port engine.
+Full analysis and remediation: `../signal-engine-parity-across-hosts.md`,
+[[concept-signal-engine-host-parity]].
 
 The first six of those series were the whole suite as originally merged, and
 they shared a blind spot worth remembering: every one of them happened to
