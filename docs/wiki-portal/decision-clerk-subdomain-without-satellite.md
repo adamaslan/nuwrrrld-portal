@@ -53,13 +53,17 @@ to be doubly wrong:
 - **`POST /instance/change_domain` with `financial.nuwrrrld.com` as the new
   home_url.** Attempted. Returned `HTTP 202 Accepted` and moved the
   instance's `updated_at` timestamp, but `GET /domains` never showed the
-  change and no new CNAME records were issued — a silent no-op. This
-  endpoint renames the instance's single primary domain; it is not a
-  mechanism for adding a second/sub domain alongside an existing primary,
-  and Clerk surfaces no error explaining why the call didn't do what was
-  intended. Left `nuwrrrld.com` unchanged as primary. No production impact —
-  verified live before and after that `financial.nuwrrrld.com` continued
-  serving normally throughout.
+  change and no new CNAME records were issued — an **instance-specific silent
+  no-op**. Note this is not evidence that `change_domain` rejects subdomains:
+  Clerk does support Primary/Secondary subdomain applications through it
+  (`is_secondary: true` for Secondary). The likely cause here is that the
+  request wasn't shaped as such a change and the root already resolved, so
+  there was nothing to do — but Clerk surfaced no error saying so. Left
+  `nuwrrrld.com` unchanged as primary. No production impact — verified live
+  before and after (and via `clerk deploy status`: DNS/SSL/`complete: true`
+  unchanged) that `financial.nuwrrrld.com` kept serving normally. Takeaway:
+  if this endpoint is ever used for real, verify with `GET /domains` +
+  `deploy status` rather than trusting the `202`.
 - **Add Clerk to the apex app too, then use it as a real satellite
   primary.** Considered, rejected as disproportionate: the apex app is
   unrelated to this portal, and building out Clerk there just to satisfy a
@@ -93,13 +97,24 @@ to be doubly wrong:
 
 ## Validated by
 
-Live verification, not just CLI output:
+Two kinds of evidence, kept distinct:
+
+**Key-shape checks** (config guard — prove the env var flipped, not that
+auth works):
 - `curl https://financial.nuwrrrld.com/api/health` → `clerk.status: "ok"`
   (was `degraded` with `"using a Clerk Development instance key (pk_test_...)
   in production"` before the fix)
-- `curl https://financial.nuwrrrld.com/sign-in` → served `pk_live_...`
-- `clerk deploy status --mode agent` → `complete: true` throughout, unaffected
-  by the failed `change_domain` attempt
+- `curl https://financial.nuwrrrld.com/sign-in` → HTML served with a
+  `pk_live_...` publishable key
+- `clerk deploy status --mode agent` → `complete: true` throughout,
+  unaffected by the failed `change_domain` attempt
+
+**Completed sign-in** (proves the flow actually works): not separately
+captured at cutover time — the key-shape checks above were treated as
+sufficient. If revisiting, run a real incognito sign-in on
+`financial.nuwrrrld.com` (email/password + each social provider → lands on
+`/dashboard`, session survives reload, sign-out works) and record the
+result here.
 
 ## See also
 

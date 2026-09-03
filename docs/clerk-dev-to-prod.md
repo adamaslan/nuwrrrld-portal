@@ -54,8 +54,13 @@ and an agent can drive them once you're logged in.
 
 ## 1. Log in and update the CLI
 
-The globally-pinned CLI is `1.5.0`; current is `3.2.0`. Use the newer one —
-the deploy wizard and `deploy status` gate both improved across that range.
+The globally-pinned CLI is `1.5.0`; the deploy wizard and `deploy status`
+gate both improved well beyond that, so use a current release. **Every
+`clerk` command in this guide was run with `clerk@3.2.0` during the
+2026-09-02 cutover** — that is the tested version, pinned throughout so the
+commands are reproducible. `clerk@3.3.0` is the latest at time of writing;
+if you move to it, re-check the flags below (`--mode agent`, `--instance`,
+`env pull --file`) still behave the same before relying on them.
 
 ```bash
 cd ~/code/nuwrrrld-portal
@@ -147,6 +152,19 @@ live.
 npx -y clerk@3.2.0 env pull --instance prod
 ```
 
+> The `/tmp/pk.txt` and `/tmp/sk.txt` files that §5 pipes into Vercel/GitHub
+> do not exist yet — `env pull --file` writes a single dotenv file. Derive
+> the two key files from it first (and eyeball that each is a plausible
+> `pk_live_`/`sk_live_` value before touching any hosted env):
+>
+> ```bash
+> npx -y clerk@3.2.0 env pull --instance prod --file /tmp/clerk-prod.env
+> grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' /tmp/clerk-prod.env | cut -d= -f2- > /tmp/pk.txt
+> grep '^CLERK_SECRET_KEY='                  /tmp/clerk-prod.env | cut -d= -f2- > /tmp/sk.txt
+> grep -q '^pk_live_' /tmp/pk.txt && grep -q '^sk_live_' /tmp/sk.txt \
+>   || { echo 'keys are not pk_live_/sk_live_ — stop'; exit 1; }
+> ```
+
 > ⚠️ **`env pull` rewrites the Clerk keys in `.env.local`.** It merges rather
 > than clobbering the whole file, but your dev Clerk keys will be replaced.
 > They are recoverable from the Clerk dashboard, so this is annoying rather
@@ -170,16 +188,19 @@ Two variables move: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and
 `secrets-sync` skill, which pipes values file→CLI over stdin without
 routing them through an LLM. The underlying commands it wraps:
 
-```bash
-# Vercel — production environment only
-vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production < /tmp/pk.txt
-vercel env add CLERK_SECRET_KEY production < /tmp/sk.txt
+Both key files come from the extraction step in §4. Then:
 
-# GitHub Actions — used by e2e-resiliency.yml
+```bash
+# Vercel — production environment only. --force upserts, so it works whether
+# or not the variable already exists (no need to `env rm` first).
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production --force < /tmp/pk.txt
+vercel env add CLERK_SECRET_KEY production --force < /tmp/sk.txt
+
+# GitHub Actions — used by e2e-resiliency.yml. `gh secret set` already upserts.
 gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY < /tmp/pk.txt
 gh secret set CLERK_SECRET_KEY < /tmp/sk.txt
 
-shred -u /tmp/pk.txt /tmp/sk.txt   # or: rm -P on macOS
+shred -u /tmp/pk.txt /tmp/sk.txt /tmp/clerk-prod.env   # or: rm -P on macOS
 ```
 
 Scope Vercel to `production` deliberately. Setting it for all environments
@@ -229,7 +250,11 @@ the old keys is logged out on deploy. Harmless, but don't ship it mid-demo.
 ## 7. Confirm it worked
 
 Two guardrails already exist in this repo and will tell you if the switch
-was incomplete.
+was incomplete. **Both check key *shape* only** — that the publishable key
+starts `pk_live_` rather than `pk_test_`. Neither proves Clerk accepts the
+credentials or that a sign-in actually succeeds; treat them as a
+configuration guard, and rely on the manual smoke test below (or a real
+authenticated E2E run) for proof the flow works.
 
 **Health endpoint** — `app/api/health/route.ts:95` returns `degraded` with
 the error `using a Clerk Development instance key (pk_test_...) in

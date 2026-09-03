@@ -53,14 +53,18 @@ classification table.
   2026-09-02 cutover found the Dashboard gates satellite domains behind a
   paid tier — confirmed directly, not inferred. See
   [[decision-clerk-subdomain-without-satellite]].
-- **`POST /instance/change_domain` silently no-ops when misused.** Called
-  expecting it to register `financial.nuwrrrld.com` alongside the existing
-  primary domain; it returned `HTTP 202` and moved the instance's
+- **`POST /instance/change_domain` silently no-oped on this instance.**
+  Called expecting it to register `financial.nuwrrrld.com` alongside the
+  existing primary; it returned `HTTP 202` and moved the instance's
   `updated_at`, but `GET /domains` never reflected a change and no new DNS
-  records were issued. The endpoint renames the single primary domain — it
-  is not additive. No error was surfaced to explain the no-op. See
+  records were issued, with no error surfaced. This was **instance-specific**,
+  not a general rule — `change_domain` does support Primary/Secondary
+  subdomain applications (`is_secondary: true` for Secondary); the call here
+  simply wasn't shaped as one and had nothing to do. If used for real,
+  verify with `GET /domains` + `clerk deploy status`. See
   [[decision-clerk-subdomain-without-satellite]] for the full account and the
-  fix that actually worked (`allowed_origins` was already correct).
+  fix that actually worked (`allowed_origins` was already correct, plus the
+  Dashboard **Allowed Subdomains** setting).
 - MFA is unavailable on this plan (Pro-gated), permanently blocking the
   nulogdash admin console's mutation gate until
   [[decision-self-implemented-totp-over-clerk-pro]] ships.
