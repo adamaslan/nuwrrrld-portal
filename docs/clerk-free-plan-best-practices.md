@@ -68,12 +68,23 @@ Clerk-side config is possible.
 `middleware.ts` does not currently pass `authorizedParties` to
 `clerkMiddleware`. With a root domain configured, Clerk trusts every
 subdomain of it by default, which widens the surface for subdomain
-cookie-leaking and CSRF. Add an explicit allowlist scoped to the real app
-origin:
+cookie-leaking and CSRF. Add the option **to the existing callback form** —
+this app's `middleware.ts` uses `clerkMiddleware(async (auth, req) => { … })`
+for route protection and bearer-token handling, so `authorizedParties` is a
+second argument, not a replacement:
 
 ```ts
-clerkMiddleware({ authorizedParties: ["https://financial.nuwrrrld.com"] })
+export default clerkMiddleware(
+  async (auth, req) => {
+    // ...existing route-protection / auth.protect() logic, unchanged...
+  },
+  { authorizedParties: ["https://financial.nuwrrrld.com"] },
+);
 ```
+
+The options-only form `clerkMiddleware({ authorizedParties: [...] })` would
+drop the callback and with it every protected route — do not paste it over
+the current middleware.
 
 ### Cross-subdomain session behavior (same eTLD+1, non-satellite)
 
@@ -146,8 +157,11 @@ If your production domain is a subdomain of Clerk's configured primary
 domain (§2 applies) and you're on the free plan (§1 applies), the cutover
 for **this app's current feature set** is a **key swap, nothing more**: no
 `clerkMiddleware` changes, no `ClerkProvider` prop changes, no new Clerk
-Dashboard domain config — assuming `deploy status` already reports complete
-(see §5).
+Dashboard domain config — **provided** you have first verified (§2) that the
+subdomain is in the Dashboard **Allowed Subdomains** list and that
+`authorizedParties` is set in `middleware.ts`, and `deploy status` already
+reports complete (see §5). If those origin controls aren't in place, the
+key swap alone leaves the subdomain trusting more than it should.
 
 That "nothing more" is scoped to what this app uses today (session auth,
 social sign-in, the health check). It is **not** a universal free-plan rule.
@@ -170,22 +184,25 @@ npx -y clerk@3.2.0 deploy status --mode agent
 #    Domains → Allowed Subdomains
 npx -y clerk@3.2.0 api /instance --instance prod
 
-# 3. Pull live keys to a scratch file, then derive the two key files from it
-#    (never straight into chat or a command line)
-npx -y clerk@3.2.0 env pull --instance prod --file /tmp/clerk-prod.env
-grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' /tmp/clerk-prod.env | cut -d= -f2- > /tmp/pk.txt
-grep '^CLERK_SECRET_KEY='                  /tmp/clerk-prod.env | cut -d= -f2- > /tmp/sk.txt
-grep -q '^pk_live_' /tmp/pk.txt && grep -q '^sk_live_' /tmp/sk.txt \
+# 3. Pull live keys into a private temp dir wiped on ANY exit, then derive
+#    the two key files from it (never straight into chat or a command line)
+umask 077
+KEYDIR="$(mktemp -d)"
+trap 'rm -rf "$KEYDIR"' EXIT
+npx -y clerk@3.2.0 env pull --instance prod --file "$KEYDIR/clerk-prod.env"
+grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' "$KEYDIR/clerk-prod.env" | cut -d= -f2- > "$KEYDIR/pk.txt"
+grep '^CLERK_SECRET_KEY='                  "$KEYDIR/clerk-prod.env" | cut -d= -f2- > "$KEYDIR/sk.txt"
+grep -q '^pk_live_' "$KEYDIR/pk.txt" && grep -q '^sk_live_' "$KEYDIR/sk.txt" \
   || { echo 'keys are not pk_live_/sk_live_ — stop'; exit 1; }
 
 # 4. Push to your hosting platform's production env (see secrets-sync skill
 #    for the file→CLI pattern that never routes a value through an LLM).
 #    `vercel env add --force` upserts — no `env rm` first.
-vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production --force < /tmp/pk.txt
-vercel env add CLERK_SECRET_KEY production --force < /tmp/sk.txt
-gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY < /tmp/pk.txt
-gh secret set CLERK_SECRET_KEY < /tmp/sk.txt
-shred -u /tmp/pk.txt /tmp/sk.txt /tmp/clerk-prod.env   # or: rm -P on macOS
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production --force < "$KEYDIR/pk.txt"
+vercel env add CLERK_SECRET_KEY production --force < "$KEYDIR/sk.txt"
+gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY < "$KEYDIR/pk.txt"
+gh secret set CLERK_SECRET_KEY < "$KEYDIR/sk.txt"
+# $KEYDIR is wiped by the trap when this shell exits (rm -rf "$KEYDIR" to do it now)
 
 # 5. Redeploy — env changes don't apply to existing deployments
 vercel deploy --prod --yes
@@ -257,9 +274,12 @@ test.skip(process.env.VERCEL_ENV !== "production", "production-only guard");
 expect(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!.startsWith("pk_live_")).toBe(true);
 ```
 
-Both turned green immediately after the redeploy in this session, which was
-the actual confirmation the migration worked — faster and more reliable
-than eyeballing the Dashboard.
+Both turned green immediately after the redeploy in this session, which
+confirmed **key synchronization** — the hosted env now carries a `pk_live_`
+key and no `pk_test_` key. That is necessary but not sufficient: proof the
+migration *works* is a real sign-in. Run the smoke test in §7 of
+`docs/clerk-dev-to-prod.md` (incognito, email/password + each social
+provider → lands on `/dashboard`, session survives reload, sign-out works).
 
 ---
 

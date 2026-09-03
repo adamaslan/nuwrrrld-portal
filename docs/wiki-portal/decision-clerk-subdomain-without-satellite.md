@@ -10,13 +10,16 @@ sources: [docs/clerk-free-plan-best-practices.md, docs/clerk-dev-to-prod.md, PR#
 ## Decision
 
 Production Clerk auth for this app (served at `financial.nuwrrrld.com`) does
-**not** use Clerk's satellite-domain feature. It relies on
-`financial.nuwrrrld.com` already being present in the production instance's
-`allowed_origins` (confirmed via `GET /instance`), which was sufficient on
-its own — no Clerk-side domain configuration change was needed. The
-2026-09-02 cutover from `pk_test_` to `pk_live_` was therefore a pure key
-swap: Vercel + GitHub Actions secrets updated, redeploy, verified via
-`/api/health`.
+**not** use Clerk's satellite-domain feature. `financial.nuwrrrld.com` was
+already present in the production instance's `allowed_origins` (confirmed via
+`GET /instance`), so no Clerk-side domain configuration *change* was needed
+for the cutover. `allowed_origins` is not by itself the complete origin
+control, though — the Dashboard **Allowed Subdomains** setting and an
+explicit `authorizedParties` in `middleware.ts` are the pieces that actually
+bound cross-subdomain trust, and should be verified rather than assumed (see
+`docs/clerk-free-plan-best-practices.md` §2). The 2026-09-02 cutover from
+`pk_test_` to `pk_live_` was a pure key swap: Vercel + GitHub Actions secrets
+updated, redeploy, verified via `/api/health`.
 
 ## Date
 
@@ -71,8 +74,10 @@ to be doubly wrong:
 - **Check `allowed_origins` first** (chosen, after the above). `GET
   /instance` showed `financial.nuwrrrld.com` already listed alongside
   `nuwrrrld.com` and `www.nuwrrrld.com` — almost certainly set correctly
-  when the instance was first provisioned, well before this session. Nothing
-  further was needed on the Clerk side.
+  when the instance was first provisioned, well before this session. No
+  Clerk-side domain config *change* was needed for the cutover; the Allowed
+  Subdomains setting and `authorizedParties` (§2 of the best-practices guide)
+  still want an explicit check.
 
 ## Consequences
 

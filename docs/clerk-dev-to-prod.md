@@ -152,18 +152,26 @@ live.
 npx -y clerk@3.2.0 env pull --instance prod
 ```
 
-> The `/tmp/pk.txt` and `/tmp/sk.txt` files that §5 pipes into Vercel/GitHub
-> do not exist yet — `env pull --file` writes a single dotenv file. Derive
-> the two key files from it first (and eyeball that each is a plausible
-> `pk_live_`/`sk_live_` value before touching any hosted env):
+> The `$KEYDIR/pk.txt` and `$KEYDIR/sk.txt` files that §5 pipes into
+> Vercel/GitHub do not exist yet — `env pull --file` writes a single dotenv
+> file. Derive the two key files from it first, into a private temp dir that
+> is wiped on **any** exit (not just success), and check each value before
+> touching any hosted env:
 >
 > ```bash
-> npx -y clerk@3.2.0 env pull --instance prod --file /tmp/clerk-prod.env
-> grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' /tmp/clerk-prod.env | cut -d= -f2- > /tmp/pk.txt
-> grep '^CLERK_SECRET_KEY='                  /tmp/clerk-prod.env | cut -d= -f2- > /tmp/sk.txt
-> grep -q '^pk_live_' /tmp/pk.txt && grep -q '^sk_live_' /tmp/sk.txt \
+> umask 077                                   # new files are 0600
+> KEYDIR="$(mktemp -d)"                        # 0700, unpredictable name
+> trap 'rm -rf "$KEYDIR"' EXIT                 # wiped even on error / Ctrl-C
+>
+> npx -y clerk@3.2.0 env pull --instance prod --file "$KEYDIR/clerk-prod.env"
+> grep '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' "$KEYDIR/clerk-prod.env" | cut -d= -f2- > "$KEYDIR/pk.txt"
+> grep '^CLERK_SECRET_KEY='                  "$KEYDIR/clerk-prod.env" | cut -d= -f2- > "$KEYDIR/sk.txt"
+> grep -q '^pk_live_' "$KEYDIR/pk.txt" && grep -q '^sk_live_' "$KEYDIR/sk.txt" \
 >   || { echo 'keys are not pk_live_/sk_live_ — stop'; exit 1; }
 > ```
+>
+> Keep §5's commands in the **same shell** so `$KEYDIR` and the `trap` still
+> apply; the dir is gone the moment that shell exits.
 
 > ⚠️ **`env pull` rewrites the Clerk keys in `.env.local`.** It merges rather
 > than clobbering the whole file, but your dev Clerk keys will be replaced.
@@ -188,19 +196,21 @@ Two variables move: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and
 `secrets-sync` skill, which pipes values file→CLI over stdin without
 routing them through an LLM. The underlying commands it wraps:
 
-Both key files come from the extraction step in §4. Then:
+Run this in the **same shell** as the §4 extraction block, so `$KEYDIR` and
+its `EXIT` trap are still in scope:
 
 ```bash
 # Vercel — production environment only. --force upserts, so it works whether
 # or not the variable already exists (no need to `env rm` first).
-vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production --force < /tmp/pk.txt
-vercel env add CLERK_SECRET_KEY production --force < /tmp/sk.txt
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production --force < "$KEYDIR/pk.txt"
+vercel env add CLERK_SECRET_KEY production --force < "$KEYDIR/sk.txt"
 
 # GitHub Actions — used by e2e-resiliency.yml. `gh secret set` already upserts.
-gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY < /tmp/pk.txt
-gh secret set CLERK_SECRET_KEY < /tmp/sk.txt
+gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY < "$KEYDIR/pk.txt"
+gh secret set CLERK_SECRET_KEY < "$KEYDIR/sk.txt"
 
-shred -u /tmp/pk.txt /tmp/sk.txt /tmp/clerk-prod.env   # or: rm -P on macOS
+# $KEYDIR is removed automatically by the trap when this shell exits; to wipe
+# it now: rm -rf "$KEYDIR"
 ```
 
 Scope Vercel to `production` deliberately. Setting it for all environments
@@ -256,21 +266,27 @@ credentials or that a sign-in actually succeeds; treat them as a
 configuration guard, and rely on the manual smoke test below (or a real
 authenticated E2E run) for proof the flow works.
 
-**Health endpoint** — `app/api/health/route.ts:95` returns `degraded` with
-the error `using a Clerk Development instance key (pk_test_...) in
-production` whenever `VERCEL_ENV === "production"` and the key still starts
-`pk_test_`:
+**Health endpoint — rejects a *development* key.**
+`app/api/health/route.ts:95` returns `degraded` with the error `using a
+Clerk Development instance key (pk_test_...) in production` whenever
+`VERCEL_ENV === "production"` and the key still starts `pk_test_`. That is
+its *only* Clerk assertion — it does not check for a `pk_live_` prefix, and
+the overall response can still be non-`ok` because a different dependency is
+down.
 
 ```bash
 curl -s https://<your-prod-domain>/api/health | jq '.dependencies.clerk'
 ```
 
-Expect `{"status":"ok", …}`. Anything else means the env didn't take —
-most often a forgotten redeploy.
+Expect `{"status":"ok", …}`. A `degraded` Clerk entry means the env didn't
+take (usually a forgotten redeploy); a non-`ok` top-level status with Clerk
+`ok` points at another dependency.
 
-**Preflight E2E** — `e2e/preflight/credentials.spec.ts:32` has a
-production-only guard asserting the publishable key starts with `pk_live_`.
-It skips outside production, so it only fires where it matters.
+**Preflight E2E — asserts the *live* prefix.**
+`e2e/preflight/credentials.spec.ts:32` has a production-only guard asserting
+the publishable key starts with `pk_live_`. It skips outside production, so
+it only fires where it matters. Between the two, you've confirmed the key is
+neither a dev key nor missing — but still not that sign-in works.
 
 Manual smoke test, in a fresh incognito window against the production
 domain:
