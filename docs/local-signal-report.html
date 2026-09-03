@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Signal Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Light palette on bare :root — neutrals carry a slight blue bias toward the accent. */
+  :root {
+    --bg: #f6f8fa; --panel: #ffffff; --panel2: #eef1f5; --line: #dde3ea;
+    --ink: #1b2027; --muted: #5c6773; --accent: #2563eb;
+    --bull: #15803d; --bear: #b91c1c; --neu: #5c6773;
+    --score-fill: #dbeafe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1116; --panel: #161b22; --panel2: #1c232c; --line: #2a323d;
+      --ink: #e6edf3; --muted: #8b98a5; --accent: #58a6ff;
+      --bull: #3fb950; --bear: #f85149; --neu: #8b98a5;
+      --score-fill: #1f2d3d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1116; --panel: #161b22; --panel2: #1c232c; --line: #2a323d;
+    --ink: #e6edf3; --muted: #8b98a5; --accent: #58a6ff;
+    --bull: #3fb950; --bear: #f85149; --neu: #8b98a5;
+    --score-fill: #1f2d3d;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 14px; line-height: 1.55;
+    padding: 40px 20px 72px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 8px;
+  }
+  h1 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 26px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.5px;
+    text-wrap: balance;
+  }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 13px; max-width: 62ch; }
+  .sub b { color: var(--ink); font-weight: 500; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 12px; margin-bottom: 8px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .card .k { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; }
+  .card .v {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 26px; font-weight: 500; margin-top: 6px; font-variant-numeric: tabular-nums;
+  }
+  .card .v small { font-size: 14px; color: var(--muted); }
+  .v.bull { color: var(--bull); } .v.bear { color: var(--bear); }
+
+  h2 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); font-weight: 600;
+    margin: 36px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  h2 .hint { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 400; }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  thead th {
+    color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 600; background: var(--panel2); position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--panel2); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  td.tk {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600; color: var(--accent);
+  }
+  .muted { color: var(--muted); }
+  tr.err td { color: var(--bear); }
+
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; border: 1px solid currentColor;
+  }
+  .badge.bull { color: var(--bull); } .badge.bear { color: var(--bear); } .badge.neu { color: var(--neu); }
+
+  td.score {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600;
+    background-image: linear-gradient(to left, var(--score-fill) 0 var(--w, 0%), transparent var(--w, 0%));
+  }
+
+  footer { color: var(--muted); font-size: 12px; margin-top: 32px; line-height: 1.75; }
+  footer b { color: var(--ink); font-weight: 600; }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px;
+    background: var(--panel2); padding: 1.5px 5px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">universe-hydration &middot; local run</p>
+  <h1>Local Signal Report</h1>
+  <p class="sub">
+    The same indicator math as <code>hydrate-local.mjs</code> and the Modal job, run from a
+    terminal against <b>Alpaca daily bars</b> &mdash; <b>150-day</b> lookback,
+    generated <b>2026-09-03 19:22Z</b>. Nothing was written to the database, the portal, or a model.
+  </p>
+
+  <div class="cards">
+    <div class="card"><div class="k">Tickers scored</div><div class="v">28<small> / 28</small></div></div>
+    <div class="card"><div class="k">Bullish</div><div class="v bull">3</div></div>
+    <div class="card"><div class="k">Bearish</div><div class="v bear">0</div></div>
+    <div class="card"><div class="k">Neutral</div><div class="v">25</div></div>
+    <div class="card"><div class="k">Errors</div><div class="v">0</div></div>
+  </div>
+
+  <h2>Signals with confluence <span class="hint">&mdash; score &gt; 0, at least one indicator voting</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Ticker</th><th>Class</th><th class="n">Close</th><th class="n">Score</th><th>Direction</th><th class="n">RSI</th><th class="n">ADX</th><th>MACD cross</th><th class="n">Vol&nbsp;%ile</th><th class="n">Bar date</th></tr></thead>
+    <tbody><tr>
+    <td class="tk">NVDA</td>
+    <td class="muted">stock</td>
+    <td class="n">229.54</td>
+    <td class="n score" style="--w:50%">50.0</td>
+    <td><span class="badge bull">bullish</span></td>
+    <td class="n">59.9</td>
+    <td class="n">16.7</td>
+    <td>bullish</td>
+    <td class="n">90.7</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">WMT</td>
+    <td class="muted">stock</td>
+    <td class="n">108.66</td>
+    <td class="n score" style="--w:50%">50.0</td>
+    <td><span class="badge bull">bullish</span></td>
+    <td class="n">49.2</td>
+    <td class="n">16.6</td>
+    <td>bullish</td>
+    <td class="n">100.0</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">ARKK</td>
+    <td class="muted">etf</td>
+    <td class="n">87.25</td>
+    <td class="n score" style="--w:50%">50.0</td>
+    <td><span class="badge bull">bullish</span></td>
+    <td class="n">60.8</td>
+    <td class="n">24.9</td>
+    <td>bullish</td>
+    <td class="n">80.2</td>
+    <td class="n muted">2026-09-03</td>
+  </tr></tbody>
+  </table></div>
+
+  <h2>Full basket <span class="hint">&mdash; ranked by confluence score</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Ticker</th><th>Class</th><th class="n">Close</th><th class="n">Score</th><th>Direction</th><th class="n">RSI</th><th class="n">ADX</th><th>MACD cross</th><th class="n">Vol&nbsp;%ile</th><th class="n">Bar date</th></tr></thead>
+    <tbody><tr>
+    <td class="tk">NVDA</td>
+    <td class="muted">stock</td>
+    <td class="n">229.54</td>
+    <td class="n score" style="--w:50%">50.0</td>
+    <td><span class="badge bull">bullish</span></td>
+    <td class="n">59.9</td>
+    <td class="n">16.7</td>
+    <td>bullish</td>
+    <td class="n">90.7</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">WMT</td>
+    <td class="muted">stock</td>
+    <td class="n">108.66</td>
+    <td class="n score" style="--w:50%">50.0</td>
+    <td><span class="badge bull">bullish</span></td>
+    <td class="n">49.2</td>
+    <td class="n">16.6</td>
+    <td>bullish</td>
+    <td class="n">100.0</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">ARKK</td>
+    <td class="muted">etf</td>
+    <td class="n">87.25</td>
+    <td class="n score" style="--w:50%">50.0</td>
+    <td><span class="badge bull">bullish</span></td>
+    <td class="n">60.8</td>
+    <td class="n">24.9</td>
+    <td>bullish</td>
+    <td class="n">80.2</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">AAPL</td>
+    <td class="muted">stock</td>
+    <td class="n">327.56</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">62.9</td>
+    <td class="n">15.3</td>
+    <td>—</td>
+    <td class="n">17.4</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">MSFT</td>
+    <td class="muted">stock</td>
+    <td class="n">511.63</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">66.6</td>
+    <td class="n">37.8</td>
+    <td>—</td>
+    <td class="n">4.7</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">AMZN</td>
+    <td class="muted">stock</td>
+    <td class="n">258.76</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">49.8</td>
+    <td class="n">16.8</td>
+    <td>—</td>
+    <td class="n">32.6</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">GOOGL</td>
+    <td class="muted">stock</td>
+    <td class="n">343.15</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">48.3</td>
+    <td class="n">7.3</td>
+    <td>—</td>
+    <td class="n">2.3</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">META</td>
+    <td class="muted">stock</td>
+    <td class="n">613.37</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">61.4</td>
+    <td class="n">12.3</td>
+    <td>—</td>
+    <td class="n">10.5</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">TSLA</td>
+    <td class="muted">stock</td>
+    <td class="n">380.89</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">61.9</td>
+    <td class="n">22.9</td>
+    <td>—</td>
+    <td class="n">46.5</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">AMD</td>
+    <td class="muted">stock</td>
+    <td class="n">456.42</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">42.8</td>
+    <td class="n">10.8</td>
+    <td>—</td>
+    <td class="n">1.2</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">NFLX</td>
+    <td class="muted">stock</td>
+    <td class="n">82.69</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">63.7</td>
+    <td class="n">21.6</td>
+    <td>—</td>
+    <td class="n">50.0</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">JPM</td>
+    <td class="muted">stock</td>
+    <td class="n">362.21</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">60.5</td>
+    <td class="n">11.0</td>
+    <td>—</td>
+    <td class="n">7.0</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">XOM</td>
+    <td class="muted">stock</td>
+    <td class="n">162.96</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">58.1</td>
+    <td class="n">20.9</td>
+    <td>—</td>
+    <td class="n">34.9</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">UNH</td>
+    <td class="muted">stock</td>
+    <td class="n">400.07</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">49.2</td>
+    <td class="n">21.7</td>
+    <td>—</td>
+    <td class="n">1.2</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">LLY</td>
+    <td class="muted">stock</td>
+    <td class="n">1158.21</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">43.0</td>
+    <td class="n">14.8</td>
+    <td>—</td>
+    <td class="n">30.2</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">AVGO</td>
+    <td class="muted">stock</td>
+    <td class="n">357.53</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">37.7</td>
+    <td class="n">22.8</td>
+    <td>—</td>
+    <td class="n">3.5</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">COST</td>
+    <td class="muted">stock</td>
+    <td class="n">928.00</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">42.0</td>
+    <td class="n">12.1</td>
+    <td>—</td>
+    <td class="n">43.0</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">BAC</td>
+    <td class="muted">stock</td>
+    <td class="n">63.16</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">56.2</td>
+    <td class="n">22.8</td>
+    <td>—</td>
+    <td class="n">22.1</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">DIS</td>
+    <td class="muted">stock</td>
+    <td class="n">107.33</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">56.0</td>
+    <td class="n">28.9</td>
+    <td>—</td>
+    <td class="n">25.6</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">SPY</td>
+    <td class="muted">etf</td>
+    <td class="n">773.43</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">59.0</td>
+    <td class="n">13.6</td>
+    <td>—</td>
+    <td class="n">3.5</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">QQQ</td>
+    <td class="muted">etf</td>
+    <td class="n">717.85</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">53.0</td>
+    <td class="n">11.3</td>
+    <td>—</td>
+    <td class="n">3.5</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">IWM</td>
+    <td class="muted">etf</td>
+    <td class="n">294.88</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">46.1</td>
+    <td class="n">20.1</td>
+    <td>—</td>
+    <td class="n">12.8</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">DIA</td>
+    <td class="muted">etf</td>
+    <td class="n">536.76</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">56.7</td>
+    <td class="n">13.0</td>
+    <td>—</td>
+    <td class="n">10.5</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">GLD</td>
+    <td class="muted">etf</td>
+    <td class="n">410.24</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">54.9</td>
+    <td class="n">23.7</td>
+    <td>—</td>
+    <td class="n">76.7</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">TLT</td>
+    <td class="muted">etf</td>
+    <td class="n">82.11</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">44.1</td>
+    <td class="n">15.2</td>
+    <td>—</td>
+    <td class="n">84.9</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">XLE</td>
+    <td class="muted">etf</td>
+    <td class="n">64.85</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">69.5</td>
+    <td class="n">28.5</td>
+    <td>—</td>
+    <td class="n">25.6</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">XLF</td>
+    <td class="muted">etf</td>
+    <td class="n">58.55</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">60.4</td>
+    <td class="n">20.2</td>
+    <td>—</td>
+    <td class="n">45.3</td>
+    <td class="n muted">2026-09-03</td>
+  </tr>
+<tr>
+    <td class="tk">SOXX</td>
+    <td class="muted">etf</td>
+    <td class="n">501.68</td>
+    <td class="n score" style="--w:0%">0.0</td>
+    <td><span class="badge neu">neutral</span></td>
+    <td class="n">41.5</td>
+    <td class="n">16.1</td>
+    <td>—</td>
+    <td class="n">1.2</td>
+    <td class="n muted">2026-09-03</td>
+  </tr></tbody>
+  </table></div>
+
+  <footer>
+    <b>How to read this.</b> <code>Score</code> is indicator agreement 0&ndash;100 from
+    <code>confluence(rsi, macdCross, adx)</code>: RSI&nbsp;&le;&nbsp;30 or a MACD bullish cross votes up,
+    RSI&nbsp;&ge;&nbsp;70 or a MACD bearish cross votes down, and an ADX&nbsp;&ge;&nbsp;25 trending tape
+    amplifies the agreement by 1.25&times;. <code>Direction</code> is the sign of the net vote. A wall of
+    zeros over a short window is expected &mdash; the indicators need history before they say anything, and
+    a daily MACD cross is a rare event.<br>
+    Regenerate with <code>node scripts/local-signal-report.mjs</code> &middot; raw rows in
+    <code>docs/local-signal-report.json</code>.
+  </footer>
+</div>
+</body>
+</html>
