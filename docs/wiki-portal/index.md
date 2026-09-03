@@ -95,6 +95,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-08-17-e2e-ci-cascade]] — five stacked failures kept the E2E `auth` job red, each masking the next; root cause was `gh secret set --body -` silently storing one-character secrets, which `gh secret list` cannot detect
 - [[incident-2026-08-18-modal-under-recommended]] — Modal routed around across six separate decisions despite fitting the hydration lane; each deferral locally reasonable, the pattern never evaluated, and three `modal_app.py` files read as coverage while zero have ever been deployed
 - [[incident-2026-08-31-signals-go-deeper-contract-drift]] — `/api/council` changed its response shape in the four-field migration and only one of two callers was updated; signal-card "Go Deeper" turned every success into "empty response" for ~6 weeks, billing a full model call each time, while the deterministic suite stayed green
+- [[incident-2026-08-31-bear-side-starved-at-universe-scale]] — monthly cohort selection took a signed `score DESC` top-200, which is the 200 most *bullish* cards; the bear side silently emptied as the universe grew toward 950 tickers, returning HTTP 200 with a half-empty benchmark
 
 The 2026-07-15 chain-of-thought leak remains documented as context inside [[decision-four-field-verdict-scaffold]] and [[entity-ai-council]] rather than as a standalone page (it predates this wiki). Promote it to `incident-2026-07-15-*.md` if a fuller post-mortem is warranted.
 

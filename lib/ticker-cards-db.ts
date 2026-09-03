@@ -296,3 +296,63 @@ function rowToRanked(row: Record<string, unknown>): RankedCard {
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
+
+/**
+ * Ranked cards from **both tails** of the score distribution — the strongest
+ * bulls and the strongest bears — for one horizon.
+ *
+ * `topCards` orders by `score DESC`, which is right for a "top signals" feed
+ * but wrong for anything that needs both directions. Taking the first N rows of
+ * a signed ordering yields the N most *bullish* cards; the bears are at the
+ * other end of the table, past the cut. That is survivable on a small universe
+ * where N approaches the row count, and silently wrong as the universe grows:
+ * at ~950 tickers the head of the ordering is almost entirely bullish, so a
+ * caller splitting those rows by direction finds few or no bears and fills its
+ * bear side with whatever weak negatives happened to survive — or comes up
+ * short of its target count with no error.
+ *
+ * So this takes `perSide` from each end explicitly. A card sitting in both
+ * tails is impossible (a score is either ≥ 0 or < 0), but the UNION is written
+ * as a set union anyway so a future non-monotonic ordering can't double-count.
+ *
+ * Returns at most `perSide * 2` rows, ordered `score DESC` — i.e. bulls
+ * strongest-first, then bears weakest-first with the most negative last.
+ * Callers that want "strongest first" on both sides should rank by
+ * `Math.abs(score)` themselves (see `selectCohort`).
+ */
+export async function bipolarCards(
+  horizon: Horizon,
+  perSide = 100,
+  universe: UniverseScope = "stock",
+): Promise<RankedCard[]> {
+  try {
+    const rows = await sql`
+      WITH eligible AS (
+        SELECT c.*, COUNT(g.state_key) AS grounding_hits
+          FROM ticker_cards c
+          LEFT JOIN grounding_pack g
+                 ON g.state_key = c.state_key
+                AND g.taxonomy_version = c.taxonomy_version
+         WHERE c.horizon = ${horizon}
+           AND c.data_quality >= 0.8
+           AND c.missing_fields = '{}'
+           AND (${universe} = 'all' OR c.universe = ${universe})
+         GROUP BY c.ticker, c.horizon
+      ),
+      bulls AS (
+        SELECT * FROM eligible ORDER BY score DESC, computed_at DESC LIMIT ${perSide}
+      ),
+      bears AS (
+        SELECT * FROM eligible ORDER BY score ASC,  computed_at DESC LIMIT ${perSide}
+      )
+      SELECT * FROM bulls
+      UNION
+      SELECT * FROM bears
+      ORDER BY score DESC, computed_at DESC
+    `;
+    return rows.map(rowToRanked);
+  } catch (err) {
+    console.error(`[ticker-cards] bipolarCards failed: ${errMsg(err)}`);
+    return [];
+  }
+}

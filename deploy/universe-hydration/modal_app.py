@@ -57,10 +57,12 @@ _SECRET = modal.Secret.from_name("nuwrrrld-hydration")
 # rows; staying under it means a chunk failure costs one chunk, not the night.
 CHUNK_SIZE = 200
 
-# Trading days of history to pull. ADX needs ~2× its 14-period lookback to
-# stabilize, and a long weekend plus a holiday can eat four sessions, so this is
-# deliberately generous — the fetch is the cheap part.
-LOOKBACK_DAYS = 120
+# Calendar days of history to pull. The binding constraint is the 50/200
+# moving-average detector (_ma_position_votes), which needs >= 200 daily bars
+# before it can vote at all. ~200 trading sessions span ~280 calendar days;
+# a full 365 clears that with margin for weekends and market holidays. The
+# fetch is the cheap part, so err generous.
+LOOKBACK_DAYS = 365
 
 HTTP_TIMEOUT_S = 120.0
 
@@ -189,39 +191,341 @@ def _volatility_percentile(close, window: int = 20) -> float | None:
     return float((history <= latest).sum() / len(history) * 100)
 
 
-def _confluence(rsi, macd_cross, adx, vol_pct) -> tuple[float | None, str | None]:
-    """Agreement across the computed indicators, as a signed 0-100 score plus a
-    direction. Returns (None, None) when nothing was computable.
+# ── Ported detectors (signals-app scoring/confluence.py + detection/) ────────
+#
+# These are ports of ~/code/signals-app's detector family, narrowed to what a
+# nightly full-universe walk can afford. signals-app runs 19 detectors with
+# per-detector thread-pool timeout isolation; that isolation exists because it
+# serves one interactive request where a hung detector blocks a user. Here the
+# unit of isolation is already the *row* (`_row_for` catches per symbol), and
+# these are pure pandas over an in-memory frame with no I/O to hang on — so the
+# thread pool would add overhead per ticker across 950 tickers and buy nothing.
+#
+# Each detector returns a list of (category, strength) votes, the same shape
+# signals-app's MutableSignal carries into ConfluenceRanker.rank_signals().
+# Emitting *lists* rather than a single reading is what makes this a confluence
+# model rather than a scaled average: one detector can fire several independent
+# observations, and a category firing twice legitimately counts twice.
 
-    Kept simple on purpose: this feeds a *bucket* (weak/moderate/strong), so
-    precision beyond the bucket boundary is wasted, and a more elaborate model
-    here would be a second opinion competing with the portal's scorer.
-    """
+
+def _bollinger_votes(close, window: int = 20, num_std: float = 2.0):
+    """Band position + %B. Ported from BollingerBandSignalDetector /
+    BBExpansionDetector (the 4x4 parameter grid is collapsed to the standard
+    20/2.0 pair — the grid's value is intraday resolution this daily walk
+    doesn't have)."""
+    if len(close) < window + 1:
+        return []
+    ma = close.rolling(window).mean()
+    sd = close.rolling(window).std()
+    upper, lower = ma.iloc[-1] + num_std * sd.iloc[-1], ma.iloc[-1] - num_std * sd.iloc[-1]
+    last = close.iloc[-1]
+    if upper != upper or lower != lower or upper == lower:
+        return []
+
+    votes = []
+    # %B — where price sits across the band, 0 at lower / 1 at upper.
+    pct_b = (last - lower) / (upper - lower)
+    if pct_b >= 1.0:
+        votes.append(("BOLLINGER", "STRONG_BEARISH"))   # riding/piercing upper
+    elif pct_b <= 0.0:
+        votes.append(("BOLLINGER", "STRONG_BULLISH"))   # piercing lower
+    elif pct_b >= 0.8:
+        votes.append(("BOLLINGER", "BEARISH"))
+    elif pct_b <= 0.2:
+        votes.append(("BOLLINGER", "BULLISH"))
+    else:
+        votes.append(("BOLLINGER", "NEUTRAL"))
+    return votes
+
+
+def _stochastic_votes(high, low, close, k_period: int = 14, d_period: int = 3):
+    """%K/%D with the cross gated on the extreme zone.
+
+    Ported from StochasticSignalDetector + StochasticCrossDetector. The gating
+    is the point and is preserved deliberately: signals-app fires the cross
+    signal only when a K/D crossover happens *and* the oscillator sits in the
+    oversold/overbought zone, which is a strictly higher-quality filter than
+    either condition alone. An ungated cross in mid-range is noise."""
+    if len(close) < k_period + d_period + 1:
+        return []
+    ll = low.rolling(k_period).min()
+    hh = high.rolling(k_period).max()
+    span = (hh - ll)
+    k = 100 * (close - ll) / span.where(span != 0)
+    d = k.rolling(d_period).mean()
+    if len(k.dropna()) < 2 or len(d.dropna()) < 2:
+        return []
+    k_now, k_prev = k.iloc[-1], k.iloc[-2]
+    d_now, d_prev = d.iloc[-1], d.iloc[-2]
+    if any(v != v for v in (k_now, k_prev, d_now, d_prev)):
+        return []
+
+    votes = []
+    if k_now <= 20:
+        votes.append(("STOCHASTIC", "BULLISH"))
+    elif k_now >= 80:
+        votes.append(("STOCHASTIC", "BEARISH"))
+    else:
+        votes.append(("STOCHASTIC", "NEUTRAL"))
+
+    # The gated cross — only inside the extreme zone.
+    crossed_up = k_prev <= d_prev and k_now > d_now
+    crossed_down = k_prev >= d_prev and k_now < d_now
+    if crossed_up and k_now <= 20:
+        votes.append(("STOCHASTIC", "STRONG_BULLISH"))
+    elif crossed_down and k_now >= 80:
+        votes.append(("STOCHASTIC", "STRONG_BEARISH"))
+    return votes
+
+
+def _obv_cmf_votes(high, low, close, volume, cmf_period: int = 20, ema_span: int = 20):
+    """On-Balance Volume EMA cross + Chaikin Money Flow pressure.
+
+    Ported from OBVCMFDetector. Carries a category bonus in the weighting below
+    because volume-confirmed moves are higher-conviction than price-only ones.
+    Returns [] when volume is absent — several ETFs report no volume, and a
+    zero-filled OBV would read as sustained distribution rather than as the
+    missing input it is."""
+    import numpy as np
+
+    if volume is None or len(close) < max(cmf_period, ema_span) + 1:
+        return []
+    if volume.isna().all() or (volume.fillna(0) <= 0).all():
+        return []
+
+    votes = []
+
+    # OBV vs its own EMA — direction of accumulation.
+    direction = np.sign(close.diff().fillna(0.0))
+    obv = (direction * volume.fillna(0)).cumsum()
+    obv_ema = obv.ewm(span=ema_span, adjust=False).mean()
+    if len(obv) >= 2:
+        prev_gap = obv.iloc[-2] - obv_ema.iloc[-2]
+        curr_gap = obv.iloc[-1] - obv_ema.iloc[-1]
+        if prev_gap <= 0 < curr_gap:
+            votes.append(("OBV_CMF", "STRONG_BULLISH"))
+        elif prev_gap >= 0 > curr_gap:
+            votes.append(("OBV_CMF", "STRONG_BEARISH"))
+
+    # CMF — buying vs selling pressure over the period, in [-1, 1].
+    span = (high - low).replace(0, np.nan)
+    mf_mult = ((close - low) - (high - close)) / span
+    mf_vol = mf_mult * volume
+    denom = volume.rolling(cmf_period).sum()
+    cmf = mf_vol.rolling(cmf_period).sum() / denom.where(denom != 0)
+    cmf_now = cmf.iloc[-1]
+    if cmf_now == cmf_now:  # not NaN
+        if cmf_now >= 0.20:
+            votes.append(("OBV_CMF", "BULLISH"))
+        elif cmf_now <= -0.20:
+            votes.append(("OBV_CMF", "BEARISH"))
+        else:
+            votes.append(("OBV_CMF", "NEUTRAL"))
+    return votes
+
+
+def _ma_cross_votes(close):
+    """Golden/death cross and price-vs-20MA. Ported from
+    MovingAverageSignalDetector; the 11-pair ExpandedMACross grid is reduced to
+    the 50/200 pair plus the 20MA position, since the grid's extra pairs are
+    highly correlated on daily bars and would let one trend observation vote
+    eleven times."""
+    votes = []
+    if len(close) >= 200:
+        ma50 = close.rolling(50).mean()
+        ma200 = close.rolling(200).mean()
+        if len(ma50.dropna()) >= 2 and len(ma200.dropna()) >= 2:
+            prev = ma50.iloc[-2] - ma200.iloc[-2]
+            curr = ma50.iloc[-1] - ma200.iloc[-1]
+            if prev == prev and curr == curr:
+                if prev <= 0 < curr:
+                    votes.append(("MA_CROSS", "EXTREME_BULLISH"))   # golden cross
+                elif prev >= 0 > curr:
+                    votes.append(("MA_CROSS", "EXTREME_BEARISH"))   # death cross
+                elif curr > 0:
+                    votes.append(("MA_CROSS", "BULLISH"))
+                else:
+                    votes.append(("MA_CROSS", "BEARISH"))
+    if len(close) >= 20:
+        ma20 = close.rolling(20).mean().iloc[-1]
+        last = close.iloc[-1]
+        if ma20 == ma20 and ma20 != 0:
+            drift = (last - ma20) / ma20
+            if drift >= 0.05:
+                votes.append(("MA_DISTANCE", "BULLISH"))
+            elif drift <= -0.05:
+                votes.append(("MA_DISTANCE", "BEARISH"))
+            else:
+                votes.append(("MA_DISTANCE", "NEUTRAL"))
+    return votes
+
+
+def _rsi_macd_votes(rsi, macd_cross):
+    """The two indicators the pre-port scorer used, restated as votes so they
+    join the same weighted aggregate rather than being a separate model."""
     votes = []
     if rsi is not None:
-        if rsi <= 30:
-            votes.append(1)
+        if rsi <= 20:
+            votes.append(("RSI", "EXTREME_BULLISH"))
+        elif rsi <= 30:
+            votes.append(("RSI", "STRONG_BULLISH"))
+        elif rsi >= 80:
+            votes.append(("RSI", "EXTREME_BEARISH"))
         elif rsi >= 70:
-            votes.append(-1)
+            votes.append(("RSI", "STRONG_BEARISH"))
         else:
-            votes.append(0)
+            votes.append(("RSI", "NEUTRAL"))
     if macd_cross == "bullish":
-        votes.append(1)
+        votes.append(("MACD", "STRONG_BULLISH"))
     elif macd_cross == "bearish":
-        votes.append(-1)
+        votes.append(("MACD", "STRONG_BEARISH"))
     elif macd_cross is None:
-        votes.append(0)
+        votes.append(("MACD", "NEUTRAL"))
+    return votes
+
+
+def _volatility_votes(vol_pct):
+    """Volatility regime as an explicit vote.
+
+    The pre-port `_confluence` accepted `vol_pct` and never read it — the
+    parameter was dead. It is directionally neutral by nature (high vol is not
+    bullish or bearish), so it enters as a NEUTRAL vote, which is not inert:
+    neutral votes add 0.1 to max_weight and therefore *dilute* an otherwise
+    unanimous score. A name whose only strong reading arrives in an extreme-vol
+    regime should not score the same as one in a calm tape."""
+    if vol_pct is None:
+        return []
+    if vol_pct >= 80 or vol_pct <= 20:
+        return [("VOLATILITY", "NEUTRAL")]
+    return []
+
+
+# Strength -> numeric vote. Ported verbatim from signals-app
+# scoring/confluence.py's _STRENGTH_BULL_WEIGHT so the two engines agree on what
+# a given reading is worth.
+_STRENGTH_WEIGHT = {
+    "EXTREME_BULLISH": 3.0,
+    "STRONG_BULLISH": 2.0,
+    "BULLISH": 1.0,
+    "NEUTRAL": 0.0,
+    "BEARISH": -1.0,
+    "STRONG_BEARISH": -2.0,
+    "EXTREME_BEARISH": -3.0,
+}
+
+# Category bonus added to abs(vote) for higher-conviction categories. Also from
+# signals-app: MA_CROSS / MACD / VOLUME +0.5, OBV_CMF / ICHIMOKU +0.3.
+_CATEGORY_BONUS = {
+    "MA_CROSS": 0.5,
+    "MACD": 0.5,
+    "VOLUME": 0.5,
+    "OBV_CMF": 0.3,
+}
+
+# A directional call needs both a score past the threshold and a minimum count
+# of agreeing signals, so one extreme reading cannot manufacture a call on its
+# own. signals-app's config.py uses +/-0.35 with 3 agreeing signals.
+_BUY_THRESHOLD = 0.35
+_SELL_THRESHOLD = -0.35
+_MIN_AGREEING = 3
+
+
+def _confluence(rsi, macd_cross, adx, vol_pct, frame=None) -> tuple[float | None, str | None]:
+    """Weighted confluence across the ported detectors, as a signed 0-100
+    magnitude plus a direction.
+
+    Replaces a two-indicator vote count (RSI and MACD only; `adx` merely scaled
+    agreement and `vol_pct` was accepted and never read). Now every detector
+    contributes a strength-weighted vote with a per-category conviction bonus,
+    normalized to [-1, 1] exactly as signals-app's ConfluenceRanker does, then
+    reported on the 0-100 scale this pipeline's callers already expect.
+
+    Two properties are deliberately preserved from signals-app rather than
+    simplified away:
+
+    - **Gated direction.** A bullish/bearish label requires the normalized score
+      past +/-0.35 *and* at least 3 agreeing signals. Below that the direction
+      is "neutral" even when the score leans, because a lean built from one
+      reading is not a call. This is what stops the cohort selector from
+      freezing a pick on a single extreme RSI.
+    - **Neutral votes are not free.** They add 0.1 to max_weight, so a name with
+      one strong signal amid several neutral ones scores below a name where
+      everything agrees. Averaging only the non-neutral readings would erase
+      that distinction.
+
+    `frame` is optional so existing callers and tests that pass only the four
+    scalars keep working — without it, this scores the RSI/MACD/volatility votes
+    alone, which is the pre-port behavior plus correct neutral dilution.
+
+    Returns (None, None) when nothing was computable.
+    """
+    votes = []
+    votes += _rsi_macd_votes(rsi, macd_cross)
+    votes += _volatility_votes(vol_pct)
+
+    if frame is not None:
+        try:
+            close, high, low = frame["c"], frame["h"], frame["l"]
+            volume = frame["v"] if "v" in frame else None
+            votes += _ma_cross_votes(close)
+            votes += _bollinger_votes(close)
+            votes += _stochastic_votes(high, low, close)
+            votes += _obv_cmf_votes(high, low, close, volume)
+        except Exception:  # noqa: BLE001
+            # A detector family failing degrades the score to the indicators
+            # that did compute rather than failing the row. Matches
+            # signals-app's typed-degradation stance: a partial result must not
+            # masquerade as a complete one, but it is still worth reporting.
+            pass
 
     if not votes:
         return None, None
 
-    net = sum(votes)
-    agreement = abs(net) / len(votes)
-    # A trending tape makes agreement more meaningful; a ranging one less.
+    weighted_bull = 0.0
+    weighted_bear = 0.0
+    max_weight = 0.0
+    bull_count = 0
+    bear_count = 0
+
+    for category, strength in votes:
+        base = _STRENGTH_WEIGHT.get(strength, 0.0)
+        bonus = _CATEGORY_BONUS.get(category, 0.0)
+        if base > 0:
+            vote = base + bonus
+            weighted_bull += vote
+            max_weight += vote
+            bull_count += 1
+        elif base < 0:
+            vote = abs(base) + bonus
+            weighted_bear += vote
+            max_weight += vote
+            bear_count += 1
+        else:
+            max_weight += 0.1  # neutral signals carry minimal weight, not zero
+
+    if max_weight <= 0:
+        return None, None
+
+    raw = (weighted_bull - weighted_bear) / max_weight
+
+    # A trending tape makes agreement more meaningful; a ranging one less. Kept
+    # from the pre-port scorer, but applied to the normalized score and clamped
+    # so the 1.25x cannot push a reading outside [-1, 1].
     if adx is not None and adx >= 25:
-        agreement = min(1.0, agreement * 1.25)
-    score = round(agreement * 100, 1)
-    direction = "bullish" if net > 0 else "bearish" if net < 0 else "neutral"
+        raw = max(-1.0, min(1.0, raw * 1.25))
+
+    # Gated direction — threshold AND agreeing-signal count.
+    if raw >= _BUY_THRESHOLD and bull_count >= _MIN_AGREEING:
+        direction = "bullish"
+    elif raw <= _SELL_THRESHOLD and bear_count >= _MIN_AGREEING:
+        direction = "bearish"
+    else:
+        direction = "neutral"
+
+    # Reported as a signed 0-100 magnitude. The sign is load-bearing for
+    # cohort selection, which ranks the two tails of this distribution
+    # (lib/ticker-cards-db.ts `bipolarCards`).
+    score = round(raw * 100, 1)
     return score, direction
 
 
@@ -288,7 +592,11 @@ def _row_for(symbol: str, frame) -> dict:
         macd = _macd_cross(close)
         adx = _adx(high, low, close)
         vol = _volatility_percentile(close)
-        conf, direction = _confluence(rsi, None if macd == "missing" else macd, adx, vol)
+        # `frame` unlocks the ported detector families (MA cross, Bollinger,
+        # Stochastic, OBV/CMF); without it the score falls back to RSI+MACD.
+        conf, direction = _confluence(
+            rsi, None if macd == "missing" else macd, adx, vol, frame=frame
+        )
 
         row: dict = {
             "ticker": symbol,

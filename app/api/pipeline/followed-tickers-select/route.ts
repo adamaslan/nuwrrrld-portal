@@ -5,7 +5,9 @@
  * item 2. Called by .github/workflows/select-followed-tickers.yml on the 1st of
  * each month.
  *
- * Ranks the signal universe via `topCards()`, splits by direction, takes the
+ * Ranks the signal universe via `bipolarCards()` — strongest bulls *and*
+ * strongest bears, since a single `score DESC` cut returns only bulls once the
+ * universe is large — splits by direction, takes the
  * 10 strongest bulls + 10 strongest bears (deterministic tie-breaks in
  * lib/shared/followed-tickers-policy.ts), stamps each with an entry price from
  * live_prices, and freezes them into `followed_ticker_picks`. The pick tuple —
@@ -18,7 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { getLivePrice } from "@/lib/live-price-db";
-import { topCards } from "@/lib/ticker-cards-db";
+import { bipolarCards } from "@/lib/ticker-cards-db";
 import {
   resolveHorizon,
   resolveUniverseScope,
@@ -38,9 +40,24 @@ import { renderCohort, type CohortRow } from "@/lib/followed-tickers-render";
 
 export const maxDuration = 300;
 
-/** Rank enough of the universe that both sides can be filled after neutral
- *  cards are discarded, without pulling the whole table. */
-const RANK_LIMIT = 200;
+/**
+ * How many cards to pull **from each tail** of the score distribution before
+ * splitting by direction.
+ *
+ * This was 200 rows taken from a single `score DESC` ordering, which is the
+ * most-bullish 200 — fine when the universe was small enough that 200 rows
+ * reached into negative scores, and quietly broken as it grew. At ~950 tickers
+ * the top 200 by signed score are effectively all bulls, so the bear side was
+ * being filled from whatever weak negatives survived the cut, or left short of
+ * 10 with no error raised. `bipolarCards` takes this many from each end, so
+ * the bear side is ranked against real bears.
+ *
+ * 1000 per side is deliberately larger than the current universe: it makes the
+ * query a full eligible-set scan rather than a cut, so the cohort is picked
+ * from every card that passes the quality gate. The row cap still exists to
+ * bound memory if the universe grows by an order of magnitude.
+ */
+const RANK_PER_SIDE = 1000;
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -78,7 +95,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const cards = await topCards(horizon, RANK_LIMIT, scope);
+  const cards = await bipolarCards(horizon, RANK_PER_SIDE, scope);
   if (cards.length === 0) {
     return NextResponse.json(
       { ok: false, cohortMonth, error: "no ranked cards available — cannot select a cohort" },
