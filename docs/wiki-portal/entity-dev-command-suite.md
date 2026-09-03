@@ -24,6 +24,18 @@ and the hub every command links back to.
 | `/suggest-commands` | Mine `log.md` + incidents + PR comments; propose new automation over threshold | **Self-improve** |
 | `/resume-safe` | Checkpoint to the wiki log near the token limit, resume after a wakeup, emit an HTML summary when done | **Survive limits** |
 
+## Adjacent tooling (`scripts/`)
+
+- `scripts/local-trigger.mjs` — one entry point for firing any of the 11
+  GitHub Actions workflows through the four trigger paths catalogued in
+  `docs/github-actions-deployment-and-local-triggering.md`: **A** `gh workflow
+  run` (real runner), **B** `act` (YAML in Docker), **C** a direct POST to the
+  route the workflow calls (`dry_run:true` unless `--no-dry-run --yes`), **D**
+  the underlying npm/node script. `list` prints the registry. Same "encode the
+  repeatable workflow once, run any cell of it" shape as the slash commands,
+  but for CI triggering rather than shipping. Path C never routes `CRON_SECRET`
+  through anything but the request itself.
+
 ## Where used
 
 - Invoked as `/name` in Claude Code sessions on `nuwrrrld-portal`.
