@@ -1,16 +1,18 @@
 ---
-date: 2026-07-18
+date: 2026-09-02
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
 
-The portal's six-seat AI deliberation system. Two entry points share the same seat definitions and model-fallback machinery:
+The portal's six-seat AI deliberation system. Four entry points share the same seat definitions and model-fallback machinery:
 
 - **`POST /api/council`** — single-seat quick-ask (T1 or T2 only), used by the Hold/Fold ticker detail panel. Returns one structured verdict.
 - **`POST /api/council/deliberate`** — the full six-seat debate: parallel round-1 answers → diff-shaped round-2 critique → CHAIR synthesis → separate verdict-only vote.
+- **`GET /api/council/sample`** — unauthenticated, cached (6h) T1+T2 pair for the public landing page's `#council` section. As of PR #97, simulates a **$10,000 position in MOO** (VanEck Agribusiness ETF) rather than a bare SPY signal prompt — see "The landing sample" below.
+- **`POST /api/council/public`** — unauthenticated, ticker-only, single RISK-seat demo with a 1/day IP quota; the prompt is built entirely server-side (never from free-text input) to close the prompt-injection door a public endpoint would otherwise open.
 
 ## What it is
 
@@ -35,11 +37,20 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 4. **Synthesis** — CHAIR does one prose-only call (best free model), then the verdict is a **separate** call ([[decision-split-chair-synthesis-and-verdict]]) run 3× on `SMALLEST_MODEL`, majority-voting `direction` and taking the *minimum* confidence.
 5. **Persist** — session, messages, verdict → Neon (`lib/council-db.ts`), non-fatal if unavailable.
 
+## The landing sample (PR #97)
+
+`/api/council/sample` previously ran T1/T2 against a bare `Analyze SPY...` prompt built from a single `GET {gcp3}/signals/SPY` fetch. It now runs the same two seats against an explicit **$10,000 MOO investment simulation** framing (`buildSimulationPrompt`), grounded in whatever live `ai_summary`/`ai_score`/`ai_action` GCP3 returns for MOO, with `SIMULATED_CAPITAL_USD = 10_000` hardcoded server-side — never user input, preserving the same "server-built prompt only" constraint `/api/council/public` documents. The response now carries `ticker`, `fundName`, and `simulatedCapitalUsd`, and `app/page.tsx`'s `#council` panel renders "Live simulation: $10,000 into MOO (VanEck Agribusiness ETF) today" instead of a hardcoded "SPY" label.
+
+The real yfinance scan + 10y investment/backtest simulation this was built from — and a much deeper full six-seat run (all `DEBATE_SEATS` + CHAIR + verdict) against the same MOO data — live in `docs/moo-council-simulation-todo.md` and `docs/moo-council-run/`. That deeper run is what surfaced [[entity-openrouter-client]] failures #8 and #9 (dead `SEAT_MODELS.QUANT`, and `runSeat` accepting an empty 200 as success) — this landing-sample change and those `lib/openrouter.ts` fixes shipped together in the same PR because the fixes were found *while* building this feature, not as separate unrelated work.
+
+Two things observed live during this work remain open, not yet fixed (see [[entity-openrouter-client]] failure #9's "Not fixed" note): when GCP3 has no live MOO data, T1 fabricates plausible-looking figures instead of admitting it has none, and a reasoning-model seat can spend its entire token budget narrating whether it's "allowed" to answer without DATA rather than producing the four required fields.
+
 ## Where used
 
 - `app/dashboard/holdfold/HoldFoldClient.tsx` — calls `/api/council` per seat (T1/T2), renders the four-field verdict as a `<dl>`
 - `app/dashboard/signals/SignalsClient.tsx` — calls `/api/council`, renders only the raw answer prose
-- Both routes gate on the `nu_ai` entitlement + a daily quota (`checkAndBumpQuota`)
+- `app/page.tsx` — calls `/api/council/sample` server-side for the public `#council` landing section (see "The landing sample" above)
+- `/api` routes gate `council`/`deliberate` on the `nu_ai` entitlement + a daily quota (`checkAndBumpQuota`); `sample`/`public` are unauthenticated with their own quota/caching
 
 ## The verdict format
 
@@ -71,3 +82,5 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 - [[decision-four-field-verdict-scaffold]] — why 4 fields, not 6
 - [[decision-split-chair-synthesis-and-verdict]] — why the verdict is a separate call
 - `gcp3-mobile/docs/wiki-mobile/entity-council-composer.md` — the mobile council this was ported from
+- `../moo-council-simulation-todo.md` — the MOO ETF simulation build-out this PR shipped step 1 of
+- [[entity-openrouter-client]] failures #8, #9 — the two production defects this PR's simulation run found and fixed
