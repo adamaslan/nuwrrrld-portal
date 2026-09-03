@@ -21,6 +21,7 @@
  *   node scripts/local-signal-report.mjs --symbols=AAPL,MSFT,NVDA
  *   node scripts/local-signal-report.mjs --symbols=AAPL,MSFT --etfs=SPY,QQQ
  *   node scripts/local-signal-report.mjs --lookback=180
+ *   node scripts/local-signal-report.mjs --feed=sip      # default: iex
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -75,30 +76,68 @@ const STOCKS = parseList(flag("symbols")) .length
   ? parseList(flag("symbols"))
   : DEFAULT_STOCKS;
 const ETFS = flag("etfs") !== null ? parseList(flag("etfs")) : DEFAULT_ETFS;
-const LOOKBACK_DAYS = Number(flag("lookback", "150")) || 150;
+
+// A finite positive integer, or the default. `Number("Infinity")` and negative
+// values both otherwise flow into `start.setDate(getDate() - LOOKBACK_DAYS)`,
+// which yields an Invalid Date whose `.toISOString()` throws (a negative value
+// silently requests a future range instead).
+const LOOKBACK_DAYS = (() => {
+  const raw = flag("lookback", "150");
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    if (raw !== "150") console.warn(`[local-signal-report] ignoring invalid --lookback=${raw}; using 150`);
+    return 150;
+  }
+  return n;
+})();
+
+// Pin the Alpaca data feed explicitly. Left unset, Alpaca resolves it from the
+// account plan (`iex` on Basic, `sip` on Algo Trader Plus), so a plan change
+// would move every indicator with no diff — see
+// docs/signal-engine-parity-across-hosts.md §0.3. `iex` is today's plan default.
+const ALPACA_FEED = flag("feed", "iex");
 const MIN_BARS = 40;
 
 // ── vendor fetch (ported from hydrate-local.mjs) ─────────────────────────
+// Alpaca caps a bars response at 10,000 rows *total* (not per symbol) and
+// paginates sorted by symbol, then timestamp — an over-cap request returns the
+// first symbols complete and omits the trailing ones entirely. So follow
+// `next_page_token` and merge pages by symbol before returning, matching
+// `_fetch_bars()` in deploy/universe-hydration/modal_app.py. At the default
+// 150-day lookback × 10-symbol chunks this never pages, but `--lookback` is
+// user-settable and a long range would silently drop symbols without this.
 async function fetchBarsOnce(symbols) {
   const start = new Date();
   start.setDate(start.getDate() - LOOKBACK_DAYS);
   const startIso = start.toISOString().split("T")[0];
 
-  const url = new URL("https://data.alpaca.markets/v2/stocks/bars");
-  url.searchParams.set("symbols", symbols.join(","));
-  url.searchParams.set("timeframe", "1Day");
-  url.searchParams.set("start", startIso);
-  url.searchParams.set("limit", "10000");
-  url.searchParams.set("adjustment", "split");
+  const out = {};
+  let pageToken = null;
+  do {
+    const url = new URL("https://data.alpaca.markets/v2/stocks/bars");
+    url.searchParams.set("symbols", symbols.join(","));
+    url.searchParams.set("timeframe", "1Day");
+    url.searchParams.set("start", startIso);
+    url.searchParams.set("limit", "10000");
+    url.searchParams.set("adjustment", "split");
+    url.searchParams.set("feed", ALPACA_FEED);
+    if (pageToken) url.searchParams.set("page_token", pageToken);
 
-  const res = await fetch(url, {
-    headers: {
-      "APCA-API-KEY-ID": ALPACA_API_KEY,
-      "APCA-API-SECRET-KEY": ALPACA_API_SECRET,
-    },
-  });
-  if (!res.ok) throw new Error(`Alpaca returned ${res.status}: ${await res.text()}`);
-  return (await res.json()).bars || {};
+    const res = await fetch(url, {
+      headers: {
+        "APCA-API-KEY-ID": ALPACA_API_KEY,
+        "APCA-API-SECRET-KEY": ALPACA_API_SECRET,
+      },
+    });
+    if (!res.ok) throw new Error(`Alpaca returned ${res.status}: ${await res.text()}`);
+    const body = await res.json();
+    for (const [sym, bars] of Object.entries(body.bars || {})) {
+      out[sym] = out[sym] ? out[sym].concat(bars) : bars;
+    }
+    pageToken = body.next_page_token || null;
+  } while (pageToken);
+
+  return out;
 }
 
 /** One unusable symbol costs only itself (same retry logic as hydrate-local). */
@@ -385,7 +424,7 @@ async function main() {
   const meta = {
     generatedAt: new Date().toISOString().replace("T", " ").slice(0, 16) + "Z",
     lookback: LOOKBACK_DAYS,
-    source: "alpaca:1Day",
+    source: `alpaca:1Day:${ALPACA_FEED}`,
   };
 
   const jsonPath = join(process.cwd(), "docs", "local-signal-report.json");
