@@ -18,6 +18,9 @@ import "./landing.css";
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 
 interface CouncilSample {
+  ticker?: string;
+  fundName?: string;
+  simulatedCapitalUsd?: number;
   shortTerm?: { answer?: string };
   longTerm?: { answer?: string };
   generatedAt?: string;
@@ -502,13 +505,19 @@ export default async function Home() {
 
           {(council?.shortTerm?.answer || council?.longTerm?.answer) && (
             <div className="council-layout" style={{ marginTop: "2rem" }}>
+              {council?.ticker && council?.simulatedCapitalUsd && (
+                <p className="section-copy" style={{ marginBottom: "0.75rem" }}>
+                  Live simulation: ${council.simulatedCapitalUsd.toLocaleString()} into {council.ticker}
+                  {council.fundName ? ` (${council.fundName})` : ""} today.
+                </p>
+              )}
               {[
                 { seat: "T1", horizon: "Short-term", answer: council?.shortTerm?.answer },
                 { seat: "T2", horizon: "Long-term",  answer: council?.longTerm?.answer },
               ].map(({ seat, horizon, answer }) => answer && (
                 <article className="council-panel" key={seat}>
                   <h3>{seat} · {horizon} · live sample</h3>
-                  <p className="section-copy">SPY · council in session</p>
+                  <p className="section-copy">{council?.ticker ?? "MOO"} · council in session</p>
                   <div className="council-live-output">
                     <div className="council-live-label">{seat} seat · live</div>
                     <p>{answer}</p>

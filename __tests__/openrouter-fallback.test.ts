@@ -313,13 +313,30 @@ describe("runSeat — per-seat chain composition", () => {
     expect(result.model.length).toBeGreaterThan(0);
   });
 
-  it("returns an empty string rather than throwing when a 200 has no content", async () => {
-    // runSeat (unlike fetchWithModelFallbackChecked) does not treat this as a
-    // failure. Pinning the current behaviour so a future change to make it
-    // fall through is a deliberate, visible edit rather than an accident.
+  it("falls through the chain when a 200 has no content, and throws if every model is empty", async () => {
+    // 2026-09-02 defect: a reasoning model in FREE_MODEL_CHAIN can return
+    // HTTP 200 with zero content tokens (it spent the whole max_tokens
+    // budget on hidden chain-of-thought). runSeat used to return that empty
+    // string as a successful answer — indistinguishable from a seat that
+    // legitimately had nothing to say — so callers persisted and rendered a
+    // blank seat as if it had answered. It must now treat an empty 200 the
+    // same as a retryable failure and advance the chain.
     stubFetchSequence([() => new Response(JSON.stringify({ choices: [] }), { status: 200 })]);
+    await expect(runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32)).rejects.toThrow(
+      /every model returned an empty completion/,
+    );
+  });
+
+  it("recovers when the primary is empty but a chain model returns real content", async () => {
+    const { modelsTried } = stubFetchSequence([
+      () => new Response(JSON.stringify({ choices: [] }), { status: 200 }),
+      () => jsonCompletion("served by the chain"),
+    ]);
+
     const result = await runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32);
-    expect(result.answer).toBe("");
+
+    expect(result.answer).toBe("served by the chain");
+    expect(modelsTried.length).toBeGreaterThanOrEqual(2);
   });
 
   it("falls through to the chain when the PRIMARY model is retired (404)", async () => {

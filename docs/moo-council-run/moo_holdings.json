@@ -1,0 +1,87 @@
+{
+  "symbol": "MOO",
+  "longName": "VanEck Agribusiness ETF",
+  "category": "Natural Resources",
+  "totalAssets": 975326080,
+  "navPrice": 85.82,
+  "yield": 0.022,
+  "expenseRatio": 0.56,
+  "beta3Y": 0.56,
+  "ytdReturn": 12.22329,
+  "threeYearAvgReturn": 0.0393992,
+  "fiveYearAvgReturn": 0.0089964,
+  "top_holdings": [
+    {
+      "symbol": "CTVA",
+      "name": "Corteva Inc",
+      "weight": 0.089202
+    },
+    {
+      "symbol": "BAYN.DE",
+      "name": "Bayer AG",
+      "weight": 0.088892296
+    },
+    {
+      "symbol": "DE",
+      "name": "Deere & Co",
+      "weight": 0.0795774
+    },
+    {
+      "symbol": "NTR.TO",
+      "name": "Nutrien Ltd",
+      "weight": 0.0656904
+    },
+    {
+      "symbol": "ZTS",
+      "name": "Zoetis Inc Class A",
+      "weight": 0.052150697
+    },
+    {
+      "symbol": "ADM",
+      "name": "Archer-Daniels-Midland Co",
+      "weight": 0.0506915
+    },
+    {
+      "symbol": "CF",
+      "name": "CF Industries Holdings Inc",
+      "weight": 0.0481386
+    },
+    {
+      "symbol": "6326.T",
+      "name": "Kubota Corp",
+      "weight": 0.0478722
+    },
+    {
+      "symbol": "TSN",
+      "name": "Tyson Foods Inc Class A",
+      "weight": 0.0437317
+    },
+    {
+      "symbol": "BG",
+      "name": "Bunge Global SA",
+      "weight": 0.0314038
+    }
+  ],
+  "sector_weightings": {
+    "realestate": 0.0,
+    "consumer_cyclical": 0.0,
+    "basic_materials": 0.2728,
+    "consumer_defensive": 0.33900002,
+    "technology": 0.0,
+    "communication_services": 0.0,
+    "financial_services": 0.0,
+    "utilities": 0.0,
+    "industrials": 0.2192,
+    "energy": 0.0,
+    "healthcare": 0.169
+  },
+  "asset_classes": {
+    "cashPosition": 0.0,
+    "stockPosition": 1.0,
+    "bondPosition": 0.0,
+    "preferredPosition": 0.0,
+    "convertiblePosition": 0.0,
+    "otherPosition": 0.0
+  }
+}
+
