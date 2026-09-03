@@ -91,3 +91,8 @@ once implemented.
   only carves out the admin-console second factor)
 - [[entity-dev-command-suite]] — nulogdash's place in the dev tooling catalog
 - `docs/clerk-todos.md` — the P0/P1 checklist this decision partially resolves
+- [[entity-clerk]] — full picture of this app's Clerk usage and its free-plan
+  constraints
+- [[decision-clerk-subdomain-without-satellite]] — the other free-plan
+  limitation hit on this instance (satellite domains, not MFA), from the
+  2026-09-02 production cutover
