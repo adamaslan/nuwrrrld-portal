@@ -55,4 +55,9 @@
 .signal-deeper-result { background: color-mix(in srgb, var(--neon-blue) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--neon-blue) 25%, var(--border)); border-radius: 8px; padding: .85rem 1rem; margin-top: .5rem; }
 .signal-deeper-label { font-size: .72rem; font-weight: 700; color: var(--neon-blue); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .4rem; }
 .signal-deeper-answer { font-size: .875rem; color: var(--text); line-height: 1.6; white-space: pre-wrap; }
+.signal-deeper-model { font-weight: 500; color: var(--text-dim); text-transform: none; letter-spacing: 0; }
+.signal-deeper-fields { margin: 0; font-size: .82rem; line-height: 1.5; }
+.signal-deeper-fields dt { color: var(--text-dim); font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-top: 8px; }
+.signal-deeper-fields dt:first-child { margin-top: 0; }
+.signal-deeper-fields dd { color: var(--text); margin: 2px 0 0; }
 .signal-deeper-error { font-size: .82rem; color: var(--bear); margin-top: .5rem; }

@@ -15,8 +15,9 @@ export function buildSignalPrompt(sig: SignalPayload): string {
     `Indicators: ${sig.indicators.join(", ") || "none"}`,
     `Generated: ${sig.generatedAt}`,
     ``,
-    `Using ONLY the exact data above, provide a 1–5 day trade framing for ${sig.ticker}.`,
-    `Cover: entry thesis, key risk, invalidation level, and how the indicators confirm the signal. (~150 words)`,
+    `Using ONLY the exact data above, give a 1–5 day trade framing for ${sig.ticker}`,
+    `in the four required labeled fields. Ground INVALIDATION and EXECUTION in the`,
+    `indicators and levels listed above.`,
   ].join("\n");
 }
 
@@ -38,8 +39,8 @@ export function buildCouncilPrompt(v: HoldFoldVerdict, seat: CouncilSeat): strin
       `Top signals: ${topSigs || "none"}`,
       `AI outlook: ${v.aiOutlook}`,
       ``,
-      `Using the EXACT data above, deliver a short-term trading verdict for ${v.ticker}.`,
-      `Cover the 1-5 day horizon: outlook, key driver, entry, stop, invalidation. (~150 words)`,
+      `Using the EXACT data above, deliver a 1–5 day trading verdict for ${v.ticker}`,
+      `in the four required labeled fields.`,
     ].join("\n");
   }
 
@@ -51,7 +52,7 @@ export function buildCouncilPrompt(v: HoldFoldVerdict, seat: CouncilSeat): strin
     `52W range: $${v.low52w.toFixed(2)} – $${v.high52w.toFixed(2)}`,
     `AI outlook: ${v.aiOutlook}`,
     ``,
-    `Using the EXACT data above, deliver a long-term investment thesis for ${v.ticker}.`,
-    `Cover the 3–12 month horizon: secular thesis, key catalyst, risk/reward, invalidation. (~150 words)`,
+    `Using the EXACT data above, deliver a 3–12 month investment thesis for ${v.ticker}`,
+    `in the four required labeled fields.`,
   ].join("\n");
 }
