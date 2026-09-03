@@ -650,3 +650,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-03] ingest | PR #98 (update) add backup-to-sqlite.yml CI workflow + sqlite-backup-code.md | pages touched: 1
 
 ## [2026-09-03] ingest | PR #102 docs: pipeline route status — probe results + open issues doc | pages touched: 1
+
+## [2026-09-03] ingest | PR #101 feat(signals): three-phase signal-engine plan — code-only Phases 1–3 | pages touched: 3
