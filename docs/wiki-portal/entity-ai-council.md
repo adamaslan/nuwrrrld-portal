@@ -2,7 +2,7 @@
 date: 2026-09-02
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
@@ -44,6 +44,8 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 The real yfinance scan + 10y investment/backtest simulation this was built from — and a much deeper full six-seat run (all `DEBATE_SEATS` + CHAIR + verdict) against the same MOO data — live in `docs/moo-council-simulation-todo.md` and `docs/moo-council-run/`. That deeper run is what surfaced [[entity-openrouter-client]] failures #8 and #9 (dead `SEAT_MODELS.QUANT`, and `runSeat` accepting an empty 200 as success) — this landing-sample change and those `lib/openrouter.ts` fixes shipped together in the same PR because the fixes were found *while* building this feature, not as separate unrelated work.
 
 Two things observed live during this work remain open, not yet fixed (see [[entity-openrouter-client]] failure #9's "Not fixed" note): when GCP3 has no live MOO data, T1 fabricates plausible-looking figures instead of admitting it has none, and a reasoning-model seat can spend its entire token budget narrating whether it's "allowed" to answer without DATA rather than producing the four required fields.
+
+**Re-verified 2026-09-04 (PR #110), after PRs #101/#105/#108**: the implementation is untouched and intact — none of those three PRs touch this route or `app/page.tsx`'s council section. Both external dependencies are still down: the portal's own `OPENROUTER_API_KEY` is still expired (401) and GCP3's `/signals/MOO` is still 503. New finding from that pass: **MOO isn't registered in `ticker_universe` at all** (zero rows), and `scripts/seed-etf-cards.mjs`'s GCP3-sourced 54-ETF seeding path is fixed to sector/industry ETFs — it structurally cannot ever card a commodity fund like MOO, independent of GCP3's uptime. The unblocked path is `hydrate-local.mjs`'s Alpaca-based `--symbols=` flag, which cards arbitrary tickers. See `../moo-todo.md` for the current tracker.
 
 ## Where used
 
