@@ -1,0 +1,121 @@
+{
+  "ticker": "MOO",
+  "history_start": "2016-09-06",
+  "history_end": "2026-09-02",
+  "last_close": 88.85,
+  "lump_sum_10k": [
+    {
+      "years": 1,
+      "start": 72.19,
+      "end": 88.85,
+      "final_value": 12307.84,
+      "total_return_pct": 23.08,
+      "cagr_pct": 23.1,
+      "max_drawdown_pct": -11.17,
+      "ann_vol_pct": 14.59,
+      "sharpe_rf0": 1.5
+    },
+    {
+      "years": 3,
+      "start": 76.43,
+      "end": 88.85,
+      "final_value": 11624.67,
+      "total_return_pct": 16.25,
+      "cagr_pct": 5.16,
+      "max_drawdown_pct": -23.13,
+      "ann_vol_pct": 15.51,
+      "sharpe_rf0": 0.4
+    },
+    {
+      "years": 5,
+      "start": 83.27,
+      "end": 88.85,
+      "final_value": 10669.7,
+      "total_return_pct": 6.7,
+      "cagr_pct": 1.31,
+      "max_drawdown_pct": -39.52,
+      "ann_vol_pct": 17.23,
+      "sharpe_rf0": 0.16
+    },
+    {
+      "years": 10,
+      "start": 42.03,
+      "end": 88.85,
+      "final_value": 21141.3,
+      "total_return_pct": 111.41,
+      "cagr_pct": 7.78,
+      "max_drawdown_pct": -39.52,
+      "ann_vol_pct": 18.19,
+      "sharpe_rf0": 0.5
+    }
+  ],
+  "dca_250_monthly": [
+    {
+      "years": 3,
+      "monthly": 250.0,
+      "months": 37,
+      "invested": 9250.0,
+      "final_value": 11488.55,
+      "total_return_pct": 24.2
+    },
+    {
+      "years": 5,
+      "monthly": 250.0,
+      "months": 61,
+      "invested": 15250.0,
+      "final_value": 18029.85,
+      "total_return_pct": 18.23
+    },
+    {
+      "years": 10,
+      "monthly": 250.0,
+      "months": 121,
+      "invested": 30250.0,
+      "final_value": 42845.93,
+      "total_return_pct": 41.64
+    }
+  ],
+  "signal_backtest": {
+    "rule": "RSI>70 AND MACD_hist>0 AND vol>1.5x AND price>3% over SMA20",
+    "total_fires": 38,
+    "forward_returns": {
+      "5d": {
+        "n": 36,
+        "hit_rate_pct": 69.4,
+        "mean_fwd_pct": 0.78,
+        "median_fwd_pct": 0.93,
+        "worst_fwd_pct": -5.48,
+        "best_fwd_pct": 4.94,
+        "baseline_hit_rate_pct": 55.7,
+        "baseline_mean_pct": 0.18
+      },
+      "20d": {
+        "n": 35,
+        "hit_rate_pct": 71.4,
+        "mean_fwd_pct": 2.42,
+        "median_fwd_pct": 1.86,
+        "worst_fwd_pct": -5.7,
+        "best_fwd_pct": 10.32,
+        "baseline_hit_rate_pct": 59.3,
+        "baseline_mean_pct": 0.7
+      },
+      "60d": {
+        "n": 35,
+        "hit_rate_pct": 71.4,
+        "mean_fwd_pct": 3.17,
+        "median_fwd_pct": 4.19,
+        "worst_fwd_pct": -17.46,
+        "best_fwd_pct": 18.07,
+        "baseline_hit_rate_pct": 63.6,
+        "baseline_mean_pct": 2.03
+      }
+    }
+  },
+  "current_state": {
+    "rsi": 77.6,
+    "macd_hist": 0.564,
+    "vol_ratio": 2.37,
+    "pct_above_sma20": 6.7,
+    "signal_fired_today": true
+  }
+}

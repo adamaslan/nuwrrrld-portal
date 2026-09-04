@@ -37,8 +37,8 @@ const OR_BASE = 'https://openrouter.ai/api/v1';
 export const FREE_MODEL_CHAIN = [
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
-  'nvidia/nemotron-3-nano-30b-a3b:free',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'liquid/lfm-2.5-2.6b:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
@@ -65,7 +65,13 @@ const SEAT_MODELS: Record<CouncilSeat, string> = {
   T2: 'google/gemma-4-31b-it:free',
   RISK: 'z-ai/glm-5.2:free',
   MACRO: 'google/gemma-4-26b-a4b-it:free',
-  QUANT: 'nvidia/nemotron-nano-9b-v2:free',
+  // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
+  // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
+  // seat audit — see the moo-council-simulation-todo.md run that caught it).
+  // liquid/lfm-2.5-2.6b:free is the smallest live $0 model in the catalog,
+  // which matches QUANT's "reduced to classification" role better than the
+  // retired id did.
+  QUANT: 'liquid/lfm-2.5-2.6b:free',
   CHAIR: 'nvidia/nemotron-3-ultra-550b-a55b:free',
 };
 
@@ -394,7 +400,12 @@ export async function runSeat(
   seat: CouncilSeat,
   messages: CouncilMessage[],
   apiKey: string,
-  maxTokens = 500,
+  // Several FREE_MODEL_CHAIN entries are reasoning models that spend part of
+  // max_tokens on hidden chain-of-thought before the first visible content
+  // token. At 500 this measurably starved seats to a 0-character answer that
+  // read as a silent success (2026-09-02, docs/moo-council-simulation-todo.md)
+  // — 1200 was the smallest budget that consistently left room for content.
+  maxTokens = 1200,
   temperature = 0.4,
   modelOverride?: string,
 ): Promise<CouncilResponse> {
@@ -403,6 +414,7 @@ export async function runSeat(
 
   const started = Date.now();
   let lastStatus = 503;
+  let anyEmptyModel = false;
   for (const [index, model] of modelChain.entries()) {
     const isPrimary = index === 0;
     const ctrl = new AbortController();
@@ -422,7 +434,17 @@ export async function runSeat(
       if (res.ok) {
         const data = await res.json();
         const answer = data.choices?.[0]?.message?.content ?? '';
-        return { answer, model, seat, latencyMs: Date.now() - started };
+        if (answer.trim()) {
+          return { answer, model, seat, latencyMs: Date.now() - started };
+        }
+        // HTTP 200 with an empty completion is not success — it's a model
+        // that burned its whole budget on hidden reasoning and left nothing
+        // for content. Returning it here would look like a real answer to
+        // every caller (2026-09-02 finding). Advance to the next model
+        // instead, the same way fetchWithModelFallbackChecked already does
+        // for the streaming path.
+        anyEmptyModel = true;
+        continue;
       }
       lastStatus = res.status;
       await res.body?.cancel().catch(() => {});
@@ -444,7 +466,11 @@ export async function runSeat(
       clearTimeout(timer);
     }
   }
-  throw new Error(`OpenRouter ${lastStatus}: council ${seat} — all models failed`);
+  throw new Error(
+    anyEmptyModel
+      ? `OpenRouter: council ${seat} — every model returned an empty completion`
+      : `OpenRouter ${lastStatus}: council ${seat} — all models failed`,
+  );
 }
 
 /** System prompt for a seat — exported so the deliberation route can compose rounds. */
@@ -457,7 +483,7 @@ export async function callCouncilSeat(
   seat: CouncilSeat,
   userPrompt: string,
   apiKey: string,
-  maxTokens = 500,
+  maxTokens = 1200,
 ): Promise<CouncilResponse> {
   return runSeat(
     seat,

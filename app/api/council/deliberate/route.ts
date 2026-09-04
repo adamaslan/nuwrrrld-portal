@@ -177,7 +177,7 @@ async function answerWithRepair(
       { role: "user", content: brief },
       { role: "assistant", content: first.answer },
       { role: "user", content: buildRepairMessage(flags) },
-    ], apiKey, 500);
+    ], apiKey, 1200);
     const repairedVerdict = parseStructuredVerdict(repaired.answer);
     // As in the quick-ask route: a parseable repair isn't necessarily a
     // correct one — re-run the checks before trusting it.
@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
           { role: "user", content: briefBySeat.get(seat) ?? "" },
           { role: "assistant", content: answers[seat]!.answer },
           { role: "user", content: prompt },
-        ], apiKey, 200);
+        ], apiKey, 500);
       }),
     );
     round2.forEach((r, i) => {
@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
     const chair = await runSeat("CHAIR", [
       { role: "system", content: seatSystemPrompt("CHAIR") },
       { role: "user", content: `${chairBrief}\n\n=== COUNCIL TRANSCRIPT ===\n${transcript}\n\n${emptySeats.length ? `(Seats unavailable this run: ${emptySeats.join(", ")}.)` : ""}` },
-    ], apiKey, 400);
+    ], apiKey, 1000);
     chairText = chair.answer;
     chairModel = chair.model;
   } catch {
@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
       runSeat("CHAIR", [
         { role: "system", content: CHAIR_VERDICT_SYSTEM },
         { role: "user", content: `${chairText}\n\n=== COUNCIL TRANSCRIPT ===\n${transcript}` },
-      ], apiKey, 100, 0.7, SMALLEST_MODEL),
+      ], apiKey, 300, 0.7, SMALLEST_MODEL),
     ),
   );
   const parsedSamples = verdictSamples

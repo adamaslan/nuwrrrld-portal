@@ -1,0 +1,59 @@
+{
+  "backend": "openrouter (key from ~/code/homebase/.env; portal .env.local key is expired)",
+  "generatedAt": "2026-09-02T22:08:35.950Z",
+  "ticker": "MOO",
+  "question": "The question before the council: should a retail investor put $10,000 into MOO today, and if so how? Use ONLY the DATA above.",
+  "brief": "=== SIMULATION: $10,000 INVESTED IN MOO (VanEck Agribusiness ETF) TODAY ===\nScan date: 2026-09-02 04:00 PM ET | Last close $88.85 (+0.98%)\nFund: VanEck Agribusiness ETF | AUM $975M | expense ratio 0.56% | yield 2.2% | 3Y beta 0.56\nSector mix: consumer defensive 34%, basic materials 27%, industrials 22%, healthcare 17%\n$10,000 buys 112.5 shares at today's close.\n\n=== DATA: LIVE SCAN OF MOO (run today, real yfinance OHLCV, same engine as the site) ===\nConfluence score 100/100 -> BUY, HIGH confidence, 3 confirming signals.\nRSI 77.63 | MACD hist 0.5639 | volume 2.37x the 20-day average\nPrice 6.7% above SMA20 ($83.27); SMA50 $82.01\nBollinger: upper $87.96, mid $83.27, lower $78.58; %B 1.095 (price is ABOVE the upper band)\n\n=== DATA: HISTORICAL HIT-RATE OF THIS EXACT SIGNAL ON MOO (10y, 38 prior fires) ===\nRule: RSI>70 AND MACD_hist>0 AND vol>1.5x AND price>3% over SMA20\n5d:  hit 69.4% (buy-and-hold baseline 55.7%) | mean 0.78% | worst -5.48% | best 4.94% | n=36\n20d: hit 71.4% (baseline 59.3%) | mean 2.42% | worst -5.7% | best 10.32% | n=35\n60d: hit 71.4% (baseline 63.6%) | mean 3.17% | worst -17.46% | best 18.07% | n=35\n\n=== DATA: WHAT ACTUALLY HOLDING MOO PAID (real adjusted-close history) ===\n$10k lump sum 1y ago  -> $12307.84 (23.08%), max drawdown -11.17%, ann vol 14.59%, Sharpe 1.5\n$10k lump sum 3y ago  -> $11624.67 (CAGR 5.16%), max drawdown -23.13%\n$10k lump sum 5y ago  -> $10669.7 (CAGR 1.31%), max drawdown -39.52%\n$10k lump sum 10y ago -> $21141.3 (CAGR 7.78%), max drawdown -39.52%, Sharpe 0.5\n$250/mo DCA for 10y   -> invested $30250, now $42845.93 (41.64%)\n\n=== DATA: LOOK-THROUGH SCAN OF MOO'S TOP HOLDINGS (same engine, today) ===\n7/8 of the scanned top holdings are bullish.\nCTVA (8.92% of fund) score 100/100 BUY HIGH | RSI 72.22 | RSI at 72.2 (overbought). MACD histogram +1.354. Price 12.7% above 20-day SMA. Volume 1.8x average.\nDE (7.96% of fund) score 100/100 BUY HIGH | RSI 69.5 | RSI at 69.5 (neutral). MACD histogram +7.456. Price 11.6% above 20-day SMA. Volume 1.5x average.\nNTR (6.57% of fund) score 88/100 BUY HIGH | RSI 75.52 | RSI at 75.5 (overbought). MACD histogram +0.861. Price 13.2% above 20-day SMA. Volume 1.0x average.\nZTS (5.22% of fund) score 62/100 HOLD LOW | RSI 50.28 | RSI at 50.3 (neutral). MACD histogram +0.181. Price 0.8% above 20-day SMA. Volume 0.7x average.\nADM (5.07% of fund) score 88/100 BUY HIGH | RSI 63.69 | RSI at 63.7 (neutral). MACD histogram +0.535. Price 6.6% above 20-day SMA. Volume 0.9x average.\nCF (4.81% of fund) score 100/100 BUY HIGH | RSI 71.58 | RSI at 71.6 (overbought). MACD histogram +1.530. Price 13.1% above 20-day SMA. Volume 1.6x average.\nTSN (4.37% of fund) score 12/100 SELL HIGH | RSI 43.87 | RSI at 43.9 (neutral). MACD histogram -0.210. Price 1.6% below 20-day SMA. Volume 1.0x average.\nBG (3.14% of fund) score 100/100 BUY HIGH | RSI 65.79 | RSI at 65.8 (neutral). MACD histogram +1.171. Price 8.7% above 20-day SMA. Volume 1.3x average.\n\n=== RULES ===\nR1: An ETF signal is only as good as the breadth beneath it — a bullish ETF carried by two names is fragile.\nR2: %B above 1.0 means price is outside the upper Bollinger band; mean-reversion risk is elevated.\nR3: A hit-rate edge measured on fewer than 40 samples has wide error bars.\nR4: MOO's 5y CAGR and its 10y CAGR disagree sharply — the recent regime is not the long-run one.\nR5: Expense ratio and sector concentration are a permanent drag that an entry signal cannot offset.",
+  "seats": [
+    {
+      "seat": "T1",
+      "model": "cohere/command-r7b-12-2024",
+      "latencyMs": 1559,
+      "answer": "OUTLOOK: bullish\nBECAUSE: [R1] says \"An ETF signal is only as good as the breadth beneath it — a bullish ETF carried by two names is fragile.\"\nINVALIDATION: [R2] says \"%B above 1.0 means price is outside the upper Bollinger band; mean-reversion risk is elevated.\"\nEXECUTION: entry 88.85 / stop 87.96 / target 90.00"
+    },
+    {
+      "seat": "T2",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "latencyMs": 13312,
+      "answer": "The user wants me to act as T2, a long-term investor (2 months-5 years) for NuWrrrld Financial, analyzing whether a retail investor should put $10,000 into MOO (VanEck Agribusiness ETF) today. I must use ONLY the provided DATA and RULES, and output exactly four labeled fields: OUTLOOK, BECAUSE, INVALIDATION, EXECUTION.\n\nLet me analyze the data:\n\n**OUTLOOK determination:**\n- Confluence score 100/100 -> BUY, HIGH confidence, 3 confirming signals (RSI>70, MACD hist>0, vol>1.5x, price>3% over SMA20)\n- Historical hit-rate for this exact signal: 5d 69.4% (baseline 55.7%), 20d 71.4% (baseline 59.3%), 60d 71.4% (baseline 63.6%)\n- But RSI is 77.63 (overbought), %B is 1.095 (price ABOVE upper Bollinger band) - mean reversion risk elevated (R2)\n- 7/8 top holdings bullish, but TSN is SELL HIGH\n- 5y CAGR only 1.31% vs 10y CAGR 7.78% - recent regime not long-run (R4)\n- Expense ratio 0.56% and sector concentration drag (R5)\n- Hit-rate based on only 35-38 samples - wide error bars (R3)\n\nFor a long-term investor (2 months-5 years), the short-term overbought signals and mean reversion risk are concerning. The 5y CAGR is poor (1.31%). The signal is technically bullish short-term but fundamentally the long-term trend is weak. I'd lean neutral to slightly bearish for long-term.\n\nBut the confluence score is 100/100 BUY HIGH confidence. However, as a long-term investor, I care about 2 months-5 years. The 60d hit-rate is 71.4% with mean 3.17%, but worst -17.46%. The 5y return is only 1.31% CAGR.\n\nGiven R2 (%B above 1.0 = mean reversion risk elevated), R4 (5y vs 10y CAGR disagree), R3 (few samples), R5 (expense ratio drag), and the fact that this is a short-term overbought signal, I think OUTLOOK should be neutral or bearish for long-term.\n\nLet me pick neutral - the short"
+    },
+    {
+      "seat": "RISK",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "latencyMs": 1168,
+      "answer": ""
+    },
+    {
+      "seat": "MACRO",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "latencyMs": 919,
+      "answer": ""
+    },
+    {
+      "seat": "QUANT",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "latencyMs": 769,
+      "answer": ""
+    }
+  ],
+  "chair": {
+    "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "latencyMs": 19227,
+    "synthesis": "The council is split. T1 sees"
+  },
+  "verdictSamples": [
+    {
+      "raw": "The user wants me to act as the Chair and synthesize the council's views into a single JSON output with specific fields: direction, confidence, horizon, invalidation. I must use ONLY the data provided in the prompt (the council transcript and data sections). The council transcript shows T1 (short-term trader) is bullish with specific entry/stop/target, but T2 (long-term investor) analysis is cut off. There's also RISK, MACRO, QUANT sections but they're empty in the prompt. The Chair synthesis says \"The council is split. T1 sees\" but cuts off.\n\nI need to infer from available data. The data includes technical signals: confluence score 100/100 BUY HIGH confidence, but RSI 77.63 (overbought), %B 1.095 (above upper Bollinger band), 5y CAGR 1.31% vs 10y",
+      "parse_error": true
+    },
+    {
+      "raw": "The user wants me to act as T2, a long-term investor (2 months-5 years) for NuWrrrld Financial, analyzing whether a retail investor should put $10,000 into MOO (VanEck Agribusiness ETF) today. I need to output exactly four labeled fields: OUTLOOK, BECAUSE, INVALIDATION, EXECUTION.\n\nLet me analyze the data provided in the council transcript and the context.\n\nFrom the council transcript:\n- T1 (short-term) is bullish with entry 88.85, stop 87.96, target 90.00\n- T1 cites R1: \"An ETF signal is only as good as the breadth beneath it — a bullish ETF carried by two names is fragile.\"\n- T1 cites R2: \"%B above 1.0 means price is outside the upper Bollinger band; mean-reversion risk is",
+      "parse_error": true
+    },
+    {
+      "raw": "We need to output a single-line JSON: {\"direction\":\"bullish|bearish|neutral\",\"confidence\":\"low|medium|high\",\"horizon\":\"e.g. 1-5d\",\"invalidation\":\"the level/condition that voids the call\"} No prose, no markdown.\n\nWe must use ONLY the DATA above. The data includes council transcript with T1, T2, etc. The question: \"should a retail investor put $10,000 into MOO today, and if so how? Use ONLY the DATA above.\"\n\nWe need to produce direction, confidence, horizon, invalidation. Likely we need to synthesize from the data. The data includes T1 outlook bullish, because [R1] says..., invalidation [R2] says..., execution entry 88.85 / stop 87.96 / target 90.00.\n\nT2 is a long-term investor (2 months-5 years",
+      "parse_error": true
+    }
+  ],
+  "totalMs": 68095
+}
