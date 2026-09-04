@@ -69,7 +69,14 @@ const sql = neon(url);
 // Postgres columns deliberately dropped from the SQLite mirror (see
 // schema.sqlite.sql's header). Any *other* live column missing from the mirror
 // is an error, not something to silently omit from the backup.
-const EXPECTED_UNMIRRORED_COLUMNS = new Set(["corpus_chunks.tsv"]);
+//
+// Empty as of the Phase 7 schema generator (scripts/gen-sqlite-schema.mjs):
+// corpus_chunks.tsv used to be hand-dropped here, but the generator now emits
+// it as a plain TEXT column (the tsvector's string representation, opaque but
+// present) instead of skipping it — so it's no longer unmirrored at all.
+// Keeping the mechanism for a genuine future drop, not deleting it outright.
+// CodeRabbit review, PR #105.
+const EXPECTED_UNMIRRORED_COLUMNS = new Set();
 
 // Set once `main()` opens the output DB, so the top-level failure handler can
 // close it and delete a half-written snapshot.

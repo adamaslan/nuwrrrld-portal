@@ -1,8 +1,8 @@
 ---
-date: 2026-09-03
+date: 2026-09-04
 type: entity
 tags: [database, backup, sqlite, neon, offline]
-sources: [../../scripts/backup-to-sqlite.mjs, ../../lib/db/schema.sqlite.sql, ../../.github/workflows/backup-to-sqlite.yml, ../local-sqlite-backup-and-offline-dev.md, ../sqlite-backup-code.md, PR#98]
+sources: [../../scripts/backup-to-sqlite.mjs, ../../scripts/gen-sqlite-schema.mjs, ../../lib/db/schema.sqlite.sql, ../../.github/workflows/backup-to-sqlite.yml, ../local-sqlite-backup-and-offline-dev.md, ../sqlite-backup-code.md, ../openrouter-migration-and-db-parity-plan.md, PR#98, PR#105]
 ---
 
 # Entity: SQLite Backup (`scripts/backup-to-sqlite.mjs`)
@@ -25,11 +25,17 @@ native build step.
   so a column added to `schema.sql` but not `schema.sqlite.sql` can't slip out
   of the backup unnoticed. On any failure after the output file is opened, the
   partial `.sqlite` + its WAL/SHM sidecars are deleted so the next run can retry.
-- **`lib/db/schema.sqlite.sql`** — the SQLite translation of `lib/db/schema.sql`'s
-  30 tables, verified for exact table-name parity. `corpus_chunks.tsv` (the
-  Postgres `GENERATED ALWAYS AS (tsvector...) STORED` column + its GIN index)
-  is dropped entirely — no SQLite equivalent attempted, since full-text search
-  over a backup file isn't a goal.
+- **`lib/db/schema.sqlite.sql`** — as of PR #105, **generated** by
+  `scripts/gen-sqlite-schema.mjs` from `lib/db/schema.sql` rather than
+  hand-maintained; `npm run db:check-sqlite-schema` fails CI
+  (`db-schema-parity` job) if the two drift. Same translation rules as
+  before (identity PK → `INTEGER PRIMARY KEY AUTOINCREMENT`, `uuid` → `TEXT`,
+  `jsonb`/`timestamptz`/`text[]`/`inet`/`boolean` → `TEXT`/`INTEGER`,
+  `::casts` stripped). `corpus_chunks.tsv` (the Postgres
+  `GENERATED ALWAYS AS (tsvector...) STORED` column + its GIN index) is
+  rewritten to a plain, ungenerated `TEXT` column rather than dropped —
+  full-text search over a backup file still isn't a goal, but downstream
+  `SELECT *` no longer needs a special case for the missing column.
 - **Never overwrites**: each run either targets a fresh timestamped path
   (`backups/nuwrrrld-<timestamp>.sqlite`) or refuses if `--out` already
   exists. `backups/` is gitignored — the files can carry Clerk user IDs, IP
@@ -79,7 +85,11 @@ native build step.
    client; a swappable driver would need every one of those files' raw SQL
    audited for Postgres-only syntax — `ON CONFLICT`, `RETURNING`, jsonb
    operators, `tsvector`/GIN full-text search — none of which is visible from
-   the schema alone).
+   the schema alone). PR #105 did exactly that audit for 10 of the 14
+   `lib/*-db.ts` modules — see [[entity-db-parity-suite]] — and found the
+   modules themselves compatible; the harder remainder (`unnest()`,
+   `= ANY(array)`, `string_agg(DISTINCT …)`) is the concrete list of what a
+   live SQLite-backed mode would still need to solve.
 
 ## Open questions
 
@@ -98,6 +108,7 @@ native build step.
 ## See also
 
 - [[incident-2026-09-03-unowned-tables-in-shared-neon-db]] — the PII/shared-DB finding this tool surfaced
+- [[entity-db-parity-suite]] — the generator + contract-test pair PR #105 added on top of this entity
 - `../local-sqlite-backup-and-offline-dev.md` — full usage guide, workflow→table mapping, and the scoped-but-not-built live-SQLite-dev-server plan
 - [[entity-ticker-universe-pipeline]] — the largest single data source this backup captures (`ticker_universe`/`ticker_cards`, 983/1864 rows as of the PR #98 test run)
 - [[entity-ai-council]] — `council_sessions`/`council_messages`/`council_verdicts`, also captured
