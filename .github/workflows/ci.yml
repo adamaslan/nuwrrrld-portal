@@ -31,6 +31,36 @@ jobs:
       - name: Unit tests
         run: npm test
 
+  db-schema-parity:
+    # Phases 7-8 of docs/openrouter-migration-and-db-parity-plan.md. Needs
+    # Node 22+ for node:sqlite (used by the SQLite half of the db-parity
+    # suite), separate from the main `test` job's Node 20.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Check generated SQLite schema is up to date (Phase 7)
+        run: npm run db:check-sqlite-schema
+
+      - name: DB parity contract suite — SQLite (Phase 8)
+        run: npm run test:db-parity
+        # NEON_BRANCH_DATABASE_URL, when set as a repo secret, points this at
+        # a throwaway Neon branch so the same suite also runs the Postgres
+        # half (__tests__/db-parity/README.md). Unset is fine — that half is
+        # skipped, not failed.
+        env:
+          DATABASE_URL: ${{ secrets.NEON_BRANCH_DATABASE_URL }}
+
   shared-drift-check:
     runs-on: ubuntu-latest
     steps:

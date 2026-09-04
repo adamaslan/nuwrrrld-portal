@@ -43,6 +43,21 @@ export default defineConfig({
           include: ["components/**/*.test.tsx", "app/**/*.test.tsx"],
         },
       },
+      {
+        resolve: { alias },
+        test: {
+          // Phase 8 of docs/openrouter-migration-and-db-parity-plan.md: runs
+          // every lib/*-db.ts module's exported functions against BOTH a
+          // Neon branch and an in-memory SQLite DB built from the generated
+          // schema, asserting shape-equality. Needs node:sqlite (Node 22+)
+          // and — for the Neon side — DATABASE_URL pointed at a throwaway
+          // branch, so it's a separate project rather than part of "unit".
+          name: "db-parity",
+          environment: "node",
+          include: ["__tests__/db-parity/**/*.test.ts"],
+          testTimeout: 30_000,
+        },
+      },
     ],
   },
 });

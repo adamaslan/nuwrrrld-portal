@@ -24,7 +24,10 @@
     "db:hydrate:dev": "node --env-file=.env.local scripts/hydrate-dev.mjs",
     "nulogdash:inventory": "node scripts/nulogdash-inventory.mjs",
     "nulogdash": "npm run nulogdash:inventory && node --env-file=.env.local scripts/nulogdash.mjs",
-    "stash:status": "node scripts/stash-status.mjs"
+    "stash:status": "node scripts/stash-status.mjs",
+    "db:gen-sqlite-schema": "node scripts/gen-sqlite-schema.mjs",
+    "db:check-sqlite-schema": "node scripts/gen-sqlite-schema.mjs --check",
+    "test:db-parity": "vitest run --project db-parity"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.2",

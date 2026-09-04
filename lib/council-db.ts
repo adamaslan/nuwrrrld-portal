@@ -19,12 +19,17 @@ export interface CouncilVerdict {
 
 export async function createSession(userId: string, topic: string): Promise<string | null> {
   try {
-    const rows = await sql`
-      INSERT INTO council_sessions (user_id, topic)
-      VALUES (${userId}, ${topic})
-      RETURNING id
+    // Generated app-side rather than relying on the column's `DEFAULT
+    // gen_random_uuid()` — that default is Postgres-only, so anything reading
+    // this table through the SQLite backup path (Phase 8 of
+    // docs/openrouter-migration-and-db-parity-plan.md) needs the id supplied
+    // the same way on both engines.
+    const id = crypto.randomUUID();
+    await sql`
+      INSERT INTO council_sessions (id, user_id, topic)
+      VALUES (${id}, ${userId}, ${topic})
     `;
-    return (rows[0]?.id as string) ?? null;
+    return id;
   } catch {
     return null;
   }
