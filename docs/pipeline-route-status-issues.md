@@ -14,8 +14,8 @@ production. Each `/api/pipeline/*` route was hit with an **unauthenticated**
 | `followed-tickers` | ✅ | **503** | deployed, but failing before/at a dependency |
 | `followed-tickers-select` | ✅ | **503** | deployed, but failing before/at a dependency |
 | `followed-tickers-judge` | ✅ | **503** | deployed, but failing before/at a dependency |
-| `precompute-ai` | ✅ | **401** | healthy — correctly rejects a missing bearer token |
-| `hydrate-universe` | ✅ | **401** | healthy — correctly rejects a missing bearer token |
+| `precompute-ai` | ✅ | **401** | deployed; auth gate responded as expected — rejects a missing bearer token (authenticated execution + downstream deps unverified) |
+| `hydrate-universe` | ✅ | **401** | deployed; auth gate responded as expected — rejects a missing bearer token (authenticated execution + downstream deps unverified) |
 
 A 404 here is *by design loud*: the routes were namespaced under `/api/pipeline/*`
 (a path with no prior occupant) so a missing route fails visibly instead of
@@ -98,7 +98,7 @@ The `notify` job in every scheduled pipeline workflow does
 `gh issue create --label pipeline-failure`. That label doesn't exist in the
 repo, so the notify job itself fails:
 
-```
+```text
 could not add label: 'pipeline-failure' not found
 ```
 
@@ -117,7 +117,7 @@ One command. Until then a pipeline failure produces *two* red jobs and no issue.
 - **`decision-precompute-ai-at-quota-reset.md` / `entity-ticker-universe-pipeline.md`**
   — `precompute-ai` and `hydrate-universe` were themselves untracked-in-git and
   404ing in production "until PR #66 merges/deploys." Today's probe confirms
-  **that shipped**: both now 401 (healthy). So the pattern *has* been worked
+  **that shipped**: both now 401 (deployed; auth gate responding as expected). So the pattern *has* been worked
   before — these two are the template for closing Issue 1.
 - No wiki page covers the `followed-tickers*` 503 (Issue 2) — it's new here.
 

@@ -43,8 +43,10 @@ once.
 **Also broken (verified 2026-09-03 by live probe):** the `afternoon-pipeline.yml`
 scheduler has no routes to call — `/api/pipeline/{signals-refresh,theses-score,
 council-run,council-validate-distribution}` are absent from the repo and 404 in
-production. `CRON_SECRET` is missing not just from GitHub Actions but also from
-`.env.local`, so it can't be tested locally either. The `followed-tickers*`
+production. `CRON_SECRET` is absent from `.env.local`; unless it is exported into
+the environment another way (`scripts/local-trigger.mjs` layers `process.env`
+over `.env.local`), local triggering has no token either. The GitHub Actions
+secret state is unverified here — see the caution above. The `followed-tickers*`
 routes are deployed but 503 unauthenticated. Full breakdown + probe table:
 [docs/pipeline-route-status-issues.md](pipeline-route-status-issues.md).
 
