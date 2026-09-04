@@ -22,7 +22,7 @@ genuinely signed-out, cold browser context.
 
 Reproduced with a signed-out Chromium context against local `next dev`:
 
-```
+```text
 307  http://localhost:3000/dashboard
 307  https://<instance>.clerk.accounts.dev/v1/client/handshake
        ?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard
@@ -41,7 +41,7 @@ to store it**.
 Decoding the `__clerk_handshake` JWT shows the `Set-Cookie` directives it
 carries:
 
-```
+```text
 __client_uat=;   Path=/; Expires=Thu, 01 Jan 1970 …;      SameSite=None
 __client_uat=0;  Path=/; Domain=localhost; Max-Age=…;     SameSite=None
 __session=;      Path=/; Expires=Thu, 01 Jan 1970 …;      SameSite=None
@@ -49,8 +49,11 @@ __clerk_db_jwt=dvb_…; Path=/; Expires=…;                  SameSite=None
 ```
 
 Every one is `SameSite=None` and **none carries `Secure`**. Chromium rejects
-`SameSite=None` cookies that lack `Secure`, and over a plain `http://` origin
-`Secure` cookies cannot be set at all. So:
+`SameSite=None` cookies that lack `Secure` — that is the rule that bites here.
+(Chromium *does* treat `http://localhost` as a secure context, so a
+`SameSite=None; Secure` cookie would be accepted there; the problem is the
+missing `Secure` attribute, not the `http://` scheme per se. On a non-localhost
+plain-`http://` origin, `Secure` cookies can't be set at all.) So:
 
 1. Clerk's middleware sees no `__clerk_db_jwt` → redirects to the handshake.
 2. The handshake returns cookies the browser silently discards.
@@ -83,8 +86,10 @@ request). The loop is browser-only.
 
 - **Local dev only, and only for signed-out visitors.** A developer who is
   already signed in never sees it.
-- Production/preview deployments are served over https, where `SameSite=None`
-  cookies are accepted, so the handshake completes normally.
+- Preview deployments are served over https and the handshake completes there
+  normally (observed). Production is expected to behave the same way — it uses a
+  Clerk **production** instance over https — but the production `Set-Cookie`
+  attributes have not been captured directly; see Open items.
 - Real cost: a signed-out developer cannot navigate from a protected route to
   the sign-in page locally — they must visit `/sign-in` directly.
 
@@ -102,9 +107,10 @@ of preference:
 3. Use a Clerk production instance or a proxied domain instead of raw
    `localhost`.
 
-No production action is required: preview and production deployments are served
-over https, where the handshake completes normally. Verified 2026-08-31 that the
-loop does not occur outside plain-http local dev.
+No production action is required: the https origin (preview and production)
+gives the handshake cookies a secure context. Verified 2026-08-31 that the loop
+does not occur on preview; production is inferred from the same https +
+production-instance setup, not separately captured (Open items).
 
 ## How it is pinned
 
