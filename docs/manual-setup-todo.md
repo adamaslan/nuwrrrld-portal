@@ -40,6 +40,16 @@ once.
 > runtime in the failing job, and the six values in §1 are absent from
 > `.env.local`. Re-run `gh secret list` yourself before acting on §2.
 
+**Also broken (verified 2026-09-03 by live probe):** the `afternoon-pipeline.yml`
+scheduler has no routes to call — `/api/pipeline/{signals-refresh,theses-score,
+council-run,council-validate-distribution}` are absent from the repo and 404 in
+production. `CRON_SECRET` is absent from `.env.local`; unless it is exported into
+the environment another way (`scripts/local-trigger.mjs` layers `process.env`
+over `.env.local`), local triggering has no token either. The GitHub Actions
+secret state is unverified here — see the caution above. The `followed-tickers*`
+routes are deployed but 503 unauthenticated. Full breakdown + probe table:
+[docs/pipeline-route-status-issues.md](pipeline-route-status-issues.md).
+
 ---
 
 ## 1. Values that do not exist yet — you must create or fetch them
@@ -51,8 +61,8 @@ generated or retrieved from a dashboard.
 |---|---|---|
 | `NEON_API_KEY` | Neon console → Account settings → API keys → Generate | `integration-tests.yml` **(the live failure)** |
 | `NEON_PROJECT_ID` | Neon console → Project settings → General. Looks like `wispy-forest-12345678` | `integration-tests.yml` |
-| `CRON_SECRET` | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. | `afternoon-pipeline.yml`, `/api/retention/*` |
-| `PORTAL_URL` | Just the deployed origin, e.g. `https://financial.nuwrrrld.com` | `afternoon-pipeline.yml` |
+| `CRON_SECRET` | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. Not in `.env.local` today — only `PORTAL_PUSH_SECRET` is, and it is **not** interchangeable. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` |
+| `PORTAL_URL` | Just the deployed origin, e.g. `https://financial.nuwrrrld.com`. Also add to `.env.local` — `scripts/local-trigger.mjs` Path C reads it there. | `afternoon-pipeline.yml` + the other scheduled callers |
 | `GCP_WIF_PROVIDER` | GCP → IAM → Workload Identity Federation. Full resource path. | `e2e-resiliency.yml` |
 | `GCP_SERVICE_ACCOUNT` | GCP → IAM → Service accounts. The `...@....iam.gserviceaccount.com` address. | `e2e-resiliency.yml` |
 
@@ -276,6 +286,32 @@ account and a decision, so they belong on a human's list.
       misconfiguration in §4. Nothing is watching it. This is the cheapest item
       in this file and covers the half that Sentry cannot: out-of-process death,
       as opposed to in-process exceptions.
+
+---
+
+## 5d. Scheduled-pipeline routes — the afternoon pipeline calls nothing
+
+Verified 2026-09-03 by probing every `/api/pipeline/*` route on production.
+Full table + reasoning: [docs/pipeline-route-status-issues.md](pipeline-route-status-issues.md).
+
+- [ ] **Land the 4 `afternoon-pipeline` routes** — `signals-refresh`,
+      `theses-score`, `council-run`, `council-validate-distribution`. Absent from
+      the repo, 404 in production; the workflow has been non-functional since PR
+      #59 (2026-08-14). This is code, not a login — tracked here only because it
+      blocks the same scheduler the secret items above do. `precompute-ai` and
+      `hydrate-universe` (which shipped in PR #66) are the working template.
+- [ ] **Or disable the workflow** meanwhile:
+      `gh workflow disable afternoon-pipeline.yml` — it currently files a
+      `pipeline-failure` issue on every gate-clearing run.
+- [ ] **Create the `pipeline-failure` label** —
+      `gh label create pipeline-failure --color B60205 --description "Scheduled pipeline run failed"`.
+      Every scheduled workflow's `notify` job references it; it doesn't exist, so
+      the notify job itself errors (`'pipeline-failure' not found`).
+- [ ] **Investigate the `followed-tickers*` 503s** — `followed-tickers`,
+      `followed-tickers-select`, `followed-tickers-judge` are deployed but return
+      503 to an unauthenticated request (before the 401 the auth layer should
+      give). Something in each handler throws on a missing dependency. Needs a
+      code + Vercel-log read, not a dashboard click.
 
 ---
 
