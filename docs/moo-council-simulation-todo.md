@@ -1,5 +1,12 @@
 # MOO Council Simulation — TODO
 
+> **For current status, see [`moo-todo.md`](moo-todo.md) (verified 2026-09-04).**
+> §1 below (the real scan/simulation/council run) is unchanged and still the
+> reference data. The §2/§3 checklists here are as of 2026-09-02, before
+> PRs #101/#105/#108 landed — `moo-todo.md` re-verifies every claim live and
+> reorders §3.2 around a finding this doc didn't have (MOO isn't in the
+> tracked universe, and GCP3's ETF path never will cover it).
+
 **Goal:** make the `#council` section of https://financial.nuwrrrld.com a *simulation of
 investing in the MOO ETF* (VanEck Agribusiness) — a real scan, a real investment
 simulation, fed to the real council — instead of the hardcoded SPY sample it renders today.
