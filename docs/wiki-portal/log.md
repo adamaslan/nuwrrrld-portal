@@ -656,3 +656,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-04] cross-repo | mobile PR #43 (gcp-expo1) ports isCryptoShaped, closing PR #101's shared-drift-check | pages touched: 2
 
 ## [2026-09-04] ingest | PR #105 feat(db): SQLite schema generator + DB-parity contract suite (Phases 5-8) | pages touched: 5
+
+## [2026-09-04] ingest | PR #107 docs: scheduler census — GHA vs Modal vs GCP Cloud Scheduler | pages touched: 1
