@@ -100,3 +100,13 @@ Consolidated blockers and engineering work from CodeRabbit findings on PR #97 (f
 - End-to-end deadline (item 1) is foundational. Do that before anything calling `/api/council/*`.
 - Session gaps stub shows multiple sessions ended on `feat/universe-hydration` without handoff. That branch may have stale work.
 - This doc consolidates CodeRabbit findings, audits, and session context. Update in place.
+
+---
+
+## PR #101 status update (2026-09-04, post-#97 merge)
+
+**Rebased onto main after #97 merged.** Clean rebase, zero conflicts — the `log.md`/`concept-mobile-web-parity.md` overlap with #97 was already resolved when #97's docs landed on main. Pushed to `feat/signal-engine-phases-1-3` (new head `725e693`).
+
+**Now `MERGEABLE`.** Still blocked on:
+- `shared-drift-check` failing — `lib/shared/signal-policy.ts` has drifted from its `gcp3-mobile` counterpart (25 new lines added on web side only). Needs a cross-repo decision (port to mobile, or extend the seam) before merge — not a lint suppression.
+- CodeRabbit review — was rate-limited pre-rebase; a fresh review should fire automatically now that new commits landed. Check `gh pr checks 101` for review state before merging.
