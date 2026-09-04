@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Summary — E2E Feature Sweep</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid #0066cc;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            color: #0066cc;
+        }
+        .meta {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 3px;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        .status-paused {
+            background: #fff3cd;
+            color: #856404;
+        }
+        h2 {
+            font-size: 1.3rem;
+            color: #0066cc;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #ddd;
+        }
+        h3 {
+            font-size: 1.1rem;
+            color: #333;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        p, li {
+            margin-bottom: 0.75rem;
+        }
+        ul {
+            margin-left: 1.5rem;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .code-block {
+            background: #f0f0f0;
+            border-left: 3px solid #0066cc;
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .finding {
+            background: #e8f4f8;
+            border-left: 4px solid #0066cc;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #856404;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .incident {
+            background: #f8e8e8;
+            border-left: 4px solid #cc0000;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .table th, .table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .table th {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+        .next-steps {
+            background: #f0f8ff;
+            border-left: 4px solid #0066cc;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        .next-steps h2 {
+            border: none;
+            padding-bottom: 0;
+            margin-top: 0;
+        }
+        .next-steps ol {
+            margin-left: 1.5rem;
+        }
+        .next-steps li {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Session Summary — E2E Feature Sweep &amp; "Historical Hit-Rate Unavailable" Report</h1>
+            <div class="meta">
+                Date: 2026-08-31 | Topic: e2e test build-out + backtest-badge bug report
+                <div class="status-badge status-paused">⚠️ Paused — Concurrent Process Conflict</div>
+            </div>
+        </header>
+
+        <h2>What Was Asked</h2>
+        <ol>
+            <li>Investigate: "historical hit rate data unavailable for all tickers"</li>
+            <li>Write more e2e tests exploring all the app's features</li>
+            <li>(Mid-session) Create a PR, run <code>/bugmerge1</code>, then keep looping: build-out → PR → <code>/bugmerge1</code> until complete</li>
+        </ol>
+
+        <h2>What Was Found — The Reported Bug</h2>
+        <div class="finding">
+            <strong>Root cause confirmed: NOT a code bug.</strong> <code>SIGNALS_ENGINE_URL</code> in <code>.env.local</code> is <strong>present but set to an empty string</strong>.
+        </div>
+
+        <ul>
+            <li><code>lib/backtest.ts:56</code> — <code>fetchBacktest()</code> returns <code>null</code> immediately when <code>SIGNALS_ENGINE_URL</code> is falsy, before making any request.</li>
+            <li><code>app/api/backtest/[symbol]/route.ts</code> — turns a <code>null</code> into <code>204 No Content</code>.</li>
+            <li><code>components/TrackRecordBadge.tsx</code> — renders <code>"Historical hit-rate data unavailable for {symbol}."</code> on 204.</li>
+        </ul>
+
+        <p>Because the check is a single global env var, <strong>every</strong> ticker hits the same branch — which is exactly the reported symptom ("unavailable for all tickers"). That uniformity is itself diagnostic: a real backend outage would not be perfectly uniform across every symbol the way an unset config value is.</p>
+
+        <p>This is already a known, documented gap (<code>docs/wiki-portal/entity-backtest-engine.md</code>, "Silent absence in production"). <strong>Fix is operational, not code:</strong> point <code>SIGNALS_ENGINE_URL</code> at a deployed signals-app backtest engine.</p>
+
+        <h2>What Was Built — E2E Specs (654 lines, 3 files)</h2>
+        <p>All work is committed as <code>0dda5e5</code> on branch <code>test/e2e-feature-specs</code> (see Incident section below for why it's not on the branch it was authored on).</p>
+
+        <h3>1. <code>e2e/frontend/track-record.spec.ts</code></h3>
+        <p>Pins <code>TrackRecordBadge</code>'s contract across all four states (204/empty, valid payload, malformed payload, zero-sample bucket), plus a diagnostic test that distinguishes "engine unconfigured" from "engine configured but unreachable" — the two causes the UI currently renders identically.</p>
+
+        <h3>2. <code>e2e/api/auth-boundaries.spec.ts</code> (New Project: <code>api</code>)</h3>
+        <p>New Playwright project, deliberately <strong>no</strong> <code>storageState</code>. Sweeps <code>middleware.ts</code>'s full route classification table:</p>
+        <ul>
+            <li>Auth-required GET/POST</li>
+            <li>Public routes</li>
+            <li>Internal-secret bearer routes</li>
+            <li>Signed webhooks</li>
+            <li>Protected pages</li>
+        </ul>
+        <p>Assertions were corrected against <strong>verified live behavior</strong> (curl'd every endpoint) rather than assumed status codes — e.g. Clerk's edge rejection is 404 not 401, pipeline routes fail-closed with 503 when <code>CRON_SECRET</code> is unset, unsigned webhooks return 400.</p>
+
+        <h3>3. <code>e2e/frontend/watchlist-crud.spec.ts</code></h3>
+        <p>The only user-owned mutable collection in the portal (add/remove/duplicate-409/503-recovery). Correctly seeds rows through the UI rather than a GET mock, since <code>PortfolioClient</code>'s initial list is server-rendered via an <code>initialWatchlist</code> prop that a <code>page.route()</code> GET mock cannot intercept.</p>
+
+        <h3>Configuration Change</h3>
+        <p>Added to <code>playwright.config.ts</code>:</p>
+        <div class="code-block">{ name: "api", testDir: "./e2e/api", dependencies: ["preflight"] }</div>
+
+        <h3>Test Results</h3>
+        <p><strong>51 passed / 10 initially failed.</strong> All 10 failures were over-narrow assertions in the new tests, fixed after curling each endpoint directly to confirm real behavior — except one, which was a genuine finding (next section).</p>
+
+        <h2>Real Bug Found — Clerk Dev-Handshake Redirect Loop (Local Dev Only)</h2>
+        <div class="incident">
+            Reproduced with a signed-out Chromium context against local <code>next dev</code>: navigating to any <code>/dashboard/*</code> route loops forever — <code>net::ERR_TOO_MANY_REDIRECTS</code> after 19+ redirects.
+        </div>
+
+        <h3>Cause (Decoded from Handshake JWT)</h3>
+        <p>Clerk's dev-instance handshake sets <code>__clerk_db_jwt</code> and <code>__client_uat</code> as <code>SameSite=None</code> <strong>without <code>Secure</code></strong>. Chromium rejects such cookies over plain <code>http://localhost</code>, so the dev-browser cookie never persists, Clerk keeps reporting <code>__clerk_hs_reason=dev-browser-missing</code>, and the 307 cycle never terminates.</p>
+
+        <h3>Why Nothing Caught It Before</h3>
+        <ul>
+            <li>Every existing authenticated Playwright project (<code>e2e/auth.setup.ts</code>) visits <code>/sign-in</code> — a <em>public</em> route — first, so the handshake completes before any protected route is hit.</li>
+            <li><code>curl /dashboard</code> returns a clean 404 (Clerk's <code>auth.protect()</code> response). Browser-only bug.</li>
+        </ul>
+
+        <h3>Scope &amp; Impact</h3>
+        <ul>
+            <li><strong>Local dev only</strong>, signed-out visitors only.</li>
+            <li>Production/preview are served over https, so <code>SameSite=None</code> cookies are accepted — unaffected.</li>
+        </ul>
+
+        <h3>Fix Options (Not Applied)</h3>
+        <ul>
+            <li><code>next dev --experimental-https</code></li>
+            <li>Always visit <code>/sign-in</code> first when signed out locally</li>
+            <li>Use a Clerk production instance or proxied domain instead of raw <code>localhost</code></li>
+        </ul>
+
+        <p><strong>Documented as:</strong> <code>docs/wiki-portal/incident-2026-08-31-clerk-dev-handshake-redirect-loop.md</code> (full frontmatter + required incident sections written, wiki-lint clean) plus matching updates to entity-playwright-e2e.md, entity-backtest-engine.md, index.md, and log.md.</p>
+
+        <div class="warning">
+            <strong>⚠️ Wiki-side risk:</strong> Those wiki file edits were made with Python in-place-edit in the same window where the concurrent-process conflict occurred. Their survival on disk was not re-verified after that conflict was discovered — <strong>re-check before assuming they're intact.</strong>
+        </div>
+
+        <h2>Incident — Concurrent Process Rewrote Working Tree Mid-Session</h2>
+        <div class="incident">
+            <p>While re-running tests, discovered:</p>
+            <ul>
+                <li>The checked-out branch had silently changed from <code>test/e2e-feature-spec</code> to <code>feat/followed-tickers-dashboard</code>.</li>
+                <li>A commit neither authored nor requested appeared in the reflog: <code>4f7a512 feat(followed-tickers): dashboard surface</code>, followed by a rebase onto <code>origin/main</code>.</li>
+                <li>All three new spec files and the <code>playwright.config.ts</code> edit were <strong>gone from the working tree.</strong></li>
+            </ul>
+        </div>
+
+        <p><strong>No data was lost</strong> — the commit (<code>0dda5e5</code>) survived on a branch named <code>test/e2e-feature-specs</code>, a name this session didn't choose either. Evidence of a second actor (or crashed session) operating concurrently.</p>
+
+        <p>A near-identical, smaller version happened earlier in the session: an initial <code>playwright.config.ts</code> edit was reverted by this session's own <code>git checkout -b ... origin/main</code> (the exact failure the <code>stay-on-branch-after-merge</code> rule warns about) — caught and re-applied immediately.</p>
+
+        <p><strong>Work paused rather than continuing the requested PR → <code>/bugmerge1</code> → repeat loop</strong> because:</p>
+        <ul>
+            <li><code>/bugmerge1</code> performs checkouts/merges; running it while another process is actively rebasing risks destroying either side's work.</li>
+            <li>The requested loop assumes exclusive control of the working tree, which was no longer safe to assume.</li>
+        </ul>
+
+        <div class="next-steps">
+            <h2>Where Things Stand / Next Steps</h2>
+            <ol>
+                <li><strong>Confirm no other session/loop is running</strong> against <code>nuwrrrld-portal</code> before resuming any branch/PR automation. <em>This is the blocking question.</em></li>
+                <li>Once clear: verify <code>test/e2e-feature-specs</code> still contains commit <code>0dda5e5</code>, re-run <code>npx playwright test --project=api</code> to reconfirm 51 passing / 0 failing before opening a PR.</li>
+                <li>Re-verify the wiki edits actually landed — Python in-place-edit doesn't guarantee it under a concurrent writer.</li>
+                <li>Resume the originally requested loop: open PR → run <code>/bugmerge1</code> → continue building out e2e coverage for untested surfaces:
+                    <ul>
+                        <li>nuai chat</li>
+                        <li>holdfold detail page</li>
+                        <li>stripe checkout/portal</li>
+                        <li>privacy export/delete</li>
+                        <li>consent banner</li>
+                        <li>disclaimer modal</li>
+                        <li>referral</li>
+                        <li>digest email</li>
+                    </ul>
+                </li>
+                <li>Fix or explicitly accept the Clerk dev-handshake redirect loop (see fix options above) — currently just documented, not resolved.</li>
+            </ol>
+        </div>
+
+        <footer style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd; font-size: 0.9rem; color: #666;">
+            <p><strong>Stale session hypothesis:</strong> The PreToolUse hook noted it reclaimed a stale session claim (pid 12743 dead/heartbeat >4h). That's very likely the "concurrent actor" explanation — not a live second session racing, but a crashed/orphaned prior session whose worktree lock and in-flight branch work got mixed in because it never released cleanly. Should now be safe to resume.</p>
+        </footer>
+    </div>
+</body>
+</html>

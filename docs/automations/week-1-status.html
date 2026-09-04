@@ -1,0 +1,536 @@
+<title>Automation Week One Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --paper:#FBFAF7; --raise:#FFFFFF; --sink:#F1EFE9;
+  --ink:#12141A; --ink-2:#3D434F; --ink-3:#6B7383;
+  --rule:#DDD9D0; --rule-2:#EAE7E0;
+  --accent:#B4701A; --accent-soft:#F5E6CF;
+  --ship:#3F7D58; --ship-soft:#DFEDE4;
+  --part:#B4701A; --part-soft:#F7E7CE;
+  --block:#A8443A; --block-soft:#F6DFDC;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:'Bricolage Grotesque','Helvetica Neue',Arial,sans-serif;
+  --body:'Source Serif 4',Georgia,'Times New Roman',serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0F1115; --raise:#171A20; --sink:#14161C;
+  --ink:#EDEBE6; --ink-2:#B4BAC6; --ink-3:#828A99;
+  --rule:#2A2F38; --rule-2:#21252C;
+  --accent:#E0A354; --accent-soft:#3A2C17;
+  --ship:#6FBF90; --ship-soft:#1B2E23;
+  --part:#E0A354; --part-soft:#33260F;
+  --block:#E08078; --block-soft:#331D1A;
+}}
+:root[data-theme="dark"]{
+  --paper:#0F1115; --raise:#171A20; --sink:#14161C;
+  --ink:#EDEBE6; --ink-2:#B4BAC6; --ink-3:#828A99;
+  --rule:#2A2F38; --rule-2:#21252C;
+  --accent:#E0A354; --accent-soft:#3A2C17;
+  --ship:#6FBF90; --ship-soft:#1B2E23;
+  --part:#E0A354; --part-soft:#33260F;
+  --block:#E08078; --block-soft:#331D1A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--body);font-size:17px;line-height:1.6;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+h1,h2,h3,.lab{font-family:var(--disp)}
+h1{font-size:clamp(30px,4.6vw,50px);font-weight:800;letter-spacing:-.025em;
+  line-height:1.04;margin:0;text-wrap:balance}
+h2{font-size:clamp(20px,2.4vw,27px);font-weight:700;letter-spacing:-.015em;
+  margin:0;text-wrap:balance}
+h3{font-size:16px;font-weight:700;letter-spacing:-.005em;margin:0}
+p{margin:0;max-width:66ch}
+a{color:var(--accent)}
+.lab{font-size:10.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink-3);margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* masthead */
+header{border-bottom:2px solid var(--ink);padding:44px 0 22px;margin-bottom:0;
+  display:flex;flex-direction:column;gap:16px}
+.mast-top{display:flex;justify-content:space-between;align-items:baseline;
+  gap:20px;flex-wrap:wrap}
+.dek{color:var(--ink-2);font-size:19px;max-width:62ch}
+.stamp{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);
+  text-align:right;line-height:1.7;white-space:nowrap}
+
+/* verdict */
+.verdict{display:flex;gap:14px;align-items:flex-start;
+  background:var(--part-soft);border:1px solid var(--rule);
+  border-left:4px solid var(--part);
+  padding:18px 20px;margin:28px 0 0;border-radius:2px}
+.verdict p{font-size:17px;color:var(--ink)}
+.verdict strong{font-weight:600}
+
+/* scorecard */
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);
+  margin:28px 0 0}
+.cell{background:var(--raise);padding:16px 18px;display:flex;
+  flex-direction:column;gap:5px}
+.cell .n{font-family:var(--disp);font-size:34px;font-weight:800;
+  letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.cell .n.ship{color:var(--ship)} .cell .n.part{color:var(--part)}
+.cell .n.block{color:var(--block)} .cell .n.neu{color:var(--ink)}
+.cell .sub{font-size:12.5px;color:var(--ink-3);line-height:1.45}
+
+section{margin-top:56px}
+.sec-head{display:flex;flex-direction:column;gap:7px;
+  padding-bottom:12px;border-bottom:1px solid var(--rule);margin-bottom:22px}
+.sec-head p{font-size:15.5px;color:var(--ink-2)}
+
+/* progress bar */
+.bar{display:flex;height:34px;border:1px solid var(--rule);overflow:hidden;
+  margin-bottom:10px;background:var(--sink)}
+.bar span{display:flex;align-items:center;justify-content:center;
+  font-family:var(--disp);font-size:11.5px;font-weight:700;color:#fff;
+  letter-spacing:.03em}
+.bar .s{background:var(--ship)} .bar .p{background:var(--part)}
+.bar .b{background:var(--block)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-3);
+  font-family:var(--disp);font-weight:500}
+.legend i{display:inline-block;width:9px;height:9px;margin-right:6px;
+  vertical-align:baseline;border-radius:1px}
+
+/* status rows */
+.rows{display:flex;flex-direction:column;gap:1px;background:var(--rule);
+  border:1px solid var(--rule)}
+.row{background:var(--raise);padding:15px 18px;display:grid;
+  grid-template-columns:1fr auto;gap:5px 16px;align-items:start}
+.row .why{grid-column:1/-1;font-size:14.5px;color:var(--ink-2);max-width:78ch}
+.row .why code{font-family:var(--mono);font-size:12.5px;
+  background:var(--sink);padding:1px 5px;border-radius:2px;color:var(--ink-2)}
+.pill{font-family:var(--disp);font-size:10.5px;font-weight:700;
+  letter-spacing:.09em;text-transform:uppercase;padding:4px 9px;
+  border-radius:2px;white-space:nowrap;align-self:center}
+.pill.s{background:var(--ship-soft);color:var(--ship)}
+.pill.p{background:var(--part-soft);color:var(--part)}
+.pill.b{background:var(--block-soft);color:var(--block)}
+
+/* timetable */
+.tt-scroll{overflow-x:auto;border:1px solid var(--rule);background:var(--raise)}
+.tt{min-width:800px;padding:20px 20px 12px}
+.tt-row{display:grid;grid-template-columns:186px 1fr;gap:14px;
+  align-items:center;padding:8px 0;border-bottom:1px solid var(--rule-2)}
+.tt-row:last-child{border-bottom:none}
+.tt-name{font-family:var(--disp);font-size:13px;font-weight:700;line-height:1.25}
+.tt-name em{display:block;font-style:normal;font-family:var(--mono);
+  font-size:10.5px;color:var(--ink-3);font-weight:400;margin-top:2px}
+.track{position:relative;height:26px;background:var(--sink);border-radius:2px}
+.tick{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
+.fire{position:absolute;top:3px;bottom:3px;width:7px;border-radius:1px;
+  transform:translateX(-3.5px)}
+.fire.gha{background:var(--ink-2)}
+.fire.modal{background:var(--accent)}
+.fire.clash{background:var(--block);width:9px;transform:translateX(-4.5px)}
+.hours{display:grid;grid-template-columns:186px 1fr;gap:14px;margin-top:6px}
+.hours-in{position:relative;height:16px}
+.hours-in span{position:absolute;font-family:var(--mono);font-size:10px;
+  color:var(--ink-3);transform:translateX(-50%)}
+.tt-key{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-3);
+  font-family:var(--disp);font-weight:500;padding:12px 20px 16px;
+  border-top:1px solid var(--rule-2)}
+
+/* table */
+.tbl-scroll{overflow-x:auto;border:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;min-width:620px;background:var(--raise)}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule-2);
+  font-size:14px;vertical-align:top}
+th{font-family:var(--disp);font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);background:var(--sink);
+  border-bottom:1px solid var(--rule);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.m{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;
+  white-space:nowrap;color:var(--ink-2)}
+
+/* callout */
+.note{border:1px solid var(--rule);border-left:4px solid var(--accent);
+  background:var(--raise);padding:17px 20px;display:flex;
+  flex-direction:column;gap:8px}
+.note.warn{border-left-color:var(--block)}
+.note h3{color:var(--ink)}
+.note p{font-size:15.5px;color:var(--ink-2)}
+.note code{font-family:var(--mono);font-size:12.5px;background:var(--sink);
+  padding:1px 5px;border-radius:2px}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* next */
+ol.next{list-style:none;counter-reset:n;padding:0;margin:0;
+  display:flex;flex-direction:column;gap:1px;background:var(--rule);
+  border:1px solid var(--rule)}
+ol.next li{counter-increment:n;background:var(--raise);padding:15px 18px 15px 56px;
+  position:relative}
+ol.next li::before{content:counter(n,decimal-leading-zero);
+  position:absolute;left:18px;top:15px;font-family:var(--mono);font-size:12px;
+  font-weight:600;color:var(--accent)}
+ol.next h3{margin-bottom:4px}
+ol.next p{font-size:14.5px;color:var(--ink-2);max-width:74ch}
+ol.next code{font-family:var(--mono);font-size:12.5px;background:var(--sink);
+  padding:1px 5px;border-radius:2px}
+
+footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-3);line-height:1.8}
+@media(max-width:640px){
+  .row{grid-template-columns:1fr}
+  .tt-row,.hours{grid-template-columns:1fr}
+  .stamp{text-align:left}
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="lab">NuWrrrld Portal &middot; Roadmap Month 1, Week 1</p>
+  <div class="mast-top">
+    <h1>Automation Week One</h1>
+    <div class="stamp">
+      31 Aug 2026<br>
+      branch <span style="color:var(--accent)">docs/concurrent-session-hazard</span><br>
+      11 automations &middot; 3 Modal apps
+    </div>
+  </div>
+  <p class="dek">Where the week actually stands: the plan is settled and approved, and
+  none of it has been built yet. This page separates what was decided from what was shipped.</p>
+</header>
+
+<div class="verdict">
+  <p><strong>Planning is complete; implementation has not started.</strong> Every design
+  question was resolved and the scope grew twice during planning. What exists on disk
+  is an empty <code style="font-family:var(--mono);font-size:13px">docs/automations/</code>
+  directory and this page. No scripts, no tests, no deployments.</p>
+</div>
+
+<div class="score">
+  <div class="cell"><span class="n ship">6</span><span class="sub">Decisions locked,<br>with reasoning</span></div>
+  <div class="cell"><span class="n block">0</span><span class="sub">of 9 build steps<br>completed</span></div>
+  <div class="cell"><span class="n part">1</span><span class="sub">of 3 Modal apps<br>deployed (stale)</span></div>
+  <div class="cell"><span class="n neu">11</span><span class="sub">automations found<br>(planned for 8)</span></div>
+  <div class="cell"><span class="n block">1</span><span class="sub">vendor in a chain<br>built for 4</span></div>
+</div>
+
+<section>
+  <div class="sec-head">
+    <h2>Progress across the nine steps</h2>
+    <p>The approved plan has nine steps. One is partly satisfied by work that predates
+    this week; the rest are untouched.</p>
+  </div>
+  <div class="bar" role="img" aria-label="0 of 9 steps shipped, 1 partial, 8 not started">
+    <span class="p" style="flex:1">1 PARTIAL</span>
+    <span class="b" style="flex:8">8 NOT STARTED</span>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--ship)"></i>Shipped</span>
+    <span><i style="background:var(--part)"></i>Partial / pre-existing</span>
+    <span><i style="background:var(--block)"></i>Not started</span>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Step ledger</h2>
+    <p>Each step, its state, and the specific reason it sits there.</p>
+  </div>
+  <div class="rows">
+    <div class="row">
+      <h3>0 &nbsp;Resume-safe checkpoint</h3><span class="pill b">Not started</span>
+      <p class="why">Requested so the run survives a context limit. The skill was never invoked.</p>
+    </div>
+    <div class="row">
+      <h3>1 &nbsp;Automation logs &amp; index</h3><span class="pill b">Not started</span>
+      <p class="why">One markdown log per automation plus a README index and the plan as a
+      committed doc. <code>docs/automations/</code> was created but is empty.</p>
+    </div>
+    <div class="row">
+      <h3>2 &nbsp;Static contract test suite</h3><span class="pill b">Not started</span>
+      <p class="why">A vitest suite asserting every workflow parses, every cron is valid, every
+      route a workflow calls exists, and every secret it names is documented.</p>
+    </div>
+    <div class="row">
+      <h3>3 &nbsp;Check script with self-heal</h3><span class="pill b">Not started</span>
+      <p class="why">Dry-runs each automation and, on a broken model chain, re-runs the
+      refresh and reports whether it fixed itself.</p>
+    </div>
+    <div class="row">
+      <h3>4 &nbsp;Health report with graphs</h3><span class="pill p">This page</span>
+      <p class="why">Partly delivered here as a status page. The data-driven version reads
+      <code>last-check.json</code>, which step 3 has not produced yet.</p>
+    </div>
+    <div class="row">
+      <h3>5 &nbsp;Deploy three Modal apps</h3><span class="pill b">Blocked</span>
+      <p class="why">The deploy script was written and its creation was declined, so nothing ran.
+      Credentials are all present and verified working.</p>
+    </div>
+    <div class="row">
+      <h3>6 &nbsp;Vendor spread in the model chain</h3><span class="pill b">Not started</span>
+      <p class="why">The per-vendor cap that makes the weekly refresh pick a diverse chain.</p>
+    </div>
+    <div class="row">
+      <h3>7 &nbsp;Verification</h3><span class="pill b">Not started</span>
+      <p class="why">Nothing to verify yet.</p>
+    </div>
+    <div class="row">
+      <h3>8 &nbsp;Wiki ingest</h3><span class="pill b">Not started</span>
+      <p class="why">Five wiki pages to update and two decision pages to write.</p>
+    </div>
+    <div class="row">
+      <h3>9 &nbsp;Pull request</h3><span class="pill b">Not started</span>
+      <p class="why">No commits exist on this work.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>What planning actually settled</h2>
+    <p>These are decisions, not code. They redirected the week away from the roadmap's
+    original plan and are the durable output so far.</p>
+  </div>
+  <div class="rows">
+    <div class="row">
+      <h3>Modal stays and gets deployed</h3><span class="pill s">Decided</span>
+      <p class="why">The roadmap said delete the Modal precompute schedule. Reversed: all three
+      apps stay fully functional and get deployed, so they can be tested and measured.</p>
+    </div>
+    <div class="row">
+      <h3>Run both schedulers, don't pick a winner</h3><span class="pill s">Decided</span>
+      <p class="why">Rather than choosing GitHub Actions or Modal, run both on staggered times
+      and measure which produces more and costs less. Turns a stalled either/or into an experiment.</p>
+    </div>
+    <div class="row">
+      <h3>Spread runs across the day</h3><span class="pill s">Decided</span>
+      <p class="why">Maximize data collection through temporal coverage — with the honest caveat
+      recorded below about what repeated runs can and cannot add.</p>
+    </div>
+    <div class="row">
+      <h3>Test the automations, don't guard them</h3><span class="pill s">Decided</span>
+      <p class="why">A defensive route guard was rejected in favour of a test harness: a static
+      contract suite, a dry-run checker, and a visual report.</p>
+    </div>
+    <div class="row">
+      <h3>The chain repairs itself</h3><span class="pill s">Decided</span>
+      <p class="why">When the checker finds the model chain broken it re-runs the refresh and
+      reports the outcome, instead of only flagging it.</p>
+    </div>
+    <div class="row">
+      <h3>The script picks the models, never a human</h3><span class="pill s">Decided</span>
+      <p class="why">Model ids are chosen by live probing whatever is free that week — no
+      hand-edited list.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>The scheduling clash, drawn</h2>
+    <p>Every scheduled run over one UTC day. Two automations have a GitHub Actions cron and a
+    Modal cron aimed at the same endpoint — one of them at the identical minute.</p>
+  </div>
+  <div class="tt-scroll">
+    <div class="tt">
+      <div class="tt-row">
+        <div class="tt-name">precompute&#8209;ai<em>GHA + Modal</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire clash" style="left:0.7%" title="00:10 UTC — GHA and Modal both fire"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">hydrate&#8209;universe<em>GHA + Modal</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire modal" style="left:0.35%" title="00:05 UTC — Modal"></div>
+          <div class="fire gha" style="left:93.75%" title="22:30 UTC — GHA"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">track&#8209;followed&#8209;tickers<em>GHA, weekdays</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire gha" style="left:81.25%" title="19:30 UTC"></div>
+          <div class="fire gha" style="left:85.4%" title="20:30 UTC"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">afternoon&#8209;pipeline<em>GHA, weekdays</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire gha" style="left:79.86%" title="19:15 UTC"></div>
+          <div class="fire gha" style="left:84.03%" title="20:15 UTC"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">refresh&#8209;free&#8209;models<em>GHA + Modal, Mondays</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire gha" style="left:26.18%" title="06:17 UTC — GHA"></div>
+          <div class="fire modal" style="left:37.5%" title="09:00 UTC — Modal"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">compile&#8209;grounding&#8209;pack<em>GHA, Mondays</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire gha" style="left:26.6%" title="06:23 UTC"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">judge&#8209;followed&#8209;tickers<em>GHA, Saturdays</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire gha" style="left:66.7%" title="16:00 UTC"></div>
+        </div>
+      </div>
+      <div class="tt-row">
+        <div class="tt-name">select&#8209;followed&#8209;tickers<em>GHA, monthly</em></div>
+        <div class="track">
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+          <div class="fire gha" style="left:58.3%" title="14:00 UTC, 1st of month"></div>
+        </div>
+      </div>
+      <div class="hours">
+        <div></div>
+        <div class="hours-in">
+          <span style="left:0">00</span><span style="left:25%">06</span>
+          <span style="left:50%">12</span><span style="left:75%">18</span>
+          <span style="left:100%">24</span>
+        </div>
+      </div>
+    </div>
+    <div class="tt-key">
+      <span><i style="display:inline-block;width:7px;height:12px;background:var(--ink-2);margin-right:6px;vertical-align:-1px"></i>GitHub Actions</span>
+      <span><i style="display:inline-block;width:7px;height:12px;background:var(--accent);margin-right:6px;vertical-align:-1px"></i>Modal</span>
+      <span><i style="display:inline-block;width:9px;height:12px;background:var(--block);margin-right:6px;vertical-align:-1px"></i>Both at the same minute</span>
+    </div>
+  </div>
+</section>
+
+<section class="stack">
+  <div class="note warn">
+    <h3>The one real risk in running both</h3>
+    <p><code>precompute-ai</code> fires from GitHub Actions and Modal at
+    <code>00:10 UTC</code> — the same minute, the same endpoint. Both spend from a single
+    shared OpenRouter free-tier bucket that resets at midnight. The plan moves the Modal
+    copy to <code>00:40</code> so the second run measures what the first left behind
+    instead of racing it. Until that edit lands, deploying the Modal precompute app would
+    make a latent double-spend real.</p>
+  </div>
+  <div class="note">
+    <h3>More runs will not produce more bars</h3>
+    <p>A daily price bar finalizes once per session. Running the hydration lane six times a
+    day re-fetches the same bar, and the replacement rule correctly refuses to overwrite it —
+    costing vendor calls for no new history. Extra runs add real data only by pulling
+    intraday timeframes, or by snapshotting how the ranking moves during the day. Both are
+    follow-ups, and neither is assumed silently.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Two things planning got wrong</h2>
+    <p>Both surfaced by checking the live systems rather than trusting the notes.</p>
+  </div>
+  <div class="rows">
+    <div class="row">
+      <h3>The wiki says no Modal app was ever deployed</h3><span class="pill p">Corrected</span>
+      <p class="why">One is. <code>free-model-refresh</code> has been deployed since 14 July and
+      its cron is still firing — its credentials were last used at 05:00 this morning. It runs a
+      six-week-old build, which is a different problem from never having shipped. The wiki
+      incident page needs this correction.</p>
+    </div>
+    <div class="row">
+      <h3>The plan covers 8 automations; there are 11</h3><span class="pill p">Corrected</span>
+      <p class="why">Three followed-ticker workflows landed in a recent merge and were never in
+      scope: selection, daily tracking, and weekly judging. They need logs and contract tests
+      like the rest.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Every automation, current state</h2>
+    <p>Eleven workflows and three Modal apps. Status describes what runs today, not what is planned.</p>
+  </div>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Automation</th><th>Schedule (UTC)</th><th>Runners</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>precompute-ai</td><td class="m">10 0 * * *</td><td>GHA + Modal</td><td>GHA live; Modal not deployed</td></tr>
+      <tr><td>hydrate-universe</td><td class="m">30 22 * * 1-5</td><td>GHA + Modal</td><td>GHA live; Modal not deployed</td></tr>
+      <tr><td>refresh-free-models</td><td class="m">17 6 * * 1</td><td>GHA + Modal</td><td>Both live; Modal build is stale</td></tr>
+      <tr><td>compile-grounding-pack</td><td class="m">23 6 * * 1</td><td>GHA</td><td>Live</td></tr>
+      <tr><td>afternoon-pipeline</td><td class="m">15 19 &amp; 15 20 * * 1-5</td><td>GHA</td><td>Live; calls routes that do not exist yet</td></tr>
+      <tr><td>track-followed-tickers</td><td class="m">30 19 &amp; 30 20 * * 1-5</td><td>GHA</td><td>Live &middot; not in the plan</td></tr>
+      <tr><td>judge-followed-tickers</td><td class="m">0 16 * * 6</td><td>GHA</td><td>Live &middot; not in the plan</td></tr>
+      <tr><td>select-followed-tickers</td><td class="m">0 14 1 * *</td><td>GHA</td><td>Live &middot; not in the plan</td></tr>
+      <tr><td>ci</td><td class="m">on push / PR</td><td>GHA</td><td>Live</td></tr>
+      <tr><td>e2e-resiliency</td><td class="m">on push / PR</td><td>GHA</td><td>Never run — missing credential</td></tr>
+      <tr><td>integration-tests</td><td class="m">on PR</td><td>GHA</td><td>Live</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>The model chain problem, unchanged</h2>
+    <p>The fallback chain looks four deep and is one deep against the failure that actually happens.</p>
+  </div>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Position</th><th>Model</th><th>Vendor</th></tr></thead>
+    <tbody>
+      <tr><td class="m">1</td><td class="m">nemotron-3-ultra-550b-a55b:free</td><td>nvidia</td></tr>
+      <tr><td class="m">2</td><td class="m">nemotron-3-super-120b-a12b:free</td><td>nvidia</td></tr>
+      <tr><td class="m">3</td><td class="m">nemotron-3-nano-30b-a3b:free</td><td>nvidia</td></tr>
+      <tr><td class="m">4</td><td class="m">nemotron-3-nano-omni-30b-a3b-reasoning:free</td><td>nvidia</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note" style="margin-top:14px">
+    <p>All four entries come from one vendor, so an account-level failure takes out the entire
+    chain at once — and an account-level failure is the one that actually occurs. The refresh
+    script ranks candidates by preference and size with no vendor constraint, which is how a
+    single vendor swept every slot. The fix is a per-vendor cap in the selection step, leaving
+    the model choices themselves to the weekly live probe.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>What happens next</h2>
+    <p>Ordered by dependency. The first three are quick and unblock the rest.</p>
+  </div>
+  <ol class="next">
+    <li><h3>Settle the working tree</h3>
+      <p>The branch changed to <code>docs/concurrent-session-hazard</code> mid-task and the tree
+      carries unrelated uncommitted work from other sessions. Take an isolated worktree before
+      writing anything, so this work cannot be lost or mixed in.</p></li>
+    <li><h3>Stagger the precompute cron, then deploy Modal</h3>
+      <p>Move the Modal precompute to <code>00:40</code> first. Then create the two missing
+      secrets and deploy all three apps — including a fresh build of the stale one.</p></li>
+    <li><h3>Cap vendors, then run the refresh for real</h3>
+      <p>Add the per-vendor cap, then run the refresh so it picks a genuinely diverse chain from
+      whatever is free this week.</p></li>
+    <li><h3>Write the eleven logs and the index</h3>
+      <p>One per automation, including the three followed-ticker workflows that were missed.</p></li>
+    <li><h3>Build the contract suite and the checker</h3>
+      <p>The static tests and the dry-run script, including the self-healing path for the chain.</p></li>
+    <li><h3>Regenerate this page from real data</h3>
+      <p>Once the checker emits results, this page reads them instead of stating them.</p></li>
+    <li><h3>Update the wiki and open the pull request</h3>
+      <p>Correct the deployment claim, record both new decisions, and ship it all in one PR.</p></li>
+  </ol>
+</section>
+
+<footer>
+  Status as of 31 August 2026 &middot; nuwrrrld-portal &middot; roadmap month 1, week 1<br>
+  Verified against the live Modal account, the workflow files, and lib/openrouter.ts — not from the planning notes.
+</footer>
+
+</div>

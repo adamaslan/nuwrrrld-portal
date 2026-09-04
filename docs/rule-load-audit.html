@@ -1,0 +1,450 @@
+<!doctype html>
+<title>Rule Load Audit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #FBF9F5;
+    --surface: #FFFFFF;
+    --surface-sunken: #F4F0E8;
+    --ink: #221C15;
+    --ink-secondary: #5B5347;
+    --ink-muted: #8C8375;
+    --border: #E6E0D5;
+    --accent: #C4622D;
+    --accent-ink: #FFFFFF;
+
+    --cat-core: #3B6FA0;
+    --cat-git: #C4622D;
+    --cat-domain: #2E8B7B;
+    --cat-context: #7B5AA6;
+    --cat-project: #A39A89;
+
+    --shadow: 0 1px 2px rgba(34,28,21,0.04), 0 8px 24px -12px rgba(34,28,21,0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140F;
+      --surface: #1E1A14;
+      --surface-sunken: #241F17;
+      --ink: #F3EEE4;
+      --ink-secondary: #C9C0B1;
+      --ink-muted: #948C7C;
+      --border: #332C21;
+      --accent: #E38A54;
+      --accent-ink: #1A1108;
+
+      --cat-core: #6C9BC9;
+      --cat-git: #E38A54;
+      --cat-domain: #52B0A0;
+      --cat-context: #A587D1;
+      --cat-project: #7A7264;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17140F;
+    --surface: #1E1A14;
+    --surface-sunken: #241F17;
+    --ink: #F3EEE4;
+    --ink-secondary: #C9C0B1;
+    --ink-muted: #948C7C;
+    --border: #332C21;
+    --accent: #E38A54;
+    --accent-ink: #1A1108;
+
+    --cat-core: #6C9BC9;
+    --cat-git: #E38A54;
+    --cat-domain: #52B0A0;
+    --cat-context: #A587D1;
+    --cat-project: #7A7264;
+
+    --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+  }
+  .eyebrow {
+    font: 600 0.72rem/1 "IBM Plex Mono", monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.9rem;
+  }
+  h1 {
+    font: 500 clamp(1.9rem, 4.5vw, 2.7rem)/1.12 "Fraunces", Georgia, serif;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.75rem;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+    max-width: 60ch;
+    margin: 0 0 2.75rem;
+  }
+  .lede code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.9em;
+    background: var(--surface-sunken);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+  }
+
+  h2 {
+    font: 500 1.4rem/1.25 "Fraunces", Georgia, serif;
+    margin: 0 0 0.35rem;
+    letter-spacing: -0.005em;
+  }
+  .section-note {
+    font-size: 0.92rem;
+    color: var(--ink-muted);
+    margin: 0 0 1.5rem;
+    max-width: 62ch;
+    line-height: 1.55;
+  }
+  section { margin-bottom: 3.5rem; }
+  section:last-of-type { margin-bottom: 0; }
+
+  /* Stat row */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 3.5rem;
+    box-shadow: var(--shadow);
+  }
+  .stat {
+    background: var(--surface);
+    padding: 1.4rem 1.5rem;
+  }
+  .stat-value {
+    font: 600 1.9rem/1 "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .stat-value .unit { font-size: 1rem; color: var(--ink-muted); font-weight: 500; }
+  .stat-label {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    margin-top: 0.5rem;
+    line-height: 1.4;
+  }
+  .stat.flag .stat-value { color: var(--accent); }
+
+  /* Bar chart */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 1.75rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 190px 1fr 68px;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.42rem 0;
+  }
+  .bar-row + .bar-row { border-top: 1px solid var(--border); }
+  .bar-label {
+    font-size: 0.82rem;
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--ink-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar-track {
+    height: 16px;
+    background: var(--surface-sunken);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    min-width: 3px;
+  }
+  .bar-value {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink-secondary);
+  }
+  .chart-scroll { overflow-x: auto; }
+  @media (max-width: 560px) {
+    .bar-row { grid-template-columns: 120px 1fr 56px; gap: 0.6rem; }
+    .bar-label { font-size: 0.74rem; }
+  }
+
+  /* Donut + legend */
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem;
+    box-shadow: var(--shadow);
+    flex-wrap: wrap;
+  }
+  .donut {
+    width: 168px;
+    height: 168px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(
+      var(--cat-core) 0% 33.6%,
+      var(--cat-git) 33.6% 63.6%,
+      var(--cat-domain) 63.6% 92.0%,
+      var(--cat-context) 92.0% 99.6%,
+      var(--cat-project) 99.6% 100%
+    );
+    position: relative;
+  }
+  .donut::after {
+    content: "";
+    position: absolute;
+    inset: 26%;
+    background: var(--surface);
+    border-radius: 50%;
+  }
+  .donut-center {
+    position: absolute;
+    inset: 26%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .donut-center .n {
+    font: 600 1.15rem/1 "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .donut-center .u { font-size: 0.62rem; color: var(--ink-muted); margin-top: 0.2rem; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  .legend { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 0.65rem; }
+  .legend-row { display: flex; align-items: baseline; gap: 0.6rem; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; transform: translateY(1px); }
+  .legend-name { font-size: 0.92rem; font-weight: 500; }
+  .legend-sub { font-size: 0.8rem; color: var(--ink-muted); margin-left: auto; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* Findings */
+  .findings { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  .finding { background: var(--surface); padding: 1.25rem 1.5rem; display: grid; grid-template-columns: 2.5rem 1fr; gap: 1rem; }
+  .finding-num {
+    font: 600 1.1rem/1 "Fraunces", Georgia, serif;
+    color: var(--accent);
+  }
+  .finding-title { font-weight: 600; font-size: 0.98rem; margin: 0 0 0.35rem; }
+  .finding-body { font-size: 0.9rem; line-height: 1.55; color: var(--ink-secondary); margin: 0; }
+  .finding-save {
+    display: inline-block;
+    margin-top: 0.55rem;
+    font: 500 0.74rem/1 "IBM Plex Mono", monospace;
+    color: var(--cat-domain);
+    background: color-mix(in srgb, var(--cat-domain) 14%, transparent);
+    padding: 0.28rem 0.55rem;
+    border-radius: 4px;
+  }
+
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    line-height: 1.6;
+  }
+</style>
+
+<div class="page">
+  <p class="eyebrow">nuwrrrld-portal · session context audit</p>
+  <h1>Where the tokens go</h1>
+  <p class="lede">
+    Every turn in this session loads <code>~/.claude/CLAUDE.md</code> plus eleven files
+    from <code>~/.claude/rules/</code> in full, before a single line of your request is read.
+    Here's the byte-measured breakdown, and what's worth trimming.
+  </p>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">21.4<span class="unit">K tok</span></div>
+      <div class="stat-label">Total across 13 always-loaded files (global CLAUDE.md + 11 rules + 2 project files)</div>
+    </div>
+    <div class="stat flag">
+      <div class="stat-value">7.2<span class="unit">K tok</span></div>
+      <div class="stat-label">Largest single file — global CLAUDE.md, which is entirely a Python style guide, loaded into this TypeScript/Next.js repo</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">4<span class="unit">→ 1</span></div>
+      <div class="stat-label">Git-workflow rule files (6.4K tok combined) that overlap enough to consolidate into one document</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Every file, sorted by size</h2>
+    <p class="section-note">Token counts estimated at ~4 characters/token from actual file byte size. Bars colored by category — see breakdown below.</p>
+    <div class="chart-card">
+      <div class="chart-scroll">
+        <div class="bar-row">
+          <div class="bar-label">CLAUDE.md (global)</div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--cat-core)"></div></div>
+          <div class="bar-value">7,213</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">mamba-rules.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:36.4%;background:var(--cat-domain)"></div></div>
+          <div class="bar-value">2,627</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">multi-branch-opt.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:29.8%;background:var(--cat-git)"></div></div>
+          <div class="bar-value">2,147</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">one-session-one-worktree.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:29.7%;background:var(--cat-git)"></div></div>
+          <div class="bar-value">2,142</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">fixy-rule.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:23.9%;background:var(--cat-domain)"></div></div>
+          <div class="bar-value">1,721</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">no-conflicts1.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:19.4%;background:var(--cat-git)"></div></div>
+          <div class="bar-value">1,402</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">handoff-at-half-context.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:14.4%;background:var(--cat-context)"></div></div>
+          <div class="bar-value">1,038</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">mobile-web-wiki-sync.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:12.6%;background:var(--cat-domain)"></div></div>
+          <div class="bar-value">910</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">artifact-and-local-html.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:11.6%;background:var(--cat-domain)"></div></div>
+          <div class="bar-value">835</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">stay-on-branch-after-merge.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:10.2%;background:var(--cat-git)"></div></div>
+          <div class="bar-value">738</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">context-bloat-warning.md</div>
+          <div class="bar-track"><div class="bar-fill" style="width:8.2%;background:var(--cat-context)"></div></div>
+          <div class="bar-value">592</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">AGENTS.md (project)</div>
+          <div class="bar-track"><div class="bar-fill" style="width:1.1%;background:var(--cat-project)"></div></div>
+          <div class="bar-value">82</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">CLAUDE.md (project)</div>
+          <div class="bar-track"><div class="bar-fill" style="width:0.4%;background:var(--cat-project)"></div></div>
+          <div class="bar-value">3</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Share by category</h2>
+    <p class="section-note">Grouping the same 13 files by what they govern shows the two biggest levers aren't obscure files — they're the Python style guide and the four-way git-workflow split.</p>
+    <div class="donut-wrap">
+      <div class="donut">
+        <div class="donut-center">
+          <span class="n">21.4K</span>
+          <span class="u">tokens</span>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-row"><span class="swatch" style="background:var(--cat-core)"></span><span class="legend-name">Core global config</span><span class="legend-sub">7,213 · 33.6%</span></div>
+        <div class="legend-row"><span class="swatch" style="background:var(--cat-git)"></span><span class="legend-name">Git &amp; branch workflow</span><span class="legend-sub">6,429 · 30.0%</span></div>
+        <div class="legend-row"><span class="swatch" style="background:var(--cat-domain)"></span><span class="legend-name">Domain-specific rules</span><span class="legend-sub">6,093 · 28.4%</span></div>
+        <div class="legend-row"><span class="swatch" style="background:var(--cat-context)"></span><span class="legend-name">Context management</span><span class="legend-sub">1,630 · 7.6%</span></div>
+        <div class="legend-row"><span class="swatch" style="background:var(--cat-project)"></span><span class="legend-name">Project-local</span><span class="legend-sub">85 · 0.4%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Optimization order</h2>
+    <p class="section-note">Ranked by tokens saved per session, highest first.</p>
+    <div class="findings">
+      <div class="finding">
+        <div class="finding-num">01</div>
+        <div>
+          <p class="finding-title">Scope global CLAUDE.md's Python guide out of non-Python repos</p>
+          <p class="finding-body">The entire 7.2K-token file is Python conventions (dataclasses, type hints, pytest patterns) plus the safety rules and wiki-on-PR rule. This is a Next.js/TypeScript repo — none of sections 1–27 apply here. Move the Python guide to a separate file and reference it conditionally, keeping only the safety rules, doc-archiving policy, and wiki-on-PR rule in the always-loaded root.</p>
+          <span class="finding-save">saves ~6.5K tok/session here</span>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="finding-num">02</div>
+        <div>
+          <p class="finding-title">Merge the four git-workflow rules into one document</p>
+          <p class="finding-body"><code>multi-branch-optimization</code>, <code>one-session-one-worktree</code>, <code>no-conflicts1</code>, and <code>stay-on-branch-after-merge</code> already cross-reference each other constantly and share the same worked example (PRs #89/#91). One consolidated <em>git-workflow.md</em> — branch-per-unit, worktree isolation, merge ordering, never-return-to-main — as a single ~2.5K-token doc replaces 6.4K across four files.</p>
+          <span class="finding-save">saves ~3.9K tok/session</span>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="finding-num">03</div>
+        <div>
+          <p class="finding-title">Make mamba-rules.md directory-scoped, not global</p>
+          <p class="finding-body">2.6K tokens of mamba/conda environment conventions, relevant only to the handful of Python projects listed in its own table. Move it to a per-project <code>CLAUDE.md</code> in those directories, or a project-scoped rules file — it currently loads even here, where it applies to nothing.</p>
+          <span class="finding-save">saves ~2.6K tok/session here</span>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="finding-num">04</div>
+        <div>
+          <p class="finding-title">Fold handoff-at-half-context into context-bloat-warning</p>
+          <p class="finding-body">These two already describe one workflow split across two files — the tier system and the action it triggers. Combined they'd run under 1.2K tokens instead of 1.6K, and the single-offer-per-tier logic reads as one coherent state machine instead of a rule referencing a rule.</p>
+          <span class="finding-save">saves ~0.4K tok/session</span>
+        </div>
+      </div>
+      <div class="finding">
+        <div class="finding-num">05</div>
+        <div>
+          <p class="finding-title">Leave fixy-rule, mobile-web-wiki-sync, and artifact-and-local-html as-is</p>
+          <p class="finding-body">These are already single-purpose and reasonably tight. If load cost matters more than always-on enforcement, they're candidates for converting to on-demand skills (loaded via the Skill tool only when a matching task appears) rather than standing CLAUDE.md rules — but that trades a hook-enforced guarantee for a maybe-skipped one, which is a real behavior change worth deciding deliberately.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Estimates use ~4 chars/token on raw file bytes and don't include the skill listing, the ~250-entry deferred-tool name index, or MCP server instructions also present in this session — all separate overhead from the rule files measured here. Applying fixes 01–04 would cut this session's rule-file load from ~21.4K to roughly ~7.9K tokens, a 63% reduction, without removing any enforcement — the hooks that back these rules (worktree-guard, no-conflicts-guard, wiki-guard, fixy-guard) read the consolidated files exactly the same way.
+  </footer>
+</div>

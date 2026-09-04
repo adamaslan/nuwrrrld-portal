@@ -1,0 +1,605 @@
+<title>Signals App Teardown</title>
+<style>
+  :root {
+    --ink:        #1a1c20;
+    --ink-soft:   #565d67;
+    --ink-faint:  #858c96;
+    --ground:     #f5f4f1;
+    --panel:      #ffffff;
+    --panel-2:    #eeece7;
+    --rule:       #dcd8d0;
+    --rule-hard:  #1a1c20;
+    --accent:     #3d5a45;
+    --accent-dim: #dde8e0;
+    --amber:      #8d6512;
+    --amber-dim:  #f6ecd7;
+    --crimson:    #93312d;
+    --crimson-dim:#f7e2e0;
+    --blue:       #2f4d78;
+    --blue-dim:   #dee6f1;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:        #edebe6; --ink-soft:   #aab0ba; --ink-faint:  #767d88;
+      --ground:     #141619; --panel:      #1b1e22; --panel-2:    #23272c;
+      --rule:       #2e333a; --rule-hard:  #edebe6;
+      --accent:     #7cbc93; --accent-dim: #172c1e;
+      --amber:      #d7a340; --amber-dim:  #302512;
+      --crimson:    #e0716b; --crimson-dim:#33191a;
+      --blue:       #86a9d8; --blue-dim:   #18273a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:        #edebe6; --ink-soft:   #aab0ba; --ink-faint:  #767d88;
+    --ground:     #141619; --panel:      #1b1e22; --panel-2:    #23272c;
+    --rule:       #2e333a; --rule-hard:  #edebe6;
+    --accent:     #7cbc93; --accent-dim: #172c1e;
+    --amber:      #d7a340; --amber-dim:  #302512;
+    --crimson:    #e0716b; --crimson-dim:#33191a;
+    --blue:       #86a9d8; --blue-dim:   #18273a;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.62;
+    margin: 0; padding: 0 24px 96px; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  header.masthead { padding: 60px 0 28px; border-bottom: 2px solid var(--rule-hard); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-faint); margin: 0 0 16px;
+  }
+  h1 {
+    font-family: var(--serif); font-size: clamp(32px, 5.2vw, 50px);
+    line-height: 1.07; letter-spacing: -0.018em; font-weight: 600;
+    margin: 0 0 16px; text-wrap: balance;
+  }
+  .standfirst {
+    font-family: var(--serif); font-size: 19px; line-height: 1.55;
+    color: var(--ink-soft); max-width: 62ch; margin: 0;
+  }
+
+  .strip {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 0 0 52px;
+  }
+  .stat { background: var(--panel); padding: 16px 14px; }
+  .stat-k {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.11em;
+    text-transform: uppercase; color: var(--ink-faint); margin: 0 0 7px;
+  }
+  .stat-v {
+    font-family: var(--serif); font-size: 27px; line-height: 1;
+    font-variant-numeric: tabular-nums; margin: 0 0 5px;
+  }
+  .stat-n { font-size: 12px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
+  .ok { color: var(--accent); } .warn { color: var(--amber); } .bad { color: var(--crimson); }
+
+  section { margin: 0 0 52px; }
+  h2 {
+    font-family: var(--serif); font-size: 27px; font-weight: 600;
+    letter-spacing: -0.012em; margin: 0 0 6px; padding-top: 26px;
+    border-top: 1px solid var(--rule); text-wrap: balance;
+  }
+  .dek { color: var(--ink-soft); font-size: 15px; margin: 0 0 24px; max-width: 66ch; }
+  h3 { font-size: 15.5px; font-weight: 650; margin: 26px 0 8px; letter-spacing: -0.005em; }
+  p { margin: 0 0 14px; max-width: 70ch; }
+
+  .twrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--panel); }
+  th {
+    text-align: left; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint);
+    font-weight: 500; padding: 10px 13px; border-bottom: 1px solid var(--rule-hard);
+    white-space: nowrap;
+  }
+  td { padding: 10px 13px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; white-space: nowrap;
+  }
+  .p-ok { background: var(--accent-dim); color: var(--accent); }
+  .p-warn { background: var(--amber-dim); color: var(--amber); }
+  .p-bad { background: var(--crimson-dim); color: var(--crimson); }
+  .p-neu { background: var(--panel-2); color: var(--ink-soft); }
+  .p-blue { background: var(--blue-dim); color: var(--blue); }
+
+  pre {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+    background: var(--panel); border: 1px solid var(--rule);
+    padding: 14px 16px; overflow-x: auto; margin: 12px 0;
+  }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  p code, li code, td code {
+    background: var(--panel); border: 1px solid var(--rule); padding: 1px 5px;
+  }
+  td code { white-space: nowrap; }
+  .flow {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.85;
+    background: var(--panel); border: 1px solid var(--rule);
+    padding: 16px 18px; overflow-x: auto; margin: 16px 0; white-space: pre;
+  }
+
+  .layer {
+    background: var(--panel); border: 1px solid var(--rule);
+    border-left: 3px solid var(--blue); padding: 18px 22px; margin: 0 0 12px;
+  }
+  .layer-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 11px; margin: 0 0 9px; }
+  .layer-tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 3px 8px;
+    background: var(--blue-dim); color: var(--blue); white-space: nowrap;
+  }
+  .layer-title { font-family: var(--serif); font-size: 20px; font-weight: 600; margin: 0; }
+  .layer-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); margin-left: auto; }
+  .layer p { margin: 0 0 10px; } .layer p:last-child { margin: 0; }
+
+  ul.tight { margin: 0 0 14px; padding-left: 20px; }
+  ul.tight li { margin-bottom: 6px; color: var(--ink-soft); font-size: 14.5px; }
+  ul.tight li strong { color: var(--ink); }
+
+  .callout {
+    background: var(--amber-dim); border-left: 3px solid var(--amber);
+    padding: 15px 19px; margin: 18px 0; font-size: 14.5px;
+  }
+  .callout strong { color: var(--amber); }
+  .callout.ok { background: var(--accent-dim); border-left-color: var(--accent); }
+  .callout.ok strong { color: var(--accent); }
+  .callout.hard { background: var(--crimson-dim); border-left-color: var(--crimson); }
+  .callout.hard strong { color: var(--crimson); }
+  .callout p { margin: 0 0 9px; } .callout p:last-child { margin: 0; }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 20px;
+    font-size: 13px; color: var(--ink-faint);
+  }
+  footer p { max-width: none; }
+  a { color: var(--blue); }
+  a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">~/code/signals-app · teardown · 2026-08-18</p>
+  <h1>A finished signal engine with no deployment</h1>
+  <p class="standfirst">
+    Nineteen timeout-isolated detectors, confluence scoring, multi-timeframe
+    composites, a backtest hit-rate engine, and confidence calibration — 7,795
+    lines of Python with 51 passing tests and its own wiki. The backend has never
+    been deployed anywhere, and the half of it the portal needs most is the half
+    with no route.
+  </p>
+</header>
+
+<div class="strip">
+  <div class="stat">
+    <p class="stat-k">Python</p>
+    <p class="stat-v">7,795</p>
+    <p class="stat-n">lines across 44 files</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Detectors</p>
+    <p class="stat-v">19</p>
+    <p class="stat-n">classes, 3 families</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Tests</p>
+    <p class="stat-v ok">51</p>
+    <p class="stat-n">all passing, 2.91s</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Signals/bar</p>
+    <p class="stat-v">~50</p>
+    <p class="stat-n">measured on AAPL 3mo·1h</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Backend deploy</p>
+    <p class="stat-v bad">NONE</p>
+    <p class="stat-n">local dev only</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Frontend</p>
+    <p class="stat-v warn">Pages</p>
+    <p class="stat-n">live, no backend to call</p>
+  </div>
+</div>
+
+<section>
+  <h2>What it is</h2>
+  <p class="dek">
+    A financial signal detection and LLM-synthesis app for equities, built for a
+    single local user doing semi-automated technical analysis — explicitly not a
+    multi-tenant SaaS.
+  </p>
+  <p>
+    Give it a ticker and a period. It runs 19 independent technical-analysis
+    detectors over OHLCV bars, aggregates them into a weighted confluence score,
+    and optionally asks an LLM to turn that into a structured directional call
+    with confidence and cited evidence.
+  </p>
+  <p>
+    The defining architectural choice is <strong>separation into replaceable
+    layers</strong>: indicators, detection, scoring, and synthesis are distinct
+    packages with typed boundaries. Every prior signal project on this machine was
+    a monolith — <code>boll-4-april-500.py</code> was one ~1,700-line class where an
+    exception in the Ichimoku detector aborted every other category's results.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Backend</td><td>Python 3.12, FastAPI, <code>src/signals_app/</code></td></tr>
+        <tr><td>Frontend</td><td>Next.js 15.3.3 / React 19, <code>web/</code>, static export</td></tr>
+        <tr><td>Data source</td><td>yfinance</td></tr>
+        <tr><td>LLM</td><td><code>google-generativeai</code> (Gemini)</td></tr>
+        <tr><td>Persistence</td><td>SQLite local-first; Neon Postgres via <code>DATABASE_URL</code></td></tr>
+        <tr><td>Client state</td><td>Dexie / IndexedDB in-browser</td></tr>
+        <tr><td>Env</td><td>mamba env <code>signals-app</code></td></tr>
+        <tr><td>Git</td><td><code>main</code>, 8 commits, PRs #1–#5</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>The pipeline</h2>
+  <p class="dek">Five layers, each independently testable.</p>
+
+  <div class="flow">GET /signals/{symbol}?period=3mo
+  │
+  L1  data/fetcher.py          yfinance OHLCV        → ≥20 bars or HTTP 400
+  L2  indicators/compute.py    parameter grids       → RSI×5, MACD×4, BB 4×4, MA×11…
+      indicators/pivots.py     O(1) prefix lookup    (precomputed pivot cache)
+      indicators/divergence.py price·volume·OBV divergence
+  L3  detection/orchestrator   19 detectors          → per-detector TIMEOUT ISOLATION
+  L4  scoring/confluence.py    weighted aggregate    → score, BUY/SELL/HOLD, confidence
+      scoring/calibration.py   measured hit-rates    → nudges confidence label
+  L5  synthesis/mtf_llm.py     Gemini                → structured call + evidence
+                                                       (failure ≠ 500; falls back)</div>
+
+  <div class="layer">
+    <div class="layer-head">
+      <span class="layer-tag">L3</span>
+      <p class="layer-title">Detection — the robustness layer</p>
+      <span class="layer-meta">19 classes</span>
+    </div>
+    <p>
+      <code>detect_all_signals()</code> runs each detector in its own thread pool
+      with a timeout. A single detector failing or hanging cannot crash the
+      pipeline — the run degrades and reports <code>.degraded</code> /
+      <code>.warnings</code> on a typed <code>SignalList</code> rather than
+      returning a partial result that looks complete.
+    </p>
+    <p>
+      The orchestrator's docstring credits the port:
+      <em>"Ported from gcp-app-w-mcp1/mcp-finance1"</em> — this is consolidated
+      prior work, not a greenfield rewrite.
+    </p>
+  </div>
+
+  <div class="layer">
+    <div class="layer-head">
+      <span class="layer-tag">L4</span>
+      <p class="layer-title">Confluence — gated action, not just a score</p>
+      <span class="layer-meta">two conditions</span>
+    </div>
+    <p>
+      A BUY requires <em>both</em> a score above threshold <em>and</em> a minimum
+      count of agreeing signals — so one extreme reading can't manufacture a call
+      on its own.
+    </p>
+    <pre>CONFLUENCE_BUY_THRESHOLD    =  0.35    CONFLUENCE_BUY_MIN_SIGNALS  = 3
+CONFLUENCE_SELL_THRESHOLD   = -0.35    CONFLUENCE_SELL_MIN_SIGNALS = 3</pre>
+    <p>
+      Scores normalize to <code>[-1, 1]</code>, with a per-category confidence bonus
+      (MA_CROSS / MACD / VOLUME get +0.5; OBV_CMF / ICHIMOKU +0.3).
+    </p>
+  </div>
+
+  <div class="layer">
+    <div class="layer-head">
+      <span class="layer-tag">L4+</span>
+      <p class="layer-title">Calibration — the rarest piece</p>
+      <span class="layer-meta">closes the loop</span>
+    </div>
+    <p>
+      <code>derive_strength_hit_rates()</code> converts backtest output into a
+      strength→hit-rate map that <code>rank_signals()</code> consumes to nudge its
+      confidence label toward what actually happened. Buckets below
+      <code>CALIBRATION_MIN_BUCKET_SIZE = 30</code> are dropped —
+      <em>"a hit-rate from 4 signals is noise, not a calibrated probability."</em>
+    </p>
+    <p>
+      No other signal project on this machine measures whether its own confidence
+      labels are honest. This one does, and discards the samples too small to trust.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The detector catalog</h2>
+  <p class="dek">
+    19 classes across three families. Several sweep parameter grids, so class count
+    understates emitted signal count considerably.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead><tr><th>Family</th><th>Class</th><th>Emits</th><th class="num">Grid</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="9"><strong>Trend</strong><br><code>trend.py</code><br>619 lines</td>
+          <td><code>MovingAverageSignalDetector</code></td><td>Golden/death cross, price vs 20MA, MA alignment</td><td class="num">—</td></tr>
+        <tr><td><code>ExpandedMACrossDetector</code></td><td><code>{fast}/{slow} MA BULL/BEAR CROSS</code></td><td class="num">11 pairs</td></tr>
+        <tr><td><code>TrendSignalDetector</code></td><td>Strong up/downtrend (ADX &gt; 25)</td><td class="num">—</td></tr>
+        <tr><td><code>IchimokuDetector</code></td><td>TK cross, price vs Kumo, cloud color</td><td class="num">—</td></tr>
+        <tr><td><code>BollingerBandSignalDetector</code></td><td>At upper/lower band</td><td class="num">—</td></tr>
+        <tr><td><code>BBExpansionDetector</code></td><td>Band breakout, %B, riding upper band</td><td class="num">4×4</td></tr>
+        <tr><td><code>PriceActionSignalDetector</code></td><td>Large gain/loss</td><td class="num">—</td></tr>
+        <tr><td><code>HLProximityDetector</code></td><td><code>WITHIN n% OF {lb}b HIGH/LOW</code></td><td class="num">multi</td></tr>
+        <tr><td><code>MADistanceExpandedDetector</code></td><td><code>&gt;t% ABOVE/BELOW {p}SMA</code></td><td class="num">multi</td></tr>
+
+        <tr><td rowspan="6"><strong>Momentum</strong><br><code>momentum.py</code><br>400 lines</td>
+          <td><code>RSISignalDetector</code></td><td>Standard 14-period RSI extremes</td><td class="num">—</td></tr>
+        <tr><td><code>MultiRSIDetector</code></td><td>Multi-period RSI + 50-line cross</td><td class="num">5×3</td></tr>
+        <tr><td><code>MACDSignalDetector</code></td><td>Standard (12,26,9) crosses</td><td class="num">—</td></tr>
+        <tr><td><code>MultiMACDDetector</code></td><td>Non-standard sets + histogram flip</td><td class="num">4 sets</td></tr>
+        <tr><td><code>StochasticSignalDetector</code></td><td>%K vs 20/80</td><td class="num">—</td></tr>
+        <tr><td><code>StochasticCrossDetector</code></td><td>K/D cross <em>within</em> the extreme zone</td><td class="num">—</td></tr>
+
+        <tr><td rowspan="3"><strong>Volume</strong><br><code>volume.py</code><br>264 lines</td>
+          <td><code>VolumeSignalDetector</code></td><td>Spike 2×/3× vs 20-bar MA</td><td class="num">—</td></tr>
+        <tr><td><code>VolumeDivergenceDetector</code></td><td>Spike grid + 10-bar price/volume divergence</td><td class="num">multi</td></tr>
+        <tr><td><code>OBVCMFDetector</code></td><td>OBV divergence &amp; EMA cross, CMF pressure &amp; zero-cross</td><td class="num">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <code>StochasticCrossDetector</code> is a good illustration of the quality bar:
+    it fires only when a K/D crossover happens <em>and</em> the oscillator sits in
+    the oversold/overbought zone — a strictly higher-quality filter than either
+    condition alone.
+  </p>
+</section>
+
+<section>
+  <h2>What's exposed vs what exists</h2>
+  <p class="dek">
+    The most consequential finding. Substantial capability is built, tested, and
+    unreachable over HTTP.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Built</th><th>Tested</th><th>HTTP route</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /signals/{symbol}</code> — full L1–L5</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td></tr>
+        <tr><td><code>GET /backtest/{symbol}</code> — hit rates</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td></tr>
+        <tr><td><code>GET /history/{symbol}</code> — persisted runs</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td></tr>
+        <tr><td><code>GET /health</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td></tr>
+        <tr><td><code>compute_multi_timeframe()</code> — weighted composite</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-bad">None</span></td></tr>
+        <tr><td><code>build_timeframe_matrix()</code> — LLM per timeframe</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-bad">None</span></td></tr>
+        <tr><td><code>relative_strength.py</code> — peer ranking</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-warn">Partial</span></td><td><span class="pill p-bad">None</span></td></tr>
+        <tr><td><strong>Batch / multi-symbol</strong></td><td><span class="pill p-bad">No</span></td><td>—</td><td><span class="pill p-bad">None</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <code>SignalOutput.matrix</code> is always <code>None</code> in the live route.
+    The multi-timeframe composite — 1D/5D/1M/3M/6M, weighted
+    <code>{0.10, 0.15, 0.25, 0.30, 0.20}</code> with 3M carrying most weight — runs
+    only in tests and CLI.
+  </p>
+
+  <div class="callout hard">
+    <p>
+      <strong>No batch endpoint.</strong> Every route is per-symbol. Any use that
+      walks a 518-ticker universe needs one added, or it makes 518 sequential
+      yfinance-backed calls. This is the single largest blocker to using
+      <code>signals-app</code> as the portal's hydration engine.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Relationship to nuwrrrld-portal</h2>
+  <p class="dek">
+    The two were built to fit together. Nobody has connected them.
+  </p>
+
+  <p>
+    <code>lib/backtest.ts</code> fetches
+    <code>{SIGNALS_ENGINE_URL}/backtest/{symbol}?period=2y</code> and type-guards
+    <code>by_category</code> / <code>by_strength</code> arrays of
+    <code>{hits, total, hit_rate}</code>. <code>signals-app</code>'s
+    <code>get_backtest()</code> serves that path, with that default period, in that
+    shape.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead><tr><th>Portal expects</th><th>signals-app provides</th><th>Match</th></tr></thead>
+      <tbody>
+        <tr><td><code>/backtest/{symbol}</code></td><td><code>/backtest/{symbol}</code></td><td><span class="pill p-ok">Exact</span></td></tr>
+        <tr><td><code>?period=2y</code></td><td><code>period: str = "2y"</code></td><td><span class="pill p-ok">Exact</span></td></tr>
+        <tr><td><code>by_category[]</code></td><td><code>by_category</code> HitRateBucket list</td><td><span class="pill p-ok">Exact</span></td></tr>
+        <tr><td><code>by_strength[]</code></td><td><code>by_strength</code> HitRateBucket list</td><td><span class="pill p-ok">Exact</span></td></tr>
+        <tr><td><code>bars_scanned</code>, <code>horizon_days</code></td><td>Both returned</td><td><span class="pill p-ok">Exact</span></td></tr>
+        <tr><td><code>SIGNALS_ENGINE_URL</code> set</td><td>—</td><td><span class="pill p-bad">Empty</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout ok">
+    <p>
+      <strong>Deploying this backend and setting one environment variable</strong>
+      lights up <code>TrackRecordBadge</code> across the portal's signals feed,
+      Hold/Fold detail panel, and per-ticker pages — all currently dark because
+      <code>fetchBacktest</code> returns <code>null</code> immediately when the URL
+      is unset.
+    </p>
+  </div>
+
+  <p>
+    Depth comparison, same measure: the portal computes <strong>4</strong>
+    indicators (RSI, MACD-cross, ADX, volatility percentile) collapsed into 6
+    taxonomy buckets. <code>signals-app</code> emits <strong>~50 signals/bar</strong>
+    across 19 detectors with confluence, MTF, and calibration on top.
+  </p>
+</section>
+
+<section>
+  <h2>Known issues</h2>
+  <p class="dek">
+    From the repo's own <code>wiki/ops/known-issues.md</code>, plus what this
+    session verified directly.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead><tr><th>Issue</th><th>Effect</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>build-backend = "setuptools.backends.legacy:build"</code> in <code>pyproject.toml</code></td>
+          <td><code>pip install -e .</code> fails with <code>BackendUnavailable</code>; likely a typo for <code>setuptools.build_meta</code></td>
+          <td><span class="pill p-bad">Open</span></td>
+        </tr>
+        <tr>
+          <td>Backend never deployed</td>
+          <td>The GitHub Pages frontend has no live API unless <code>NEXT_PUBLIC_API_URL</code> is pointed somewhere manually</td>
+          <td><span class="pill p-bad">Open</span></td>
+        </tr>
+        <tr>
+          <td>No batch endpoint</td>
+          <td>Universe-scale use requires N sequential calls</td>
+          <td><span class="pill p-bad">Open</span></td>
+        </tr>
+        <tr>
+          <td><code>.claude/commands/dev.sh</code> path-fragile</td>
+          <td>Fails outside repo root; <code>PYTHONPATH</code> not inherited by <code>mamba run</code></td>
+          <td><span class="pill p-bad">Open</span></td>
+        </tr>
+        <tr>
+          <td>No Node version pin</td>
+          <td>No <code>.nvmrc</code> / <code>engines</code>; fresh clones can hit the SSR crash below</td>
+          <td><span class="pill p-bad">Open</span></td>
+        </tr>
+        <tr>
+          <td><code>wiki/</code>, <code>docs/</code>, <code>nu1.md</code> untracked</td>
+          <td>Documentation exists only as local state — never committed</td>
+          <td><span class="pill p-bad">Open</span></td>
+        </tr>
+        <tr>
+          <td><code>aiosqlite</code> missing from <code>environment.yml</code></td>
+          <td>Fresh env can't open the default SQLite DB</td>
+          <td><span class="pill p-warn">Documented</span></td>
+        </tr>
+        <tr>
+          <td>Node 25 experimental <code>localStorage</code> vs Dexie</td>
+          <td>Every SSR route 500s; fix is <code>NODE_OPTIONS="--no-experimental-webstorage"</code></td>
+          <td><span class="pill p-warn">Documented</span></td>
+        </tr>
+        <tr>
+          <td>Tests appear broken</td>
+          <td><em>Not actually broken</em> — 51 pass with <code>PYTHONPATH</code> set; only the editable install is broken</td>
+          <td><span class="pill p-ok">Verified OK</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The test result is worth stating plainly, since <code>nu1.md</code> records the
+    failure but stops before confirming the workaround. Run this session:
+  </p>
+  <pre>PYTHONPATH="$PWD/src:$PWD" python -m pytest -q
+→ 51 passed in 2.91s</pre>
+
+  <div class="callout">
+    <p>
+      <strong>The untracked-documentation pattern repeats.</strong> The entire
+      <code>wiki/</code> tree, both dev-session HTML snapshots, and
+      <code>nu1.md</code> are uncommitted — the same failure that hid
+      <code>app/api/pipeline/</code> from production in the portal until PR #66. Work
+      that exists only in a working tree is one <code>git clean</code> from gone.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>What it does better than everything before it</h2>
+  <ul class="tight">
+    <li><strong>Per-detector timeout isolation</strong> — every prior engine was a monolith where one bad detector killed the whole scan</li>
+    <li><strong>Typed degradation</strong> — <code>SignalList.degraded</code> / <code>.warnings</code> distinguish "partial" from "complete", so a degraded run can't masquerade as a clean one</li>
+    <li><strong>Gated actions</strong> — BUY needs score <em>and</em> agreeing-signal count, not a single extreme reading</li>
+    <li><strong>Measured confidence</strong> — calibration feeds real hit rates back into labels, with a minimum sample size</li>
+    <li><strong>Multi-timeframe weighting</strong> — short timeframes deliberately down-weighted as noisier</li>
+    <li><strong>LLM failure is non-fatal</strong> — synthesis errors fall back and tag <code>unavailable</code> rather than 500-ing</li>
+    <li><strong>Its own wiki</strong> — entities, concepts, decisions, ops, with known gaps explicitly flagged for future ingest</li>
+  </ul>
+
+  <div class="callout ok">
+    <p>
+      <strong>It is a consolidation, not a rewrite.</strong> The orchestrator is
+      ported from <code>gcp-app-w-mcp1</code>; <code>relative_strength.py</code> is
+      adapted from <code>gcp3</code>'s <code>technical_signals.py</code>, decoupled
+      from Firestore so callers control the data source; the parameter grids match
+      <code>boll-4-april-500.py</code>'s. This is the accumulated signal work from
+      four projects with an architecture around it.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>To make it useful</h2>
+  <div class="twrap">
+    <table>
+      <thead><tr><th class="num">#</th><th>Action</th><th>Unlocks</th><th>Size</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>Fix <code>build-backend</code> to <code>setuptools.build_meta</code></td><td>Normal editable install; no <code>PYTHONPATH</code> ritual</td><td><span class="pill p-ok">Minutes</span></td></tr>
+        <tr><td class="num">2</td><td>Commit <code>wiki/</code>, <code>docs/</code>, <code>nu1.md</code></td><td>Documentation stops being one command from deletion</td><td><span class="pill p-ok">Minutes</span></td></tr>
+        <tr><td class="num">3</td><td>Add <code>aiosqlite</code> to <code>environment.yml</code>, pin Node</td><td>Fresh clones work unassisted</td><td><span class="pill p-ok">Minutes</span></td></tr>
+        <tr><td class="num">4</td><td>Deploy the backend (Cloud Run / Modal)</td><td>Frontend gets an API; portal gets a backtest engine</td><td><span class="pill p-ok">Hours</span></td></tr>
+        <tr><td class="num">5</td><td>Set <code>SIGNALS_ENGINE_URL</code> in the portal</td><td>Track-record hit rates across the whole portal UI</td><td><span class="pill p-ok">Minutes</span></td></tr>
+        <tr><td class="num">6</td><td>Add a batch <code>/signals</code> endpoint</td><td>Universe-scale hydration becomes possible</td><td><span class="pill p-warn">Days</span></td></tr>
+        <tr><td class="num">7</td><td>Expose MTF composite as a route</td><td>Built and tested capability stops being unreachable</td><td><span class="pill p-warn">Days</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Steps 1–5 are roughly a day and turn a dormant repo into a live service that two
+    frontends can consume. Steps 6–7 are what make it the portal's signal engine
+    rather than only its backtest engine.
+  </p>
+</section>
+
+<footer>
+  <p>
+    Verified on disk this session — <code>~/code/signals-app/</code>:
+    <code>src/signals_app/{detection,scoring,indicators,synthesis,api,db,schemas,data,utils}/</code> ·
+    <code>backtests/engine.py</code> · <code>tests/</code> (51 passing) ·
+    <code>wiki/{overview,index,log}.md</code>, <code>wiki/entities/detector-catalog.md</code>,
+    <code>wiki/ops/known-issues.md</code>, <code>wiki/concepts/multi-timeframe.md</code> ·
+    <code>config.py</code> · <code>pyproject.toml</code> · <code>nu1.md</code> ·
+    git log (8 commits, PRs #1–#5).
+  </p>
+  <p>
+    The ~50 signals/bar figure is from <code>~/code/homebase/docs/boll4-500b.md</code>'s
+    measured AAPL 3-month/1-hour run (8,604 signals / 173 bars) against the sibling
+    script sharing these parameter grids — cited, not re-measured here.
+  </p>
+</footer>
+
+</div>

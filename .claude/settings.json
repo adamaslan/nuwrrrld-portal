@@ -6,7 +6,11 @@
       "Bash(git restore *)",
       "Bash(wrangler pages *)",
       "Bash(chmod +x /private/tmp/get_zones.sh)",
-      "Bash(/private/tmp/get_zones.sh)"
+      "Bash(/private/tmp/get_zones.sh)",
+      "Bash(mkdir -p /Users/adamaslan/code/nuwrrrld-portal/docs)"
+    ],
+    "additionalDirectories": [
+      "/Users/adamaslan/code/nuwrrrld-portal/docs"
     ]
   }
 }

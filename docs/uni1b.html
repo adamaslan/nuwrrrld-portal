@@ -1,0 +1,454 @@
+<title>Universe Pipeline Ledger — Day 2</title>
+<script>
+  // Published artifacts are wrapped in a proper <!doctype html> skeleton by the
+  // publisher, which forbids one in this source. Opened directly as a local
+  // file there is no wrapper, so the page would render in quirks mode — where
+  // table and box-model metrics differ. Nudge the document into standards mode
+  // for that case only; under the publisher this is a harmless no-op.
+  if (document.compatMode === "BackCompat") {
+    document.write("<!doctype html>");
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --ink:      #131820;
+    --paper:    #F7F6F3;
+    --surface:  #FFFFFF;
+    --slate:    #5C6672;
+    --hair:     #DFDCD5;
+    --amber:    #9C6414;
+    --amber-dim:#F0E4CE;
+    --good:     #2F7A4F;
+    --warn:     #B8781F;
+    --crit:     #A63A2E;
+    --shadow:   0 1px 2px rgba(19, 24, 32, .06), 0 6px 16px -10px rgba(19, 24, 32, .18);
+
+    --f-display: "Bitter", Georgia, "Times New Roman", serif;
+    --f-body:    "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:      #ECEAE5;
+      --paper:    #14181E;
+      --surface:  #1B2027;
+      --slate:    #97A1AD;
+      --hair:     #2C333C;
+      --amber:    #E3A54B;
+      --amber-dim:#3A2E19;
+      --good:     #5FB183;
+      --warn:     #E3A54B;
+      --crit:     #E0705F;
+      --shadow:   0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px -10px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ink:      #ECEAE5;
+    --paper:    #14181E;
+    --surface:  #1B2027;
+    --slate:    #97A1AD;
+    --hair:     #2C333C;
+    --amber:    #E3A54B;
+    --amber-dim:#3A2E19;
+    --good:     #5FB183;
+    --warn:     #E3A54B;
+    --crit:     #E0705F;
+    --shadow:   0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px -10px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+
+  /* ---- masthead ---- */
+  .masthead { display: flex; flex-direction: column; gap: 10px; }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 42px);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--slate);
+    font-size: 17px;
+  }
+
+  .stamp {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--slate);
+    border-top: 1px solid var(--hair);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+
+  /* ---- metric rail ---- */
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    background: var(--hair);
+    border: 1px solid var(--hair);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .metric { background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 3px; }
+
+  .metric dt {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate);
+  }
+
+  .metric dd {
+    margin: 0;
+    font-family: var(--f-display);
+    font-size: 27px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .metric .sub { font-family: var(--f-body); font-size: 12.5px; color: var(--slate); }
+  .m-good dd { color: var(--good); }
+  .m-crit dd { color: var(--crit); }
+  .m-warn dd { color: var(--warn); }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 16px; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ink);
+    letter-spacing: -.01em;
+  }
+
+  .lede { margin: 0; color: var(--slate); max-width: 66ch; font-size: 15.5px; }
+
+  /* ---- blocker cards ---- */
+  .blockers { display: flex; flex-direction: column; gap: 12px; }
+
+  .blocker {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-left: 4px solid var(--slate);
+    border-radius: 3px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .b-crit { border-left-color: var(--crit); }
+  .b-warn { border-left-color: var(--warn); }
+  .b-info { border-left-color: var(--slate); }
+
+  .b-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+
+  .b-title { font-family: var(--f-display); font-size: 16.5px; font-weight: 700; margin: 0; }
+
+  .pill {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .p-crit { background: var(--crit); color: var(--surface); }
+  .p-warn { background: var(--warn); color: #1A1206; }
+  .p-info { background: var(--amber-dim); color: var(--amber); }
+
+  .blocker p { margin: 0; font-size: 15px; }
+  .blocker p + p { margin-top: 2px; }
+
+  .who {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--slate);
+    border-top: 1px dashed var(--hair);
+    padding-top: 8px;
+  }
+  .who b { color: var(--ink); font-weight: 700; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .88em;
+    background: var(--amber-dim);
+    color: var(--amber);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  pre {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 14px;
+    border-radius: 3px;
+    overflow-x: auto;
+    margin: 0;
+    line-height: 1.55;
+  }
+  pre code { background: none; color: inherit; padding: 0; }
+
+  /* ---- run log ---- */
+  .run {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 3px;
+    padding: 10px 14px;
+    font-family: var(--f-mono);
+    font-size: 13px;
+  }
+  .run .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .run .dot.fail { background: var(--crit); }
+  .run .when { color: var(--slate); }
+  .run .why { margin-left: auto; color: var(--slate); font-size: 12px; }
+
+  /* ---- ledger table ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--hair); border-radius: 3px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 14.5px; }
+
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--hair); vertical-align: top; }
+
+  th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate);
+    font-weight: 700;
+    background: var(--paper);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  td.step { font-family: var(--f-mono); font-weight: 700; white-space: nowrap; }
+  td.pr { font-family: var(--f-mono); font-size: 13px; color: var(--slate); white-space: nowrap; }
+
+  .tick { color: var(--good); font-weight: 700; }
+  .pause { color: var(--slate); font-weight: 700; }
+
+  footer {
+    border-top: 1px solid var(--hair);
+    padding-top: 16px;
+    color: var(--slate);
+    font-size: 13.5px;
+  }
+  footer p { margin: 0 0 6px; }
+
+  a { color: var(--amber); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 2px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .blocker { transition: transform .12s ease; }
+    .blocker:hover { transform: translateX(1px); }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">NuWrrrld Portal &middot; Ticker Universe &middot; Day 2</div>
+    <h1>What's left, one day later</h1>
+    <p class="standfirst">
+      The code side finished yesterday. Two things moved on their own since: the OpenRouter
+      quota reset, and the new nightly workflow fired for the first time &mdash; and failed on
+      exactly the guard built to catch this. Still nothing left that needs more code.
+    </p>
+    <div class="stamp">20 Aug 2026 &middot; main @ 73396fd &middot; PRs #70&ndash;#76 merged</div>
+  </header>
+
+  <dl class="rail">
+    <div class="metric m-good">
+      <dt>Universe coverage</dt>
+      <dd>932<span style="font-size:17px;color:var(--slate)">/933</span></dd>
+      <div class="sub">unchanged &mdash; no run has landed since #73</div>
+    </div>
+    <div class="metric">
+      <dt>Rankable t1 cards</dt>
+      <dd>918</dd>
+      <div class="sub">unchanged</div>
+    </div>
+    <div class="metric m-crit">
+      <dt>Grounding pack</dt>
+      <dd>0</dd>
+      <div class="sub">still blocked on the corpus</div>
+    </div>
+    <div class="metric m-warn">
+      <dt>OpenRouter quota</dt>
+      <dd style="font-size:20px">Available</dd>
+      <div class="sub">was exhausted yesterday &mdash; reset overnight</div>
+    </div>
+  </dl>
+
+  <section>
+    <h2>What changed overnight</h2>
+    <p class="lede">Two events, neither requiring intervention &mdash; one is good news, one is the safety net working.</p>
+
+    <div class="run">
+      <span class="dot fail" aria-hidden="true"></span>
+      <span><code>hydrate-universe.yml</code> &mdash; scheduled run</span>
+      <span class="when">2026-08-19 22:51 UTC</span>
+      <span class="why">failed: PORTAL_PUSH_SECRET / ALPACA_* not set</span>
+    </div>
+    <p class="lede" style="margin-top:-6px">
+      This is the first time the workflow has fired since merging in PR&nbsp;#74. It failed on the
+      named-error guard written for exactly this case &mdash; not a crash, not a partial run against
+      bad data. Confirms the guard works; changes nothing about what's needed to clear it.
+    </p>
+
+    <p class="lede" style="margin-top:8px">
+      <strong style="color:var(--ink)">The OpenRouter free-tier quota, exhausted yesterday, is
+      available again</strong> after the daily UTC reset. That reopens the grounding-pack compiler
+      &mdash; but only halfway. See below.
+    </p>
+  </section>
+
+  <section>
+    <h2>Two blockers, not three</h2>
+    <p class="lede">
+      Quota is no longer one of them. What's left needs a credential or a decision &mdash; still
+      nothing that needs more code.
+    </p>
+
+    <div class="blockers">
+
+      <article class="blocker b-crit">
+        <div class="b-head">
+          <h3 class="b-title">Scheduled hydration still can't authenticate</h3>
+          <span class="pill p-crit">One command</span>
+        </div>
+        <p>
+          Confirmed by last night's failed run, not just inferred: <code>ALPACA_API_KEY</code>,
+          <code>ALPACA_API_SECRET</code>, and <code>PORTAL_PUSH_SECRET</code> are still absent from
+          repo secrets (<code>gh secret list</code> shows zero matches for all three). Tonight's
+          22:30&nbsp;UTC run will fail the same way unless this runs first.
+        </p>
+        <pre><code>cd ~/code/nuwrrrld-portal
+bash scripts/sync-hydration-secrets.sh --dry-run   # names only
+bash scripts/sync-hydration-secrets.sh             # push</code></pre>
+        <p class="who">
+          <b>Yours to run.</b> Secret values must never pass through an agent session &mdash;
+          the script pipes them from <code>.env.local</code> straight into <code>gh secret set</code>.
+        </p>
+      </article>
+
+      <article class="blocker b-warn">
+        <div class="b-head">
+          <h3 class="b-title">Grounding pack &mdash; quota cleared, corpus didn't</h3>
+          <span class="pill p-warn">Needs a decision</span>
+        </div>
+        <p>
+          <strong>Quota is no longer the blocker.</strong> It reset at UTC midnight and today's
+          probe confirms calls succeed again. If a real corpus were in place, compiling it could
+          start right now.
+        </p>
+        <p>
+          <strong>The corpus still isn't here.</strong> <code>corpus/</code> still holds only the
+          two files its own README marks as samples. The real trader Q&amp;A set lives in a
+          sibling repo's <code>DOCS_ROOT</code>, not checked out here, and the README explicitly
+          warns against copying it sight-unseen &mdash; compiling from whatever's nearby would fill
+          Tier&nbsp;0 with confident, verbatim-cited, irrelevant rules.
+        </p>
+        <p class="who">
+          <b>Needs you to decide</b> whether and how to migrate the corpus. Everything downstream
+          &mdash; compiler, quota &mdash; is ready the moment it lands.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Unchanged from yesterday</h2>
+    <p class="lede">Confirmed still true, not re-litigated.</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>e2e is red on every branch</strong></td>
+            <td><code>secrets.GCP_WIF_PROVIDER</code> still absent. Pre-existing, predates every PR
+              this session. Yours to decide &mdash; a GCP project/IAM-scope choice, not a code fix.</td>
+          </tr>
+          <tr>
+            <td><strong>Universe coverage &amp; ranking</strong></td>
+            <td>932/933 (100%), 918 rankable t1 cards &mdash; unchanged since no hydration run has
+              landed since PR&nbsp;#73.</td>
+          </tr>
+          <tr>
+            <td><strong>Build steps 1&ndash;5</strong></td>
+            <td>Complete. Step&nbsp;6 (intraday) remains parked, optional by design.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>Sources: live Neon queries, <code>gh secret list</code>, the OpenRouter quota endpoint, and
+      <code>gh run list</code> for the workflow's own history &mdash; all read at publish time.</p>
+    <p>Yesterday's snapshot: <a href="https://claude.ai/code/artifact/979d0ccc-87e3-4b4f-a3a2-9c397e70d443">uni1</a>.
+      Detail lives in <code>docs/wiki-portal/entity-ticker-universe-pipeline.md</code>.</p>
+  </footer>
+
+</div>
