@@ -24,7 +24,7 @@
  * snapshot (or fails if --out already exists), so a bad run can't destroy a
  * previous good backup.
  */
-import { readFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { neon } from "@neondatabase/serverless";
@@ -65,6 +65,15 @@ if (!url) {
 }
 
 const sql = neon(url);
+
+// Postgres columns deliberately dropped from the SQLite mirror (see
+// schema.sqlite.sql's header). Any *other* live column missing from the mirror
+// is an error, not something to silently omit from the backup.
+const EXPECTED_UNMIRRORED_COLUMNS = new Set(["corpus_chunks.tsv"]);
+
+// Set once `main()` opens the output DB, so the top-level failure handler can
+// close it and delete a half-written snapshot.
+let db = null;
 
 function timestampSlug() {
   return new Date().toISOString().replace(/[:.]/g, "-").replace("T", "_").slice(0, 19);
@@ -124,7 +133,7 @@ async function getColumns(table) {
 async function main() {
   console.log(`Backing up ${url.replace(/:\/\/.*@/, "://***@")} -> ${outPath}\n`);
 
-  const db = new DatabaseSync(outPath);
+  db = new DatabaseSync(outPath);
   db.exec("PRAGMA journal_mode = WAL;");
   // Bulk-loading a full snapshot table-by-table (in information_schema's
   // alphabetical order, not dependency order — e.g. ticker_cards sorts before
@@ -159,9 +168,33 @@ async function main() {
     // Only select/insert columns the SQLite mirror actually has — a Postgres
     // GENERATED column like corpus_chunks.tsv (dropped in the mirror, see
     // schema.sqlite.sql's header) must never reach `SELECT *`/INSERT.
-    const pgColumns = (await getColumns(table)).filter((c) => sqliteColNames.has(c.column_name));
+    const allPgColumns = await getColumns(table);
+    // A live column absent from the mirror that ISN'T one of the known-dropped
+    // ones means schema.sqlite.sql has drifted behind schema.sql — fail loudly
+    // rather than ship a backup that's silently missing a column.
+    const unexpectedlyMissing = allPgColumns
+      .filter((c) => !sqliteColNames.has(c.column_name))
+      .map((c) => `${table}.${c.column_name}`)
+      .filter((q) => !EXPECTED_UNMIRRORED_COLUMNS.has(q));
+    if (unexpectedlyMissing.length) {
+      db.close();
+      throw new Error(
+        `Live column(s) not present in lib/db/schema.sqlite.sql (add them there, ` +
+        `or list them in EXPECTED_UNMIRRORED_COLUMNS if intentionally dropped): ` +
+        unexpectedlyMissing.join(", "),
+      );
+    }
+    const pgColumns = allPgColumns.filter((c) => sqliteColNames.has(c.column_name));
     const colNames = pgColumns.map((c) => c.column_name);
     const selectList = colNames.map((c) => `"${c}"`).join(", ");
+    // NOTE: each table is read in its own implicit transaction, so a snapshot
+    // taken while the DB is being written can be mixed-time across tables.
+    // `PRAGMA foreign_key_check` below catches cross-table FK inconsistency but
+    // not all skew. A single read-only RepeatableRead transaction for every
+    // read would fix it, but neon()'s `sql.transaction()` takes a static query
+    // list and can't interleave the per-table SQLite INSERTs — that needs a
+    // read-all-then-write-all restructure. Acceptable for a manual/nightly
+    // backup of a low-write DB; revisit if it ever runs against live traffic.
     const rows = await sql.query(`SELECT ${selectList} FROM "${table}"`);
 
     if (rows.length) {
@@ -209,5 +242,14 @@ async function main() {
 
 main().catch((err) => {
   console.error("\n✖ Backup failed:", err.message);
+  // Don't leave a half-written snapshot behind: it would make the next run's
+  // `existsSync(outPath)` guard refuse to retry, and the documented path could
+  // look like a finished backup. `main()` only ever creates `outPath` fresh
+  // (it exits early if the path already existed), so removing it + its WAL/SHM
+  // sidecars here can't destroy a previous good backup.
+  try { db?.close(); } catch { /* already closed, or never opened */ }
+  for (const stale of [outPath, `${outPath}-wal`, `${outPath}-shm`]) {
+    try { if (existsSync(stale)) rmSync(stale); } catch { /* best-effort */ }
+  }
   process.exit(1);
 });

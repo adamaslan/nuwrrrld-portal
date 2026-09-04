@@ -18,7 +18,13 @@ native build step.
   `information_schema.columns` live (not a hardcoded type map) so it can't
   silently drift from [[entity-openrouter-client]]-style schema rot; coerces
   each Postgres value (jsonb/arrays → JSON text, `timestamptz`/`date` → ISO
-  strings, `boolean` → 0/1, `numeric` → `REAL`) before inserting.
+  strings, `boolean` → 0/1, `numeric` → `REAL`) before inserting. A live
+  Postgres column with no counterpart in the SQLite mirror **aborts the run**
+  (rather than being quietly omitted) unless it's on the explicit
+  `EXPECTED_UNMIRRORED_COLUMNS` allow-list (currently just `corpus_chunks.tsv`),
+  so a column added to `schema.sql` but not `schema.sqlite.sql` can't slip out
+  of the backup unnoticed. On any failure after the output file is opened, the
+  partial `.sqlite` + its WAL/SHM sidecars are deleted so the next run can retry.
 - **`lib/db/schema.sqlite.sql`** — the SQLite translation of `lib/db/schema.sql`'s
   30 tables, verified for exact table-name parity. `corpus_chunks.tsv` (the
   Postgres `GENERATED ALWAYS AS (tsvector...) STORED` column + its GIN index)

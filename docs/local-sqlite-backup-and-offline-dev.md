@@ -173,13 +173,22 @@ Two secrets gate almost everything below — confirm both are set (values
 never printed) before running any workflow's reproduction commands:
 
 ```bash
-grep -c '^PORTAL_PUSH_SECRET=' .env.local   # gates rows 1–2
-grep -c '^CRON_SECRET='         .env.local  # gates rows 3–5 and (eventually) 7
+# match a NON-EMPTY assignment — `grep -c '^CRON_SECRET='` counts `CRON_SECRET=`
+# (empty) as configured, but the routes treat an empty value as missing.
+grep -cE '^PORTAL_PUSH_SECRET=.+' .env.local   # gates rows 1–2
+grep -cE '^CRON_SECRET=.+'         .env.local  # gates rows 3–5
+
+# `grep` only reports presence — it does not export. Load the values into the
+# shell before running any curl example below (they read `$PORTAL_PUSH_SECRET`
+# / `$CRON_SECRET` from the environment):
+set -a; . ./.env.local; set +a
 ```
 
-A `0` for either means every route it gates will 503 with a `CONFIG_ERROR`
-before doing any real work — that 503 is not a bug in the route, it's the
-route correctly refusing to run unauthenticated.
+A `0` (or a blank value) for either means every *existing* route it gates will
+503 with a `CONFIG_ERROR` before doing any real work — that 503 is not a bug in
+the route, it's the route correctly refusing to run unauthenticated. Row 7
+(`afternoon-pipeline.yml`) is the exception: its 4 routes do not exist, so it
+404s regardless of `CRON_SECRET` (see §2.3.7).
 
 #### 2.2.1 At-a-glance summary of the 7 pipelines
 
@@ -210,9 +219,10 @@ reading the route source rather than trusting the YAML comments:
   `grep -c '^CRON_SECRET=' .env.local`. It's already a documented var
   ([`.env.example`](../.env.example), originally for the retention-digest
   cron) but a fresh `.env.local` copied before that reuse won't have it.
-  Every one of rows 3, 4, 5, and 7 will 503
-  `"CRON_SECRET not configured"` without it — generate one with
-  `openssl rand -hex 32` and add it before attempting any of them locally.
+  Rows 3, 4, and 5 will 503 `"CRON_SECRET not configured"` without it — generate
+  one with `openssl rand -hex 32` and add it before attempting any of them
+  locally. Row 7 (`afternoon-pipeline.yml`) has no routes to hit at all, so it
+  404s whether or not `CRON_SECRET` is set — don't debug the secret for that one.
 
 ### 2.3 Every workflow, in the depth needed to actually reproduce it
 
@@ -486,17 +496,20 @@ node -e "
 node --env-file=.env.local scripts/backup-to-sqlite.mjs
 
 # 3. (optional) Reproduce one pipeline's output locally first, then re-back-up
+set -a; . ./.env.local; set +a          # export PORTAL_PUSH_SECRET / CRON_SECRET
 npm run dev &
 curl -sS -X POST http://localhost:3000/api/pipeline/precompute-ai \
   -H "Authorization: Bearer $PORTAL_PUSH_SECRET"
 node --env-file=.env.local scripts/backup-to-sqlite.mjs --tables=precomputed_ai
 
-# 4. Inspect
-sqlite3 backups/nuwrrrld-*.sqlite ".tables"
+# 4. Inspect (use the actual timestamped filename `backup-to-sqlite.mjs` printed;
+#    a glob would pass multiple paths to sqlite3 once >1 snapshot exists)
+sqlite3 backups/nuwrrrld-<timestamp>.sqlite ".tables"
 ```
 
 For the other 6 pipelines' exact reproduction commands (auth secret, request
-body, which tables each fills, and workflow-specific caveats), see §2.3.
+body, which tables each fills, and workflow-specific caveats), see §2.3 —
+reproduction commands are given where a route exists; row 7 has none.
 
 ---
 
