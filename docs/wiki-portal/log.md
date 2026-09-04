@@ -642,3 +642,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-03] ingest | PR #99 feat(ci): local-trigger.mjs — one entry point for all 4 workflow-trigger paths | pages touched: 2
 
 ## [2026-09-03] ingest | PR #100 docs(signals): local-signal-report.mjs + cross-host signal-engine parity audit | pages touched: 5
+
+## [2026-09-03] ingest | PR #102 docs: pipeline route status — probe results + open issues doc | pages touched: 1
