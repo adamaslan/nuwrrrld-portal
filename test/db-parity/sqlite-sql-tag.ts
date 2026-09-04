@@ -25,8 +25,30 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "../../lib/db/schema.sqlite.sql");
+const PG_SCHEMA_PATH = path.resolve(__dirname, "../../lib/db/schema.sql");
 
 export type SqlRow = Record<string, unknown>;
+
+/**
+ * Column names declared `jsonb` or `text[]` anywhere in the canonical Postgres
+ * schema — the only columns SQLite's TEXT-backed mirror should ever attempt to
+ * JSON.parse() back into an object/array. Derived from lib/db/schema.sql
+ * itself (not hand-copied) so it can't silently drift as columns are added.
+ *
+ * Global by column name, not table-qualified: this file has no table context
+ * at the point a row comes back (see reviveJsonColumns below), only the row's
+ * own keys. The one same-name collision across tables (`tokens`: jsonb in
+ * ticker_cards, `int` in nuai_usage) is harmless here — reviveJsonColumns only
+ * ever attempts a *string* value, and nuai_usage.tokens is never a string.
+ */
+const JSON_COLUMN_NAMES: ReadonlySet<string> = (() => {
+  const src = readFileSync(PG_SCHEMA_PATH, "utf8");
+  const names = new Set<string>();
+  const re = /^\s*(\w+)\s+(?:jsonb|text\[\])\b/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) names.add(m[1]);
+  return names;
+})();
 
 /** Loads the generated SQLite schema into a fresh in-memory DB. */
 export function loadSchema(db: DatabaseSync): void {
@@ -88,23 +110,28 @@ function positionalToQuestionMarks(text: string, params: unknown[]): { text: str
  * @neondatabase/serverless deserializes `jsonb` columns into JS
  * objects/arrays automatically — callers across lib/*-db.ts rely on this
  * (e.g. `rows[0].payload as HoldFoldPayload`, no JSON.parse). Our generated
- * schema.sqlite.sql maps `jsonb` to plain `TEXT`, so SQLite hands back the
- * raw JSON string instead. This best-effort parse restores the same shape:
- * only strings that look like a serialized object/array/string are attempted
- * (jsonb payloads in this codebase are always `JSON.stringify()`'d before
- * insert, so they start with `{`, `[`, or `"`) — anything else (a ticker, a
- * status enum, free text) is left untouched rather than risking a false
- * positive on plain text that happens to parse.
+ * schema.sqlite.sql maps `jsonb`/`text[]` to plain `TEXT`, so SQLite hands
+ * back the raw JSON string instead. This restores the same shape — but only
+ * for columns JSON_COLUMN_NAMES identifies as actually jsonb/array in the
+ * canonical Postgres schema, never by sniffing whether a value merely looks
+ * JSON-shaped. Value-shape sniffing (the previous approach) would parse a
+ * plain TEXT value that happens to start with `{`/`[`/`"` — masking exactly
+ * the kind of SQLite/Postgres result-shape mismatch this contract suite
+ * exists to catch. CodeRabbit review, PR #105.
  */
 function reviveJsonColumns(row: SqlRow): SqlRow {
   const out: SqlRow = {};
   for (const [key, value] of Object.entries(row)) {
-    if (typeof value === "string" && /^[{["]/.test(value)) {
+    if (typeof value === "string" && JSON_COLUMN_NAMES.has(key)) {
       try {
         out[key] = JSON.parse(value);
         continue;
       } catch {
-        // not actually JSON — fall through and keep the raw string
+        // Declared jsonb/array but didn't parse — a real bug (bad data, or a
+        // rewriteSql/insert path that didn't JSON.stringify). Surface it
+        // rather than silently keeping the unparsed string, which would let
+        // the contract suite pass on a row that's actually broken.
+        throw new Error(`Column "${key}" is a declared jsonb/text[] column but its value did not parse as JSON: ${value}`);
       }
     }
     out[key] = value;

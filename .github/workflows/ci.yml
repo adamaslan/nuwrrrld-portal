@@ -58,8 +58,15 @@ jobs:
         # a throwaway Neon branch so the same suite also runs the Postgres
         # half (__tests__/db-parity/README.md). Unset is fine — that half is
         # skipped, not failed.
+        #
+        # The secret is only supplied on trusted refs (push, or a
+        # pull_request whose head repo IS this repo) — never on a fork PR,
+        # whose test code the PR author controls and could otherwise read the
+        # env var back out. Falls through to an empty string on any other
+        # ref, which the suite already treats identically to "unset".
+        # CodeRabbit review, PR #105.
         env:
-          DATABASE_URL: ${{ secrets.NEON_BRANCH_DATABASE_URL }}
+          DATABASE_URL: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NEON_BRANCH_DATABASE_URL || '' }}
 
   shared-drift-check:
     runs-on: ubuntu-latest

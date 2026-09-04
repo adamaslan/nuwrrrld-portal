@@ -4,10 +4,12 @@
 [openrouter-migration-and-db-parity-plan.md](openrouter-migration-and-db-parity-plan.md)
 
 Every batch job in `deploy/*/modal_app.py` + `.github/workflows/*.yml` should
-have exactly one *scheduled* runner. This audit found the actual state is
-mixed: one genuine live conflict, one deliberately-redundant design that the
-migration plan's Phase 5 draft mischaracterized as a conflict, and one
-same-family-different-purpose pair that isn't a conflict at all.
+have one *scheduled* runner unless this audit explicitly documents intentional
+multi-platform redundancy (see Finding 3's `free-model-refresh`, which keeps
+four by design). This audit found the actual state is mixed: one genuine live
+conflict, one deliberately-redundant design that the migration plan's Phase 5
+draft mischaracterized as a conflict, and one same-family-different-purpose
+pair that isn't a conflict at all.
 
 ## Finding 1 — `precompute-ai`: live double-fire (real conflict, unresolved)
 
@@ -43,18 +45,35 @@ either `modal app stop nuwrrrld-precompute-ai` or remove the `schedule=`
 kwarg from `deploy/precompute-ai/modal_app.py` and redeploy. The GHA side
 needs no change — it's already the documented default.
 
-## Finding 2 — `hydrate-universe` vs. `universe-hydration`: different design, not a duplicate
+## Finding 2 — `hydrate-universe` vs. `universe-hydration`: overlapping on the stock lane (real conflict, unresolved)
 
-`.github/workflows/hydrate-universe.yml` runs weekdays at 22:30 UTC (a
-same-day, after-close pass). `deploy/universe-hydration/modal_app.py` runs
-daily at 00:05 UTC, and its own comment explains why: *"before the 00:10
-precompute, so the AI batch ranks tonight's cards rather than last night's"*
-— it exists specifically to feed `precompute-ai`'s 00:10 run with fresh
-cards, a dependency the GHA weekday job doesn't serve. These are not the same
-job on two platforms; they're two different passes with different purposes
-(and, per the header comment, `hydrate-universe.yml` is itself careful about
-this — "ONE of them" language there refers to *itself* vs. a same-platform
-duplicate, not vs. the Modal job). **No change.** Leave both scheduled.
+**Corrected from an earlier draft of this finding, which concluded "No
+change" — that conclusion was wrong.** `.github/workflows/hydrate-universe.yml`
+runs weekdays at 22:30 UTC; `deploy/universe-hydration/modal_app.py` runs
+daily at 00:05 UTC, and its own comment explains the timing: *"before the
+00:10 precompute, so the AI batch ranks tonight's cards rather than last
+night's."* The timing difference is real and the Modal job's purpose (feed
+`precompute-ai` fresh cards) is genuine — but that doesn't make them
+non-overlapping. `deploy/universe-hydration/modal_app.py`'s scheduled call
+explicitly posts `"universe": "stock"` only (the module's own header: *"gcp3
+owns ETF rows, this job owns stock rows"*). `hydrate-universe.yml`'s
+scheduled (cron) trigger carries no `universe` input at all —
+`github.event.inputs.universe` is empty on a cron fire, not `workflow_dispatch`
+— so `IN_UNIVERSE` never gets set and the `--universe=` flag is never added,
+meaning the script defaults to **both lanes**, exactly like a manual
+`workflow_dispatch` with `universe: all`. So every weeknight, if the Modal app
+is live: both runners fetch Alpaca bars for the stock universe and POST to
+`/api/pipeline/hydrate-universe`, independently — the same live-double-fire
+shape as Finding 1's `precompute-ai` conflict, just staggered by ~90 minutes
+(22:30 vs. the next 00:05) rather than firing at the same minute.
+
+**Not applied automatically, same reason as Finding 1**: whether
+`nuwrrrld-universe-hydration` is actually deployed on Modal can't be
+determined from this checkout. **Action needed from you:** run `modal app
+list` to confirm. If it's live, either restrict `hydrate-universe.yml`'s
+scheduled trigger to `--universe=etf` (the lane Modal doesn't cover) or stop
+the Modal schedule and let the GHA job own both lanes — don't leave both
+covering stock unconditionally.
 
 ## Finding 3 — `free-model-refresh`: multi-platform redundancy is the design, not a fork
 

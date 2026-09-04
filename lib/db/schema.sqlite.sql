@@ -201,9 +201,9 @@ CREATE TABLE IF NOT EXISTS corpus_chunks (
   chunk_id      text        PRIMARY KEY,
   source_file   text        NOT NULL,
   trader_filter text,                       -- 'T1' | 'T2' | null (applies to both)
-  tags          TEXT      NOT NULL DEFAULT '{}',
+  tags          TEXT      NOT NULL DEFAULT '[]',
   body          text        NOT NULL,
-  search_terms  TEXT      NOT NULL DEFAULT '{}', -- doc2query: questions this chunk answers + synonyms
+  search_terms  TEXT      NOT NULL DEFAULT '[]', -- doc2query: questions this chunk answers + synonyms
   tsv          TEXT,
   updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -223,7 +223,7 @@ CREATE TABLE IF NOT EXISTS grounding_pack (
   quote            text        NOT NULL,     -- verbatim substring of the source chunk
   chunk_id         text        NOT NULL REFERENCES corpus_chunks (chunk_id) ON DELETE CASCADE,
   source_file      text        NOT NULL,
-  tags             TEXT      NOT NULL DEFAULT '{}',
+  tags             TEXT      NOT NULL DEFAULT '[]',
   confidence       real        NOT NULL DEFAULT 1.0,
   corpus_version   text        NOT NULL,
   taxonomy_version text        NOT NULL,
@@ -241,7 +241,7 @@ CREATE TABLE IF NOT EXISTS grounding_misses (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   question   text        NOT NULL,
   ticker     text,
-  state_keys TEXT      NOT NULL DEFAULT '{}',
+  state_keys TEXT      NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS grounding_misses_created_at_idx
@@ -370,7 +370,7 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   tokens           TEXT NOT NULL,         -- toStateKeyParts() — the card itself
   numerics         TEXT NOT NULL DEFAULT '{}',  -- raw inputs, for audit
   data_quality     real NOT NULL DEFAULT 1.0,           -- gates the explain batch
-  missing_fields   TEXT NOT NULL DEFAULT '{}',        -- prevents silent neutralization
+  missing_fields   TEXT NOT NULL DEFAULT '[]',        -- prevents silent neutralization
   source           text NOT NULL,          -- 'gcp3' | 'modal-eod' | …
   source_run_id    text,
   bar_date         TEXT NOT NULL,

@@ -21,11 +21,54 @@
  *   equivalent yet), and precomputed-ai-db.ts's listWatchlistSubjects
  *   (uses string_agg(DISTINCT …)).
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { createSqliteSql, loadSchema } from "../../test/db-parity/sqlite-sql-tag";
 
 const hasNeon = !!process.env.DATABASE_URL;
+
+/**
+ * Every table a Neon-path `describe` block below reads or writes. The tests
+ * assert a fresh/empty starting state (`toBeNull()`, `toHaveLength(0)`, …)
+ * and reuse fixed identifiers (`"u1"`, `"k1"`, `"global"`) across runs — safe
+ * against SQLite (a brand-new :memory: DB every test) but not against a Neon
+ * branch that persists between CI runs: a rerun against the same
+ * NEON_BRANCH_DATABASE_URL would find last run's rows still there and fail
+ * the fresh-state assertion before it ever gets to checking parity.
+ * CodeRabbit review, PR #105.
+ */
+const NEON_PARITY_TABLES = [
+  "signal_digest_cache",
+  "user_digest_cache",
+  "holdfold_cache",
+  "analyze_cache",
+  "nuai_usage",
+  "council_messages",
+  "council_sessions",
+  "council_usage",
+  "council_verdicts",
+  "disclaimer_acks",
+  "legal_consent_events",
+  "user_attribution",
+  "privacy_requests",
+  "precomputed_ai",
+  "watchlist_items",
+] as const;
+
+/** Truncates every table this suite touches on the real Neon branch, before
+ *  each test — a no-op when DATABASE_URL isn't set (SQLite tests are already
+ *  isolated by using a fresh :memory: DB per test). The branch this points at
+ *  is documented as throwaway/CI-only (ci.yml's db-schema-parity job), so a
+ *  full per-table clear is safe and simpler than tracking each test's exact
+ *  rows. */
+beforeEach(async () => {
+  if (!hasNeon) return;
+  const { neon } = await import("@neondatabase/serverless");
+  const sql = neon(process.env.DATABASE_URL!);
+  for (const table of NEON_PARITY_TABLES) {
+    await sql.query(`DELETE FROM ${table}`);
+  }
+});
 
 /** Mocks "@/lib/db" with a fresh in-memory SQLite DB and imports `modulePath`
  *  fresh, so the module's top-level `import sql from "@/lib/db"` binds to it. */

@@ -93,6 +93,17 @@ const RULES = [
   [/\bboolean\b/gi, "INTEGER"],
   [/\binet\b/gi, "TEXT"],
   [/\bdate\b/gi, "TEXT"],
+  // A text[] column's Postgres empty-array literal is '{}' (curly braces —
+  // valid Postgres array syntax, NOT a JSON object). The app layer serializes
+  // arrays as JSON for the SQLite path (see Phase 8 contract tests), where an
+  // empty array is '[]'. Left unrewritten, an INSERT that omits one of these
+  // columns would default to the literal string "{}", which JSON.parse()s as
+  // an empty *object*, not an empty array — a shape mismatch the contract
+  // suite is specifically meant to catch. Must run before the generic
+  // text[] -> TEXT swap below, while the `text[]` token is still present to
+  // anchor the match. CodeRabbit review, PR #105.
+  [/text\[\](\s*NOT NULL DEFAULT\s*)'\{\}'/gi, "text[]$1'[]'"],
+
   // text[] (and any other []-suffixed array type) → TEXT; app layers
   // serialize arrays as JSON for the SQLite path (see Phase 8 contract tests).
   [/\btext\[\]/gi, "TEXT"],
