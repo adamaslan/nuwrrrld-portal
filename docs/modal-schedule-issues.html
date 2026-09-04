@@ -1,0 +1,795 @@
+<title>Six Crons, One Deployed</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --ground:      #F6F7F9;
+    --surface:     #FFFFFF;
+    --surface-2:   #EDEFF4;
+    --ink:         #14181F;
+    --ink-2:       #4A5364;
+    --ink-3:       #79839A;
+    --rule:        #DCE0E8;
+    --rule-strong: #C3C9D6;
+    --accent:      #3D4FA8;
+    --accent-soft: #E6E9F7;
+    --critical:    #B02A45;
+    --critical-bg: #FBE9EC;
+    --warning:     #8C5D0C;
+    --warning-bg:  #FAF0DC;
+    --live:        #1F7A5C;
+    --live-bg:     #E2F2EC;
+    --dormant:     #79839A;
+    --dormant-bg:  #EDEFF4;
+    --shadow:      0 1px 2px rgba(20, 24, 31, .05), 0 8px 24px -16px rgba(20, 24, 31, .28);
+
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body:    "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0E1117;
+      --surface:     #161B24;
+      --surface-2:   #1D2430;
+      --ink:         #E7EAF0;
+      --ink-2:       #A8B2C4;
+      --ink-3:       #6F7A8E;
+      --rule:        #2A3240;
+      --rule-strong: #3A4557;
+      --accent:      #8E9CE8;
+      --accent-soft: #1C2340;
+      --critical:    #E8697F;
+      --critical-bg: #331A22;
+      --warning:     #D6A340;
+      --warning-bg:  #33280F;
+      --live:        #4CC79B;
+      --live-bg:     #13302A;
+      --dormant:     #6F7A8E;
+      --dormant-bg:  #1D2430;
+      --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0E1117;
+    --surface:     #161B24;
+    --surface-2:   #1D2430;
+    --ink:         #E7EAF0;
+    --ink-2:       #A8B2C4;
+    --ink-3:       #6F7A8E;
+    --rule:        #2A3240;
+    --rule-strong: #3A4557;
+    --accent:      #8E9CE8;
+    --accent-soft: #1C2340;
+    --critical:    #E8697F;
+    --critical-bg: #331A22;
+    --warning:     #D6A340;
+    --warning-bg:  #33280F;
+    --live:        #4CC79B;
+    --live-bg:     #13302A;
+    --dormant:     #6F7A8E;
+    --dormant-bg:  #1D2430;
+    --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  /* ---- type ---- */
+  h1, h2, h3, .eyebrow, .chip, .board, .stat, .cron { font-family: var(--display); }
+
+  h1 {
+    font-size: clamp(2.1rem, 5.2vw, 3.4rem);
+    line-height: 1.04;
+    font-weight: 700;
+    letter-spacing: -.028em;
+    margin: 0 0 .6rem;
+    text-wrap: balance;
+  }
+
+  h2 {
+    font-size: 1.42rem;
+    font-weight: 600;
+    letter-spacing: -.016em;
+    line-height: 1.22;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    margin: 0 0 .5rem;
+    color: var(--ink);
+  }
+
+  .eyebrow {
+    font-size: .69rem;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 1rem;
+  }
+
+  p { margin: 0 0 1rem; max-width: 66ch; }
+  p:last-child { margin-bottom: 0; }
+
+  .lede {
+    font-size: 1.19rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 60ch;
+  }
+
+  code, .mono { font-family: var(--mono); font-size: .855em; }
+
+  p code, li code, td code, .board code {
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: .08em .34em;
+    white-space: nowrap;
+  }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* ---- header ---- */
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 2rem; margin-bottom: 2.5rem; }
+
+  .stamp {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem 1.4rem;
+    margin-top: 1.6rem;
+    font-family: var(--mono);
+    font-size: .74rem;
+    color: var(--ink-3);
+    letter-spacing: .01em;
+  }
+  .stamp b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---- counters ---- */
+  .counters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 0 0 3rem;
+  }
+  .counter { background: var(--surface); padding: 1.05rem 1.15rem; }
+  .counter .stat {
+    font-size: 2.05rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    margin-bottom: .3rem;
+  }
+  .counter .label {
+    font-family: var(--display);
+    font-size: .7rem;
+    font-weight: 500;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    line-height: 1.35;
+    display: block;
+  }
+  .counter.is-live   .stat { color: var(--live); }
+  .counter.is-warn   .stat { color: var(--warning); }
+  .counter.is-crit   .stat { color: var(--critical); }
+
+  /* ---- section ---- */
+  section { margin-bottom: 3.25rem; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: .9rem;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: .55rem;
+    margin-bottom: 1.4rem;
+    flex-wrap: wrap;
+  }
+
+  /* ---- chips ---- */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .34rem;
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .085em;
+    text-transform: uppercase;
+    padding: .21rem .52rem;
+    border-radius: 3px;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .chip::before {
+    content: "";
+    width: .42rem; height: .42rem;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+  }
+  .chip.live    { color: var(--live);     background: var(--live-bg); }
+  .chip.crit    { color: var(--critical); background: var(--critical-bg); }
+  .chip.warn    { color: var(--warning);  background: var(--warning-bg); }
+  .chip.dormant { color: var(--dormant);  background: var(--dormant-bg); }
+  .chip.plain::before { display: none; }
+
+  /* ---- issue cards ---- */
+  .issue {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.6rem;
+    overflow: hidden;
+  }
+  .issue-top {
+    display: flex;
+    align-items: flex-start;
+    gap: .9rem;
+    padding: 1.3rem 1.5rem;
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .issue-top .grow { flex: 1 1 18rem; min-width: 0; }
+  .issue-body { padding: 1.4rem 1.5rem; }
+  .issue-body > :first-child { margin-top: 0; }
+
+  .severity-rail { height: 3px; }
+  .sev-crit    { background: var(--critical); }
+  .sev-warn    { background: var(--warning); }
+  .sev-struct  { background: var(--accent); }
+  .sev-latent  { background: var(--dormant); }
+
+  .verdict {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+    background: var(--surface-2);
+    border-top: 1px solid var(--rule);
+    padding: 1rem 1.5rem;
+    font-size: .93rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+  .verdict .k {
+    font-family: var(--display);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    flex: none;
+    padding-top: .22rem;
+    width: 3.4rem;
+  }
+  .verdict p { margin: 0; max-width: none; }
+
+  /* ---- evidence blocks ---- */
+  .evidence {
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 5px 5px 0;
+    padding: .85rem 1.05rem;
+    margin: 1.15rem 0;
+    font-family: var(--mono);
+    font-size: .79rem;
+    line-height: 1.7;
+    color: var(--ink-2);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .evidence b { color: var(--ink); font-weight: 600; }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: .95rem 1.15rem;
+    margin: 1.2rem 0;
+    font-size: .95rem;
+    line-height: 1.6;
+  }
+  .callout p { max-width: none; }
+  .callout strong { color: var(--ink); }
+
+  /* ---- board (the firing timetable) ---- */
+  .scroller { overflow-x: auto; border-radius: 7px; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  thead th {
+    font-family: var(--display);
+    font-size: .67rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    padding: .72rem .95rem;
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: .68rem .95rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+    color: var(--ink-2);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.t {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  td.job { font-family: var(--display); font-weight: 500; color: var(--ink); white-space: nowrap; }
+  td.cron { font-family: var(--mono); font-size: .8rem; white-space: nowrap; color: var(--ink-3); }
+
+  tr.collide td { background: var(--critical-bg); }
+  tr.collide td.t { color: var(--critical); }
+  tr.dupe td { background: var(--warning-bg); }
+  tr.dupe td.t { color: var(--warning); }
+
+  .board-note {
+    font-size: .82rem;
+    color: var(--ink-3);
+    margin-top: .75rem;
+    font-family: var(--display);
+    font-weight: 500;
+    max-width: 68ch;
+  }
+
+  /* ---- fix list ---- */
+  ol.fixes { list-style: none; counter-reset: f; padding: 0; margin: 0; display: grid; gap: .75rem; }
+  ol.fixes li {
+    counter-increment: f;
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: .9rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1rem 1.15rem;
+    align-items: start;
+  }
+  ol.fixes li::before {
+    content: counter(f);
+    font-family: var(--display);
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 4px;
+    width: 2rem; height: 2rem;
+    display: grid; place-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.fixes p { margin: .3rem 0 0; font-size: .93rem; color: var(--ink-2); }
+  ol.fixes .cmd {
+    display: block;
+    font-family: var(--mono);
+    font-size: .78rem;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: .45rem .6rem;
+    margin-top: .55rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--ink-2);
+  }
+
+  ul.tight { margin: 0 0 1rem; padding-left: 1.15rem; max-width: 66ch; }
+  ul.tight li { margin-bottom: .4rem; }
+  ul.tight li::marker { color: var(--ink-3); }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    margin-top: 3.5rem;
+    padding-top: 1.4rem;
+    font-family: var(--display);
+    font-size: .8rem;
+    color: var(--ink-3);
+  }
+  footer p { max-width: 68ch; }
+
+  @media (max-width: 34rem) {
+    .wrap { padding: 2.25rem 1.1rem 4rem; }
+    body { font-size: 16px; }
+    .verdict { flex-direction: column; gap: .35rem; }
+    .verdict .k { width: auto; padding-top: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">NuWrrrld · scheduled-job audit</p>
+    <h1>Six Crons, One Deployed</h1>
+    <p class="lede">
+      The Modal apps in this stack carry <code>modal.Cron(...)</code> lines that read like
+      running schedules. Five of the six are not running at all — and two of the three
+      that overlap a GitHub Actions workflow are set to fire at the same minute.
+    </p>
+    <div class="stamp">
+      <span>verified <b>2026-09-02</b></span>
+      <span>modal CLI <b>1.5.2</b></span>
+      <span>workspace <b>chillcoders</b></span>
+      <span>repos <b>nuwrrrld-portal</b> · <b>homebase</b></span>
+    </div>
+  </header>
+
+  <div class="counters">
+    <div class="counter"><span class="stat">6</span><span class="label">Modal apps in source</span></div>
+    <div class="counter is-crit"><span class="stat">1</span><span class="label">Actually deployed</span></div>
+    <div class="counter is-warn"><span class="stat">2</span><span class="label">Secrets referenced but missing</span></div>
+    <div class="counter is-warn"><span class="stat">3</span><span class="label">Jobs that exist twice</span></div>
+    <div class="counter is-live"><span class="stat">4</span><span class="label">Issues found</span></div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>The UTC firing board</h2>
+      <span class="chip plain dormant">everything below is UTC</span>
+    </div>
+    <p>
+      Every schedule in both repos, in the order it fires. Modal crons are UTC-only;
+      so are GitHub Actions crons. The two highlighted rows are where two schedulers
+      are pointed at the same work.
+    </p>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>UTC</th>
+            <th>Job</th>
+            <th>Platform</th>
+            <th>Cron</th>
+            <th>State</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="t">00:05</td>
+            <td class="job">Universe hydration</td>
+            <td>Modal</td>
+            <td class="cron">5 0 * * *</td>
+            <td><span class="chip dormant">not deployed</span></td>
+          </tr>
+          <tr class="collide">
+            <td class="t">00:10</td>
+            <td class="job">AI precompute</td>
+            <td>GitHub Actions</td>
+            <td class="cron">10 0 * * *</td>
+            <td><span class="chip live">running</span></td>
+          </tr>
+          <tr class="collide">
+            <td class="t">00:10</td>
+            <td class="job">AI precompute</td>
+            <td>Modal</td>
+            <td class="cron">10 0 * * *</td>
+            <td><span class="chip crit">armed, same minute</span></td>
+          </tr>
+          <tr class="dupe">
+            <td class="t">Mon 06:17</td>
+            <td class="job">Free-model refresh</td>
+            <td>GitHub Actions</td>
+            <td class="cron">17 6 * * 1</td>
+            <td><span class="chip live">running</span></td>
+          </tr>
+          <tr class="dupe">
+            <td class="t">Mon 09:00</td>
+            <td class="job">Free-model refresh</td>
+            <td>Modal</td>
+            <td class="cron">0 9 * * 1</td>
+            <td><span class="chip warn">running too</span></td>
+          </tr>
+          <tr>
+            <td class="t">13:00&ndash;20:00</td>
+            <td class="job">Pending-signal drain</td>
+            <td>Modal</td>
+            <td class="cron">*/5 13-20 * * 1-5</td>
+            <td><span class="chip dormant">not deployed</span></td>
+          </tr>
+          <tr>
+            <td class="t">18:15</td>
+            <td class="job">Signal pipeline</td>
+            <td>Modal</td>
+            <td class="cron">15 18 * * 1-5</td>
+            <td><span class="chip dormant">not deployed</span></td>
+          </tr>
+          <tr>
+            <td class="t">22:30</td>
+            <td class="job">Universe hydration</td>
+            <td>GitHub Actions</td>
+            <td class="cron">30 22 * * *</td>
+            <td><span class="chip live">running</span></td>
+          </tr>
+          <tr>
+            <td class="t">&mdash;</td>
+            <td class="job">Finnhub live stream</td>
+            <td>Modal</td>
+            <td class="cron">no schedule</td>
+            <td><span class="chip dormant">not deployed</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="board-note">
+      Three of the nine rows are actually executing. The hydration pair never collides
+      because the Modal half was never deployed — that is luck, not design.
+    </p>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>The issues</h2>
+      <span class="chip plain dormant">ordered by what it costs you</span>
+    </div>
+
+    <!-- ISSUE 1 -->
+    <article class="issue">
+      <div class="severity-rail sev-crit"></div>
+      <div class="issue-top">
+        <div class="grow">
+          <h3>Two schedulers, one free-tier bucket, the same minute</h3>
+          <p class="mono" style="font-size:.76rem;color:var(--ink-3);margin:0">
+            deploy/precompute-ai/modal_app.py &nbsp;·&nbsp; .github/workflows/precompute-ai.yml
+          </p>
+        </div>
+        <span class="chip crit">fires on deploy</span>
+      </div>
+      <div class="issue-body">
+        <p>
+          Both the Modal app and the GitHub Actions workflow are scheduled at
+          <code>10 0 * * *</code>, and both do the same single thing: <code>POST
+          /api/pipeline/precompute-ai</code>. The timing is not incidental — 00:10 UTC
+          is ten minutes after OpenRouter's free tier resets, chosen because that is
+          when the day's allowance is freshest.
+        </p>
+        <div class="evidence">Modal  deploy/precompute-ai/modal_app.py   schedule=modal.Cron("<b>10 0 * * *</b>")
+GHA    .github/workflows/precompute-ai.yml  cron: '<b>10 0 * * *</b>'
+both   →  POST /api/pipeline/precompute-ai   (maxSubjects: 10)</div>
+        <p>
+          The job exists to <em>protect</em> the interactive AI allowance from batch work.
+          Running it on both platforms doubles the spend of exactly the quota it was
+          built to defend, for output that is byte-identical. The workflow's own header
+          says to run one of them; nothing enforces it.
+        </p>
+        <div class="callout">
+          <p>
+            <strong>Why it hasn't bitten yet:</strong> the Modal app has never been deployed,
+            so only the workflow fires. The damage happens the moment someone runs
+            <code>modal deploy</code> on it — with no error, no warning, and a symptom
+            (afternoon chat requests hitting a spent quota) that looks nothing like its cause.
+          </p>
+        </div>
+      </div>
+      <div class="verdict">
+        <span class="k">Fix</span>
+        <p>Pick one platform per job. Before any <code>modal deploy</code> of a portal app,
+        comment out the twin workflow's <code>schedule:</code> block — keep
+        <code>workflow_dispatch</code> so the manual path survives.</p>
+      </div>
+    </article>
+
+    <!-- ISSUE 2 -->
+    <article class="issue">
+      <div class="severity-rail sev-warn"></div>
+      <div class="issue-top">
+        <div class="grow">
+          <h3>The free-model refresh is already double-firing every Monday</h3>
+          <p class="mono" style="font-size:.76rem;color:var(--ink-3);margin:0">
+            deploy/free-model-refresh/modal_app.py &nbsp;·&nbsp; .github/workflows/refresh-free-models.yml
+          </p>
+        </div>
+        <span class="chip warn">live now</span>
+      </div>
+      <div class="issue-body">
+        <p>
+          This is the same duplication as above, except it is not hypothetical — it is
+          happening weekly. GitHub Actions probes the OpenRouter catalog at 06:17 UTC;
+          Modal probes it again at 09:00 UTC.
+        </p>
+        <div class="evidence">$ modal secret list
+free-model-refresh   created 2026-07-14 18:11 EDT   last used <b>2026-08-31 05:00 EDT</b>
+                                                    └─ = <b>09:00 UTC, a Monday</b>
+                                                       exactly modal.Cron("0 9 * * 1")</div>
+        <p>
+          The secret's last-read timestamp is the proof: the deployed Modal cron is
+          firing on schedule. Mostly this is benign — both runs are idempotent, and
+          whichever lands second finds nothing changed and no-ops. The real costs are
+          two full catalog probe passes a week, and a duplicate PR any week a model
+          flaps between 06:17 and 09:00.
+        </p>
+      </div>
+      <div class="verdict">
+        <span class="k">Fix</span>
+        <p>Retire one schedule. Modal is the better keep here — it already holds the
+        <code>GH_TOKEN</code> and bakes the runner script into its image rather than
+        curling it from <code>main</code> at run time.</p>
+      </div>
+    </article>
+
+    <!-- ISSUE 3 -->
+    <article class="issue">
+      <div class="severity-rail sev-struct"></div>
+      <div class="issue-top">
+        <div class="grow">
+          <h3>A cron in the source is not a cron that runs</h3>
+          <p class="mono" style="font-size:.76rem;color:var(--ink-3);margin:0">
+            5 of 6 apps &nbsp;·&nbsp; 2 secrets referenced but absent
+          </p>
+        </div>
+        <span class="chip dormant">structural</span>
+      </div>
+      <div class="issue-body">
+        <p>
+          Reading the repo, six apps look scheduled. In the workspace, one exists.
+          <code>modal.Cron(...)</code> is inert until <code>modal deploy</code> registers it,
+          and nothing in the source distinguishes a live schedule from a dormant one.
+        </p>
+        <div class="evidence">$ modal app list --json
+[{ "description": "<b>free-model-refresh</b>", "state": "deployed", "tasks": "0" }]
+
+$ modal secret list
+nuwrrrld-secrets      last used 2026-08-12   ← homebase apps: not deployed
+free-model-refresh    last used 2026-08-31   ← firing
+
+referenced by source, <b>absent from the workspace</b>:
+  nuwrrrld-hydration    ← deploy/universe-hydration/modal_app.py
+  nuwrrrld-precompute   ← deploy/precompute-ai/modal_app.py</div>
+        <p>
+          The two missing secrets have a sharp edge worth knowing:
+          <code>modal.Secret.from_name()</code> resolves while the app is being constructed,
+          so a deploy without the secret fails <em>at deploy time</em>, not on the first run.
+          That is the good version of this failure. The bad version is the quiet one — five
+          dormant apps that a reader, or a future session, will reasonably assume are covering
+          work that nothing is covering.
+        </p>
+        <ul class="tight">
+          <li><code>nuwrrrld-universe-hydration</code> — dormant; GHA covers it at 22:30 UTC</li>
+          <li><code>nuwrrrld-precompute-ai</code> — dormant; GHA covers it at 00:10 UTC</li>
+          <li><code>nuwrrrld-signals</code> — dormant; <strong>nothing else covers it</strong></li>
+          <li><code>nuwrrrld-drain</code> — dormant; <strong>nothing else covers it</strong></li>
+          <li><code>nuwrrrld-finnhub-ws</code> — dormant; no schedule by design, manual only</li>
+        </ul>
+      </div>
+      <div class="verdict">
+        <span class="k">Fix</span>
+        <p>Decide per app: deploy it, or say in the file's docstring that it is a
+        source-only alternative and name what covers the work instead. Either is fine;
+        the ambiguity is not.</p>
+      </div>
+    </article>
+
+    <!-- ISSUE 4 -->
+    <article class="issue">
+      <div class="severity-rail sev-latent"></div>
+      <div class="issue-top">
+        <div class="grow">
+          <h3>A schedule that silently moves an hour in November</h3>
+          <p class="mono" style="font-size:.76rem;color:var(--ink-3);margin:0">
+            homebase/modal_locrun.py
+          </p>
+        </div>
+        <span class="chip dormant">latent</span>
+      </div>
+      <div class="issue-body">
+        <p>
+          The signal pipeline is scheduled <code>15 18 * * 1-5</code> with the comment
+          <em>&ldquo;2:15 PM ET weekdays&rdquo;</em>. That is true during EDT only. Modal
+          crons are UTC with no timezone support, so when the US falls back the same
+          expression becomes 13:15 ET — the job moves an hour earlier into the trading
+          day without a single line changing.
+        </p>
+        <div class="evidence">modal_locrun.py   modal.Cron("15 18 * * 1-5")
+                  EDT (Mar–Nov)  →  <b>14:15 ET</b>   ✓ intended
+                  EST (Nov–Mar)  →  <b>13:15 ET</b>   ✗ silent one-hour drift</div>
+        <p>
+          The GitHub Actions afternoon pipeline already solves this: it registers both
+          <code>15 20 * * 1-5</code> and <code>15 19 * * 1-5</code> and gates the real
+          work behind a market-hours check inside the job. The Modal file has neither
+          half of that pattern.
+        </p>
+      </div>
+      <div class="verdict">
+        <span class="k">Fix</span>
+        <p>Harmless while the app stays dormant. If it is ever deployed, port the
+        two-cron-plus-gate pattern first — a schedule that is correct for eight months
+        a year is the kind of bug that gets found in January.</p>
+      </div>
+    </article>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>What to do, in order</h2>
+    </div>
+    <ol class="fixes">
+      <li>
+        <div>
+          <h3>Retire one of the two weekly refresh schedules</h3>
+          <p>The only issue costing anything today. Comment out the <code>schedule:</code>
+          block in <code>refresh-free-models.yml</code>, keep <code>workflow_dispatch</code>.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Write the deploy rule down where it will be read</h3>
+          <p>Never <code>modal deploy</code> a portal app without first disabling its GHA
+          twin's schedule. Both files' headers say &ldquo;run one of them&rdquo; — put it
+          in the commit message too.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Resolve each dormant app explicitly</h3>
+          <p>Deploy it, or mark it source-only and name its substitute. Start with
+          <code>nuwrrrld-signals</code> and <code>nuwrrrld-drain</code>, which have no
+          substitute at all.</p>
+          <span class="cmd">modal app list --json     # the only honest source of truth</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Fix the DST drift before deploying the signal pipeline</h3>
+          <p>Two cron expressions plus an in-job market-hours gate, matching what
+          <code>afternoon-pipeline.yml</code> already does.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    <p>
+      Verified against the live <span class="mono">chillcoders</span> workspace on
+      2026-09-02 with modal CLI 1.5.2 — app state, secret existence and last-used
+      timestamps are read from the API, not inferred from source. Full runbook:
+      <span class="mono">docs/modal-deployment-and-local-triggering.md</span>.
+    </p>
+  </footer>
+
+</div>
