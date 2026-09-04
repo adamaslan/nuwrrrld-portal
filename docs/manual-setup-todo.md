@@ -387,6 +387,35 @@ Not blocked on you — listed so this file is the full picture.
 
 ---
 
+## 8. Open PR queue — `/bugmerge1` pass 2026-09-04
+
+A `/bugmerge1` run on 2026-09-04 drained the review-clean half of the queue:
+**#95, #93, #98, #102 merged** (CodeRabbit comments addressed, rebased
+conflict-free). Two PRs could not be finished automatically and need a human to
+nudge the review bot, then re-run `/bugmerge1` (or `/bugz`) on them:
+
+- [ ] **PR #97** (`feat/moo-council-simulation`) — CodeRabbit has **never
+      completed a review**: the initial pass hit "Review limit reached" and a
+      manual `@coderabbitai review` on 2026-09-04 01:43 UTC came back
+      *"Review rate limited."* Wait out the CodeRabbit capacity window (check
+      <https://app.coderabbit.ai/dashboard/review-capacity>), re-post
+      `@coderabbitai review`, then triage/fix/merge. Touches real code
+      (`lib/openrouter.ts`, `app/api/council/*`, `app/page.tsx`) so it should
+      not be merged without a review.
+- [ ] **PR #101** (`feat/signal-engine-phases-1-3`) — same situation
+      (rate-limited 2026-09-04 01:43 UTC, no review ever completed). Also shows
+      `mergeable: CONFLICTING` against `main` — it will need a `/reb` rebase
+      before it can merge. Touches `lib/shared/*.ts`, pipeline route, tests.
+- [ ] **`gh label create pipeline-failure`** — every scheduled pipeline
+      workflow's `notify` job does `gh issue create --label pipeline-failure`
+      against a label that doesn't exist, so the notify job itself fails. One
+      command: `gh label create pipeline-failure --color B60205 --description
+      "Scheduled pipeline run failed"`. Full context in
+      [docs/pipeline-route-status-issues.md](pipeline-route-status-issues.md)
+      (Issue 4).
+
+---
+
 ## Suggested order
 
 **One Stripe dashboard session covers three items** — the webhook secret, the
