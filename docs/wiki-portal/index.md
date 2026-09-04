@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-08-17 (portal PR #64 — Playwright e2e suite, CI cascade incident, preflight/preflight-billing gate split)_
+_Last updated: 2026-08-31 (portal PR #93 — Clerk dev-instance handshake redirect-loop incident)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -100,6 +100,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-08-18-modal-under-recommended]] — Modal routed around across six separate decisions despite fitting the hydration lane; each deferral locally reasonable, the pattern never evaluated, and three `modal_app.py` files read as coverage while zero have ever been deployed
 - [[incident-2026-08-31-signals-go-deeper-contract-drift]] — `/api/council` changed its response shape in the four-field migration and only one of two callers was updated; signal-card "Go Deeper" turned every success into "empty response" for ~6 weeks, billing a full model call each time, while the deterministic suite stayed green
 - [[incident-2026-08-31-bear-side-starved-at-universe-scale]] — monthly cohort selection took a signed `score DESC` top-200, which is the 200 most *bullish* cards; the bear side silently emptied as the universe grew toward 950 tickers, returning HTTP 200 with a half-empty benchmark
+- [[incident-2026-08-31-clerk-dev-handshake-redirect-loop]] — a signed-out browser hitting `/dashboard/*` on local `next dev` enters an unbounded 307 handshake cycle until Chromium aborts with `ERR_TOO_MANY_REDIRECTS`; surfaced by the first genuinely cold-context E2E project
 - [[incident-2026-09-03-nightly-hydration-dead-15-days]] — `hydrate-universe.yml` failed red on its own missing-secret guard for 11 consecutive scheduled runs (the sync script from PR #74 was never run); no alerting, `max(bar_date)` frozen 15 days; the cron has never once hydrated the universe
 - [[incident-2026-09-03-unowned-tables-in-shared-neon-db]] — building the SQLite backup tool found 4 live tables (`comments`, `invoices`, `processed_webhook_events`, `rate_limit_counters`) not declared anywhere in `lib/db/schema.sql` or referenced in this repo's code; `invoices`'s schema looks like it belongs to a different, unrelated application sharing this Neon project, and may contain customer PII (row contents unverified)
 
