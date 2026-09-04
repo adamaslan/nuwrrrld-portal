@@ -81,15 +81,113 @@ export function missingInputFields(input: SignalStateInput): CardInputField[] {
 }
 
 /**
- * Fraction of the five inputs actually present, 0..1.
+ * Fraction of the five inputs actually present, 0..1. The field-completeness
+ * half of `dataQuality`.
  *
  * Deliberately linear rather than weighted: any weighting here would encode a
  * second, hidden opinion about which indicator matters most, and that opinion
  * already lives in `scoreCard()` where it can be tested directly.
  */
-export function dataQuality(input: SignalStateInput): number {
+export function completeness(input: SignalStateInput): number {
   const missing = missingInputFields(input).length;
   return (CARD_INPUT_FIELDS.length - missing) / CARD_INPUT_FIELDS.length;
+}
+
+/**
+ * Bar-series health for one symbol, independent of which indicators computed:
+ * how many bars, what fraction of OHLC values were missing/NaN, and how many
+ * trading sessions old the last bar is. The compute host measures these
+ * (scripts/hydrate-local.mjs `frameStatsFor`); a host that omits them makes
+ * `dataQuality` degrade to completeness-only, which is the pre-Phase-3 behavior.
+ */
+export interface FrameStats {
+  barCount: number;
+  /** 0..1 — fraction of OHLC values that were null/NaN across the fetched window. */
+  nanRatio: number;
+  /** Weekdays between the last bar and today; null when unknown. */
+  staleTradingDays: number | null;
+}
+
+/** ~one trading year; at or above this the bar count is not penalized. */
+const FULL_WINDOW_BARS = 200;
+/** Below this many bars the series is too short for the 50/200 MAs and the
+ *  vol percentile to mean much — hard floor on the bar-count factor. */
+const MIN_USEFUL_BARS = 60;
+/** Trading-day staleness the freshness check also treats as the failure line. */
+const STALE_TRADING_DAYS_MAX = 3;
+
+/**
+ * Bar-quality factor in 0..1 plus human-readable reasons for any deduction.
+ * Multiplicative with `completeness()` — a truncated or stale window should
+ * pull a 5-of-5 card down so it stops out-ranking a fuller 2-of-5 one purely
+ * on field count (the §4 ETF-ranking accident in the parity doc).
+ */
+export function barQuality(stats: FrameStats): { factor: number; reasons: string[] } {
+  const reasons: string[] = [];
+
+  // Bar count: linear from MIN_USEFUL_BARS (0) to FULL_WINDOW_BARS (1).
+  let countFactor = 1;
+  if (stats.barCount < FULL_WINDOW_BARS) {
+    countFactor = clamp(
+      (stats.barCount - MIN_USEFUL_BARS) / (FULL_WINDOW_BARS - MIN_USEFUL_BARS),
+      0,
+      1,
+    );
+    reasons.push(`short history: ${stats.barCount} bars (<${FULL_WINDOW_BARS})`);
+  }
+
+  // NaN ratio: every 1% of holes costs 5% of the factor, floored at 0.
+  let nanFactor = 1;
+  if (stats.nanRatio > 0) {
+    nanFactor = clamp(1 - stats.nanRatio * 5, 0, 1);
+    reasons.push(`gappy series: ${(stats.nanRatio * 100).toFixed(1)}% NaN`);
+  }
+
+  // Staleness: fine at 0–1 sessions, linear penalty to 0 at 2× the max.
+  let staleFactor = 1;
+  if (stats.staleTradingDays != null && stats.staleTradingDays > 1) {
+    staleFactor = clamp(
+      1 - (stats.staleTradingDays - 1) / (STALE_TRADING_DAYS_MAX * 2 - 1),
+      0,
+      1,
+    );
+    reasons.push(`stale: last bar ${stats.staleTradingDays} trading days old`);
+  }
+
+  return { factor: countFactor * nanFactor * staleFactor, reasons };
+}
+
+/**
+ * Card data quality in 0..1.
+ *
+ * `completeness(input)` alone when no `FrameStats` are supplied — this is what
+ * every caller got before Phase 3.2, and what a compute host that does not
+ * report frame stats still gets. With frame stats it becomes
+ * `completeness × barQuality.factor`, so a card built from a truncated, gappy
+ * or stale window is visibly worse than one from a clean full window even when
+ * both have all five fields.
+ */
+export function dataQuality(input: SignalStateInput, frameStats?: FrameStats | null): number {
+  const base = completeness(input);
+  if (!frameStats) return base;
+  return base * barQuality(frameStats).factor;
+}
+
+/**
+ * The quality number plus the reasons behind any deduction — "why is this card
+ * low quality" in a form a human can read. Missing fields and every bar-quality
+ * deduction are listed. Not yet persisted (that is a `ticker_cards` migration —
+ * see docs/manual-setup-todo.md), but returned so the ingest route can log it.
+ */
+export function qualityReport(
+  input: SignalStateInput,
+  frameStats?: FrameStats | null,
+): { quality: number; reasons: string[] } {
+  const reasons: string[] = [];
+  const missing = missingInputFields(input);
+  if (missing.length) reasons.push(`missing fields: ${missing.join(", ")}`);
+  if (frameStats) reasons.push(...barQuality(frameStats).reasons);
+  return { quality: dataQuality(input, frameStats), reasons };
 }
 
 /**
@@ -157,6 +255,7 @@ export function buildCard(
   universe: CardUniverse,
   input: SignalStateInput,
   horizon: Horizon,
+  frameStats?: FrameStats | null,
 ): TickerCard {
   const tokens = toStateKeyParts(input, horizon);
   const score = scoreCard(tokens);
@@ -169,7 +268,7 @@ export function buildCard(
     score,
     scoreVersion: CARD_SCORE_VERSION,
     action: actionFromScore(score),
-    dataQuality: dataQuality(input),
+    dataQuality: dataQuality(input, frameStats),
     missingFields: missingInputFields(input),
     horizon,
   };

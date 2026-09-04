@@ -303,6 +303,57 @@ written as `0`/`0`/`50`, indistinguishable from real measurements. 40 is a
 measured boundary, not a guess — at 39 bars `volatilityPercentile` still
 returns `null` — and the test suite pins both sides of it.
 
+## Three-phase plan — Phases 1–3 code (PR #101, 2026-09-03)
+
+`docs/signal-engine-three-phase-plan.md` ordered the fix for three stacked
+failures: the nightly run was dead (§0a — 11 silent red runs on 3 missing
+secrets), and had it run it would have scaled wrong (no pagination) and then
+computed the wrong thing (drifted confluence, completeness-not-quality
+`dataQuality`). PR #101 lands the **code-only** slice:
+
+- **Observability (Phase 1).** `hydrate-universe.yml` now fails loudly: an
+  `if: failure()` step opens/updates a `hydration-failure` GitHub issue. A
+  second workflow, `signal-freshness-check.yml`, reads `GET ?meta=freshness`
+  (newest `ticker_cards.bar_date` + trading-days-stale, via
+  `latestCardBarDate()`) from **outside the write path** and goes red past
+  `MAX_STALE_TRADING_DAYS` (default 3) — the check that would have caught §0a on
+  day four. `vars.PORTAL_URL` → `secrets.PORTAL_URL` (the `vars.` lookup always
+  missed and fell through to the correct hardcoded default).
+- **Pagination (Phase 2.1).** `hydrate-local.mjs` `fetchBarsOnce` now walks
+  Alpaca's `next_page_token` to completion and merges per symbol. Alpaca caps a
+  response at 10k bars **sorted by symbol then timestamp**, so an over-cap
+  request silently drops the trailing symbols — the failure that the
+  chunk-size and 365-day-lookback increases would have triggered. New per-chunk
+  log line `[hydrate] chunk n/N pages= symbols=X/Y bars=` with a `pages>1` warn.
+- **Shared constants (Phase 2.2).** `lib/shared/hydration-constants.json` is now
+  the single source for `LOOKBACK_DAYS=365`, `CHUNK_SIZE=35`, `feed=iex`,
+  `adjustment=split`, `MIN_BARS=40`, `MIN_COVERAGE_RATIO=0.95`, re-exported by a
+  `.ts` and a `.mjs` view and drift-pinned by a test. **Modal still reads its
+  own copy** — wiring `modal_app.py` to the JSON twin is the open half.
+- **Symbology (Phase 2.3).** `normalizeToAlpaca()` in `seed-signals-universe.mjs`
+  rewrites yfinance-shaped `BRK-B` → Alpaca `BRK.B` at ingest (single-letter
+  class suffix only; `SCHW-PD` preferred notation is left alone). This is the
+  root cause behind failure 12's "`SCHW-PD` and the crypto pairs are Alpaca
+  rejects" — `BRK-B`/`BF-B` were never rejects, they were mis-spelled.
+- **Crypto guard (Phase 2.4).** `isCryptoShaped()` rejects `*-USD`-style pairs
+  at the `PUT` registration route, so no seeder can re-add the `BTC-USD` family
+  behind failure 9's whole-chunk-400 incident.
+- **Real `dataQuality` (Phase 3.2).** `card-policy.ts` splits the old linear
+  metric into `completeness(input)` (unchanged) × `barQuality(frameStats)`,
+  where `frameStats` = `{barCount, nanRatio, staleTradingDays}` measured by the
+  compute host and threaded through the ingest route. A truncated, gappy or
+  stale window now visibly outranks-below a clean one — directly addressing
+  failure 2's "a 5-of-5 card from a truncated window beats a 2-of-5 card from a
+  better engine". Backward compatible: no `frameStats` ⇒ the pre-Phase-3
+  number. `qualityReport()` returns human-readable `reasons`; **persisting them
+  is a deferred `ticker_cards` migration.**
+
+Explicitly **not** in PR #101 (see `docs/manual-setup-todo.md` §0b): the actual
+secret sync + smoke run (human-only), Phase 3.1 one-confluence-implementation
+(needs captured Python `_confluence` reference values first), and Phase 3.3
+relative-strength / sector rank (needs the full ~950-symbol run and a
+server-side pass).
+
 ## See also
 
 - [[decision-precompute-ai-at-quota-reset]] — the sibling route this shares

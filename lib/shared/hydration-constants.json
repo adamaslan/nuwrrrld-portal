@@ -1,0 +1,10 @@
+{
+  "$comment": "Single source of truth for the universe-hydration constants that MUST agree across every compute host (the JS scripts/hydrate-local.mjs lane, and the Python deploy/universe-hydration/modal_app.py lane). Phase 2.2 of docs/signal-engine-three-phase-plan.md. Both lib/shared/hydration-constants.ts and lib/shared/hydration-constants.mjs import this file verbatim; Modal reads it as a committed JSON twin. Changing a value here is a one-line reviewable diff that moves every host at once.",
+  "LOOKBACK_DAYS": 365,
+  "CHUNK_SIZE": 35,
+  "ALPACA_FEED": "iex",
+  "ALPACA_ADJUSTMENT": "split",
+  "MIN_BARS": 40,
+  "MIN_COVERAGE_RATIO": 0.95,
+  "ALPACA_PAGE_LIMIT": 10000
+}

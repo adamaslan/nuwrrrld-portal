@@ -231,6 +231,26 @@ export async function coverageForDate(
   }
 }
 
+/**
+ * The newest `bar_date` anywhere in `ticker_cards`, as `YYYY-MM-DD`, or null
+ * when the table is empty or unreadable.
+ *
+ * This is the one symptom that survives every possible cause of a broken
+ * pipeline (Phase 1.5): if the *writer* is down, no assertion inside the writer
+ * can fire, but the newest card silently ages. A check that reads this from
+ * outside the write path catches the outage on day one instead of day fifteen.
+ */
+export async function latestCardBarDate(): Promise<string | null> {
+  try {
+    const rows = await sql`SELECT MAX(bar_date) AS latest FROM ticker_cards`;
+    const latest = rows[0]?.latest;
+    return latest == null ? null : toIsoDate(latest);
+  } catch (err) {
+    console.error(`[ticker-cards] latestCardBarDate failed: ${errMsg(err)}`);
+    return null;
+  }
+}
+
 /** Stored card for one ticker+horizon, or null. Used to apply
  *  `shouldReplaceCard` in code paths that need the decision before writing. */
 export async function getCard(ticker: string, horizon: Horizon): Promise<StoredCard | null> {

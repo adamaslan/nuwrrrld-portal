@@ -1,0 +1,88 @@
+name: Signal freshness check
+
+# Phase 1.5 of docs/signal-engine-three-phase-plan.md.
+#
+# Staleness is the symptom that survives every possible cause of a broken
+# pipeline: whatever kills the nightly hydration run, the newest card in
+# ticker_cards stops advancing. This job reads that date from *outside* the
+# write path (GET ?meta=freshness) and goes red when it is more than
+# MAX_STALE_TRADING_DAYS old. It would have caught the Aug 2026 outage on day
+# four instead of day fifteen.
+#
+# Runs each weekday morning ET, after the previous evening's hydration cron
+# (30 22 * * 1-5) has had all night to land.
+on:
+  schedule:
+    - cron: '0 13 * * 1-5' # 13:00 UTC = 08:00–09:00 ET
+  workflow_dispatch:
+    inputs:
+      maxStaleTradingDays:
+        description: 'Fail above this many trading days stale (blank = 3). Set 0 to test the alert.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: signal-freshness-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check ranked-universe freshness
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          MAX_STALE_TRADING_DAYS: ${{ github.event.inputs.maxStaleTradingDays || '3' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PORTAL_PUSH_SECRET}" ]; then
+            echo "::error::PORTAL_PUSH_SECRET is not set — cannot query freshness."
+            exit 1
+          fi
+          node scripts/check-card-freshness.mjs
+
+      - name: Open or update the stale-signals tracking issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'stale-signals';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+              per_page: 1,
+            });
+            const note = `The ranked universe (\`ticker_cards\`) has gone stale — the nightly ` +
+              `hydration run is not landing fresh cards. Check the \`Nightly universe hydration\` ` +
+              `workflow and \`docs/manual-setup-todo.md\`. Run: ${runUrl}`;
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body: `Still stale — ${runUrl}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Ranked universe is stale',
+                body: note,
+                labels: [label],
+              });
+            }
