@@ -30,7 +30,8 @@
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const PORTAL_URL = (process.env.PORTAL_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
@@ -221,8 +222,12 @@ async function main() {
 }
 
 // Guarded so `normalizeToAlpaca` can be imported by a unit test without the
-// seeder running as a side effect.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// seeder running as a side effect. `file://${process.argv[1]}` (the previous
+// form) is a raw string concat against a URL-encoded import.meta.url — a path
+// with spaces or a Windows path makes the comparison false, silently skipping
+// main() when run directly. pathToFileURL() encodes the same way
+// import.meta.url does. CodeRabbit review, PR #101.
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((err) => {
     process.stderr.write(`seed-signals-universe failed: ${err.message}\n`);
     process.exit(1);

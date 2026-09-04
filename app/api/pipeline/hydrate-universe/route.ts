@@ -220,6 +220,13 @@ export async function POST(req: NextRequest) {
   const upstreamErrors: { ticker: string; reason: string }[] = [];
 
   for (const row of rows) {
+    // Same shape rejection as PUT above: an authenticated compute host could
+    // otherwise persist a crypto-shaped card straight through POST, bypassing
+    // the registration-time guard entirely. CodeRabbit review, PR #101.
+    if (isCryptoShaped(row?.ticker)) {
+      rejected.push({ ticker: String(row?.ticker ?? ""), reason: "crypto-shaped ticker" });
+      continue;
+    }
     const ticker = normalizeTicker(row?.ticker);
     if (!ticker) {
       rejected.push({ ticker: String(row?.ticker ?? ""), reason: "invalid ticker" });
@@ -303,10 +310,18 @@ function parseFrameStats(raw: HydrateRow["frameStats"]): FrameStats | null {
   const barCount = numOrNull(raw.barCount);
   const nanRatio = numOrNull(raw.nanRatio);
   if (barCount === null || nanRatio === null) return null;
+  // Reject out-of-range values rather than passing them through: a negative
+  // barCount, a nanRatio outside [0,1], or a negative staleTradingDays would
+  // otherwise skip the corresponding quality deduction in barQuality() and let
+  // a malformed row persist as a full-quality (data_quality=1) card, entering
+  // the >=0.8 ranking path with silently wrong numbers. CodeRabbit review, PR #101.
+  if (barCount < 0 || nanRatio < 0 || nanRatio > 1) return null;
+  const staleTradingDays = numOrNull(raw.staleTradingDays);
+  if (staleTradingDays !== null && staleTradingDays < 0) return null;
   return {
     barCount,
     nanRatio,
-    staleTradingDays: numOrNull(raw.staleTradingDays),
+    staleTradingDays,
   };
 }
 
@@ -347,6 +362,12 @@ function tradingDaysBetween(fromIso: string, toIso: string): number {
   const cursor = new Date(from);
   while (cursor < to) {
     cursor.setUTCDate(cursor.getUTCDate() + 1);
+    // Strictly-between means `to` itself is never counted, even though it
+    // passed the loop guard before this increment — the increment can land
+    // the cursor exactly on `to`. Without this check, tradingDaysBetween on
+    // two consecutive calendar days counted 1 instead of the correct 0.
+    // CodeRabbit review, PR #101.
+    if (cursor >= to) break;
     const day = cursor.getUTCDay();
     if (day !== 0 && day !== 6) count++;
   }

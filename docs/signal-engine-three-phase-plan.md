@@ -88,9 +88,13 @@ change the workflow to `secrets.PORTAL_URL`.
 
 ### 1.4 Alert on failure
 
-A `if: failure()` step that posts to a channel someone actually reads. Eleven
-silent red runs is a monitoring gap, not a workflow gap — the workflow's own
-guard worked perfectly and named the missing secret.
+**Implemented as an `if: failure()` step that opens or updates a
+`hydration-failure`-labeled GitHub issue** (`.github/workflows/hydrate-universe.yml`
+"Open or update the hydration-failure tracking issue"), not a channel post —
+channel notification remains a separate, unimplemented idea if it's ever
+wanted. Eleven silent red runs is a monitoring gap, not a workflow gap — the
+workflow's own guard worked perfectly and named the missing secret; this just
+makes the failure visible somewhere a human will see it.
 
 ### 1.5 Add a freshness check independent of the writer
 

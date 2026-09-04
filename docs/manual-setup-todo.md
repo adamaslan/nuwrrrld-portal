@@ -149,10 +149,16 @@ That branch implements the **code-only** parts of Phases 1–3 of
 
 ---
 
-## 0. What is actually broken right now
+## 0. What was broken (historical — see the 2026-09-03 resolution note below)
 
-The `integration` CI job fails on **every** branch — `feat/consent-cookies-tracking`
-(PR #77) and `feat/auth-cookies-phase-1-3-6` (PR #78) alike. It predates both.
+**`NEON_API_KEY`/`NEON_PROJECT_ID` now exist (set 2026-08-30) — the diagnosis
+below is preserved for context, not the current cause of any remaining
+failure.** If `integration` is still red, re-run it and read the fresh log
+rather than assuming this is why.
+
+The `integration` CI job originally failed on **every** branch —
+`feat/consent-cookies-tracking` (PR #77) and `feat/auth-cookies-phase-1-3-6`
+(PR #78) alike. It predated both.
 
 ```
 env:

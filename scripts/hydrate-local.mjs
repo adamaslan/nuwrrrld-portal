@@ -53,10 +53,29 @@ try {
   /* .env.local absent */
 }
 
+// A non-HTTPS PORTAL_URL sends PORTAL_PUSH_SECRET in cleartext — acceptable
+// only on loopback (local dev), never over a real network hop. CodeRabbit
+// review, PR #101.
+function assertSafePortalUrl(url) {
+  const { protocol, hostname } = new URL(url);
+  const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  if (protocol !== "https:" && !isLoopback) {
+    throw new Error(
+      `PORTAL_URL (${url}) is not HTTPS and not loopback — refusing to send PORTAL_PUSH_SECRET in cleartext.`,
+    );
+  }
+}
+
 const PORTAL_URL = (process.env.PORTAL_URL ?? env.PORTAL_URL ?? "http://localhost:3000").replace(/\/$/, "");
+assertSafePortalUrl(PORTAL_URL);
 const PORTAL_PUSH_SECRET = process.env.PORTAL_PUSH_SECRET ?? env.PORTAL_PUSH_SECRET;
 const ALPACA_API_KEY = process.env.ALPACA_API_KEY ?? env.ALPACA_API_KEY;
 const ALPACA_API_SECRET = process.env.ALPACA_API_SECRET ?? env.ALPACA_API_SECRET;
+// Per-request cap on a single Alpaca page fetch. Not in hydration-constants.json:
+// that file is the single source shared across compute hosts for values that
+// affect the *data* (chunk size, lookback window); this is transport-only and
+// has no mobile/cross-repo relevance (mobile has no hydration lane at all).
+const ALPACA_REQUEST_TIMEOUT_MS = 15_000;
 
 function fail(message) {
   console.error(`hydrate-local: ${message}`);
@@ -157,11 +176,16 @@ async function fetchBarsOnce(symbols) {
     url.searchParams.set("adjustment", ALPACA_ADJUSTMENT);
     if (pageToken) url.searchParams.set("page_token", pageToken);
 
+    // Without a per-request timeout, a stalled Alpaca page response hangs
+    // this fetch indefinitely — the chunk never reaches the existing
+    // per-symbol failure path below, it just wedges the whole run. CodeRabbit
+    // review, PR #101.
     const res = await fetch(url, {
       headers: {
         "APCA-API-KEY-ID": ALPACA_API_KEY,
         "APCA-API-SECRET-KEY": ALPACA_API_SECRET,
       },
+      signal: AbortSignal.timeout(ALPACA_REQUEST_TIMEOUT_MS),
     });
 
     if (!res.ok) throw new Error(`Alpaca returned ${res.status}: ${await res.text()}`);
@@ -237,6 +261,11 @@ function tradingDaysStale(lastBarIso) {
   const cursor = new Date(last);
   while (cursor < today) {
     cursor.setUTCDate(cursor.getUTCDate() + 1);
+    // Today's session may not have closed yet, so it must never count as a
+    // full stale day — without this, a bar from one full weekday behind was
+    // counted as 2 instead of 1, applying a premature staleness deduction.
+    // CodeRabbit review, PR #101.
+    if (cursor >= today) break;
     const day = cursor.getUTCDay();
     if (day !== 0 && day !== 6) count++;
   }
@@ -419,10 +448,15 @@ async function main() {
             `bars=${barsTotal.toLocaleString()}`,
         );
         if (lastFetchPageCount > 1) {
-          console.warn(
-            `  ::warning:: chunk returned ${lastFetchPageCount} pages — over the ` +
-              `${ALPACA_PAGE_LIMIT}-bar cap; trailing symbols risk truncation, ` +
-              `lower CHUNK_SIZE in hydration-constants.json`,
+          // fetchBarsOnce walks next_page_token to completion — a multi-page
+          // response is fully handled, not truncated. Reporting it as a
+          // truncation risk was accurate before pagination existed but is now
+          // a false data-loss alert that advises an unnecessary CHUNK_SIZE
+          // reduction. The real truncation signal is the symbolsWithBars
+          // check below. CodeRabbit review, PR #101.
+          console.log(
+            `  [hydrate] chunk needed ${lastFetchPageCount} pages (over the ` +
+              `${ALPACA_PAGE_LIMIT}-bar cap) — pagination completed normally`,
           );
         }
         if (symbolsWithBars < chunk.length) {

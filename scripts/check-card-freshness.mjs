@@ -31,7 +31,21 @@ try {
   /* .env.local absent — process.env is expected in CI */
 }
 
+// A non-HTTPS PORTAL_URL sends PORTAL_PUSH_SECRET in cleartext — acceptable
+// only on loopback (local dev), never over a real network hop. CodeRabbit
+// review, PR #101.
+function assertSafePortalUrl(url) {
+  const { protocol, hostname } = new URL(url);
+  const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  if (protocol !== "https:" && !isLoopback) {
+    throw new Error(
+      `PORTAL_URL (${url}) is not HTTPS and not loopback — refusing to send PORTAL_PUSH_SECRET in cleartext.`,
+    );
+  }
+}
+
 const PORTAL_URL = (process.env.PORTAL_URL ?? env.PORTAL_URL ?? "https://financial.nuwrrrld.com").replace(/\/$/, "");
+assertSafePortalUrl(PORTAL_URL);
 const PORTAL_PUSH_SECRET = process.env.PORTAL_PUSH_SECRET ?? env.PORTAL_PUSH_SECRET;
 const MAX_STALE_TRADING_DAYS = Number(process.env.MAX_STALE_TRADING_DAYS ?? "3");
 
