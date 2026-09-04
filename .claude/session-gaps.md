@@ -318,3 +318,19 @@
 - end reason: other
 - next session: run the `end-session` skill early (while context is
   still >50%) to produce a real handoff instead of this stub.
+
+## [2026-09-04 19:41] session ended with no handoff written
+- branch: `wip/restore-local-changes`
+- uncommitted files: 2
+- unpushed commits: 0
+- end reason: other
+- next session: run the `end-session` skill early (while context is
+  still >50%) to produce a real handoff instead of this stub.
+
+## [2026-09-04 21:59] session ended with no handoff written
+- branch: `docs/scheduler-census`
+- uncommitted files: 3
+- unpushed commits: 0
+- end reason: other
+- next session: run the `end-session` skill early (while context is
+  still >50%) to produce a real handoff instead of this stub.

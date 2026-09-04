@@ -37,34 +37,6 @@ async function fetchCouncilSample(): Promise<CouncilSample | null> {
   } catch { return null; }
 }
 
-interface IndexEntry {
-  symbol?: string;
-  price?: number;
-  change_pct?: number;
-}
-
-interface MarketOverviewResponse {
-  brief?: {
-    summary?: string;
-    indices?: Record<string, IndexEntry>;
-  };
-}
-
-/**
- * The backend nests index quotes under `brief.indices`, keyed by display name
- * ("S&P 500"), not ticker. Re-key by `.symbol` so the rest of the page can look
- * up `bySymbol.SPY` the way it always assumed it could.
- */
-function indexBySymbol(market: MarketOverviewResponse | null): Record<string, IndexEntry> {
-  const indices = market?.brief?.indices;
-  if (!indices) return {};
-  const out: Record<string, IndexEntry> = {};
-  for (const entry of Object.values(indices)) {
-    if (entry?.symbol) out[entry.symbol] = entry;
-  }
-  return out;
-}
-
 /**
  * Bounds a promise that has no native cancellation (e.g. the Neon track-record
  * query, unlike the MCP fetches above which use AbortController) so the
@@ -88,15 +60,11 @@ async function fetchLandingData() {
     } finally { clearTimeout(timer); }
   };
 
-  const [mktRes, sigRes, council, trackRecord] = await Promise.allSettled([
-    fetchWithTimeout(`${MCP_URL}/market-overview`, 3600),
+  const [sigRes, council, trackRecord] = await Promise.allSettled([
     fetchWithTimeout(`${MCP_URL}/signals`, 3600),
     fetchCouncilSample(),
     withTimeout(getAggregateTrackRecord(), 5_000),
   ]);
-  const market: MarketOverviewResponse | null = mktRes.status === "fulfilled" && mktRes.value.ok
-    ? await mktRes.value.json().catch(() => null)
-    : null;
   const sigRaw = sigRes.status === "fulfilled" && sigRes.value.ok
     ? await sigRes.value.json().catch(() => null)
     : null;
@@ -110,9 +78,6 @@ async function fetchLandingData() {
   const councilData: CouncilSample | null = council.status === "fulfilled" ? council.value : null;
   const trackRecordData = trackRecord.status === "fulfilled" ? trackRecord.value : null;
   return {
-    market,
-    marketSummary: market?.brief?.summary,
-    indices: indexBySymbol(market),
     topSignals,
     council: councilData,
     trackRecord: trackRecordData,
@@ -140,7 +105,7 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  const { marketSummary, indices, topSignals, council, trackRecord, coverage } = await fetchLandingData();
+  const { topSignals, council, trackRecord, coverage } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
@@ -201,39 +166,18 @@ export default async function Home() {
             <ParallaxLayer depth={16} className="phone main">
               <div className="screen">
                 <div className="statusbar"><span>9:41</span><span>NuWrrrld Financial</span></div>
-                <div className="app-title"><strong>Market snapshot</strong><span className="pill">Live</span></div>
-                {indices.SPY != null ? (
-                  <>
-                    <div className="brief-card">
-                      <div className="label">S&amp;P 500</div>
-                      <div className={`big-number ${(indices.SPY.change_pct ?? 0) >= 0 ? "up" : "down"}`}>
-                        {indices.SPY.price?.toLocaleString() ?? "—"}
-                      </div>
-                      {marketSummary && (
-                        <p className="brief-text">{marketSummary}</p>
-                      )}
-                    </div>
-                    <div className="mini-grid">
-                      {["QQQ", "DIA", "IWM"].map((sym) => {
-                        const idx = indices[sym];
-                        return (
-                          <div key={sym} className="mini-card">
-                            <strong>{sym}</strong>
-                            <span className={idx?.change_pct != null && idx.change_pct >= 0 ? "up" : "down"}>
-                              {idx?.change_pct != null
-                                ? `${idx.change_pct >= 0 ? "+" : ""}${idx.change_pct.toFixed(2)}%`
-                                : "—"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  <div className="brief-card">
-                    <p className="brief-text">Market snapshot loading…</p>
-                  </div>
-                )}
+                <div className="app-title"><strong>Market snapshot</strong></div>
+                <p className="sample-data-tag">Sample data — illustrative only</p>
+                <div className="brief-card">
+                  <div className="label">S&amp;P 500</div>
+                  <div className="big-number up">5,614</div>
+                  <p className="brief-text">Most tracked sectors are trending up, and buy calls outnumber sells.</p>
+                </div>
+                <div className="mini-grid">
+                  <div className="mini-card"><strong>QQQ</strong><span className="up">+0.84%</span></div>
+                  <div className="mini-card"><strong>DIA</strong><span className="up">+0.31%</span></div>
+                  <div className="mini-card"><strong>IWM</strong><span className="down">-0.12%</span></div>
+                </div>
               </div>
             </ParallaxLayer>
 
