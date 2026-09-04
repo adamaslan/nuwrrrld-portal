@@ -52,10 +52,19 @@ function buildSimulationPrompt(ticker: string, fundName: string, signal: Record<
 
 async function fetchLiveSignal(ticker: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${MCP_URL}/signals/${ticker}`, { next: { revalidate: 3600 } });
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${MCP_URL}/signals/${ticker}`, { next: { revalidate: 3600 }, signal: controller.signal });
+      if (!res.ok) return null;
+      return (await res.json()) as Record<string, unknown>;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.warn(`MCP signal fetch timed out for ${ticker}`);
+    }
     return null;
   }
 }

@@ -140,6 +140,13 @@ for (let i = 0; i < 3; i++) {
   } catch {
     samples.push({ raw: v.answer, parse_error: true });
   }
+
+// Require majority quorum (≥2 of 3)
+const validSamples = samples.filter(s => !s.parse_error);
+if (validSamples.length < 2) {
+  console.error(`No quorum: only ${validSamples.length} of 3 verdicts valid`);
+  process.exit(1);
+}
 }
 
 const out = {

@@ -337,3 +337,5 @@ is expired (§2.3). Fix that and it should read `OPENROUTER_API_KEY` from `.env.
 - **`$10,000` or user-entered capital?** Fixed capital keeps `/api/council/public`'s
   ticker-only, no-free-text contract intact — worth preserving; a capital input is a new
   injection surface for an unauthenticated endpoint.
+
+**[CodeRabbit 2026-09-04]** Align holdings JSON output format with regeneration workflow schema.
