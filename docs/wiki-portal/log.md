@@ -658,3 +658,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-04] ingest | PR #105 feat(db): SQLite schema generator + DB-parity contract suite (Phases 5-8) | pages touched: 5
 
 ## [2026-09-04] ingest | PR #107 docs: scheduler census — GHA vs Modal vs GCP Cloud Scheduler | pages touched: 1
+
+## [2026-09-04] ingest | PR #108 fix(landing): demote market snapshot to sample data | pages touched: 1
