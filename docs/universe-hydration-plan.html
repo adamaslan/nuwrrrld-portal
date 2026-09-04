@@ -1,0 +1,770 @@
+<title>Universe Hydration Runbook</title>
+<style>
+  :root {
+    --ink:        #16191d;
+    --ink-soft:   #4d545e;
+    --ink-faint:  #7b838f;
+    --ground:     #f7f6f3;
+    --panel:      #ffffff;
+    --rule:       #e0ded8;
+    --accent:     #1d5c4f;
+    --accent-dim: #dceae5;
+    --amber:      #9a6b12;
+    --amber-dim:  #f7ecd6;
+    --crimson:    #97302c;
+    --crimson-dim:#f8e2e0;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:        #eceae5;
+      --ink-soft:   #a8aeb8;
+      --ink-faint:  #767d88;
+      --ground:     #14161a;
+      --panel:      #1b1e23;
+      --rule:       #2e333a;
+      --accent:     #5fbfa6;
+      --accent-dim: #16302a;
+      --amber:      #d9a441;
+      --amber-dim:  #322613;
+      --crimson:    #e0716b;
+      --crimson-dim:#33191a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:        #eceae5;
+    --ink-soft:   #a8aeb8;
+    --ink-faint:  #767d88;
+    --ground:     #14161a;
+    --panel:      #1b1e23;
+    --rule:       #2e333a;
+    --accent:     #5fbfa6;
+    --accent-dim: #16302a;
+    --amber:      #d9a441;
+    --amber-dim:  #322613;
+    --crimson:    #e0716b;
+    --crimson-dim:#33191a;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 24px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  /* ── masthead ─────────────────────────────────────────── */
+  header.masthead {
+    padding: 64px 0 32px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(34px, 5.5vw, 52px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-family: var(--serif);
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  /* ── status strip ─────────────────────────────────────── */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 0 0 56px;
+  }
+  .stat { background: var(--panel); padding: 18px 16px; }
+  .stat-k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 8px;
+  }
+  .stat-v {
+    font-family: var(--serif);
+    font-size: 28px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    margin: 0 0 6px;
+  }
+  .stat-n { font-size: 12px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
+  .ok { color: var(--accent); }
+  .warn { color: var(--amber); }
+  .bad { color: var(--crimson); }
+
+  /* ── sections ─────────────────────────────────────────── */
+  section { margin: 0 0 56px; }
+  h2 {
+    font-family: var(--serif);
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    padding-top: 28px;
+    border-top: 1px solid var(--rule);
+    text-wrap: balance;
+  }
+  .dek {
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin: 0 0 26px;
+    max-width: 64ch;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 650;
+    margin: 0 0 8px;
+    letter-spacing: -0.005em;
+  }
+  p { margin: 0 0 14px; max-width: 68ch; }
+
+  /* ── lanes ────────────────────────────────────────────── */
+  .lane {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 22px 24px;
+    margin: 0 0 18px;
+  }
+  .lane.local { border-left-color: var(--amber); }
+  .lane-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 12px;
+  }
+  .lane-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .lane.local .lane-tag { background: var(--amber-dim); color: var(--amber); }
+  .lane-title { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; }
+  .lane-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-faint);
+    margin-left: auto;
+  }
+
+  /* ── flow ─────────────────────────────────────────────── */
+  .flow {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.9;
+    background: var(--ground);
+    border: 1px solid var(--rule);
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 14px 0;
+    white-space: pre;
+  }
+
+  /* ── code ─────────────────────────────────────────────── */
+  pre {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  p code, li code, td code {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    padding: 1px 5px;
+  }
+
+  /* ── tables ───────────────────────────────────────────── */
+  .twrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--panel); }
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--ink);
+    white-space: nowrap;
+  }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+  /* ── pills ────────────────────────────────────────────── */
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    white-space: nowrap;
+  }
+  .p-ok { background: var(--accent-dim); color: var(--accent); }
+  .p-warn { background: var(--amber-dim); color: var(--amber); }
+  .p-bad { background: var(--crimson-dim); color: var(--crimson); }
+
+  /* ── steps ────────────────────────────────────────────── */
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; }
+  ol.steps > li {
+    counter-increment: s;
+    position: relative;
+    padding: 0 0 26px 46px;
+    border-left: 1px solid var(--rule);
+    margin-left: 13px;
+  }
+  ol.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(s);
+    position: absolute;
+    left: -13px;
+    top: 0;
+    width: 26px;
+    height: 26px;
+    background: var(--ink);
+    color: var(--ground);
+    font-family: var(--mono);
+    font-size: 12px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+  }
+  .step-t { font-weight: 650; font-size: 15px; margin: 2px 0 6px; }
+  .step-b { color: var(--ink-soft); font-size: 14.5px; margin: 0 0 10px; }
+
+  ul.tight { margin: 0 0 14px; padding-left: 20px; }
+  ul.tight li { margin-bottom: 6px; color: var(--ink-soft); font-size: 14.5px; }
+
+  .callout {
+    background: var(--amber-dim);
+    border-left: 3px solid var(--amber);
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 14.5px;
+  }
+  .callout strong { color: var(--amber); }
+  .callout.hard { background: var(--crimson-dim); border-left-color: var(--crimson); }
+  .callout.hard strong { color: var(--crimson); }
+  .callout p { margin: 0 0 10px; }
+  .callout p:last-child { margin: 0; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 22px;
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+  footer a { color: var(--accent); }
+  a:focus-visible, li:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">nuwrrrld-portal · coverage pipeline · 2026-08-18</p>
+  <h1>From two watchlists to the whole universe</h1>
+  <p class="standfirst">
+    Every piece of the hydration pipeline is written. None of it has ever run against
+    the real database. This is the plan to start it — a Modal cron for the nightly
+    universe, a local manual lane for everything you want to watch happen, and a
+    seeded base portfolio for the test user underneath both.
+  </p>
+</header>
+
+<div class="strip">
+  <div class="stat">
+    <p class="stat-k">ticker_universe</p>
+    <p class="stat-v bad">0</p>
+    <p class="stat-n">Empty. Nothing to walk.</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">ticker_cards</p>
+    <p class="stat-v bad">0</p>
+    <p class="stat-n">No coverage at all today.</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Watchlist rows</p>
+    <p class="stat-v">14</p>
+    <p class="stat-n">2 users. The entire current data plane.</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Alpaca creds</p>
+    <p class="stat-v ok">LIVE</p>
+    <p class="stat-n">Verified against real bars this session.</p>
+  </div>
+  <div class="stat">
+    <p class="stat-k">Model calls to card</p>
+    <p class="stat-v ok">0</p>
+    <p class="stat-n">Coverage spends no AI quota.</p>
+  </div>
+</div>
+
+<section>
+  <h2>What changed today</h2>
+  <p class="dek">
+    One blocker fell, and it was the one holding up everything else.
+  </p>
+
+  <p>
+    <code>ALPACA_API_KEY</code> and <code>ALPACA_API_SECRET</code> are now in
+    <code>.env.local</code>, and they work — a live call to Alpaca's multi-symbol
+    bars endpoint returned real AAPL and MSFT bars for session
+    <code>2026-08-18</code>, HTTP 200. That was <strong>Blocker 4</strong> in
+    <code>docs/pipeline-todo-blockers.md</code>: <em>"the entire stock lane cannot
+    run at all without it."</em> It can now.
+  </p>
+
+  <p>
+    Which means the pipeline's remaining blockers are no longer about credentials.
+    They're about <em>execution</em> — code that exists, has been dry-run verified,
+    and has never once been pointed at production.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead>
+        <tr><th>Blocker</th><th>Was</th><th>Now</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>4</strong> · Alpaca credentials</td>
+          <td><span class="pill p-bad">Blocking</span></td>
+          <td><span class="pill p-ok">Closed</span> keys live &amp; verified</td>
+        </tr>
+        <tr>
+          <td><strong>3</strong> · <code>PORTAL_PUSH_SECRET</code></td>
+          <td><span class="pill p-bad">Blocking</span></td>
+          <td><span class="pill p-ok">Closed</span> in <code>.env.local</code></td>
+        </tr>
+        <tr>
+          <td><strong>2</strong> · Universe never seeded</td>
+          <td><span class="pill p-bad">Blocking</span></td>
+          <td><span class="pill p-warn">Ready</span> 518 tickers dry-run verified</td>
+        </tr>
+        <tr>
+          <td><strong>5</strong> · Modal never deployed</td>
+          <td><span class="pill p-bad">Blocking</span></td>
+          <td><span class="pill p-warn">Ready</span> app written, unrun</td>
+        </tr>
+        <tr>
+          <td><strong>1</strong> · ETF explain-quality gate</td>
+          <td><span class="pill p-warn">Undecided</span></td>
+          <td><span class="pill p-warn">Undecided</span> — see below</td>
+        </tr>
+        <tr>
+          <td><strong>6</strong> · Two precompute schedulers race</td>
+          <td><span class="pill p-warn">Open</span></td>
+          <td><span class="pill p-bad">Now real</span> once cards exist</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Two lanes, deliberately</h2>
+  <p class="dek">
+    Modal owns the recurring nightly walk. A local script owns anything you want to
+    watch, debug, or re-run by hand. They write through the same endpoint, so they
+    cannot disagree about schema, validation, or idempotency.
+  </p>
+
+  <div class="lane">
+    <div class="lane-head">
+      <span class="lane-tag">Lane A · Modal</span>
+      <p class="lane-title">Nightly full-universe walk</p>
+      <span class="lane-meta">05:00 UTC · cron</span>
+    </div>
+    <p>
+      <code>deploy/universe-hydration/modal_app.py</code>, already written. Chunks the
+      universe 200 symbols at a time, pulls 120 days of daily bars from Alpaca,
+      computes RSI / MACD-cross / ADX / volatility-percentile in pandas, and POSTs
+      token cards back to the portal. It holds a push secret and a market-data key —
+      never a database URL, never a model key.
+    </p>
+    <div class="flow">modal cron 05:00 UTC
+  ├─ GET  /api/pipeline/hydrate-universe?universe=stock   → symbol list
+  ├─ GET  data.alpaca.markets/v2/stocks/bars  ×N chunks   → 120d daily bars
+  ├─ pandas: RSI · MACD cross · ADX · vol-percentile      → 0 model calls
+  └─ POST /api/pipeline/hydrate-universe  ×N chunks       → ticker_cards</div>
+    <p>
+      It fails the run below 95% coverage rather than reporting green on a partial
+      night — the silent-degradation guard this pipeline exists to prevent.
+    </p>
+  </div>
+
+  <div class="lane local">
+    <div class="lane-head">
+      <span class="lane-tag">Lane B · Local</span>
+      <p class="lane-title">Manual hydration you can watch</p>
+      <span class="lane-meta">on demand · your terminal</span>
+    </div>
+    <p>
+      The same walk, run from your machine against a local dev server, scoped to
+      whatever symbol list you hand it. This is the lane that makes the Modal lane
+      trustworthy: you see every chunk land, every card score, every rejection
+      reason, before a cron ever runs unattended.
+    </p>
+    <div class="flow">node scripts/hydrate-local.mjs --symbols=AAPL,NVDA,MSFT
+  ├─ reads .env.local  (ALPACA_* + PORTAL_PUSH_SECRET)
+  ├─ same Alpaca fetch, same indicator math (JS port)
+  ├─ POST http://localhost:3000/api/pipeline/hydrate-universe
+  └─ prints per-symbol: score · action · dataQuality · missingFields</div>
+    <p>
+      Also the only lane that works before Modal is deployed at all — which is
+      today's actual state.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The base portfolio</h2>
+  <p class="dek">
+    The test user currently has 5 watchlist rows. A base portfolio makes the
+    dashboards render something real, and gives the AI lane a portfolio to be
+    healthy or unhealthy about.
+  </p>
+
+  <p>
+    <code>user_devlocal000000000000000</code> holds
+    <code>AAPL</code>, <code>NVDA</code>, <code>MSFT</code>, <code>TSLA</code>,
+    <code>SPY</code>. That set is a reasonable spine, but it's a watchlist, not a
+    portfolio — no positions, no cost basis, so portfolio-health has nothing to
+    score. The plan seeds a deliberate base portfolio across sectors so the health
+    factors (concentration, sector balance, volatility) produce a non-degenerate
+    grade rather than a flat A or a silent F.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead>
+        <tr><th>Sleeve</th><th>Tickers</th><th class="num">Weight</th><th>Why it's there</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mega-cap tech</td>
+          <td><code>AAPL</code> <code>MSFT</code> <code>NVDA</code></td>
+          <td class="num">40%</td>
+          <td>Deliberate concentration — health score should flag it</td>
+        </tr>
+        <tr>
+          <td>Broad market</td>
+          <td><code>SPY</code> <code>QQQ</code></td>
+          <td class="num">25%</td>
+          <td>ETF rows exercise the gcp3 lane, not the Alpaca one</td>
+        </tr>
+        <tr>
+          <td>Energy / defensive</td>
+          <td><code>VDE</code> <code>XLU</code></td>
+          <td class="num">15%</td>
+          <td>Negative-correlation sleeve; tests sector-balance factor</td>
+        </tr>
+        <tr>
+          <td>Speculative</td>
+          <td><code>TSLA</code> <code>QBTS</code></td>
+          <td class="num">12%</td>
+          <td>High-volatility rows; tests the volatility factor</td>
+        </tr>
+        <tr>
+          <td>Semis / memory</td>
+          <td><code>MU</code> <code>SNDK</code></td>
+          <td class="num">8%</td>
+          <td>Already on the second user's watchlist — real overlap</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Every one of these is either already in a watchlist or in the S&amp;P 500 seed
+    list, so the portfolio never references a ticker the universe doesn't carry.
+  </p>
+</section>
+
+<section>
+  <h2>Firestore</h2>
+  <p class="dek">
+    Worth being precise about, because it isn't in this repo.
+  </p>
+
+  <p>
+    Firestore is reached through the <strong>gcp3 backend</strong>
+    (<code>~/code/gcp3/backend/</code>) — <code>etf_history/{SYMBOL}</code> holds
+    permanent ETF price history, <code>industry_cache</code> holds the 54-ETF
+    signal rows, <code>nwf_digest/latest</code> holds the digest the portal reads.
+    The portal has no Firestore client and no GCP credentials; it talks to
+    <code>MCP_BACKEND_URL</code> over HTTP.
+  </p>
+
+  <p>
+    So "hydrate Firestore as well" means a <em>cross-repo</em> step: seeding
+    <code>etf_history</code> through gcp3's own <code>etf_store.py</code>, which
+    appends only new trading days after an initial full-history seed. That's a
+    separate repo, a separate PR loop, and separate credentials.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>Scoping note.</strong> The Firestore lane is real work but it is
+      <em>not</em> on the critical path for universe coverage. The Alpaca → Neon →
+      <code>ticker_cards</code> path is complete and self-contained; Firestore only
+      feeds the 54 ETF rows, which already work. Recommend shipping the stock lane
+      first and treating the Firestore seed as a follow-on in <code>gcp3</code>.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The order to run it</h2>
+  <p class="dek">
+    Each step leaves the system working and is independently verifiable. Nothing
+    here is a rewrite — it's turning on code that already exists.
+  </p>
+
+  <ol class="steps">
+    <li>
+      <p class="step-t">Seed the universe locally, against a dev branch first</p>
+      <p class="step-b">
+        <code>seed-universe.mjs</code> scrapes 518 tickers from Wikipedia. Point it
+        at <code>localhost:3000</code> before anything touches production — the
+        script has a <code>MIN_ROWS</code> guard that fails loud on a parser
+        regression, and you want to see that guard pass once.
+      </p>
+      <pre>PORTAL_URL=http://localhost:3000 \
+  node scripts/seed-universe.mjs --dry-run
+PORTAL_URL=http://localhost:3000 \
+  node scripts/seed-universe.mjs</pre>
+    </li>
+
+    <li>
+      <p class="step-t">Write the local hydration script</p>
+      <p class="step-b">
+        <code>scripts/hydrate-local.mjs</code> — a JS port of the Modal indicator
+        math, hitting the same POST endpoint. This is new code, and it's the only
+        new code in the plan. It exists so hydration is observable before it's
+        automated.
+      </p>
+      <ul class="tight">
+        <li>Same 4 indicators, same taxonomy buckets, same <code>missingFields</code> semantics</li>
+        <li><code>--symbols=</code> to scope, <code>--limit=</code> to cap, <code>--dry-run</code> to print without posting</li>
+        <li>Per-symbol output: score, action, dataQuality, why a field is missing</li>
+      </ul>
+    </li>
+
+    <li>
+      <p class="step-t">Hydrate a hand-picked set and read the output</p>
+      <p class="step-b">
+        Start with the 12 base-portfolio tickers. Confirm cards land, scores are
+        plausible, and <code>dataQuality</code> clears the 0.8 explain floor for
+        stocks — which it should, since the Modal lane fills all four taxonomy
+        inputs that gcp3's ETF payload cannot.
+      </p>
+      <pre>node scripts/hydrate-local.mjs \
+  --symbols=AAPL,MSFT,NVDA,SPY,QQQ,VDE,XLU,TSLA,QBTS,MU,SNDK,GOOG</pre>
+    </li>
+
+    <li>
+      <p class="step-t">Seed the base portfolio for the test user</p>
+      <p class="step-b">
+        <code>scripts/seed-base-portfolio.mjs</code>, following
+        <code>hydrate-dev.mjs</code>'s production-refusal guard pattern verbatim —
+        it refuses on <code>NODE_ENV=production</code>, on Vercel/CI, and on any
+        host with a prod marker.
+      </p>
+    </li>
+
+    <li>
+      <p class="step-t">Scale the local run to the full universe</p>
+      <p class="step-b">
+        518 tickers, ~3 chunks, no daily cap to exhaust. This is the rehearsal for
+        the cron — if it completes locally, the Modal lane is doing the same work
+        on a timer.
+      </p>
+    </li>
+
+    <li>
+      <p class="step-t">Provision the Modal secret and deploy</p>
+      <p class="step-b">
+        One command, all four keys together. Modal secrets are replaced wholesale,
+        not merged — setting them one at a time silently wipes the others.
+      </p>
+      <pre>modal secret create nuwrrrld-hydration \
+  PORTAL_PUSH_SECRET=... PORTAL_URL=... \
+  ALPACA_API_KEY=... ALPACA_API_SECRET=...
+modal deploy deploy/universe-hydration/modal_app.py
+modal run deploy/universe-hydration/modal_app.py --symbols AAPL,MSFT</pre>
+    </li>
+
+    <li>
+      <p class="step-t">Disable one of the two precompute schedulers</p>
+      <p class="step-b">
+        <code>.github/workflows/precompute-ai.yml</code> and
+        <code>deploy/precompute-ai/modal_app.py</code> both fire
+        <code>10 0 * * *</code> at the same endpoint. Harmless while cards don't
+        exist; a real double-spend of OpenRouter quota the moment they do.
+      </p>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <h2>Which features actually benefit</h2>
+  <p class="dek">
+    Ranked by how much the change is felt, not by how much work it is.
+  </p>
+
+  <div class="twrap">
+    <table>
+      <thead>
+        <tr><th>Feature</th><th>Today</th><th>After hydration</th><th class="num">Gain</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Per-ticker lookup</strong></td>
+          <td>gcp3 returns <code>{"error":"not found"}</code> with HTTP 200 for every non-ETF ticker</td>
+          <td>Real RSI/MACD/ADX from <code>ticker_cards</code>, instantly</td>
+          <td class="num"><span class="pill p-ok">Highest</span></td>
+        </tr>
+        <tr>
+          <td><strong>Tier-0 grounding</strong></td>
+          <td>Joins <code>state_key</code> → <code>grounding_pack</code>, but no cards exist to join from</td>
+          <td>Cited, corpus-grounded rules per ticker at zero model cost</td>
+          <td class="num"><span class="pill p-ok">Highest</span></td>
+        </tr>
+        <tr>
+          <td><strong>Top-N AI explain batch</strong></td>
+          <td><code>topCards()</code> returns empty — 0/54 ETF cards clear the quality gate</td>
+          <td>Stock cards fill all 4 taxonomy inputs, so ranking becomes non-empty</td>
+          <td class="num"><span class="pill p-ok">High</span></td>
+        </tr>
+        <tr>
+          <td><strong>Portfolio health</strong></td>
+          <td>Nothing to score — watchlists without positions</td>
+          <td>Real sleeves, real concentration, a grade that means something</td>
+          <td class="num"><span class="pill p-ok">High</span></td>
+        </tr>
+        <tr>
+          <td><strong>Nu AI chat latency</strong></td>
+          <td>Cold 8-second gcp3 fetch before the model has grounding</td>
+          <td>Grounding already hydrated; model call starts warm</td>
+          <td class="num"><span class="pill p-warn">Medium</span></td>
+        </tr>
+        <tr>
+          <td><strong>Watchlist add → signal</strong></td>
+          <td><code>pending_signals</code> demand-pull; nobody drains it at 4am</td>
+          <td>Answer usually pre-hydrated before the user asks</td>
+          <td class="num"><span class="pill p-warn">Medium</span></td>
+        </tr>
+        <tr>
+          <td><strong>ETF cards</strong></td>
+          <td>54/54 covered, 0/54 explainable</td>
+          <td><em>Unchanged</em> — needs a decision, not hydration</td>
+          <td class="num"><span class="pill p-bad">None</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The pattern worth noticing: the top four all fail today for the <em>same</em>
+    reason, and it isn't a bug in any of them. They are all downstream of an empty
+    <code>ticker_cards</code> table. One hydration run repairs four features at once.
+  </p>
+</section>
+
+<section>
+  <h2>What this plan does not fix</h2>
+  <p class="dek">
+    Stated plainly so it isn't discovered later as a surprise.
+  </p>
+
+  <div class="callout hard">
+    <p>
+      <strong>Blocker 1 stays open.</strong> Every ETF card lands at
+      <code>dataQuality: 0.20</code> because gcp3's ETF payload fills 1 of 5 taxonomy
+      inputs. Hydrating stocks does not change this — it routes <em>around</em> it.
+      The 54 ETFs remain covered-but-never-explainable until someone picks between
+      extending gcp3's ETF scoring or accepting ETF-as-coverage-only permanently.
+    </p>
+  </div>
+
+  <div class="callout">
+    <p>
+      <strong>Alpaca's free tier is IEX-only, not full SIP.</strong> Fine for the
+      S&amp;P 500 and Nasdaq-100 — the daily bars reconcile. For illiquid long-tail
+      names, some sessions will have thin or absent prints, producing gaps. This is
+      an argument for tiering the universe, not against Alpaca.
+    </p>
+    <p>
+      <strong>Firestore is cross-repo.</strong> The <code>etf_history</code> seed
+      lives in <code>gcp3</code> and is deliberately out of scope for the first
+      hydration run.
+    </p>
+    <p>
+      <strong>Nothing here is intraday.</strong> This is a daily EOD lane. The
+      Finnhub hot-set refresh is designed but deliberately deferred until staleness
+      is a real complaint rather than an anticipated one.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>
+    Sources — <code>docs/pipeline-todo-blockers.md</code> ·
+    <code>docs/universe-scale-hydration.md</code> ·
+    <code>docs/wiki-portal/entity-ticker-universe-pipeline.md</code> ·
+    <code>docs/max-coverage-simplest-path.md</code> ·
+    <code>deploy/universe-hydration/modal_app.py</code> ·
+    <code>lib/db/schema.sql</code>
+  </p>
+  <p>
+    Database and coverage figures queried live from Neon on 2026-08-18. Alpaca
+    connectivity verified the same session against
+    <code>data.alpaca.markets/v2/stocks/bars</code>.
+  </p>
+</footer>
+
+</div>

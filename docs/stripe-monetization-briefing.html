@@ -1,0 +1,718 @@
+<title>Stripe Monetization Briefing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground: #f6f6fb;
+    --surface: #ffffff;
+    --surface-sunk: #efeff6;
+    --ink: #1a1a24;
+    --ink-soft: #55556a;
+    --ink-faint: #8a8aa0;
+    --rule: #e2e2ee;
+    --rule-strong: #cfcfe0;
+    --accent: #635bff;
+    --accent-soft: #ecebff;
+    --accent-ink: #4a42d4;
+    --good: #0f8a5f;
+    --good-soft: #e3f4ec;
+    --warn: #b8730a;
+    --warn-soft: #fbeeda;
+    --crit: #c8362f;
+    --crit-soft: #fbe6e4;
+    --shadow: 0 1px 2px rgba(26, 26, 36, 0.06), 0 8px 24px -12px rgba(26, 26, 36, 0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #131319;
+      --surface: #1c1c25;
+      --surface-sunk: #17171f;
+      --ink: #e9e9f2;
+      --ink-soft: #a6a6bd;
+      --ink-faint: #71718a;
+      --rule: #2c2c39;
+      --rule-strong: #3a3a4b;
+      --accent: #8b84ff;
+      --accent-soft: #26243f;
+      --accent-ink: #a9a3ff;
+      --good: #4bc48c;
+      --good-soft: #14312a;
+      --warn: #d9962f;
+      --warn-soft: #372a17;
+      --crit: #e8695f;
+      --crit-soft: #37201f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #131319;
+    --surface: #1c1c25;
+    --surface-sunk: #17171f;
+    --ink: #e9e9f2;
+    --ink-soft: #a6a6bd;
+    --ink-faint: #71718a;
+    --rule: #2c2c39;
+    --rule-strong: #3a3a4b;
+    --accent: #8b84ff;
+    --accent-soft: #26243f;
+    --accent-ink: #a9a3ff;
+    --good: #4bc48c;
+    --good-soft: #14312a;
+    --warn: #d9962f;
+    --warn-soft: #372a17;
+    --crit: #e8695f;
+    --crit-soft: #37201f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 0 24px 120px;
+  }
+
+  /* ---- masthead ---- */
+  .masthead {
+    padding: 72px 0 40px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin: 0 0 20px;
+  }
+  h1 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.1rem, 6vw, 3.2rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 20px;
+  }
+  .standfirst {
+    font-size: 1.12rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 28px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .meta-row span strong {
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  /* ---- section scaffolding ---- */
+  section { padding-top: 56px; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .sec-num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  h2 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 600;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 600;
+    font-size: 1.12rem;
+    letter-spacing: -0.005em;
+    margin: 36px 0 12px;
+  }
+  p { max-width: 66ch; }
+  section > p, section > ul, section > ol { margin-block: 16px; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--ink-soft); }
+
+  code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.86em;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.1em 0.38em;
+    color: var(--accent-ink);
+  }
+
+  ul, ol { padding-left: 1.3em; }
+  li { margin-block: 6px; max-width: 64ch; }
+  li::marker { color: var(--ink-faint); }
+
+  /* ---- callout ---- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 22px 26px;
+    margin: 24px 0;
+    box-shadow: var(--shadow);
+  }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.crit { border-left-color: var(--crit); }
+  .callout h3 { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .tag {
+    display: inline-block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+  .tag.crit { background: var(--crit-soft); color: var(--crit); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .tag.accent { background: var(--accent-soft); color: var(--accent-ink); }
+
+  /* ---- status cards ---- */
+  .status-grid {
+    display: grid;
+    gap: 14px;
+    margin: 24px 0;
+  }
+  .status-card {
+    display: grid;
+    grid-template-columns: 4px 1fr auto;
+    gap: 0 18px;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .status-card .stripe { align-self: stretch; }
+  .status-card.crit .stripe { background: var(--crit); }
+  .status-card.warn .stripe { background: var(--warn); }
+  .status-card.good .stripe { background: var(--good); }
+  .status-card .body { padding: 16px 0 16px 0; }
+  .status-card .body b {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .status-card .body .var {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82rem;
+    color: var(--accent-ink);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .status-card .body p { margin: 4px 0 0; font-size: 0.92rem; color: var(--ink-soft); max-width: 58ch; }
+  .status-card .pill {
+    align-self: center;
+    margin-right: 18px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .pill.crit { background: var(--crit-soft); color: var(--crit); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.good { background: var(--good-soft); color: var(--good); }
+
+  /* ---- tables ---- */
+  .table-scroll {
+    overflow-x: auto;
+    margin: 22px 0;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: var(--surface);
+  }
+  th, td {
+    text-align: left;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, th.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .zero { color: var(--crit); font-weight: 600; }
+  .cnt { font-family: "IBM Plex Mono", monospace; }
+
+  /* ---- roadmap months ---- */
+  .month {
+    margin-top: 40px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .month-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 18px 22px;
+    background: var(--ink);
+    color: var(--surface);
+  }
+  :root[data-theme="dark"] .month-head,
+  :root:not([data-theme="light"]) .month-head {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .month-head { background: var(--ink); color: #fff; }
+  }
+  .month-head .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .month-head h3 {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1.15rem;
+    margin: 0;
+    color: inherit;
+  }
+  .month-body { padding: 6px 22px 20px; }
+  .month-body > p:first-child { margin-top: 16px; }
+  .goal {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--accent);
+    padding-left: 14px;
+    margin: 16px 0 4px;
+  }
+
+  .exit {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--good-soft);
+    border-radius: 6px;
+    font-size: 0.9rem;
+  }
+  .exit b { color: var(--good); font-family: "Space Grotesk", sans-serif; }
+
+  /* ---- footer note ---- */
+  .endnote {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9rem;
+    color: var(--ink-faint);
+  }
+  .endnote code { font-size: 0.82em; }
+
+  hr.major {
+    border: none;
+    border-top: 2px solid var(--ink);
+    margin: 72px 0 0;
+  }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px 80px; }
+    .status-card { grid-template-columns: 4px 1fr; }
+    .status-card .pill { grid-column: 2; justify-self: start; margin: 0 0 14px 0; }
+    .status-card .body { padding-bottom: 6px; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    section { animation: rise 0.5s ease both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">nuwrrrld-portal · working session</p>
+    <h1>Stripe Monetization Briefing</h1>
+    <p class="standfirst">
+      A single session that started as &ldquo;what are the latest Stripe TODOs?&rdquo; and
+      ended with a rewritten TODO doc, a verified picture of production, and a
+      three-month plan to actually take money. This page explains everything that
+      was found and decided.
+    </p>
+    <div class="meta-row">
+      <span><strong>Session date:</strong> 2026-08-29</span>
+      <span><strong>Branch:</strong> docs/uni1-refresh</span>
+      <span><strong>Artifact:</strong> docs/stripe-todo.md (rewritten, uncommitted)</span>
+    </div>
+  </header>
+
+  <section id="what-happened">
+    <div class="sec-head"><span class="sec-num">01</span><h2>What this session did</h2></div>
+    <p>
+      The ask was to surface the latest Stripe TODOs and update or create a doc.
+      The existing <code>docs/stripe-todo.md</code> was found but was stale &mdash; last
+      touched 2026-08-17 &mdash; so rather than trust it, the session verified the
+      current state against live production and the code that reads each setting.
+    </p>
+    <p>Three pieces of work came out of it:</p>
+    <ol>
+      <li><strong>Rewrote <code>docs/stripe-todo.md</code></strong> against verified state,
+        with production&rsquo;s own health endpoint as the authority on what&rsquo;s broken.</li>
+      <li><strong>Found a monetization risk in the code</strong> &mdash; the pricing page
+        advertises features that have no enforcement behind them.</li>
+      <li><strong>Added a 3-month monetization roadmap</strong> to the same doc,
+        grounded in what is actually built today.</li>
+    </ol>
+    <p>
+      Nothing was committed. The file is written but unstaged, on a branch that
+      already carries other untracked docs.
+    </p>
+  </section>
+
+  <section id="production-state">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Verified production state</h2></div>
+    <p>
+      The signal that matters is live, not inferred from a local <code>.env</code> file.
+      A call to <code>GET https://financial.nuwrrrld.com/api/health</code> returned
+      <code>"status":"degraded"</code> with two named problems:
+    </p>
+
+    <div class="status-grid">
+      <div class="status-card crit">
+        <div class="stripe"></div>
+        <div class="body">
+          <span class="var">STRIPE_PRICE_ANNUAL</span>
+          <b>Unset in production</b>
+          <p>Health reports <code>stripe: not_configured</code>, error
+             &ldquo;STRIPE_PRICE_ANNUAL is unset or a placeholder&rdquo;. The annual
+             plan is advertised on <code>/pricing</code> and its checkout button errors.</p>
+        </div>
+        <span class="pill crit">Confirmed broken</span>
+      </div>
+
+      <div class="status-card crit">
+        <div class="stripe"></div>
+        <div class="body">
+          <span class="var">Clerk pk_test_ key in production</span>
+          <b>Development instance key served on the prod domain</b>
+          <p>Not a Stripe variable, but the same health payload flags
+             <code>clerk: degraded</code>. This is the un-fixed half of the
+             2026-07-27 checkout incident &mdash; over a year stale.</p>
+        </div>
+        <span class="pill crit">Confirmed broken</span>
+      </div>
+
+      <div class="status-card warn">
+        <div class="stripe"></div>
+        <div class="body">
+          <span class="var">STRIPE_WEBHOOK_SECRET</span>
+          <b>State genuinely unknown</b>
+          <p>The health check never probes it. If it&rsquo;s still a placeholder,
+             <code>/api/webhooks/stripe</code> rejects <em>every</em> event and no
+             subscription ever syncs to Clerk &mdash; an invisible failure.</p>
+        </div>
+        <span class="pill warn">Unverified</span>
+      </div>
+
+      <div class="status-card warn">
+        <div class="stripe"></div>
+        <div class="body">
+          <span class="var">Webhook idempotency guard</span>
+          <b>Never built</b>
+          <p>No dedup / processed-event tracking anywhere in the webhook route.
+             Stripe delivers at-least-once and the route deliberately returns 500
+             on <code>checkout.session.completed</code> to invite retries.</p>
+        </div>
+        <span class="pill warn">Unhardened</span>
+      </div>
+
+      <div class="status-card good">
+        <div class="stripe"></div>
+        <div class="body">
+          <span class="var">PORTAL_PUSH_SECRET</span>
+          <b>No longer a manual TODO</b>
+          <p><code>scripts/gen-portal-push-secret.sh</code> now generates it (48 bytes),
+             lands it in <code>.env.local</code>, Vercel, and both Modal secrets, and
+             never prints the value. The old doc&rsquo;s hand-run instruction was out of date.</p>
+        </div>
+        <span class="pill good">Resolved</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="finding-a">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Finding A &mdash; the advertised plan can&rsquo;t take money</h2></div>
+    <div class="callout crit">
+      <span class="tag crit">Live revenue-path bug</span>
+      <h3>The annual plan is sold, and its button errors</h3>
+      <p>
+        <code>app/pricing/page.tsx</code> renders a <strong>&ldquo;Best value &mdash; save
+        34%&rdquo;</strong> badge at <strong>$79/yr</strong> with a working
+        &ldquo;Start 7-day free trial&rdquo; button. Clicking it hits
+        <code>app/api/stripe/checkout/route.ts</code>, which finds <code>PRICES.annual</code>
+        empty and returns a <code>CONFIG_ERROR</code>.
+      </p>
+      <p>
+        So a user who picks the <em>more valuable</em> plan gets an error. That&rsquo;s a
+        live revenue bug, not just an unset variable &mdash; and it&rsquo;s the item
+        production actively reports.
+      </p>
+    </div>
+    <p>
+      The price isn&rsquo;t a free choice either. <strong>$79 is already published.</strong>
+      34% off 12&nbsp;&times;&nbsp;$9.99 ($119.88) is $79.12, which the page rounds to $79.
+      Creating any other amount makes the marketing copy wrong &mdash; and Stripe price
+      objects are immutable once created, so a wrong amount means archive and recreate.
+      The fix belongs in <strong>Vercel</strong> env (prod + preview), not just
+      <code>.env.local</code>, because it&rsquo;s a production breakage.
+    </p>
+  </section>
+
+  <section id="finding-b">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Finding B &mdash; features are sold that have no gate</h2></div>
+    <div class="callout crit">
+      <span class="tag crit">Chargeback / consumer-protection risk</span>
+      <h3>The pricing page promises six differentiated features; the code gates on two</h3>
+      <p>
+        <code>FEATURE_TIER_MAP</code> in <code>lib/subscription.ts</code> declares ten
+        features. Grepping every <code>hasEntitlement()</code> call site in the app shows
+        only two are ever actually checked.
+      </p>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Declared feature</th>
+            <th class="num">Times gated in app code</th>
+            <th>Sold on /pricing as</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="cnt">nu_ai</td><td class="num">9</td><td>&ldquo;Nu AI assistant&rdquo;</td></tr>
+          <tr><td class="cnt">signals_digest</td><td class="num">1</td><td>&ldquo;Daily signal digest&rdquo;</td></tr>
+          <tr><td class="cnt">watchlist_alerts</td><td class="num zero">0</td><td>&ldquo;Watchlist alerts&rdquo;</td></tr>
+          <tr><td class="cnt">morning_briefing</td><td class="num zero">0</td><td>&ldquo;Morning briefing&rdquo;</td></tr>
+          <tr><td class="cnt">portfolio_suggestions</td><td class="num zero">0</td><td>&ldquo;Optimizer suggestions&rdquo;</td></tr>
+          <tr><td class="cnt">pro_signals</td><td class="num zero">0</td><td>&ldquo;Priority signal delivery&rdquo; (annual)</td></tr>
+          <tr><td class="cnt">advanced_ai</td><td class="num zero">0</td><td>&ldquo;Extended AI context&rdquo; (annual)</td></tr>
+          <tr><td class="cnt">faster_data</td><td class="num zero">0</td><td>&mdash;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The pro surfaces that <em>do</em> exist &mdash; portfolio, holdfold, council,
+      brief &mdash; all gate on <code>nu_ai</code>, not on their own named entitlement.
+      So &ldquo;Watchlist alerts&rdquo; and &ldquo;Morning briefing&rdquo; are line items
+      on the pricing page with no gate and, in the alerts case, no evident feature at all.
+    </p>
+    <p>
+      <strong>Recommended fix: cut the pricing copy to what ships.</strong>
+      <code>hasEntitlement()</code> is a one-line-per-feature map, and the honest
+      short-term move is to reduce the copy &mdash; not rush-build four features.
+      Reduce the monthly card to the four things that demonstrably work (signal digest,
+      Nu AI, portfolio health, holdfold/council). For annual, either implement
+      &ldquo;priority delivery&rdquo; / &ldquo;extended context&rdquo; as real gates, or
+      sell annual purely on price &mdash; $79 vs $119.88 is already reason enough.
+    </p>
+  </section>
+
+  <hr class="major">
+
+  <section id="roadmap">
+    <div class="sec-head"><span class="sec-num">05</span><h2>The 3-month monetization roadmap</h2></div>
+    <p>
+      Grounded in what the code does as of 2026-08-28. The sequence is deliberate:
+      correctness first, measurement second, growth last. Driving traffic into a
+      broken or unmeasured funnel wastes the spend and teaches nothing.
+    </p>
+
+    <div class="month">
+      <div class="month-head"><span class="n">Month 01</span><h3>Make the funnel actually work</h3></div>
+      <div class="month-body">
+        <p class="goal">Goal: a user can pay you, and gets exactly what was advertised. No growth spend. The constraint is correctness, not volume.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th class="num">#</th><th>Task</th><th>Why it&rsquo;s here</th></tr></thead>
+            <tbody>
+              <tr><td class="num">1.1</td><td>Create the $79 annual Stripe price, set in Vercel</td><td>The advertised plan 500s</td></tr>
+              <tr><td class="num">1.2</td><td>Swap Clerk to production keys</td><td>Possibly funnel-fatal, never isolated</td></tr>
+              <tr><td class="num">1.3</td><td>Confirm / repair <code>STRIPE_WEBHOOK_SECRET</code></td><td>If placeholder, <strong>no subscription ever syncs</strong> &mdash; a paying user still sees <code>free</code></td></tr>
+              <tr><td class="num">1.4</td><td>Reconcile pricing copy with shipped gates</td><td>Finding B &mdash; stop advertising ungated features</td></tr>
+              <tr><td class="num">1.5</td><td>End-to-end paid smoke test in Stripe test mode</td><td>Nothing above proves the whole chain</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>1.3 deserves emphasis.</strong> Items 1.1 and 1.2 are visible failures.
+          A placeholder webhook secret is an <em>invisible</em> one: checkout succeeds,
+          Stripe charges the card, and the route rejects every event &mdash; so the
+          user&rsquo;s tier never leaves <code>free</code>. They pay and get nothing.
+          Verify this before any real card touches the system.
+        </p>
+        <div class="exit"><b>Exit criterion &mdash;</b> one real card, your own, completes a monthly and an annual subscription, unlocks pro, and appears correctly in <code>/dashboard/billing</code>.</div>
+      </div>
+    </div>
+
+    <div class="month">
+      <div class="month-head"><span class="n">Month 02</span><h3>Learn why people don&rsquo;t convert</h3></div>
+      <div class="month-body">
+        <p class="goal">Goal: instrument the funnel, then fix the largest measured drop-off. A grep found no analytics integration anywhere &mdash; optimizing without it is guessing.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th class="num">#</th><th>Task</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="num">2.1</td><td>Add one privacy-respecting analytics tool</td><td>Plausible or PostHog. Update <code>privacy-policy/page.tsx</code> to match, before you add it</td></tr>
+              <tr><td class="num">2.2</td><td>Instrument five funnel events</td><td><code>pricing_viewed</code> &rarr; <code>checkout_clicked</code> &rarr; <code>checkout_completed</code> &rarr; <code>trial_started</code> &rarr; <code>trial_converted</code></td></tr>
+              <tr><td class="num">2.3</td><td>Add webhook idempotency guard</td><td>Real volume makes duplicate delivery a real risk</td></tr>
+              <tr><td class="num">2.4</td><td>Instrument trial-expiry behavior</td><td><code>isTrialExpired()</code> exists; nothing appears to act on it</td></tr>
+              <tr><td class="num">2.5</td><td>Dunning for <code>past_due</code></td><td>Those users keep pro during Smart Retries &mdash; correct, but only if someone tells them the card failed</td></tr>
+              <tr><td class="num">2.6</td><td>Ship one real annual differentiator <em>or</em> finish the copy cut</td><td>Closes Finding B properly</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>Where the leverage probably is.</strong> The 7-day trial collects
+          payment upfront, so the classic drop-off is at the card form, not at
+          cancellation. 2.2 will tell you whether that&rsquo;s true here. Don&rsquo;t
+          pre-optimize it.
+        </p>
+        <div class="exit"><b>Exit criterion &mdash;</b> you can state your pricing-view &rarr; paid conversion rate as a number, and you know which single step loses the most people.</div>
+      </div>
+    </div>
+
+    <div class="month">
+      <div class="month-head"><span class="n">Month 03</span><h3>Grow the top of the funnel, carefully</h3></div>
+      <div class="month-body">
+        <p class="goal">Goal: more qualified traffic into a funnel you now know converts. Last on purpose.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th class="num">#</th><th>Task</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="num">3.1</td><td>Act on Month 2&rsquo;s biggest drop-off</td><td>The one change with measured justification</td></tr>
+              <tr><td class="num">3.2</td><td>Consider trial-without-card as an A/B</td><td>Only if 2.2 showed card-form drop-off. Raises starts, lowers conversion-per-start &mdash; measure both</td></tr>
+              <tr><td class="num">3.3</td><td>Free-tier value loop</td><td><code>signals</code> and <code>portfolio_score</code> are already free. Make the free experience worth returning to weekly</td></tr>
+              <tr><td class="num">3.4</td><td>Mobile parity for checkout</td><td>Mobile calls the portal&rsquo;s <code>/api/stripe/checkout</code> directly &mdash; confirm annual works there once 1.1 lands</td></tr>
+              <tr><td class="num">3.5</td><td>Annual upsell to existing monthly subs</td><td><code>/dashboard/billing</code> already renders &ldquo;Switch to annual &mdash; save 34%&rdquo;. Dead until 1.1</td></tr>
+              <tr><td class="num">3.6</td><td>Revisit price</td><td>Only with &ge;1 month of clean conversion data. $9.99 is an assumption</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>3.5 is the highest-ROI item in the whole roadmap</strong> and costs
+          nothing to build &mdash; the button exists. Converting a monthly subscriber to
+          annual takes $119.88/yr of churn-exposed revenue to $79 of committed revenue,
+          trading ~34% of headline rate for a 12&times; longer commitment and near-zero
+          incremental CAC.
+        </p>
+      </div>
+    </div>
+
+    <h3>What the roadmap deliberately excludes</h3>
+    <ul>
+      <li><strong>New pricing tiers.</strong> <code>TIER_RANK</code> is <code>{free: 0, pro: 1}</code>.
+        A third tier touches every gate. Not before you can measure the two you have.</li>
+      <li><strong>Usage-based billing for AI.</strong> Nu AI calls cost real money per
+        request and flat $9.99 carries margin risk from heavy users &mdash; but there&rsquo;s
+        no usage data yet. Measure in Month 2, decide after Month 3.</li>
+      <li><strong>Building the four ungated features.</strong> Cutting the copy is hours;
+        building alerts + briefing + priority delivery + extended context is a quarter on
+        its own, and would delay taking any money at all.</li>
+    </ul>
+
+    <h3>Honest risks</h3>
+    <ul>
+      <li><strong>Month 1 depends on dashboard access, not code.</strong> 1.1&ndash;1.3 are
+        all Stripe and Clerk console work. If access is a bottleneck, the plan slips.</li>
+      <li><strong>The Clerk dev-key question is still unresolved.</strong> If it was blocking
+        signups, historical conversion data is meaningless as a baseline, and Month 2
+        starts from zero.</li>
+      <li><strong>No revenue figures appear anywhere</strong> because there are none. Every
+        target is a mechanism to fix or a rate to measure. Set numbers after Month 2
+        produces a baseline.</li>
+    </ul>
+  </section>
+
+  <section id="caveats">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Caveats on the verification itself</h2></div>
+    <ul>
+      <li>The command that would have inspected <code>.env.local</code> fill-state was
+        blocked by the permission classifier, so <strong>local env state is unconfirmed</strong>.
+        Production health is the more authoritative signal for items 1 and 2 anyway.</li>
+      <li><code>.env.example</code> has been reorganized since the old doc was written &mdash;
+        its line references (54&ndash;65) no longer match, and the
+        <code>whsec_placeholder_*</code> comment is gone.</li>
+      <li><strong>Nothing was committed.</strong> <code>docs/stripe-todo.md</code> is written
+        but unstaged, on <code>docs/uni1-refresh</code> alongside other untracked docs.</li>
+    </ul>
+  </section>
+
+  <p class="endnote">
+    Source of record: <code>docs/stripe-todo.md</code> in <code>nuwrrrld-portal</code>.
+    Downstream notes to reconcile once Month 1 lands &mdash;
+    <code>docs/wiki-portal/entity-billing.md</code> (add the annual-price gap) and
+    <code>docs/wiki-portal/incident-2026-07-27-stripe-checkout-invalid-header.md</code>
+    (its Clerk-dev-key open question is still genuinely open).
+  </p>
+
+</div>
