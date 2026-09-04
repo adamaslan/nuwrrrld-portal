@@ -81,6 +81,29 @@ Consolidated blockers and engineering work from CodeRabbit findings on PR #97 (f
 **P0 — Enforce MFA** in dashboard before admin console can mutate.  
 **P1 — Session lifetime + inactivity timeout** not yet configured on prod instance.
 
+**P1 — Verify Allowed Subdomains for `financial.nuwrrrld.com`.**
+Dashboard → prod instance → Domains → Allowed Subdomains. The 2026-09-02
+cutover confirmed `financial.nuwrrrld.com` is in `allowed_origins` (the
+Backend-API allowlist), but that is not the same setting as the web
+subdomain control — Allowed Subdomains hasn't been explicitly checked. See
+`docs/wiki-portal/decision-clerk-subdomain-without-satellite.md`.
+
+**P1 — Set `authorizedParties` in `middleware.ts`.**
+`clerkMiddleware` is not currently passed `authorizedParties`, so Clerk
+trusts any subdomain of the root domain by default — wider than intended.
+Add as a second argument (don't replace the existing callback form):
+
+```ts
+export default clerkMiddleware(
+  async (auth, req) => {
+    // ...existing route-protection logic, unchanged...
+  },
+  { authorizedParties: ["https://financial.nuwrrrld.com"] },
+);
+```
+
+See `docs/clerk-free-plan-best-practices.md` §2 for the full reasoning.
+
 ### Market snapshot work
 
 **Proposed:** Demote live fetch, promote cached confluence score. **Status:** Not started.
@@ -92,6 +115,15 @@ Consolidated blockers and engineering work from CodeRabbit findings on PR #97 (f
 **Known drifts:**
 - `lib/shared/signal-policy.ts` — Web added 25 lines; mobile not ported. Blocks PR #101 (shared-drift-check fails).
 - `lib/subscription.ts` — Drifted; needs unified tier logic.
+
+**Attribution.ts sync follow-ups (2026-09-01, mobile PR #39 merged)**
+
+Mobile PR #39 (`adamaslan/gcp-expo1`, `a8a8e92`) merged the `attribution.ts` mirror + mobile parity-wiki reconciliation. Parity headline ~62% (both wikis agree). Still open:
+
+- **[Portal drift-guard `PAIRS` entry](docs/todo-attribution-sync-followups.md)** — HIGH, trivial (one line). Add `{ path: "lib/shared/attribution.ts", normalize: null }` to `scripts/check-shared-drift.mjs`. Both copies already byte-identical on `main`; mobile side already has it via PR #39.
+- **Mobile attribution-capture path** — MEDIUM, feature work. Module adopted but unconsumed; nothing builds/persists a touch. Needs a first-authenticated-load client call + mobile route. (sync-requirements priority #8.)
+- **Mobile consent adoption** — HIGH (compliance). `consent.ts`/`legal-consent.ts` still portal-only (PRs #77/#78); mobile runs `analytics.ts`+`sentry.ts` with no gate. GDPR/CPRA bind the app. Portable now (only the `prefs.ts` seam). (sync-requirements priority #7, #1 by ROI.)
+- **Mobile DSAR path** — MEDIUM (compliance). Portal PR #78 shipped `/api/privacy/{export,profile,delete,rectify}` web-only; same account has no mechanism on mobile. Build or record a web-only decision with an in-app link. (sync-requirements priority #9.)
 
 ---
 
