@@ -1,0 +1,531 @@
+<!doctype html>
+<title>Pipeline Route Status</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3F5F9;
+    --surface: #FFFFFF;
+    --surface-2: #E9EDF5;
+    --ink: #101526;
+    --muted: #5B6478;
+    --border: #D8DEEA;
+    --accent: #2F5CFF;
+    --accent-soft: #E7ECFF;
+    --ok: #0E8F6F;
+    --ok-soft: #E1F6EE;
+    --warn: #9A5B00;
+    --warn-soft: #FBEBD2;
+    --danger: #B7323D;
+    --danger-soft: #FBE4E6;
+
+    /* Fixed terminal-panel tokens — deliberately constant across themes,
+       like a code editor panel that keeps its own palette regardless of the
+       surrounding app theme. Defined once; never redefined below. */
+    --term-bg: #0B0F1A;
+    --term-ink: #D9E1F7;
+    --term-muted: #7C89AC;
+    --term-border: #232C42;
+    --term-accent: #7E9BFF;
+    --term-ok: #3FDB9C;
+    --term-warn: #F2BA4C;
+    --term-danger: #FF7A80;
+  }
+
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #0A0E17;
+      --surface: #10151F;
+      --surface-2: #171E2C;
+      --ink: #E9EDF7;
+      --muted: #92A0BC;
+      --border: #262E42;
+      --accent: #7E9BFF;
+      --accent-soft: #1A2340;
+      --ok: #3FDB9C;
+      --ok-soft: #10291F;
+      --warn: #F2BA4C;
+      --warn-soft: #2E2410;
+      --danger: #FF7A80;
+      --danger-soft: #2E1518;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0A0E17;
+    --surface: #10151F;
+    --surface-2: #171E2C;
+    --ink: #E9EDF7;
+    --muted: #92A0BC;
+    --border: #262E42;
+    --accent: #7E9BFF;
+    --accent-soft: #1A2340;
+    --ok: #3FDB9C;
+    --ok-soft: #10291F;
+    --warn: #F2BA4C;
+    --warn-soft: #2E2410;
+    --danger: #FF7A80;
+    --danger-soft: #2E1518;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { color-scheme: light dark; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .stat, .route-row, .issue { transition: border-color .15s ease, transform .15s ease; }
+  }
+
+  a { color: var(--accent); }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* ── Masthead ─────────────────────────────────────────────────────── */
+  header.masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 34px;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14.5px;
+    margin: 8px 0 0;
+    max-width: 60ch;
+  }
+  .masthead-meta {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.7;
+  }
+  .masthead-meta code { color: var(--ink); }
+
+  h2 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .section-note {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin: 0 0 16px;
+    max-width: 68ch;
+  }
+  section { margin-bottom: 44px; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.92em;
+  }
+
+  /* ── Stat strip ───────────────────────────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--stat-color, var(--border));
+    border-radius: 10px;
+    padding: 16px 16px 14px;
+  }
+  .stat .n {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 30px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--stat-color, var(--ink));
+  }
+  .stat .label {
+    margin-top: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 500;
+  }
+  .stat.ok { --stat-color: var(--ok); }
+  .stat.warn { --stat-color: var(--warn); }
+  .stat.danger { --stat-color: var(--danger); }
+  .stat.accent { --stat-color: var(--accent); }
+
+  /* ── Route table ──────────────────────────────────────────────────── */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; background: var(--surface); }
+  thead th {
+    text-align: left;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 11px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr + tr td { border-top: 1px solid var(--border); }
+  tbody td { padding: 12px 14px; vertical-align: middle; font-size: 13.5px; }
+  .route-path { color: var(--ink); font-weight: 500; }
+  .route-path .method { color: var(--muted); margin-right: 6px; }
+  .workflow-name { color: var(--muted); }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.danger { background: var(--danger-soft); color: var(--danger); }
+
+  .in-repo { font-size: 13px; }
+  .in-repo.yes { color: var(--ok); }
+  .in-repo.no { color: var(--muted); }
+  .reading { color: var(--muted); font-size: 13px; }
+
+  /* ── Issue cards ──────────────────────────────────────────────────── */
+  .issues { display: flex; flex-direction: column; gap: 12px; }
+  .issue {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--sev-color, var(--border));
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .issue.p1 { --sev-color: var(--danger); }
+  .issue.p2 { --sev-color: var(--warn); }
+  .issue.p3 { --sev-color: var(--muted); }
+  .issue-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .sev {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    color: var(--sev-color);
+    border: 1px solid var(--sev-color);
+    border-radius: 5px;
+    padding: 1px 6px;
+  }
+  .issue h3 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 15.5px; font-weight: 700; margin: 0; letter-spacing: -.005em;
+  }
+  .issue .tag { font-size: 11.5px; color: var(--muted); font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .issue p { margin: 6px 0; font-size: 13.5px; color: var(--ink); }
+  .issue p.dim { color: var(--muted); }
+  .issue .fix {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 13.5px;
+  }
+  .issue .fix b { color: var(--accent); font-weight: 600; }
+  .route-list { margin: 6px 0 0; padding-left: 0; list-style: none; }
+  .route-list li { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; color: var(--muted); padding: 2px 0; }
+  .route-list li b { color: var(--ink); font-weight: 600; }
+
+  /* ── Terminal panel (fixed palette, both themes) ─────────────────── */
+  .term {
+    background: var(--term-bg);
+    color: var(--term-ink);
+    border: 1px solid var(--term-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .term .c-ok { color: var(--term-ok); }
+  .term .c-warn { color: var(--term-warn); }
+  .term .c-danger { color: var(--term-danger); }
+  .term .c-muted { color: var(--term-muted); }
+  .term .c-accent { color: var(--term-accent); }
+
+  /* ── Wiki / provenance panel ──────────────────────────────────────── */
+  .wiki-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .wiki-item { display: flex; gap: 14px; padding: 10px 0; }
+  .wiki-item + .wiki-item { border-top: 1px solid var(--border); }
+  .wiki-item .src {
+    flex: none; width: 168px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--accent); line-height: 1.5;
+  }
+  .wiki-item .verdict {
+    font-size: 13px; color: var(--muted);
+  }
+  .wiki-item .verdict b { color: var(--ink); font-weight: 600; }
+  .badge-new {
+    display: inline-block; margin-left: 6px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+    color: var(--accent); background: var(--accent-soft);
+    border-radius: 4px; padding: 1px 5px; vertical-align: 1px;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  }
+  footer a { color: var(--muted); text-decoration-color: var(--border); }
+  footer .links { display: flex; gap: 16px; flex-wrap: wrap; }
+
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .masthead-meta { text-align: left; }
+    header.masthead { flex-direction: column; align-items: flex-start; }
+    .wiki-item { flex-direction: column; gap: 4px; }
+    .wiki-item .src { width: auto; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">nuwrrrld-portal · scheduled pipeline</p>
+      <h1>Pipeline Route Status</h1>
+      <p class="subtitle">Every <code>/api/pipeline/*</code> route the GitHub Actions cron layer calls, probed live and checked against what's actually in the repo.</p>
+    </div>
+    <div class="masthead-meta">
+      probed <code>2026-09-03</code><br>
+      target <code>financial.nuwrrrld.com</code><br>
+      source <a href="#issues">pipeline-route-status-issues.md</a>
+    </div>
+  </header>
+
+  <section aria-label="Summary">
+    <div class="stats">
+      <div class="stat ok"><div class="n">2</div><div class="label">Healthy</div></div>
+      <div class="stat warn"><div class="n">3</div><div class="label">Degraded</div></div>
+      <div class="stat danger"><div class="n">4</div><div class="label">Missing</div></div>
+      <div class="stat accent"><div class="n">4</div><div class="label">Open issues</div></div>
+    </div>
+  </section>
+
+  <section id="routes">
+    <h2>Route probe</h2>
+    <p class="section-note">Unauthenticated <code>POST {}</code> against production, cross-referenced against <code>app/api/pipeline/*/route.ts</code> in the repo.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Route</th>
+            <th>Workflow</th>
+            <th>In repo</th>
+            <th>Response</th>
+            <th>Reading</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/signals-refresh</td>
+            <td class="workflow-name">afternoon-pipeline</td>
+            <td class="in-repo no">— no</td>
+            <td><span class="chip danger">404</span></td>
+            <td class="reading">not written, not deployed</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/theses-score</td>
+            <td class="workflow-name">afternoon-pipeline</td>
+            <td class="in-repo no">— no</td>
+            <td><span class="chip danger">404</span></td>
+            <td class="reading">not written, not deployed</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/council-run</td>
+            <td class="workflow-name">afternoon-pipeline</td>
+            <td class="in-repo no">— no</td>
+            <td><span class="chip danger">404</span></td>
+            <td class="reading">not written, not deployed</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/council-validate-distribution</td>
+            <td class="workflow-name">afternoon-pipeline</td>
+            <td class="in-repo no">— no</td>
+            <td><span class="chip danger">404</span></td>
+            <td class="reading">not written, not deployed</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/followed-tickers</td>
+            <td class="workflow-name">track-followed-tickers</td>
+            <td class="in-repo yes">✓ yes</td>
+            <td><span class="chip warn">503</span></td>
+            <td class="reading">deployed, failing before auth</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/followed-tickers-select</td>
+            <td class="workflow-name">select-followed-tickers</td>
+            <td class="in-repo yes">✓ yes</td>
+            <td><span class="chip warn">503</span></td>
+            <td class="reading">deployed, failing before auth</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/followed-tickers-judge</td>
+            <td class="workflow-name">judge-followed-tickers</td>
+            <td class="in-repo yes">✓ yes</td>
+            <td><span class="chip warn">503</span></td>
+            <td class="reading">deployed, failing before auth</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/precompute-ai</td>
+            <td class="workflow-name">precompute-ai</td>
+            <td class="in-repo yes">✓ yes</td>
+            <td><span class="chip ok">401</span></td>
+            <td class="reading">healthy — rejects missing token</td>
+          </tr>
+          <tr>
+            <td class="route-path"><span class="method">POST</span>/hydrate-universe</td>
+            <td class="workflow-name">hydrate-universe</td>
+            <td class="in-repo yes">✓ yes</td>
+            <td><span class="chip ok">401</span></td>
+            <td class="reading">healthy — rejects missing token</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="section-note" style="margin-top:12px">A 404 here is loud by design — the four routes were namespaced under <code>/api/pipeline/*</code>, a path with no prior occupant, specifically so a missing handler fails visibly instead of silently 401ing against something unrelated that already works.</p>
+  </section>
+
+  <section id="issues">
+    <h2>Open issues</h2>
+    <p class="section-note">Ranked by severity, not order found.</p>
+    <div class="issues">
+
+      <div class="issue p1">
+        <div class="issue-head">
+          <span class="sev">P1</span>
+          <h3>afternoon-pipeline has no routes to call</h3>
+          <span class="tag">open since 2026-08-14 · PR #59</span>
+        </div>
+        <p>The workflow shipped its orchestration and failure-notification path ahead of the four routes it calls. All four are still absent from the repo and 404 in production.</p>
+        <ul class="route-list">
+          <li><b>POST</b> /api/pipeline/signals-refresh</li>
+          <li><b>POST</b> /api/pipeline/theses-score</li>
+          <li><b>POST</b> /api/pipeline/council-run</li>
+          <li><b>POST</b> /api/pipeline/council-validate-distribution</li>
+        </ul>
+        <p class="dim">Every scheduled run that clears the market-hours gate fails at the first curl. The last such run (#32891544974, 2026-08-25) failed earlier still, at the secret-preflight step — see the CRON_SECRET issue below. Every run since has gate-skipped, so the 404 hasn't been reached again.</p>
+        <div class="fix"><b>Fix:</b> land the 4 handlers — tracked as its own larger unit of work in the zo-migration status doc; <code>precompute-ai</code> and <code>hydrate-universe</code> are the working template. Until then: <code>gh workflow disable afternoon-pipeline.yml</code> to stop the noise, or leave it enabled as a visible reminder. <code>council-validate-distribution</code> also has no <code>dry_run</code> contract — <code>local-trigger.mjs</code> now refuses to send it without <code>--no-dry-run --yes</code>.</div>
+      </div>
+
+      <div class="issue p1">
+        <div class="issue-head">
+          <span class="sev">P1</span>
+          <h3><code>CRON_SECRET</code> unprovisioned everywhere</h3>
+          <span class="tag">blocks issue above + all local testing</span>
+        </div>
+        <p>Missing as a GitHub Actions repo secret (fails the preflight in every scheduled workflow) <em>and</em> missing from <code>.env.local</code> — only <code>PORTAL_PUSH_SECRET</code> is present there, and it is a distinct, non-interchangeable secret. It exists only as a placeholder name in <code>.env.example</code>.</p>
+        <div class="fix"><b>Fix:</b> <code>openssl rand -hex 32</code> once; set the same value in <code>.env.local</code>, Vercel project env, and <code>gh secret set CRON_SECRET</code>. Must match what every caller sends — GHA workflows and the GCP Cloud Scheduler jobs from <code>setup-schedulers.sh</code> alike.</div>
+      </div>
+
+      <div class="issue p2">
+        <div class="issue-head">
+          <span class="sev">P2</span>
+          <h3><code>followed-tickers*</code> routes 503 before auth</h3>
+          <span class="tag">new finding</span>
+        </div>
+        <p><code>followed-tickers</code>, <code>-select</code>, and <code>-judge</code> are deployed and don't 404 — but return HTTP 503 to an unauthenticated request, ahead of the 401 the auth layer should give. The two sibling routes that behave correctly (<code>precompute-ai</code>, <code>hydrate-universe</code> → 401) confirm the auth middleware itself is fine; something inside these three handlers throws first.</p>
+        <div class="fix"><b>Next step:</b> read the three <code>route.ts</code> files and one request's Vercel runtime log. Likely candidates: a <code>SIGNALS_ENGINE_URL</code>/<code>MCP_BACKEND_URL</code> health check, a missing table, or an explicit "cohort not selected yet" 503 — the monthly job that freezes the cohort has also never completed.</div>
+      </div>
+
+      <div class="issue p3">
+        <div class="issue-head">
+          <span class="sev">P3</span>
+          <h3><code>pipeline-failure</code> label missing</h3>
+        </div>
+        <p>Every scheduled workflow's <code>notify</code> job does <code>gh issue create --label pipeline-failure</code>. The label doesn't exist in the repo, so the notify job errors on top of whatever it was reporting.</p>
+        <div class="term" style="margin-top:8px">could not add label: <span class="c-danger">'pipeline-failure' not found</span></div>
+        <div class="fix"><b>Fix:</b> <code>gh label create pipeline-failure --color B60205 --description "Scheduled pipeline run failed"</code> — one command. Until then a failure produces two red jobs and no issue.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="wiki">
+    <h2>What the wiki already knew</h2>
+    <p class="section-note">Checked <code>docs/wiki-portal/</code> before writing any of the above.</p>
+    <div class="wiki-panel">
+      <div class="wiki-item">
+        <div class="src">decision-afternoon-<br>pipeline-cron-split.md</div>
+        <div class="verdict">The canonical record — the 4 routes "<b>do not exist yet</b>," the workflow is "merged but non-functional" until they ship, and landing them was scoped from the start as a separate, larger unit of work. No fix has been scheduled since.</div>
+      </div>
+      <div class="wiki-item">
+        <div class="src">decision-precompute-ai-<br>at-quota-reset.md</div>
+        <div class="verdict"><code>precompute-ai</code> and <code>hydrate-universe</code> had the identical problem — untracked in git, 404ing in prod — until PR #66. Today's probe confirms <b>that shipped</b>: both now 401. They're the template for closing the P1 above.</div>
+      </div>
+      <div class="wiki-item">
+        <div class="src">— <span class="badge-new">nothing found</span></div>
+        <div class="verdict">No wiki page covers the <code>followed-tickers*</code> 503. Recorded here for the first time.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Generated 2026-09-04 from <code>docs/pipeline-route-status-issues.md</code> (PR #102).</span>
+    <span class="links">
+      <a href="#">manual-setup-todo.md</a>
+      <a href="#">github-actions-deployment-and-local-triggering.md</a>
+    </span>
+  </footer>
+
+</div>
