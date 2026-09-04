@@ -1,5 +1,6 @@
 <!doctype html>
 <title>Scheduler Census</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -296,7 +297,7 @@
       <div class="stat danger"><div class="n">11</div><div class="label">Jobs deployed</div></div>
     </div>
     <div class="finding">
-      <b>The split was chosen for trigger precision</b> — GCP for market-clock-anchored jobs, Modal for anything GHA's minutes-of-jitter or 6-hour ceiling can't hold. In practice only <b>GitHub Actions</b> has cron actually firing today; <b>Modal</b> has one app of six deployed; <b>GCP Cloud Scheduler</b> has never been provisioned — its setup script has not been run against the project. And independent of any of that: all three of GCP's designed targets, and four of GitHub Actions's, point at routes that don't exist yet.
+      <b>The split was chosen for trigger precision</b> — GCP for market-clock-anchored jobs, Modal for anything GHA's minutes-of-jitter or 6-hour ceiling can't hold. In practice cron is actually firing on two of the three hosts: <b>GitHub Actions</b> (10 workflows) and <b>Modal</b> (its one deployed app, <code>free-model-refresh</code>, weekly); <b>GCP Cloud Scheduler</b> has never been provisioned — its setup script has not been run against the project. And independent of any of that: all three of GCP's designed targets, and four of GitHub Actions's, point at routes that don't exist yet.
     </div>
   </section>
 
@@ -431,7 +432,7 @@ POST /api/pipeline/precompute-ai                    <span class="c-ok">401</span
       <summary>GitHub Actions — 10 scheduled workflows</summary>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Workflow</th><th>Cron</th><th>Calls</th><th>Target status</th></tr></thead>
+          <thead><tr><th>Workflow</th><th>Cron</th><th>Calls (suffix of <code>/api/pipeline/</code> unless noted)</th><th>Target status</th></tr></thead>
           <tbody>
             <tr><td class="job-name">afternoon-pipeline</td><td class="job-cron">15,14:15 ET wd</td><td class="job-target">4× /api/pipeline/*</td><td><span class="chip danger">404 ×4</span></td></tr>
             <tr><td class="job-name">track-followed-tickers</td><td class="job-cron">15:30,14:30 ET wd</td><td class="job-target">/followed-tickers</td><td><span class="chip warn">503</span></td></tr>
