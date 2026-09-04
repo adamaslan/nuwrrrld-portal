@@ -654,3 +654,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-03] ingest | PR #101 feat(signals): three-phase signal-engine plan — code-only Phases 1–3 | pages touched: 3
 
 ## [2026-09-04] cross-repo | mobile PR #43 (gcp-expo1) ports isCryptoShaped, closing PR #101's shared-drift-check | pages touched: 2
+
+## [2026-09-04] ingest | PR #105 feat(db): SQLite schema generator + DB-parity contract suite (Phases 5-8) | pages touched: 5

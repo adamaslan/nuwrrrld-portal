@@ -14,12 +14,19 @@ same-family-different-purpose pair that isn't a conflict at all.
 `.github/workflows/precompute-ai.yml` (`cron: '10 0 * * *'`) and
 `deploy/precompute-ai/modal_app.py` (`schedule=modal.Cron("10 0 * * *")`) are
 both scheduled for **the same minute**. Both workflow files already say "run
-ONE of GHA or Modal, not both" — the schedules just don't reflect that. If
-the Modal app is actually deployed (`modal deploy` run against it), every
-night both fire, doubling the call to `/api/pipeline/precompute-ai` against
-the shared OpenRouter free-tier quota bucket the whole app draws from
-(Phase 1-4 make that bucket OpenRouter-only, which makes a double-fire here
-strictly more expensive, not less — one more reason to close this now).
+ONE of GHA or Modal, not both" — the schedules just don't reflect that.
+
+This is likely latent rather than active: `docs/wiki-portal/incident-2026-08-18-modal-under-recommended.md`
+established that as of 2026-08-18, `modal deploy` had never been run for any
+of the three Modal apps in `deploy/`, `precompute-ai` included. If that's
+still true, nobody is currently double-billed — but the schedule conflict is
+real and worth fixing before someone does deploy it, rather than
+discovering the double-spend after the fact. If the Modal app *has* since
+been deployed, every night both fire, doubling the call to
+`/api/pipeline/precompute-ai` against the shared OpenRouter free-tier quota
+bucket the whole app draws from (Phase 1-4 make that bucket
+OpenRouter-only, which makes a double-fire here strictly more expensive, not
+less — one more reason to close this now).
 
 **Recommendation:** keep GitHub Actions canonical (secrets are already there,
 no separate Modal account dependency for this job) and stop scheduling the
