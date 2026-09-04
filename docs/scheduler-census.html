@@ -1,0 +1,493 @@
+<!doctype html>
+<title>Scheduler Census</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3F5F9;
+    --surface: #FFFFFF;
+    --surface-2: #E9EDF5;
+    --ink: #101526;
+    --muted: #5B6478;
+    --border: #D8DEEA;
+    --accent: #2F5CFF;
+    --accent-soft: #E7ECFF;
+    --ok: #0E8F6F;
+    --ok-soft: #E1F6EE;
+    --warn: #9A5B00;
+    --warn-soft: #FBEBD2;
+    --danger: #B7323D;
+    --danger-soft: #FBE4E6;
+
+    --term-bg: #0B0F1A;
+    --term-ink: #D9E1F7;
+    --term-muted: #7C89AC;
+    --term-border: #232C42;
+    --term-accent: #7E9BFF;
+    --term-ok: #3FDB9C;
+    --term-warn: #F2BA4C;
+    --term-danger: #FF7A80;
+
+    /* host identity colors — distinct from status semantics */
+    --host-gha: #2F5CFF;
+    --host-modal: #7A3FE0;
+    --host-gcp: #C77A17;
+    --host-vercel: #5B6478;
+  }
+
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #0A0E17;
+      --surface: #10151F;
+      --surface-2: #171E2C;
+      --ink: #E9EDF7;
+      --muted: #92A0BC;
+      --border: #262E42;
+      --accent: #7E9BFF;
+      --accent-soft: #1A2340;
+      --ok: #3FDB9C;
+      --ok-soft: #10291F;
+      --warn: #F2BA4C;
+      --warn-soft: #2E2410;
+      --danger: #FF7A80;
+      --danger-soft: #2E1518;
+      --host-gha: #7E9BFF;
+      --host-modal: #B79BFF;
+      --host-gcp: #F2BA4C;
+      --host-vercel: #92A0BC;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0A0E17;
+    --surface: #10151F;
+    --surface-2: #171E2C;
+    --ink: #E9EDF7;
+    --muted: #92A0BC;
+    --border: #262E42;
+    --accent: #7E9BFF;
+    --accent-soft: #1A2340;
+    --ok: #3FDB9C;
+    --ok-soft: #10291F;
+    --warn: #F2BA4C;
+    --warn-soft: #2E2410;
+    --danger: #FF7A80;
+    --danger-soft: #2E1518;
+    --host-gha: #7E9BFF;
+    --host-modal: #B79BFF;
+    --host-gcp: #F2BA4C;
+    --host-vercel: #92A0BC;
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.92em; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 20px 80px; }
+
+  header.masthead {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 24px; flex-wrap: wrap;
+    padding-bottom: 24px; border-bottom: 1px solid var(--border); margin-bottom: 28px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 8px;
+  }
+  h1 {
+    font-family: "Archivo", sans-serif; font-weight: 800; font-size: 34px;
+    letter-spacing: -0.01em; margin: 0; text-wrap: balance;
+  }
+  .subtitle { color: var(--muted); font-size: 14.5px; margin: 8px 0 0; max-width: 62ch; }
+  .masthead-meta {
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--muted);
+    text-align: right; font-variant-numeric: tabular-nums; line-height: 1.7;
+  }
+  .masthead-meta code { color: var(--ink); }
+
+  h2 { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 19px; letter-spacing: -0.01em; margin: 0 0 4px; }
+  h3 { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 15.5px; margin: 0; letter-spacing: -0.005em; }
+  .section-note { color: var(--muted); font-size: 13.5px; margin: 0 0 16px; max-width: 68ch; }
+  section { margin-bottom: 46px; }
+
+  /* ── Headline stat strip ──────────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-top: 3px solid var(--stat-color, var(--border)); border-radius: 10px;
+    padding: 16px 16px 14px;
+  }
+  .stat .n {
+    font-family: "Archivo", sans-serif; font-weight: 800; font-size: 30px;
+    font-variant-numeric: tabular-nums; line-height: 1; color: var(--stat-color, var(--ink));
+  }
+  .stat .label { margin-top: 6px; font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
+  .stat.ok { --stat-color: var(--ok); }
+  .stat.warn { --stat-color: var(--warn); }
+  .stat.danger { --stat-color: var(--danger); }
+  .stat.accent { --stat-color: var(--accent); }
+
+  .finding {
+    margin-top: 14px; padding: 14px 16px; border-radius: 10px;
+    background: var(--accent-soft); border: 1px solid var(--accent);
+    font-size: 13.5px;
+  }
+  .finding b { color: var(--accent); }
+
+  /* ── Host comparison cards ───────────────────────────────────────── */
+  .hosts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: stretch; }
+  .host-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-top: 3px solid var(--host-color); border-radius: 12px;
+    padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .host-card.gha { --host-color: var(--host-gha); }
+  .host-card.modal { --host-color: var(--host-modal); }
+  .host-card.gcp { --host-color: var(--host-gcp); }
+  .host-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .host-name { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 16.5px; color: var(--host-color); }
+  .host-status {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 100px; white-space: nowrap;
+  }
+  .host-status.live { background: var(--ok-soft); color: var(--ok); }
+  .host-status.mixed { background: var(--warn-soft); color: var(--warn); }
+  .host-status.dark { background: var(--danger-soft); color: var(--danger); }
+
+  .host-ratio { display: flex; align-items: baseline; gap: 6px; }
+  .host-ratio .r { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .host-ratio .of { font-size: 12px; color: var(--muted); }
+  .bar { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--host-color); border-radius: 3px; }
+
+  .kv { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+  .kv .row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px dashed var(--border); padding-top: 8px; }
+  .kv .k { color: var(--muted); flex: none; width: 40%; }
+  .kv .v { text-align: right; color: var(--ink); }
+
+  .host-best { font-size: 12.5px; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 9px 11px; }
+  .host-best b { color: var(--ink); font-weight: 600; }
+  .host-trigger { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--host-color); word-break: break-all; }
+
+  /* ── Overlap risk cards ───────────────────────────────────────────── */
+  .risks { display: flex; flex-direction: column; gap: 12px; }
+  .risk {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--sev-color, var(--border)); border-radius: 10px; padding: 16px 18px;
+  }
+  .risk.p1 { --sev-color: var(--danger); }
+  .risk.p2 { --sev-color: var(--warn); }
+  .risk-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .sev {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    color: var(--sev-color); border: 1px solid var(--sev-color); border-radius: 5px; padding: 1px 6px;
+  }
+  .risk .tag { font-size: 11.5px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+  .risk p { margin: 6px 0; font-size: 13.5px; }
+  .risk p.dim { color: var(--muted); }
+
+  /* ── Job inventory tables ────────────────────────────────────────── */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; min-width: 620px; background: var(--surface); }
+  thead th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); font-weight: 600; padding: 11px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody tr + tr td { border-top: 1px solid var(--border); }
+  tbody td { padding: 11px 14px; vertical-align: middle; font-size: 13px; }
+  .job-name { color: var(--ink); font-weight: 500; }
+  .job-cron { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; white-space: nowrap; }
+  .job-target { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 100px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.danger { background: var(--danger-soft); color: var(--danger); }
+  .chip.neutral { background: var(--surface-2); color: var(--muted); }
+
+  details.host-detail { margin-top: 14px; }
+  details.host-detail > summary {
+    cursor: pointer; font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+    color: var(--accent); list-style: none; display: flex; align-items: center; gap: 6px;
+    padding: 4px 0;
+  }
+  details.host-detail > summary::before { content: "▸"; transition: transform .15s ease; }
+  details.host-detail[open] > summary::before { transform: rotate(90deg); }
+  details.host-detail > .table-scroll { margin-top: 10px; }
+
+  /* ── Vercel footnote ──────────────────────────────────────────────── */
+  .footnote-card {
+    background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
+    padding: 14px 18px; font-size: 13px; color: var(--muted);
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .footnote-card .fn-tag {
+    flex: none; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700;
+    color: var(--host-vercel); border: 1px solid var(--host-vercel); border-radius: 5px; padding: 1px 6px;
+  }
+  .footnote-card b { color: var(--ink); }
+
+  .term {
+    background: var(--term-bg); color: var(--term-ink); border: 1px solid var(--term-border);
+    border-radius: 10px; padding: 14px 16px; font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px; line-height: 1.7; overflow-x: auto; white-space: pre;
+  }
+  .term .c-ok { color: var(--term-ok); }
+  .term .c-warn { color: var(--term-warn); }
+  .term .c-danger { color: var(--term-danger); }
+  .term .c-muted { color: var(--term-muted); }
+  .term .c-accent { color: var(--term-accent); }
+
+  footer {
+    border-top: 1px solid var(--border); padding-top: 20px; margin-top: 8px;
+    font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between;
+    gap: 20px; flex-wrap: wrap;
+  }
+  footer a { color: var(--muted); text-decoration-color: var(--border); }
+  footer .links { display: flex; gap: 16px; flex-wrap: wrap; }
+
+  @media (max-width: 760px) {
+    .hosts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .masthead-meta { text-align: left; }
+    header.masthead { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">nuwrrrld-portal · scheduling infrastructure</p>
+      <h1>Scheduler Census</h1>
+      <p class="subtitle">Three hosts split the pipeline by trigger semantics: GitHub Actions, Modal, GCP Cloud Scheduler. This counts what's actually deployed on each, against what the design docs describe.</p>
+    </div>
+    <div class="masthead-meta">
+      surveyed <code>2026-09-04</code><br>
+      GHA verified <code>2026-09-03</code> · Modal <code>2026-09-02</code><br>
+      source <a href="#hosts">3 platform docs</a>
+    </div>
+  </header>
+
+  <section aria-label="Summary">
+    <div class="stats">
+      <div class="stat accent"><div class="n">4</div><div class="label">Hosts in the plan</div></div>
+      <div class="stat warn"><div class="n">2</div><div class="label">Hosts with cron firing</div></div>
+      <div class="stat"><div class="n">21</div><div class="label">Jobs designed</div></div>
+      <div class="stat danger"><div class="n">11</div><div class="label">Jobs deployed</div></div>
+    </div>
+    <div class="finding">
+      <b>The split was chosen for trigger precision</b> — GCP for market-clock-anchored jobs, Modal for anything GHA's minutes-of-jitter or 6-hour ceiling can't hold. In practice cron is actually firing on two of the three hosts: <b>GitHub Actions</b> (10 workflows) and <b>Modal</b> (its one deployed app, <code>free-model-refresh</code>, weekly); <b>GCP Cloud Scheduler</b> has never been provisioned — its setup script has not been run against the project. And independent of any of that: all three of GCP's designed targets, and four of GitHub Actions's, point at routes that don't exist yet.
+    </div>
+  </section>
+
+  <section id="hosts">
+    <h2>The three hosts, side by side</h2>
+    <p class="section-note">Ownership rationale is from <code>decision-afternoon-pipeline-cron-split.md</code> (2026-08-14) — read together with what's actually running today.</p>
+
+    <div class="hosts">
+
+      <div class="host-card gha">
+        <div class="host-head">
+          <span class="host-name">GitHub Actions</span>
+          <span class="host-status live">firing</span>
+        </div>
+        <div>
+          <div class="host-ratio"><span class="r">10</span><span class="of">/ 10 scheduled workflows live</span></div>
+          <div class="bar" style="margin-top:6px"><i style="width:100%"></i></div>
+        </div>
+        <div class="kv">
+          <div class="row"><span class="k">Trigger precision</span><span class="v">±minutes jitter</span></div>
+          <div class="row"><span class="k">Free tier</span><span class="v">unlimited on this repo</span></div>
+          <div class="row"><span class="k">Failure visibility</span><span class="v"><code>gh issue create</code> built in</span></div>
+          <div class="row"><span class="k">Ceiling</span><span class="v">6h per job</span></div>
+        </div>
+        <div class="host-best"><b>Chosen because</b> — no extra account, secrets already live in the repo, the runner already has node + the checkout.</div>
+        <div class="host-trigger">node scripts/local-trigger.mjs A|B|C|D &lt;workflow&gt;</div>
+      </div>
+
+      <div class="host-card modal">
+        <div class="host-head">
+          <span class="host-name">Modal</span>
+          <span class="host-status mixed">1 of 6 live</span>
+        </div>
+        <div>
+          <div class="host-ratio"><span class="r">1</span><span class="of">/ 6 apps deployed</span></div>
+          <div class="bar" style="margin-top:6px"><i style="width:16.6%"></i></div>
+        </div>
+        <div class="kv">
+          <div class="row"><span class="k">Trigger precision</span><span class="v">exact — container clock</span></div>
+          <div class="row"><span class="k">Free tier</span><span class="v">account credits, not repo-free</span></div>
+          <div class="row"><span class="k">Failure visibility</span><span class="v">none built in (gap)</span></div>
+          <div class="row"><span class="k">Ceiling</span><span class="v">none — 8h ws stream deployed on it</span></div>
+        </div>
+        <div class="host-best"><b>Chosen because</b> — exceeds GHA's 6h ceiling, needs per-ticker fan-out, pandas/numpy without setup, or a long-lived process GHA can't hold at all.</div>
+        <div class="host-trigger">modal run deploy/&lt;app&gt;/modal_app.py</div>
+      </div>
+
+      <div class="host-card gcp">
+        <div class="host-head">
+          <span class="host-name">GCP Cloud Scheduler</span>
+          <span class="host-status dark">not provisioned</span>
+        </div>
+        <div>
+          <div class="host-ratio"><span class="r">0</span><span class="of">/ 3 jobs exist</span></div>
+          <div class="bar" style="margin-top:6px"><i style="width:0%"></i></div>
+        </div>
+        <div class="kv">
+          <div class="row"><span class="k">Trigger precision</span><span class="v">exact — the reason it was picked</span></div>
+          <div class="row"><span class="k">Free tier</span><span class="v">3 jobs/project — no margin left</span></div>
+          <div class="row"><span class="k">Failure visibility</span><span class="v">none designed (gap)</span></div>
+          <div class="row"><span class="k">Ceiling</span><span class="v">n/a — thin HTTP triggers only</span></div>
+        </div>
+        <div class="host-best"><b>Chosen because</b> — the 3 market-clock jobs (open check, briefing, post-close score) can't tolerate GHA's jitter the way a 3:15 PM buffer can.</div>
+        <div class="host-trigger">bash .github/scripts/setup-schedulers.sh</div>
+      </div>
+
+    </div>
+
+    <div class="footnote-card" style="margin-top:14px">
+      <span class="fn-tag">4th, unbuilt</span>
+      <div><b>Vercel Hobby cron</b> is named in the same design doc — 2 free slots reserved for a pre-market warm and a weekly calibrator. There is no <code>vercel.json</code> <code>crons</code> block anywhere in the repo. Not degraded, not provisioned — never started.</div>
+    </div>
+  </section>
+
+  <section id="risks">
+    <h2>What the split actually costs</h2>
+    <p class="section-note">Two consequences of running the same job's design on more than one host, plus the pattern the route-status page already found repeating here.</p>
+    <div class="risks">
+
+      <div class="risk p2">
+        <div class="risk-head">
+          <span class="sev">RUNNING TWICE</span>
+          <h3>Free-model refresh fires on both GHA and Modal, every Monday</h3>
+          <span class="tag">benign, wasteful</span>
+        </div>
+        <p>GitHub Actions at <code>06:17 UTC</code>, Modal at <code>09:00 UTC</code> — same probe, same target file. Both are idempotent, so whichever runs second finds nothing changed and no-ops. The real cost is two full probe passes against the OpenRouter catalog, and a small chance of two PRs in the same week if a model flaps between the two runs.</p>
+        <p class="dim">Not urgent. Worth consolidating onto one host when it's convenient.</p>
+      </div>
+
+      <div class="risk p1">
+        <div class="risk-head">
+          <span class="sev">WOULD RUN TWICE</span>
+          <h3>Precompute-AI is one <code>modal deploy</code> from double-spending its own quota</h3>
+          <span class="tag">not yet live — still a live landmine</span>
+        </div>
+        <p>GitHub Actions runs <code>precompute-ai.yml</code> daily at <code>00:10 UTC</code> hitting <code>POST /api/pipeline/precompute-ai</code>. Modal's <code>nuwrrrld-precompute-ai</code> app is scheduled for the identical <code>10 0 * * *</code> against the identical route — it's only inert because it has never been deployed. Deploying it without first disabling the GHA twin means two schedulers hitting the same endpoint in the same minute, doubling the spend of the exact free-tier AI quota the job exists to protect, for identical output.</p>
+        <p class="dim"><b>Rule already written down:</b> before <code>modal deploy</code> of any portal app, disable its GHA twin's <code>schedule:</code> block first (keep <code>workflow_dispatch</code>), and say so in the commit.</p>
+      </div>
+
+      <div class="risk p1">
+        <div class="risk-head">
+          <span class="sev">SAME BUG, DIFFERENT HOST</span>
+          <h3>GCP's precision doesn't help when the target route doesn't exist</h3>
+          <span class="tag">confirmed against the repo</span>
+        </div>
+        <p>All 3 designed GCP jobs point at routes that are absent from the codebase — not just unimplemented handlers, genuinely no file: <code>/api/pipeline/signals-refresh</code> (also the route GitHub Actions' <code>afternoon-pipeline</code> already 404s on — see below), <code>/api/briefing/run</code>, and <code>/api/verdicts/score</code>. Provisioning the scheduler would fix nothing; the jitter GCP exists to avoid was never the blocker.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="route-crossref">
+    <h2>Cross-reference — GitHub Actions' own cron already hits this</h2>
+    <p class="section-note">From the live probe in <a href="pipeline-route-status.html">Pipeline Route Status</a> — every host's target routes checked against production, 2026-09-03.</p>
+    <div class="term">
+POST /api/pipeline/signals-refresh                 <span class="c-danger">404</span>   afternoon-pipeline (GHA) · nuwrrrld-open-check (GCP, unprovisioned)
+POST /api/pipeline/theses-score                    <span class="c-danger">404</span>   afternoon-pipeline (GHA)
+POST /api/pipeline/council-run                      <span class="c-danger">404</span>   afternoon-pipeline (GHA)
+POST /api/pipeline/council-validate-distribution     <span class="c-danger">404</span>   afternoon-pipeline (GHA)
+POST /api/pipeline/followed-tickers                 <span class="c-warn">503</span>   track-followed-tickers (GHA)
+POST /api/pipeline/hydrate-universe                 <span class="c-ok">401</span>   hydrate-universe (GHA) · nuwrrrld-universe-hydration (Modal, undeployed)
+POST /api/pipeline/precompute-ai                    <span class="c-ok">401</span>   precompute-ai (GHA) · nuwrrrld-precompute-ai (Modal, undeployed)
+                                                     <span class="c-muted">— /api/briefing/run and /api/verdicts/score: no route file at all</span>
+    </div>
+  </section>
+
+  <section id="inventory">
+    <h2>Full job inventory</h2>
+    <p class="section-note">Every scheduled job across the three hosts, expand for the raw list.</p>
+
+    <details class="host-detail" open>
+      <summary>GitHub Actions — 10 scheduled workflows</summary>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Workflow</th><th>Cron</th><th>Calls (suffix of <code>/api/pipeline/</code> unless noted)</th><th>Target status</th></tr></thead>
+          <tbody>
+            <tr><td class="job-name">afternoon-pipeline</td><td class="job-cron">15,14:15 ET wd</td><td class="job-target">4× /api/pipeline/*</td><td><span class="chip danger">404 ×4</span></td></tr>
+            <tr><td class="job-name">track-followed-tickers</td><td class="job-cron">15:30,14:30 ET wd</td><td class="job-target">/followed-tickers</td><td><span class="chip warn">503</span></td></tr>
+            <tr><td class="job-name">select-followed-tickers</td><td class="job-cron">1st @ 14:00 UTC</td><td class="job-target">/followed-tickers-select</td><td><span class="chip warn">503</span></td></tr>
+            <tr><td class="job-name">judge-followed-tickers</td><td class="job-cron">Sat 16:00 UTC</td><td class="job-target">/followed-tickers-judge</td><td><span class="chip warn">503</span></td></tr>
+            <tr><td class="job-name">hydrate-universe</td><td class="job-cron">22:30 UTC wd</td><td class="job-target">/hydrate-universe</td><td><span class="chip ok">401</span></td></tr>
+            <tr><td class="job-name">precompute-ai</td><td class="job-cron">00:10 UTC daily</td><td class="job-target">/precompute-ai</td><td><span class="chip ok">401</span></td></tr>
+            <tr><td class="job-name">refresh-free-models</td><td class="job-cron">Mon 06:17 UTC</td><td class="job-target">script → PR</td><td><span class="chip neutral">dup w/ Modal</span></td></tr>
+            <tr><td class="job-name">compile-grounding-pack</td><td class="job-cron">Mon 06:23 UTC + push</td><td class="job-target">script</td><td><span class="chip neutral">n/a</span></td></tr>
+            <tr><td class="job-name">backup-to-sqlite</td><td class="job-cron">03:00 UTC daily</td><td class="job-target">script → DB</td><td><span class="chip neutral">n/a</span></td></tr>
+            <tr><td class="job-name">signal-freshness-check</td><td class="job-cron">13:00 UTC wd</td><td class="job-target">script</td><td><span class="chip neutral">n/a</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="host-detail">
+      <summary>Modal — 6 apps, 1 deployed</summary>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>App</th><th>Cron</th><th>Deployed</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td class="job-name">free-model-refresh</td><td class="job-cron">Mon 09:00 UTC</td><td><span class="chip ok">yes</span></td><td class="job-target">dup w/ GHA (06:17 UTC)</td></tr>
+            <tr><td class="job-name">nuwrrrld-universe-hydration</td><td class="job-cron">00:05 UTC daily</td><td><span class="chip danger">no</span></td><td class="job-target">secret doesn't exist yet</td></tr>
+            <tr><td class="job-name">nuwrrrld-precompute-ai</td><td class="job-cron">00:10 UTC daily</td><td><span class="chip danger">no</span></td><td class="job-target">would double-hit GHA's route</td></tr>
+            <tr><td class="job-name">nuwrrrld-signals</td><td class="job-cron">14:15 ET wd</td><td><span class="chip danger">no</span></td><td class="job-target">homebase repo</td></tr>
+            <tr><td class="job-name">nuwrrrld-drain</td><td class="job-cron">*/5min, mkt hrs</td><td><span class="chip danger">no</span></td><td class="job-target">homebase repo</td></tr>
+            <tr><td class="job-name">nuwrrrld-finnhub-ws</td><td class="job-cron">manual, 8h run</td><td><span class="chip danger">no</span></td><td class="job-target">can't be a GHA job at all</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="host-detail">
+      <summary>GCP Cloud Scheduler — 3 designed, 0 provisioned</summary>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Job</th><th>Cron (ET)</th><th>Target route</th><th>Route exists?</th></tr></thead>
+          <tbody>
+            <tr><td class="job-name">nuwrrrld-open-check</td><td class="job-cron">10:15 wd</td><td class="job-target">/api/pipeline/signals-refresh</td><td><span class="chip danger">no</span></td></tr>
+            <tr><td class="job-name">nuwrrrld-main-briefing</td><td class="job-cron">12:15 wd</td><td class="job-target">/api/briefing/run</td><td><span class="chip danger">no</span></td></tr>
+            <tr><td class="job-name">nuwrrrld-post-close-scorer</td><td class="job-cron">16:30 wd</td><td class="job-target">/api/verdicts/score</td><td><span class="chip danger">no</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    <span>Generated 2026-09-04 from three platform docs + the 2026-09-03 route probe.</span>
+    <span class="links">
+      <a href="pipeline-route-status.html">Pipeline Route Status</a>
+      <a href="github-actions-deployment-and-local-triggering.md">GHA doc</a>
+      <a href="modal-deployment-and-local-triggering.md">Modal doc</a>
+    </span>
+  </footer>
+
+</div>
