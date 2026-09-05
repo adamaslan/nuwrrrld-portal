@@ -73,6 +73,15 @@ carries `E2E_CLERK_TEST_EMAIL`/`PASSWORD`; the sharded jobs never see them.
 - `e2e/frontend/nuai-fault-injection.spec.ts` — `/dashboard/nuai`
   ([[entity-ai-council]]'s consumer-facing chat surface), stalled-SSE and 429
   fault injection against real `.nuai-*` selectors.
+- `e2e/frontend/dashboard-brief-fault-injection.spec.ts` (added 2026-09-04) —
+  `/dashboard`'s own "Daily Brief · Nu AI" card (`DashboardCockpit.tsx`,
+  `POST /api/brief` → `fetchWithModelFallback`, [[entity-openrouter-client]]):
+  500/403/empty-body fault injection plus one real, unmocked call. Added
+  because the main dashboard's own OpenRouter surface — as opposed to
+  `/dashboard/nuai`'s — had no coverage at all. Deliberately does not attempt
+  to test Modal.com's cron-scheduled `refresh-free-models.mjs` run — that's
+  an external compute platform with no browser surface; its CLI contract is
+  covered separately in `e2e/ci/refresh-free-models.spec.ts`.
 - `e2e/frontend/portfolio-health.spec.ts` — see "Diagnostic role" below.
 - `e2e/frontend/portfolio-liveness.spec.ts`, `e2e/frontend/signals-liveness.spec.ts`
   — see [[concept-live-backend-liveness-tests]], added 2026-08-18.
@@ -123,6 +132,19 @@ genuine regression, not confirmation of the old incident.
 
 ## Known failures
 
+0. **`auth` job silently repointed at Clerk's production instance
+   (2026-09-04, resolved).** `.github/workflows/e2e-resiliency.yml` read the
+   same `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`/`CLERK_SECRET_KEY` GitHub secrets
+   Vercel reads for production — the 2026-09-02 [[entity-clerk]] prod cutover
+   pushed live keys into those names, and a production Clerk key can't load
+   against this job's `localhost` `next dev` at all, so `e2e/auth.setup.ts`
+   timed out on the sign-in page's email field, never reaching the OTP step.
+   Misdiagnosed for 4 consecutive runs as the OTP fragility in known-failure
+   #4 below before the actual `[WebServer]` log lines were read. **Fixed**:
+   the workflow now reads a dedicated `E2E_CLERK_PUBLISHABLE_KEY`/
+   `E2E_CLERK_SECRET_KEY` pair, and `e2e/preflight/credentials.spec.ts` gained
+   a check that fails fast if that pair is ever pointed at production again.
+   Full account: [[incident-2026-09-04-e2e-clerk-prod-key-in-ci]].
 1. **The sharded `e2e` job has never run — GCP WIF is unprovisioned.**
    `auth` now passes in CI (run `32089144456`, 2026-08-17), so all four shards
    start and then fail immediately at "Authenticate to GCP (keyless)" because
