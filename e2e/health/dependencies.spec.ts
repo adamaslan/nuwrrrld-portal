@@ -66,4 +66,33 @@ test.describe("Backend dependency health", () => {
     // outage-degradation path — see docs/e2e.md §4.
     await expect(page.getByTestId("health-banner")).toBeVisible();
   });
+
+  test("EXPOSE: dashboard flags OpenRouter specifically as 'Nu AI' when it's down", async ({ page }) => {
+    // Same mechanism as the neon test above, but asserting the dependency ->
+    // label mapping itself (app/dashboard/HealthBanner.tsx's DEP_LABELS),
+    // which nothing else in this suite checks per-dependency. A regression
+    // that silently dropped openrouter from DEGRADED_STATES or DEP_LABELS
+    // would still pass the neon-only test above.
+    await page.route("**/api/health", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "down",
+          neon: { status: "ok", latencyMs: 10 },
+          mcp: { status: "ok", latencyMs: 40 },
+          stripe: { status: "ok", latencyMs: 120 },
+          openrouter: { status: "down", latencyMs: null, error: "unreachable" },
+          clerk: { status: "ok", latencyMs: null },
+        }),
+      }),
+    );
+    await page.goto("/dashboard");
+    const banner = page.getByTestId("health-banner");
+    await expect(banner).toBeVisible();
+    // DEP_LABELS maps "openrouter" -> "Nu AI" — assert the human-facing label,
+    // not the internal key, since that's what a real user (and this test)
+    // would actually read.
+    await expect(banner).toContainText("Nu AI");
+  });
 });

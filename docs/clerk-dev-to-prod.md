@@ -187,14 +187,28 @@ npx -y clerk@3.2.0 env pull --instance prod --file /tmp/clerk-prod.env
 
 ---
 
-## 5. Sync the live keys to Vercel and GitHub
+## 5. Sync the live keys to Vercel — and NOT to GitHub's E2E secrets
 
-Two variables move: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and
-`CLERK_SECRET_KEY`.
+One variable pair moves, to exactly one place: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+and `CLERK_SECRET_KEY` **in Vercel only.**
+
+> ⚠️ **This section originally also ran `gh secret set` on these same two
+> secret names.** `.github/workflows/e2e-resiliency.yml` read
+> `secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `secrets.CLERK_SECRET_KEY` at
+> the time, so that command silently pointed the E2E suite's `next dev`
+> (which runs on localhost) at the live, domain-locked production instance.
+> Clerk's SDK refuses to load off localhost with a production key
+> ("Production Keys are only allowed for domain ..."), so the sign-in page's
+> email field never rendered and `e2e/auth.setup.ts` timed out 30s later with
+> no indication why. That is exactly what happened to every CI run from the
+> 2026-09-02 cutover onward — see `docs/known-bugs.md` for the corrected
+> writeup. The workflow now reads a **separate** `E2E_CLERK_PUBLISHABLE_KEY` /
+> `E2E_CLERK_SECRET_KEY` pair, which must stay on the dev instance per §6
+> below. Do not repoint those two secret names at this step's live keys.
 
 **Never paste a secret key into a chat session or a commit.** Use the
 `secrets-sync` skill, which pipes values file→CLI over stdin without
-routing them through an LLM. The underlying commands it wraps:
+routing them through an LLM. The underlying command it wraps:
 
 Run this in the **same shell** as the §4 extraction block, so `$KEYDIR` and
 its `EXIT` trap are still in scope:
@@ -205,10 +219,6 @@ its `EXIT` trap are still in scope:
 vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production --force < "$KEYDIR/pk.txt"
 vercel env add CLERK_SECRET_KEY production --force < "$KEYDIR/sk.txt"
 
-# GitHub Actions — used by e2e-resiliency.yml. `gh secret set` already upserts.
-gh secret set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY < "$KEYDIR/pk.txt"
-gh secret set CLERK_SECRET_KEY < "$KEYDIR/sk.txt"
-
 # $KEYDIR is removed automatically by the trap when this shell exits; to wipe
 # it now: rm -rf "$KEYDIR"
 ```
@@ -216,6 +226,12 @@ gh secret set CLERK_SECRET_KEY < "$KEYDIR/sk.txt"
 Scope Vercel to `production` deliberately. Setting it for all environments
 puts live keys on every preview deploy, which inflates production MAU counts
 and means a preview branch can mutate real user data.
+
+GitHub's `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` secrets are a
+one-time setup, not part of this cutover — see §6 and
+`docs/manual-setup-todo.md` §5b. They should already hold the dev instance's
+`pk_test_`/`sk_test_` values (the same ones in `.env.local`) and this
+procedure never needs to touch them again.
 
 Redeploy after updating — Vercel env changes do not apply to existing
 deployments.
@@ -242,6 +258,17 @@ harder problem.
 
 This is the strongest argument for the §4 "recommended" split: keep E2E and
 local dev on the development instance.
+
+**Enforced by a dedicated secret pair, not just this document.** CI's
+`e2e-resiliency.yml` reads `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY`
+— separate GitHub secret names from the production `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+/ `CLERK_SECRET_KEY` that Vercel reads — precisely so a future prod-key rotation
+can't silently repoint E2E again the way §5's original version did. Both must
+hold the dev instance's `pk_test_`/`sk_test_` values; see
+`docs/manual-setup-todo.md` §5b if they're ever unset. A preflight test
+(`e2e/preflight/credentials.spec.ts`, "EXPOSE: E2E running against Clerk's
+production instance") fails fast and legibly if that pair ever gets pointed
+at production instead.
 
 ### Users do not migrate
 
