@@ -1,4 +1,4 @@
-# Known Bugs — last updated 2026-08-18
+# Known Bugs — last updated 2026-09-04
 
 Bugs and gaps found while building and reviewing the Playwright suite (PR #64),
 consolidated into one list. This is a status doc, not a to-do runbook — see
@@ -10,6 +10,12 @@ fix commit); items 17/18/19 fixed in PR #65 (`c9be487`, CI-verified). Item 1
 fixed this session (Clerk `publicMetadata` patch, see below). All others
 remain open. Open blockers in priority order: item 14 (GCP WIF provisioning),
 item 2 (Stripe price IDs), item 3 (needs re-run now that item 1 is fixed).
+
+**Status update (2026-09-04):** the `auth` job's 4-consecutive-run failure
+streak (PRs #106–#110) is **fixed**, and item 16's original description was
+**corrected** — it was misdiagnosed as the item-16 OTP flake; the real cause
+was a stray Clerk production-key secret rotation, unrelated to OTP. Full
+writeup under item 16 below.
 
 ---
 
@@ -196,6 +202,32 @@ commit `c9be487` — same six checks red as at PR #64, none caused by #64 or
     code `424242`). Functional, but the most fragile step in the setup —
     disabling the requirement on the dev Clerk instance would remove it
     entirely. Not done.
+
+    **Correction (2026-09-04): this was never the cause of the `auth` job's
+    recent failures, and no OTP-related flake was found on re-investigation.**
+    Four consecutive `auth` job failures (PRs #106–#110, 2026-09-04) were
+    misattributed in `docs/moo-todo.md` to this item. The actual, verified
+    cause (`gh run view --log-failed` on all four): `e2e/auth.setup.ts`
+    times out at `getByLabel(/email/i)` — the sign-in page's email field
+    itself never renders — because the webServer log shows Clerk's SDK
+    refusing to load at all: `Clerk: Production Keys are only allowed for
+    domain "nuwrrrld.com"` / `API Error: The Request HTTP Origin header must
+    be equal to or a subdomain of the requesting URL`. This job runs `next
+    dev` on `localhost`, and the `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` /
+    `CLERK_SECRET_KEY` GitHub secrets it read were live production keys —
+    domain-locked to `nuwrrrld.com` — since the 2026-09-02 prod cutover
+    (`docs/clerk-dev-to-prod.md`'s own §5 pushed live keys to those same
+    secret names, not realizing `e2e-resiliency.yml` also consumed them).
+    The flow never reaches the OTP step at all; it fails two steps earlier,
+    at page load. **Fixed**: the workflow now reads a dedicated
+    `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` pair that must stay
+    on the Clerk *development* instance, plus a preflight test
+    (`e2e/preflight/credentials.spec.ts`) that fails fast if that pair is
+    ever pointed at production again. See `docs/manual-setup-todo.md` §5b for
+    the one remaining manual step (setting those two secrets' values) and
+    `docs/clerk-dev-to-prod.md` §5/§6 for the full writeup. This item's
+    original claim (OTP workaround, not disabled) stands on its own as a
+    legitimate fragility note — it just isn't what broke CI.
 
 ---
 

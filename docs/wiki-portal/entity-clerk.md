@@ -48,6 +48,16 @@ classification table.
 
 ## Known failures
 
+- **A secret name shared between production and CI is a latent coupling.**
+  The 2026-09-02 cutover's `gh secret set` step (docs/clerk-dev-to-prod.md §5)
+  pushed live keys into the same `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`/
+  `CLERK_SECRET_KEY` secret names [[entity-playwright-e2e]]'s `auth`/`e2e`
+  jobs were reading for their own, unrelated purpose (signing a test user
+  into `next dev` on `localhost`) — silently repointing E2E at a domain-locked
+  production instance from that date forward. See
+  [[incident-2026-09-04-e2e-clerk-prod-key-in-ci]] for the full chain; fixed
+  by giving CI a dedicated `E2E_CLERK_PUBLISHABLE_KEY`/`E2E_CLERK_SECRET_KEY`
+  pair, decoupled from the production secret names.
 - **Satellite domains are unavailable on this plan.** An attempt to wire
   `financial.nuwrrrld.com` as a satellite of `nuwrrrld.com` during the
   2026-09-02 cutover found the Dashboard gates satellite domains behind a
