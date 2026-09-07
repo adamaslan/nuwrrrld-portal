@@ -31,6 +31,43 @@ test.describe("Credential preflight — core shape", () => {
     test.skip(process.env.VERCEL_ENV !== "production", "production-only guard");
     expect(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!.startsWith("pk_live_")).toBe(true);
   });
+
+  // Inverse of the check above: this whole suite runs `next dev` on
+  // localhost (playwright.config.ts's webServer), and a Clerk PRODUCTION
+  // instance key is domain-locked — it refuses to load off localhost with
+  // "Production Keys are only allowed for domain ...". When that happens,
+  // Clerk's SDK never initializes, the sign-in page's email field never
+  // renders, and e2e/auth.setup.ts's getByLabel(/email/i) times out 30s
+  // later with no indication why the element doesn't exist. This is exactly
+  // what happened on every CI run after the 2026-09-02 prod cutover
+  // (docs/clerk-dev-to-prod.md): the GitHub secrets these keys come from got
+  // pointed at the live instance. Catch it here, immediately and legibly,
+  // instead of as a mystery 30s auth-setup timeout four jobs downstream.
+  // Caveat shared with the inverse test above: VERCEL_ENV is set by Vercel's
+  // own build/runtime, not by Playwright, so this skip guard only works when
+  // the suite runs inside that context. Nothing in this repo currently runs
+  // E2E externally against production (e.g. NULOGDASH_BASE_URL pointed at
+  // the live site from a non-Vercel runner) — if that ever changes, the
+  // runner must export VERCEL_ENV=production itself or this check rejects
+  // legitimate pk_live_/sk_live_ keys.
+  test("EXPOSE: E2E running against Clerk's production instance, which localhost cannot use", () => {
+    test.skip(process.env.VERCEL_ENV === "production", "this check is for local/CI E2E only — see the inverse test above for prod");
+    const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+    const sk = process.env.CLERK_SECRET_KEY ?? "";
+    expect(
+      pk.startsWith("pk_live_"),
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is a pk_live_ (production) key — E2E must run against " +
+        "Clerk's DEVELOPMENT instance (docs/clerk-dev-to-prod.md §6: it's the only instance where " +
+        "+clerk_test addresses and the fixed OTP work, and production keys are domain-locked away " +
+        "from localhost). If this is CI, the E2E_CLERK_PUBLISHABLE_KEY/E2E_CLERK_SECRET_KEY GitHub " +
+        "secrets (see .github/workflows/e2e-resiliency.yml) hold live keys and need resetting to the " +
+        "dev-instance values — see docs/manual-setup-todo.md §5b.",
+    ).toBe(false);
+    expect(
+      sk.startsWith("sk_live_"),
+      "CLERK_SECRET_KEY is a sk_live_ (production) key — see the message above.",
+    ).toBe(false);
+  });
 });
 
 test.describe("Credential preflight — core liveness", () => {

@@ -412,6 +412,27 @@ These keep a 34-test Playwright suite and two CI checks permanently red. A suite
 that always fails for an environmental reason is worse than no suite: people
 learn to ignore it, which also masks the real failures underneath.
 
+- [ ] **Set `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` GitHub
+      secrets to the Clerk dev instance's values.** Root cause of 4
+      consecutive `auth`-job failures (PRs #106–#110, 2026-09-04) — see
+      `docs/known-bugs.md` item 16 and `docs/clerk-dev-to-prod.md` §5/§6 for
+      the full writeup. The 2026-09-02 prod cutover pushed `pk_live_`/
+      `sk_live_` keys into the `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`/
+      `CLERK_SECRET_KEY` secret names that `e2e-resiliency.yml` was reading;
+      a production key is domain-locked and can't load against the
+      workflow's `localhost` `next dev`, so the sign-in page's email field
+      never rendered. `.github/workflows/e2e-resiliency.yml` now reads a
+      separate secret pair instead, but those two secrets don't exist yet and
+      need real values — the same dev-instance keys already in `.env.local`
+      (confirmed still `pk_test_`/`sk_test_` locally, unaffected by the prod
+      cutover per that doc's §4 "recommended" split). Use the `secrets-sync`
+      skill (never paste the values into chat):
+      ```bash
+      awk -F= '/^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=/{print $2}' .env.local | gh secret set E2E_CLERK_PUBLISHABLE_KEY
+      awk -F= '/^CLERK_SECRET_KEY=/{print $2}' .env.local | gh secret set E2E_CLERK_SECRET_KEY
+      ```
+      A preflight test (`e2e/preflight/credentials.spec.ts`) now fails fast
+      and legibly if these are ever pointed at production again.
 - [ ] **Provision the GCP Workload Identity Federation pool.** All four `e2e`
       shards fail immediately at "Authenticate to GCP (keyless)" because
       `GCP_WIF_PROVIDER` is empty (§1 above).

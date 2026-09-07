@@ -665,4 +665,6 @@ shared-identity product is non-compliant until mobile adopts the module.
 
 ## [2026-09-04] ingest | PR #110 docs: verify MOO council simulation status, new dated TODO | pages touched: 1
 
+## [2026-09-04] ingest | PR #112 fix(e2e): stop reusing prod Clerk keys in CI, add dashboard OpenRouter e2e coverage | pages touched: 5
+
 ## [2026-09-06] ingest | PR #113 fix(landing): dim text contrast — council debate labels and the --dim token | pages touched: 4

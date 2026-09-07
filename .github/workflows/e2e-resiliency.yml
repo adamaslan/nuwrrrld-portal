@@ -99,7 +99,24 @@ jobs:
           # webServer timeout — an error that says nothing about the missing
           # variable. Anything `next dev` needs to boot belongs here, even if
           # the auth flow itself never touches it.
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          #
+          # DELIBERATELY a different secret name than the app's production
+          # Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY`,
+          # which Vercel reads). This job runs `next dev` on localhost, and a
+          # Clerk PRODUCTION instance key is domain-locked — Clerk's SDK refuses
+          # to load at all with "Production Keys are only allowed for domain
+          # ...", the sign-in page's email field never renders, and
+          # e2e/auth.setup.ts times out 30s later on `getByLabel(/email/i)`
+          # with no indication why. That is exactly what happened on every run
+          # since the 2026-09-02 prod cutover (docs/clerk-dev-to-prod.md): step
+          # 5 of that guide pushed live keys to these same secret names,
+          # silently breaking E2E from that day forward. E2E must stay on the
+          # Clerk DEVELOPMENT instance (docs/clerk-dev-to-prod.md §6 — it's the
+          # only instance where `+clerk_test` addresses and the fixed OTP work),
+          # so it gets its own secret pair. See docs/manual-setup-todo.md §5b for
+          # the one-time value this needs (recoverable from .env.local, which
+          # is still on pk_test_/sk_test_ per that doc's §4).
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
           # Not secrets — plain paths, so they live here rather than in repo
           # secrets. Without them Clerk falls back to redirecting to "/" after
           # sign-in instead of /dashboard, and the test that waits for
@@ -108,7 +125,9 @@ jobs:
           NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
           NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /dashboard
           NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /dashboard
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          # See the E2E_CLERK_PUBLISHABLE_KEY comment above — same reasoning,
+          # same dedicated dev-instance secret pair.
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
           E2E_CLERK_TEST_EMAIL: ${{ secrets.E2E_CLERK_TEST_EMAIL }}
           E2E_CLERK_TEST_PASSWORD: ${{ secrets.E2E_CLERK_TEST_PASSWORD }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -210,7 +229,12 @@ jobs:
         id: pw
         continue-on-error: true
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Same dedicated dev-instance secret pair as the `auth` job above —
+          # this job restores that job's storageState (a session minted
+          # against the dev instance), so it must run `next dev` against the
+          # same instance or Clerk's client SDK rejects the session as
+          # belonging to a different instance than the one it just loaded.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
           # Not secrets — plain paths, so they live here rather than in repo
           # secrets. Without them Clerk falls back to redirecting to "/" after
           # sign-in instead of /dashboard, and the test that waits for
@@ -219,7 +243,7 @@ jobs:
           NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
           NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: /dashboard
           NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: /dashboard
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
           NULOGDASH_ADMIN_EMAILS: ${{ secrets.NULOGDASH_ADMIN_EMAILS }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           MCP_BACKEND_URL: ${{ secrets.MCP_BACKEND_URL }}
