@@ -8,7 +8,7 @@
   --bg: #08090c;
   --ink: #f7f3ea;
   --muted: #aba89e;
-  --dim: #747267;
+  --dim: #8d8b80;
   --panel: rgba(18, 20, 25, 0.82);
   --panel-solid: #121419;
   --line: rgba(247, 243, 234, 0.14);
@@ -984,14 +984,14 @@
   gap: 14px;
   align-items: flex-start;
   padding: 14px 4px;
-  opacity: 0.18;
-  filter: blur(1px);
+  opacity: 0.35;
+  filter: blur(0.8px);
   transform: translateY(6px);
   transition: opacity 0.35s ease, transform 0.35s ease, filter 0.35s ease;
 }
 
 .nwf-landing .council-debate-line.is-revealed {
-  opacity: 0.55;
+  opacity: 0.85;
   filter: none;
   transform: translateY(0);
 }
@@ -1001,8 +1001,8 @@
 }
 
 .nwf-landing .council-debate-label {
-  color: var(--dim);
-  font-size: 0.68rem;
+  color: var(--muted);
+  font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1015,8 +1015,16 @@
   line-height: 1.55;
 }
 
+.nwf-landing .council-debate--static .council-debate-line {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .nwf-landing .council-debate-line {
+  .nwf-landing .council-debate-line,
+  .nwf-landing .council-debate-line.is-revealed,
+  .nwf-landing .council-debate-line.is-active {
     opacity: 1;
     filter: none;
     transform: none;
