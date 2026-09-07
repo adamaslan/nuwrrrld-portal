@@ -662,3 +662,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-04] ingest | PR #108 fix(landing): demote market snapshot to sample data | pages touched: 1
 
 ## [2026-09-04] ingest | PR #109 docs: Modal cron deployment status — six apps, one deployed | pages touched: 1
+
+## [2026-09-06] ingest | PR #113 fix(landing): dim text contrast — council debate labels and the --dim token | pages touched: 4

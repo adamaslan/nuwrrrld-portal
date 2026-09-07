@@ -58,6 +58,7 @@ Cross-cutting patterns and design choices.
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
+- [[concept-composited-contrast]] — a token passing WCAG can still render at 2:1 once opacity multiplies it; and a media query adds no specificity
 - [[concept-mobile-web-parity]] — how synced the mobile app and this portal are (~64%, 2026-08-07 after mobile PR #30 + portal PR #51) + full parity matrix
 - [[concept-sync-requirements]] — what each surface needs to reach parity (de-drift, port, converge)
 - [[concept-cache-then-degrade]] — L1→L2→backend caching, and why caches degrade but user data propagates
