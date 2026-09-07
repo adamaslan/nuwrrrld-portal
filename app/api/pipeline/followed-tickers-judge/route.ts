@@ -23,7 +23,8 @@ import { join } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { buildGroundedBrief } from "@/lib/council-grounding";
-import { runSeat, seatSystemPrompt } from "@/lib/openrouter";
+import { runSeat, seatSystemPrompt, seatPrimaryModel } from "@/lib/openrouter";
+import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import type { StructuredVerdict } from "@/lib/council-verdict";
 import {
   JUDGE_VERSION,
@@ -64,18 +65,42 @@ async function loadGoldSet(): Promise<GoldEntry[]> {
   }
 }
 
-function makeJudgeCall(apiKey: string) {
+/**
+ * Wrap runSeat as the `(prompt) => Promise<string>` that eval-judge expects,
+ * recording one RunItem per call into `sink` as a side effect so the pipeline
+ * run log (docs/model-usage/) sees which model served each grade. `phase`
+ * labels the call's subject (gold-gate re-grade vs this week's sample).
+ */
+function makeJudgeCall(apiKey: string, sink: RunItem[], phase: () => string) {
   return async (prompt: string): Promise<string> => {
-    const { answer } = await runSeat(
-      JUDGE_SEAT,
-      [
-        { role: "system", content: seatSystemPrompt(JUDGE_SEAT) },
-        { role: "user", content: prompt },
-      ],
-      apiKey,
-      400,
-    );
-    return answer;
+    // No maxTokens override: runSeat's default (1200) is the documented floor —
+    // below it the reasoning models in FREE_MODEL_CHAIN burn the budget on
+    // hidden chain-of-thought and hand back an empty completion, which the
+    // gold-set gate then reads as judge drift (docs/free-model-rotation-status.md,
+    // P3). 400 was well under that floor. The judge's own output (five ints +
+    // short justifications) stays small; 1200 is a ceiling, not a target.
+    try {
+      const { answer, model, latencyMs } = await runSeat(
+        JUDGE_SEAT,
+        [
+          { role: "system", content: seatSystemPrompt(JUDGE_SEAT) },
+          { role: "user", content: prompt },
+        ],
+        apiKey,
+      );
+      sink.push({
+        subject: phase(),
+        seat: JUDGE_SEAT,
+        model,
+        outcome: answer.trim() ? "ok" : "empty",
+        latencyMs,
+        fallback: model !== seatPrimaryModel(JUDGE_SEAT),
+      });
+      return answer;
+    } catch {
+      sink.push({ subject: phase(), seat: JUDGE_SEAT, model: null, outcome: "fail" });
+      return "";
+    }
   };
 }
 
@@ -110,7 +135,9 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as { dry_run?: boolean };
   const dryRun = body.dry_run === true;
-  const call = makeJudgeCall(apiKey);
+  const judgeItems: RunItem[] = [];
+  let phase = "gold-gate";
+  const call = makeJudgeCall(apiKey, judgeItems, () => phase);
 
   // ── Gold-set gate first ───────────────────────────────────────────────────
   const goldSet = await loadGoldSet();
@@ -123,6 +150,18 @@ export async function POST(req: NextRequest) {
   const gate = evaluateGoldGate(goldComparisons);
 
   if (!gate.passed) {
+    await logPipelineRun({
+      pipeline: "followed-tickers-judge",
+      dryRun,
+      itemsTotal: goldSet.length,
+      items: judgeItems,
+      summary: {
+        published: false,
+        goldSetSize: goldSet.length,
+        goldAgreement: gate.agreementRate,
+        reason: goldSet.length === 0 ? "no-gold-set" : "gold-agreement-below-80",
+      },
+    });
     return NextResponse.json({
       ok: true,
       judgeVersion: JUDGE_VERSION,
@@ -137,6 +176,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Grade this week's sample ──────────────────────────────────────────────
+  phase = "sample";
   const since = new Date(Date.now() - SAMPLE_WINDOW_DAYS * 86_400_000)
     .toISOString()
     .slice(0, 10);
@@ -198,6 +238,22 @@ export async function POST(req: NextRequest) {
     Object.entries(criteriaSums).map(([k, v]) => [k, graded ? v / graded : null]),
   );
 
+  const runLogged = await logPipelineRun({
+    pipeline: "followed-tickers-judge",
+    dryRun,
+    itemsTotal: goldSet.length + sample.length,
+    items: judgeItems,
+    summary: {
+      published: !dryRun,
+      goldSetSize: goldSet.length,
+      goldAgreement: gate.agreementRate,
+      sampleSize: sample.length,
+      verdictsGraded: graded,
+      skipped: skipped.length,
+      meanTotal,
+    },
+  });
+
   return NextResponse.json({
     ok: true,
     judgeVersion: JUDGE_VERSION,
@@ -209,5 +265,6 @@ export async function POST(req: NextRequest) {
     meanTotal,
     criteriaMeans,
     skipped,
+    runLogged,
   });
 }

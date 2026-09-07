@@ -25,7 +25,8 @@ import {
   directionFromOutlook,
 } from "@/lib/council-verdict";
 import { validateStructuredVerdict } from "@/lib/council-validate";
-import { runSeat, seatSystemPrompt } from "@/lib/openrouter";
+import { runSeat, seatSystemPrompt, seatPrimaryModel } from "@/lib/openrouter";
+import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import { getLivePrice } from "@/lib/live-price-db";
 import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
 import { scorePick, type Horizon } from "@/lib/eval-scoring";
@@ -73,37 +74,68 @@ async function backtestRateFor(
   return match ? match.hit_rate : null;
 }
 
+interface CouncilVerdict {
+  direction: string;
+  invalidation: string;
+  raw: unknown;
+  /** Which model actually served the T1 call, for the pipeline run log. */
+  model: string;
+  latencyMs: number;
+  /** True when T1's primary lost and a FREE_MODEL_CHAIN entry served instead. */
+  fallback: boolean;
+  /** HTTP-200 with an empty completion after the chain was walked — distinct
+   *  from a parse failure or a thrown error. */
+  empty: boolean;
+}
+
 /** One grounded council seat, validated. Returns null on any failure so a
- *  degraded model chain doesn't abort the whole tracking run. */
+ *  degraded model chain doesn't abort the whole tracking run. The `error` /
+ *  `empty` fields let the caller log *why* a ticker produced no verdict. */
 async function councilVerdictFor(
   ticker: string,
   apiKey: string,
-): Promise<{ direction: string; invalidation: string; raw: unknown } | null> {
+): Promise<
+  | { ok: true; verdict: CouncilVerdict }
+  | { ok: false; empty: boolean; model: string | null }
+> {
   try {
     const question = `Directional outlook for ${ticker} over the next 1-5 trading days.`;
     const brief = await buildGroundedBrief(question, ticker, "T1");
-    const { answer } = await runSeat(
+    // No maxTokens override: runSeat's default (1200) is the documented floor
+    // below which the reasoning models in FREE_MODEL_CHAIN spend the whole
+    // budget on hidden chain-of-thought and return a 0-character answer, which
+    // here surfaced as councilVerdictFor -> null and the ticker being skipped
+    // (docs/free-model-rotation-status.md, P3). 500 was under that floor.
+    const { answer, model, latencyMs } = await runSeat(
       "T1",
       [
         { role: "system", content: seatSystemPrompt("T1") },
         { role: "user", content: `${brief}\n\n${question}` },
       ],
       apiKey,
-      500,
     );
+    const fallback = model !== seatPrimaryModel("T1");
     const verdict = parseStructuredVerdict(answer);
-    if (!verdict) return null;
+    if (!verdict) return { ok: false, empty: answer.trim().length === 0, model };
     // Two-layer contract: deterministic validators before anything downstream
     // trusts the verdict. A verdict with a hallucinated number is recorded but
     // flagged so the judge run can exclude it.
     const flags = validateStructuredVerdict(verdict, brief);
     return {
-      direction: directionFromOutlook(verdict.outlook),
-      invalidation: verdict.invalidation,
-      raw: { ...verdict, validatorFlags: flags.map((f) => f.message) },
+      ok: true,
+      verdict: {
+        direction: directionFromOutlook(verdict.outlook),
+        invalidation: verdict.invalidation,
+        raw: { ...verdict, validatorFlags: flags.map((f) => f.message) },
+        model,
+        latencyMs,
+        fallback,
+        empty: false,
+      },
     };
   } catch {
-    return null;
+    // runSeat threw — every model in the chain failed, or the brief build did.
+    return { ok: false, empty: false, model: null };
   }
 }
 
@@ -201,6 +233,7 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const readings: Reading[] = [];
+  const runItems: RunItem[] = [];
   let missedObservations = 0;
   let councilDegraded = 0;
 
@@ -213,8 +246,30 @@ export async function POST(req: NextRequest) {
     const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
-    const council = apiKey ? await councilVerdictFor(pick.ticker, apiKey) : null;
+    const councilResult = apiKey ? await councilVerdictFor(pick.ticker, apiKey) : null;
+    const council = councilResult?.ok ? councilResult.verdict : null;
     if (apiKey && !council) councilDegraded++;
+
+    // One run-log item per pick that reached the model (or tried to).
+    if (councilResult) {
+      runItems.push(
+        councilResult.ok
+          ? {
+              subject: pick.ticker,
+              seat: "T1",
+              model: councilResult.verdict.model,
+              outcome: "ok",
+              latencyMs: councilResult.verdict.latencyMs,
+              fallback: councilResult.verdict.fallback,
+            }
+          : {
+              subject: pick.ticker,
+              seat: "T1",
+              model: councilResult.model,
+              outcome: councilResult.empty ? "empty" : "fail",
+            },
+      );
+    }
 
     // thesis holding? — the live signal direction vs. the picked direction.
     const normLive = liveSignalDir
@@ -264,6 +319,23 @@ export async function POST(req: NextRequest) {
   }
 
   const backtestAvailable = readings.some((r) => r.backtestRate != null);
+  const horizonsResolved = readings.reduce((n, r) => n + r.resolved.length, 0);
+
+  // Best-effort model-usage audit row (docs/model-usage/). Never fatal.
+  const runLogged = await logPipelineRun({
+    pipeline: "followed-tickers",
+    dryRun,
+    session: body.session ?? null,
+    itemsTotal: picks.length,
+    items: runItems,
+    summary: {
+      cohortSize: picks.length,
+      missedObservations,
+      councilDegraded,
+      backtestAvailable,
+      horizonsResolved,
+    },
+  });
 
   return NextResponse.json({
     ok: true,
@@ -275,7 +347,8 @@ export async function POST(req: NextRequest) {
       missedObservations,
       degraded: councilDegraded,
       backtest_available: backtestAvailable,
-      horizonsResolved: readings.reduce((n, r) => n + r.resolved.length, 0),
+      horizonsResolved,
+      runLogged,
     },
   });
 }

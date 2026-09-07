@@ -1,0 +1,89 @@
+name: Model usage report
+
+# Rolls pipeline_run_log into a dated markdown file under docs/model-usage/ and
+# opens a PR if it changed. Read-only against Neon (SELECT only).
+#
+#   - weekly  : Mondays 05:00 UTC, reporting the week that just ended
+#   - monthly : the 1st at 05:10 UTC, reporting the month that just ended
+#   - manual  : workflow_dispatch with a period + optional anchor date
+on:
+  schedule:
+    - cron: '0 5 * * 1'   # Monday — previous ISO week
+    - cron: '10 5 1 * *'  # 1st of month — previous month
+  workflow_dispatch:
+    inputs:
+      period:
+        description: 'day | week | month'
+        required: false
+        default: 'week'
+      date:
+        description: 'Anchor date YYYY-MM-DD (blank = today)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: model-usage-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate the report
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::DATABASE_URL is not set — cannot read pipeline_run_log."
+            exit 1
+          fi
+
+          # Scheduled runs report the period that just *ended* (anchor = yesterday
+          # UTC). The 05:10 monthly cron only differs from the 05:00 weekly one by
+          # falling on the 1st, so key the period off the day-of-month.
+          period="${{ github.event.inputs.period }}"
+          anchor="${{ github.event.inputs.date }}"
+          if [ -z "${period}" ]; then
+            if [ "$(date -u +%d)" = "01" ]; then period="month"; else period="week"; fi
+          fi
+          if [ -z "${anchor}" ]; then
+            anchor="$(date -u -d 'yesterday' +%F)"
+          fi
+          echo "Reporting period=${period} anchor=${anchor}"
+          node scripts/model-usage-report.mjs --period "${period}" --date "${anchor}"
+
+      - name: Open PR if the report changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/model-usage-report
+          base: main
+          add-paths: docs/model-usage/**
+          commit-message: 'docs(model-usage): dated pipeline model-usage rollup'
+          title: 'docs: model usage report'
+          body: |
+            Automated rollup of `pipeline_run_log` into `docs/model-usage/`.
+
+            Which OpenRouter models served each `followed-tickers` /
+            `followed-tickers-judge` / `precompute-ai` run this period, with
+            call counts, empty-completion counts, chain-rescue counts, and
+            latency. `$0` = `:free`; any `⚠ paid` row means a seat needs
+            repointing at a `:free` id.
+
+            If this PR is empty/absent, no new runs landed in the window.
+          delete-branch: true

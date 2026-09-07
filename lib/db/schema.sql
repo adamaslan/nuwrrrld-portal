@@ -538,3 +538,36 @@ CREATE TABLE IF NOT EXISTS followed_ticker_scores (
 );
 CREATE INDEX IF NOT EXISTS followed_ticker_scores_horizon_idx
   ON followed_ticker_scores (horizon, resolved_on DESC);
+
+-- ── Per-run log of every model-calling pipeline (docs/model-usage/) ──────────
+-- One append-only row per invocation of a pipeline route that spends model
+-- quota (followed-tickers, followed-tickers-judge, precompute-ai). Answers
+-- "which models actually ran, on what, and how well" rolled up by day / week /
+-- month — scripts/model-usage-report.mjs reads this table and writes the dated
+-- markdown in docs/model-usage/. Nothing in the request path reads it back, so
+-- a failed insert is logged and swallowed: losing an audit row must never fail
+-- a pipeline run.
+--
+--   models  — { "<model id>": { calls, empty, fallbacks, avgLatencyMs } }
+--             `fallbacks` counts calls the seat's primary lost, so the chain
+--             served; `empty` counts HTTP-200-but-no-content completions.
+--   items   — compact per-unit list: [{ subject, seat, model, outcome }]
+--             outcome ∈ ok | empty | fail | skip
+--   summary — pipeline-specific totals (cohortSize, missedObservations,
+--             degraded, generated, goldAgreement, verdictsGraded, …)
+CREATE TABLE IF NOT EXISTS pipeline_run_log (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  pipeline    text        NOT NULL,   -- followed-tickers | followed-tickers-judge | precompute-ai
+  run_at      timestamptz NOT NULL DEFAULT now(),
+  dry_run     boolean     NOT NULL DEFAULT false,
+  session     text,                   -- optional caller-supplied run id
+  items_total int         NOT NULL DEFAULT 0,   -- signals / tickers / subjects seen
+  items_ai    int         NOT NULL DEFAULT 0,   -- of those, how many spent a model call
+  models      jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  items       jsonb       NOT NULL DEFAULT '[]'::jsonb,
+  summary     jsonb       NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS pipeline_run_log_at_idx
+  ON pipeline_run_log (run_at DESC);
+CREATE INDEX IF NOT EXISTS pipeline_run_log_pipeline_idx
+  ON pipeline_run_log (pipeline, run_at DESC);

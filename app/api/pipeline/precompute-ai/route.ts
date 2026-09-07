@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
+import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import {
   listWatchlistSubjects,
   savePrecomputed,
@@ -296,6 +297,22 @@ export async function POST(req: NextRequest) {
       `quotaExhausted=${quotaExhausted}`,
   );
 
+  // Model-usage audit row (docs/model-usage/). `fetchWithModelFallbackChecked`
+  // doesn't report which chain position served, so `fallback` is left unset
+  // here; `model` is still the exact id that produced the narrative.
+  const runItems: RunItem[] = results.map((r) => ({
+    subject: r.subject,
+    model: r.model ?? null,
+    outcome: r.ok ? "ok" : r.reason === "empty completion" ? "empty" : "fail",
+  }));
+  const runLogged = await logPipelineRun({
+    pipeline: "precompute-ai",
+    dryRun: false,
+    itemsTotal: subjects.length,
+    items: runItems,
+    summary: { selection, generated, attempted: results.length, quotaExhausted },
+  });
+
   return NextResponse.json({
     ok: true,
     // Which pool the subjects came from. Without it, a run that silently fell
@@ -306,5 +323,6 @@ export async function POST(req: NextRequest) {
     attempted: results.length,
     quotaExhausted,
     results,
+    runLogged,
   });
 }

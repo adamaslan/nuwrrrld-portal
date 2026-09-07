@@ -57,13 +57,26 @@ export const FREE_MODEL_CHAIN = [
 //      synthesis, the smallest on QUANT, which is reduced to classification.
 //   2. Vendors are spread deliberately. FREE_MODEL_CHAIN is all-nvidia, so it
 //      has nominal depth 4 and real depth 1 against an account-tier failure —
-//      the failure that actually happens. Seats drawing from cohere, google,
-//      z-ai and nvidia mean a single vendor outage degrades some seats rather
-//      than every one at once.
+//      the failure that actually happens. Seats drawing from thinkingmachines,
+//      google, inclusionai, liquid and nvidia mean a single vendor outage
+//      degrades some seats rather than every one at once.
+//
+// 2026-09-07 refresh (docs/free-model-rotation-status.md, P1 + P2):
+//   - RISK was 'z-ai/glm-5.2:free', which no longer exists — z-ai retired its
+//     :free tier entirely (every z-ai id in the catalog is now paid). Every
+//     RISK call was a guaranteed 404 into FREE_MODEL_CHAIN. Repointed at
+//     InclusionAI's finance-tuned Ling 3.0 Flash — a $0 :free MoE built for
+//     investment reasoning, and a new vendor, so the spread above widens.
+//   - T1 was 'cohere/command-r7b-12-2024', a *paid* id ($0.0000000375 /
+//     $0.00000015 per token). It passed the existence audit (the audit checks
+//     the full catalog, not price) but silently broke the "$0 council"
+//     invariant this comment claims. Repointed at
+//     'thinkingmachines/inkling-small:free'. cohere's only :free model is a
+//     code model, unfit for a trader seat, so the cohere seat is retired.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
-  T1: 'cohere/command-r7b-12-2024',
+  T1: 'thinkingmachines/inkling-small:free',
   T2: 'google/gemma-4-31b-it:free',
-  RISK: 'z-ai/glm-5.2:free',
+  RISK: 'inclusionai/ling-3.0-flash-fin:free',
   MACRO: 'google/gemma-4-26b-a4b-it:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
@@ -80,6 +93,16 @@ const SEAT_MODELS: Record<CouncilSeat, string> = {
 // synthesis) and the smallest on tasks reduced to pure classification (CHAIR
 // verdict, run 3x). QUANT already carries the smallest model in the chain.
 export const SMALLEST_MODEL = SEAT_MODELS.QUANT;
+
+/**
+ * The hand-maintained primary model for a seat — what `runSeat` tries first,
+ * before walking FREE_MODEL_CHAIN. Exported so pipeline run-logging can tell a
+ * primary-served call from one the chain had to rescue (see
+ * lib/pipeline-run-log-db.ts, docs/model-usage/).
+ */
+export function seatPrimaryModel(seat: CouncilSeat): string {
+  return SEAT_MODELS[seat];
+}
 
 // Prompt contract (docs/council-prompting-small-models.md): ≤5 directives per
 // call, checklist over prose, positive constraints only (small models handle

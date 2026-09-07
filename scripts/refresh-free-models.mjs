@@ -24,7 +24,12 @@
  *   --no-probe           skip live probing, trust the $0 pricing only
  *
  * Exit codes: 0 = success (whether or not the file changed),
- *             1 = unsafe result (too few working models) — file left untouched.
+ *             1 = hard failure — catalog unreachable, SEAT_MODELS block
+ *                 unparseable, or too few working models; file left untouched,
+ *             3 = the chain was refreshed fine, but SEAT_MODELS has >=1 retired
+ *                 id (degraded, not broken). Distinct from 1 so a CI job can
+ *                 let the refresh PR through while still flagging the dead seat
+ *                 (docs/free-model-rotation-status.md, P1).
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -36,6 +41,10 @@ const envChainSize = Number(process.env.MODEL_CHAIN_SIZE);
 const CHAIN_SIZE = Number.isNaN(envChainSize) ? 4 : envChainSize;
 const MIN_WORKING = 1; // never write a chain that would strand the app with zero models
 const PROBE_TIMEOUT_MS = 15_000;
+const RETRY_429_DELAY_MS = 2_000; // pause before the single 429 retry (P4)
+const MAX_PER_VENDOR = 2; // cap chain entries per vendor prefix — an all-one-vendor
+// chain has nominal depth N and real depth 1 against an account-tier outage (P4)
+const EXIT_DEGRADED_SEATS = 3; // chain OK, but a SEAT_MODELS id is retired (P1)
 const DRY_RUN = process.argv.includes('--dry-run');
 const PROBE = !process.argv.includes('--no-probe');
 
@@ -107,40 +116,82 @@ async function fetchFreeModels() {
 }
 
 async function probe(apiKey, model) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${OR_BASE}/chat/completions`, {
-      method: 'POST',
-      signal: ctrl.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://financial.nuwrrrld.com',
-        'X-Title': 'NuWrrrld free-model refresh',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 1,
-      }),
-    });
-    await res.body?.cancel().catch(() => {});
-    return { model, ok: res.ok, status: res.status };
-  } catch (err) {
-    return { model, ok: false, status: err?.name === 'AbortError' ? 'timeout' : 'network' };
-  } finally {
-    clearTimeout(timer);
+  // Two attempts: a 429 on the first is an account-level rate limit, not
+  // evidence the model is unreachable. Without the retry a momentarily
+  // throttled vendor is excluded from the entire week's chain — that is how
+  // both Google models were dropped on 2026-09-07 (P4).
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${OR_BASE}/chat/completions`, {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://financial.nuwrrrld.com',
+          'X-Title': 'NuWrrrld free-model refresh',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1,
+        }),
+      });
+      await res.body?.cancel().catch(() => {});
+      if (res.status === 429 && attempt === 0) {
+        clearTimeout(timer);
+        console.log(`  probe 429  ${model} — rate limited, retrying once in ${RETRY_429_DELAY_MS}ms`);
+        await new Promise((r) => setTimeout(r, RETRY_429_DELAY_MS));
+        continue;
+      }
+      return { model, ok: res.ok, status: res.status };
+    } catch (err) {
+      return { model, ok: false, status: err?.name === 'AbortError' ? 'timeout' : 'network' };
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return { model, ok: false, status: 429 };
+}
+
+/** Keep at most MAX_PER_VENDOR ids sharing a `vendor/` prefix, order preserved. */
+function capVendors(models) {
+  const perVendor = new Map();
+  const kept = [];
+  for (const model of models) {
+    const vendor = model.split('/')[0];
+    const n = perVendor.get(vendor) ?? 0;
+    if (n >= MAX_PER_VENDOR) {
+      console.log(`  cap  skip  ${model} — already ${MAX_PER_VENDOR} from "${vendor}/"`);
+      continue;
+    }
+    perVendor.set(vendor, n + 1);
+    kept.push(model);
+  }
+  return kept;
 }
 
 async function selectWorking(apiKey, candidates) {
-  if (!PROBE) return candidates.slice(0, CHAIN_SIZE);
+  // Diversify before slicing to CHAIN_SIZE so the chain doesn't collapse to a
+  // single vendor (P4). A shorter multi-vendor chain survives an account-tier
+  // outage; a longer single-vendor one does not.
+  if (!PROBE) return capVendors(candidates).slice(0, CHAIN_SIZE);
   const working = [];
+  const perVendor = new Map();
   for (const model of candidates) {
+    const vendor = model.split('/')[0];
+    if ((perVendor.get(vendor) ?? 0) >= MAX_PER_VENDOR) {
+      console.log(`  cap  skip  ${model} — already ${MAX_PER_VENDOR} working from "${vendor}/"`);
+      continue;
+    }
     const r = await probe(apiKey, model);
     console.log(`  probe ${r.ok ? 'OK ' : 'skip'} [${r.status}] ${model}`);
-    if (r.ok) working.push(model);
+    if (r.ok) {
+      working.push(model);
+      perVendor.set(vendor, (perVendor.get(vendor) ?? 0) + 1);
+    }
     if (working.length >= CHAIN_SIZE) break; // stop early to spare the free quota
   }
   return working;
@@ -174,7 +225,8 @@ async function rewriteTarget(models) {
 }
 
 /**
- * Audit SEAT_MODELS against the live catalog.
+ * Audit SEAT_MODELS against the live catalog: each seat is ok (exists, $0),
+ * PAID (exists, bills per token), or DEAD (gone from the catalog).
  *
  * Reports, never rewrites. FREE_MODEL_CHAIN is a ranked list this script can
  * regenerate mechanically, but a seat assignment encodes intent a script has
@@ -190,17 +242,23 @@ async function rewriteTarget(models) {
  * falls through to the chain, and still answers — so the rot is invisible from
  * the outside and only a catalog check finds it.
  */
-async function fetchAllModelIds() {
+async function fetchAllModels() {
   const res = await fetch(`${OR_BASE}/models`);
   if (!res.ok) throw new Error(`OpenRouter /models returned ${res.status}`);
   const body = await res.json();
   if (!body || !Array.isArray(body.data)) {
     throw new Error('OpenRouter /models response is missing the "data" array');
   }
-  return new Set(body.data.map((m) => m?.id).filter((id) => typeof id === 'string'));
+  // id -> { free: bool }. A seat is "paid" if it exists but bills per token.
+  const byId = new Map();
+  for (const m of body.data) {
+    if (typeof m?.id !== 'string') continue;
+    byId.set(m.id, { free: isFree(m.pricing) });
+  }
+  return byId;
 }
 
-async function auditSeatModels(liveIds) {
+async function auditSeatModels(catalog) {
   const src = await readFile(TARGET_FILE, 'utf8');
   const block = /const SEAT_MODELS: Record<CouncilSeat, string> = \{([\s\S]*?)\};/.exec(src);
   // A missing block means the audit cannot run — which is not the same as an
@@ -227,11 +285,17 @@ async function auditSeatModels(liveIds) {
     );
   }
 
-  const dead = seats.filter((s) => !liveIds.has(s.model));
+  const status = (model) => {
+    const hit = catalog.get(model);
+    if (!hit) return 'DEAD';
+    return hit.free ? 'ok  ' : 'PAID';
+  };
+  const dead = seats.filter((s) => !catalog.has(s.model));
+  const paid = seats.filter((s) => catalog.get(s.model)?.free === false);
 
   console.log(`\nSeat audit — ${seats.length} seat(s) against the live catalog:`);
   for (const { seat, model } of seats) {
-    console.log(`  ${liveIds.has(model) ? 'ok  ' : 'DEAD'} ${seat.padEnd(6)} ${model}`);
+    console.log(`  ${status(model)} ${seat.padEnd(6)} ${model}`);
   }
 
   if (dead.length > 0) {
@@ -240,6 +304,17 @@ async function auditSeatModels(liveIds) {
         'before falling through to FREE_MODEL_CHAIN — the council still answers, so nothing ' +
         'else will surface this. Update SEAT_MODELS in ' +
         `${TARGET_FILE} by hand, keeping the size and vendor-spread intent documented there.`,
+    );
+  }
+  if (paid.length > 0) {
+    // Not fatal — a seat *may* be a deliberate paid exception — but it must be
+    // visible. A paid id passes an existence check silently, which is exactly
+    // how SEAT_MODELS.T1 ran a paid model unnoticed until 2026-09-07
+    // (docs/free-model-rotation-status.md, P2). Free is the default; a paid
+    // seat is a choice someone has to make on purpose.
+    console.log(
+      `\n${paid.length} seat model(s) bill per token: ${paid.map((s) => `${s.seat}=${s.model}`).join(', ')}. ` +
+        'If that is intentional, note it above the SEAT_MODELS block; otherwise repoint at a :free id.',
     );
   }
   return dead.length;
@@ -262,10 +337,10 @@ async function main() {
   // downstream of that gate meant the one report that finds rotted seats went
   // missing precisely when the account was already unhealthy.
   //
-  // The FULL catalog, not `free`: a seat may legitimately run a paid model
-  // (T1 does), and checking against the free-only list would report a
-  // perfectly live model as dead.
-  const deadSeats = await auditSeatModels(await fetchAllModelIds());
+  // The FULL catalog, not `free`: checking against the free-only list would
+  // report a perfectly live paid model as dead. The audit distinguishes the
+  // three states itself (ok / PAID / DEAD).
+  const deadSeats = await auditSeatModels(await fetchAllModels());
 
   console.log(PROBE ? '\nLive-probing in preference order…' : '\nSkipping probe (--no-probe).');
   const working = await selectWorking(apiKey, free);
@@ -286,8 +361,10 @@ async function main() {
 
   // Non-fatal to the rewrite, which has already happened: a stale seat is a
   // degraded council, a stale chain is a dead one, so the chain refresh must
-  // land even when the seats need attention.
-  if (deadSeats > 0) process.exitCode = 1;
+  // land even when the seats need attention. Exit 3 (not 1) so the CI job can
+  // tell "chain refreshed, seat rotted" apart from a hard failure and still
+  // open the PR — see .github/workflows/refresh-free-models.yml (P1).
+  if (deadSeats > 0) process.exitCode = EXIT_DEGRADED_SEATS;
 }
 
 main().catch((err) => {
