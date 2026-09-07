@@ -65,6 +65,21 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
    error because it reads a key the route no longer returns. Broke signal-card
    "Go Deeper" for ~6 weeks — see
    [[incident-2026-08-31-signals-go-deeper-contract-drift]].
+5. **The council's most-seen surface is a hardcoded mockup nobody validates.**
+   `components/landing/CouncilScrollDebate.tsx` is the six-seat debate most
+   visitors actually read — a static, hand-written XLE argument on the
+   signed-out landing, unconnected to `/api/council/*`. Because nothing
+   executes it, its content rots silently: it was labeled "Example — NVDA"
+   from its introduction in PR #43 until PR #113, while all six lines, the
+   component's own docstring, and the signal matrix directly above it said
+   XLE. Its presentation rotted the same way — see
+   [[concept-composited-contrast]] for the three contrast defects PR #113
+   fixed here, including seat labels rendering at 2.00:1 and a
+   `prefers-reduced-motion` fallback that never applied. The live sample
+   above (`/api/council/sample`) is grounded and tested; this one is prose in
+   a `.tsx` file, and should be read as marketing copy with the review
+   discipline that implies.
+
 4. **Grounding silently degrades.** If every grounding source misses, the brief falls back to "reason from general knowledge and say so" with no hard failure — see [[entity-grounding-tier-ladder#known-failures]].
 
 ## Open questions
@@ -72,6 +87,7 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - ❓ The `SEAT_MODELS` primary assignments predate the §10 residual-difficulty analysis; only the CHAIR verdict call currently uses `SMALLEST_MODEL`. Should T1/T2/MACRO be reassigned once Layer-B flag-rate telemetry exists?
 - ❓ RISK's counter-slice uses the *live signal* direction as the majority proxy at brief-build time (there's no real majority yet). Does that match the actual round-1 majority often enough to be useful?
 - ❓ No live-model golden tests run in CI — the deterministic Vitest suite covers parsing/critique/validation logic but not whether a real 7B produces parseable output. Deferred in PR #37.
+- ❓ Should the landing's hardcoded debate mockup (failure 5) be generated from a cached real `deliberate` run instead of hand-written prose, so it cannot drift from the product it advertises?
 - ❓ Nothing asserts that each caller of `/api/council` still reads the shape the route returns. This is cheap to cover deterministically and would have caught [[incident-2026-08-31-signals-go-deeper-contract-drift]] on day one.
 
 ## See also
@@ -80,6 +96,7 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - [[concept-small-model-prompting]] — the prompting techniques every seat now follows
 - [[concept-verdict-repair-loop]] — the numeric/trade-logic validators
 - [[decision-four-field-verdict-scaffold]] — why 4 fields, not 6
+- [[concept-composited-contrast]] — why the landing debate's seat labels were invisible
 - [[decision-split-chair-synthesis-and-verdict]] — why the verdict is a separate call
 - `gcp3-mobile/docs/wiki-mobile/entity-council-composer.md` — the mobile council this was ported from
 - `../moo-council-simulation-todo.md` — the MOO ETF simulation build-out this PR shipped step 1 of
