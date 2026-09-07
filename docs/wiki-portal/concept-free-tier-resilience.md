@@ -29,6 +29,15 @@ to the caller.
 models *and then live-probes each one*, because a model can be priced $0 and
 still return 402/429. The grounding compile is scheduled at 06:23 —
 deliberately after — so it builds against the freshened list.
+As of PR #115 the probe **retries once (2 s) on a 429** before dropping a
+candidate — a transient account-level throttle was previously indistinguishable
+from "dead", which excluded both Google models from a whole week's chain on
+2026-09-07 — and the result is **capped at 2 ids per vendor prefix**
+(`MAX_PER_VENDOR`), so the chain can no longer collapse to one vendor (see the
+sharpened contradiction below, now resolved). Same PR: the seat audit that runs
+here classifies each `SEAT_MODELS` entry `ok` / `PAID` / `DEAD`, and a `DEAD`
+seat now degrades the run (exit 3 → workflow warning) instead of failing the
+step before the PR is opened.
 
 **Layer 3 — Refuse to make things worse.** The refresh script carries
 `MIN_WORKING = 1`: if fewer than one model survives probing, it writes nothing
@@ -44,6 +53,14 @@ to 503 instead of letting a model narrate missing data.
 assignment treats capability as a budget: the hardest job (CHAIR synthesis)
 gets the strongest free model; work reduced to classification (the CHAIR
 verdict vote) gets `SMALLEST_MODEL`. See [[concept-small-model-prompting]].
+
+**Layer 6 — Record what actually ran (PR #115).** The layers above act; none of
+them left a trace you could roll up. [[entity-model-usage-log]] (`pipeline_run_log`
++ `npm run model-usage`) writes one row per pipeline run — per-model calls,
+empty completions, chain rescues, latency — and the weekly report marks each
+model `$0` or `⚠ paid`. This is how "are we still all-`:free`, and is any single
+model carrying the load" becomes a fact instead of a guess. Best-effort: a
+failed audit write never fails the run.
 
 ## Where it appears
 
@@ -112,25 +129,29 @@ models can itself consume a meaningful share of a 50/day budget.
 > across models cannot mitigate a shared-quota failure — only a second key,
 > paid capacity, or graceful deferral can.
 
-> ⚠️ Sharpened 2026-08-18: the correlation is worse than the shared quota
-> alone, because the chain is also **single-vendor**. All four
-> `FREE_MODEL_CHAIN` entries are `nvidia/*:free`
+> ✅ Sharpened 2026-08-18, **resolved 2026-09-07 (PR #115)**: the correlation
+> was worse than the shared quota alone, because the chain was also
+> **single-vendor** — all four `FREE_MODEL_CHAIN` entries `nvidia/*:free`
 > ([[entity-openrouter-client]] known-failure #6), so even a vendor-scoped
-> failure — not just an account-scoped one — takes the whole chain at once.
-> The redundancy is nominal in two independent dimensions simultaneously.
-> `refresh-free-models.mjs` produces this without intending to: it ranks on
-> "$0 and probes healthy" with no vendor-diversity constraint, so it inherits
-> whatever monoculture the free tier has that week. A per-vendor cap in the
-> ranking is the smallest change that makes the existing chain machinery mean
-> what it appears to mean.
+> failure took the whole chain at once. `refresh-free-models.mjs` produced this
+> without intending to: it ranked on "$0 and probes healthy" with no
+> vendor-diversity constraint. PR #115 added exactly the per-vendor cap this
+> paragraph asked for — `MAX_PER_VENDOR = 2` in `selectWorking()` — so the
+> chain machinery now means what it appears to mean. The account-wide *quota*
+> correlation (below) is unaffected: a second key or paid capacity is still the
+> only mitigation for that.
 
-> ⚠️ Contradiction added 2026-08-18: this page (and the whole free-tier design)
-> assumes the *chain* is the thing that rots and gets refreshed weekly. But
-> `SEAT_MODELS` — the other model list in the same file — has no scheduled
-> maintainer, and 5 of its 6 primaries no longer exist
-> ([[entity-openrouter-client]] known-failure #5). A weekly job that maintains
-> half a surface leaves the other half to rot *silently*, which is worse than
-> no job at all: the presence of automation is read as coverage.
+> 🟡 Contradiction added 2026-08-18, **narrowed 2026-09-07 (PR #115)**: this
+> page assumed the *chain* is the thing that rots and gets refreshed weekly,
+> while `SEAT_MODELS` had no scheduled maintainer and rotted silently
+> ([[entity-openrouter-client]] known-failure #5, then #8, then the PR #115
+> recurrence). The weekly job now *does* audit the seats (`ok` / `PAID` /
+> `DEAD`, on every run), and PR #115 made that audit's exit non-blocking so it
+> can't kill the chain-refresh PR. What's **still** true: the audit only
+> *reports* — it never rewrites a seat (size + vendor intent a script can't
+> infer), and nothing *fails a build* on a dead seat, so the signal is a
+> warning on a weekly PR, not a red check. "Presence of automation read as
+> coverage" is reduced, not eliminated.
 
 > ❓ Open question: should a whole-chain 429 fail loudly (current behavior) or
 > serve a stale cached deliberation? [[concept-cache-then-degrade]] argues for
@@ -141,6 +162,7 @@ models can itself consume a meaningful share of a 50/day budget.
 
 - [[decision-free-tier-model-chain]] — the decision this page operationalizes
 - [[entity-openrouter-client]] — `runSeat`, the chain, known failures
+- [[entity-model-usage-log]] — Layer 6: the per-run record of which model served (PR #115)
 - [[concept-graceful-degradation]] · [[concept-cache-then-degrade]] — the degradation rules
 - [[concept-small-model-prompting]] — how prompts survive weak free models
 - [[concept-test-strategy]] — why the `live` project is opt-in and retry-tolerant
