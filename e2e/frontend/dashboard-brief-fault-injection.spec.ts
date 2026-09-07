@@ -101,7 +101,15 @@ test.describe("Dashboard daily brief (/dashboard, OpenRouter-backed) frontend re
 
     // Model calls can legitimately take a while through the fallback chain;
     // give it real headroom rather than the default 5s action timeout.
-    await expect(page.locator(".cockpit-brief-card")).toBeVisible({ timeout: 30_000 });
+    // Wait for the *completed* state specifically — DashboardCockpit renders
+    // .cockpit-brief-card and a non-empty .cockpit-brief-text ("Nu AI is
+    // composing your brief…") during the loading state too, so asserting on
+    // either of those alone can pass before /api/brief ever resolves.
+    // "Daily Brief · Nu AI" (vs. loading's plain "Daily Brief") only renders
+    // once briefStatus === "ok".
+    await expect(page.getByText("Daily Brief · Nu AI", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     // Same headroom as the visibility check above — playwright.config.ts sets
     // no expect.timeout override, so this would otherwise fall back to the
     // 5s default and could fail before the brief text finishes streaming in,
