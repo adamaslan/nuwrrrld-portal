@@ -2,23 +2,29 @@
 
 **Verified live: 2026-09-07** (real OpenRouter catalog + real probe, `--dry-run`).
 
-> **Update 2026-09-07 — P1–P4 fixed.** See [§6](#6-fixes-applied-2026-09-07). The
-> four problems below are kept verbatim for the audit trail; each now carries a
-> resolution note.
+> **Status: P1–P4 all fixed 2026-09-07 (PR #115).** Everything from here to the
+> end of §5 is the **historical snapshot** that motivated the fixes — the
+> problems described below as "current" were true when this was written and are
+> not any more. [§6](#6-fixes-applied-2026-09-07) is the current state; each P
+> heading also carries an inline ✅ FIXED note.
 
-## Short answer
+## Short answer (historical — as of the 2026-09-07 audit, before PR #115)
 
-**Yes on both counts, with three caveats.** `scripts/refresh-free-models.mjs`
-works end-to-end against the live OpenRouter API, and every pipeline that calls
-a model reaches `FREE_MODEL_CHAIN`. But:
+**Yes on both counts, with three caveats** *(all since resolved — see §6)*.
+`scripts/refresh-free-models.mjs` works end-to-end against the live OpenRouter
+API, and every pipeline that calls a model reaches `FREE_MODEL_CHAIN`. But, at
+audit time:
 
-1. The weekly job **cannot open its PR right now** — a dead seat model makes the
-   script exit 1, which kills the GitHub Actions job before the PR step runs.
-2. Rotation covers **fallbacks only, never primaries**. `SEAT_MODELS` is
-   audited, never rewritten — so the `followed-tickers` pipeline's primary is
-   currently a **paid** model.
-3. Two of the three pipelines call the chain with a **token budget the code
-   itself documents as too small** for the reasoning models now in the chain.
+1. The weekly job **could not open its PR** — a dead seat model made the script
+   exit 1, which killed the GitHub Actions job before the PR step ran.
+   *(Fixed: exit 3 + `continue-on-error` handling.)*
+2. Rotation covered **fallbacks only, never primaries**. `SEAT_MODELS` was
+   audited, never rewritten — so the `followed-tickers` pipeline's primary was
+   a **paid** model. *(Fixed: T1 repointed at a `:free` id; audit now flags
+   `PAID`.)*
+3. Two of the three pipelines called the chain with a **token budget the code
+   itself documents as too small** for the reasoning models in the chain.
+   *(Fixed: both overrides dropped, back to the 1200 default.)*
 
 ---
 
@@ -57,7 +63,7 @@ only if the chain actually changed (idempotent — no change, no commit, exit 0)
 
 ## 2. Live verification (2026-09-07)
 
-```
+```console
 $ node scripts/refresh-free-models.mjs --dry-run
 
 Fetching OpenRouter catalog…
@@ -116,7 +122,7 @@ app-wide, not pipeline-specific:
 
 ### The important structural distinction
 
-```
+```text
 fetchWithModelFallback*()  →  [ FREE_MODEL_CHAIN ]              ← rotated weekly
 runSeat(seat)              →  [ SEAT_MODELS[seat], ...chain ]   ← primary NEVER rotated
 ```
@@ -142,7 +148,7 @@ The script deliberately writes the chain *before* reporting dead seats
 ("a stale seat is a degraded council, a stale chain is a dead one"), then sets
 `process.exitCode = 1`. Confirmed:
 
-```
+```console
 $ node scripts/refresh-free-models.mjs --dry-run --no-probe >/dev/null; echo $?
 1
 ```

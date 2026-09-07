@@ -115,6 +115,12 @@ async function fetchFreeModels() {
     .sort(rank);
 }
 
+/**
+ * Send a 1-token chat completion to `model` to check it actually answers.
+ * Returns `{ model, ok, status }` where `status` is the HTTP code, `'timeout'`,
+ * or `'network'`. Retries once on a first-attempt 429 (an account rate limit is
+ * not evidence the model is dead); a 429 on the retry is reported as `ok:false`.
+ */
 async function probe(apiKey, model) {
   // Two attempts: a 429 on the first is an account-level rate limit, not
   // evidence the model is unreachable. Without the retry a momentarily
@@ -173,6 +179,13 @@ function capVendors(models) {
   return kept;
 }
 
+/**
+ * Reduce the ranked `candidates` to the working chain of at most CHAIN_SIZE
+ * ids, capped at MAX_PER_VENDOR per `vendor/` prefix. With `--no-probe` it
+ * trusts the $0 pricing and just caps + slices; otherwise it live-probes in
+ * order, keeps the ones that answer, and stops early once the chain is full to
+ * spare the free quota.
+ */
 async function selectWorking(apiKey, candidates) {
   // Diversify before slicing to CHAIN_SIZE so the chain doesn't collapse to a
   // single vendor (P4). A shorter multi-vendor chain survives an account-tier
@@ -225,22 +238,9 @@ async function rewriteTarget(models) {
 }
 
 /**
- * Audit SEAT_MODELS against the live catalog: each seat is ok (exists, $0),
- * PAID (exists, bills per token), or DEAD (gone from the catalog).
- *
- * Reports, never rewrites. FREE_MODEL_CHAIN is a ranked list this script can
- * regenerate mechanically, but a seat assignment encodes intent a script has
- * no way to infer — the largest free model belongs on CHAIR synthesis, the
- * smallest on QUANT (which is reduced to classification), and vendors are
- * spread so one account-tier outage cannot take every seat at once. Silently
- * substituting "some model that exists" would satisfy the check and quietly
- * discard all three properties.
- *
- * Why this exists at all: this script faithfully maintained FREE_MODEL_CHAIN
- * for months while the other model list in the same file rotted to five dead
- * ids out of six, because nothing was looking at it. A dead seat model 404s,
- * falls through to the chain, and still answers — so the rot is invisible from
- * the outside and only a catalog check finds it.
+ * Fetch the full OpenRouter catalog as a `Map<id, { free: boolean }>`. Unlike
+ * `fetchFreeModels` this keeps paid ids too, so `auditSeatModels` can tell a
+ * PAID seat (exists, bills per token) apart from a DEAD one (gone entirely).
  */
 async function fetchAllModels() {
   const res = await fetch(`${OR_BASE}/models`);
@@ -258,6 +258,25 @@ async function fetchAllModels() {
   return byId;
 }
 
+/**
+ * Audit SEAT_MODELS against the live catalog: each seat is ok (exists, $0),
+ * PAID (exists, bills per token), or DEAD (gone from the catalog). Returns the
+ * count of DEAD seats.
+ *
+ * Reports, never rewrites. FREE_MODEL_CHAIN is a ranked list this script can
+ * regenerate mechanically, but a seat assignment encodes intent a script has
+ * no way to infer — the largest free model belongs on CHAIR synthesis, the
+ * smallest on QUANT (which is reduced to classification), and vendors are
+ * spread so one account-tier outage cannot take every seat at once. Silently
+ * substituting "some model that exists" would satisfy the check and quietly
+ * discard all three properties.
+ *
+ * Why this exists at all: this script faithfully maintained FREE_MODEL_CHAIN
+ * for months while the other model list in the same file rotted to five dead
+ * ids out of six, because nothing was looking at it. A dead seat model 404s,
+ * falls through to the chain, and still answers — so the rot is invisible from
+ * the outside and only a catalog check finds it.
+ */
 async function auditSeatModels(catalog) {
   const src = await readFile(TARGET_FILE, 'utf8');
   const block = /const SEAT_MODELS: Record<CouncilSeat, string> = \{([\s\S]*?)\};/.exec(src);
@@ -320,6 +339,14 @@ async function auditSeatModels(catalog) {
   return dead.length;
 }
 
+/**
+ * Entrypoint. Fetches the catalog, audits SEAT_MODELS (before probing, so a
+ * throttled account still gets the report), probes candidates into a
+ * vendor-diversified working chain, and rewrites FREE_MODEL_CHAIN in
+ * TARGET_FILE unless `--dry-run`. Sets `process.exitCode`: 1 on a hard failure
+ * (already thrown by then), EXIT_DEGRADED_SEATS (3) when the chain refreshed
+ * cleanly but a seat id is retired, 0 otherwise.
+ */
 async function main() {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (PROBE && !apiKey) {

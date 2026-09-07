@@ -9,6 +9,7 @@
  *
  * See lib/db/schema.sql `pipeline_run_log` for the column contract.
  */
+import { randomUUID } from "node:crypto";
 import sql from "@/lib/db";
 
 export type PipelineName =
@@ -88,10 +89,15 @@ export async function logPipelineRun(run: PipelineRunLog): Promise<boolean> {
   const models = rollupModels(run.items);
   const itemsAi = run.items.filter((it) => it.model != null).length;
   try {
+    // Generate the id application-side rather than leaning on the column
+    // default. Postgres has `DEFAULT gen_random_uuid()`, but the generated
+    // SQLite schema (lib/db/schema.sqlite.sql, used by the backup/parity path)
+    // has no default on `id TEXT PRIMARY KEY` — an omitted id there stores NULL.
     await sql`
       INSERT INTO pipeline_run_log
-        (pipeline, dry_run, session, items_total, items_ai, models, items, summary)
+        (id, pipeline, dry_run, session, items_total, items_ai, models, items, summary)
       VALUES (
+        ${randomUUID()},
         ${run.pipeline},
         ${run.dryRun},
         ${run.session ?? null},

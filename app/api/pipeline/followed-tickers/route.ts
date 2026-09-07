@@ -133,9 +133,13 @@ async function councilVerdictFor(
         empty: false,
       },
     };
-  } catch {
-    // runSeat threw — every model in the chain failed, or the brief build did.
-    return { ok: false, empty: false, model: null };
+  } catch (err) {
+    // runSeat threw. It uses a distinct message when *every* model returned an
+    // empty completion (vs. a hard transport/HTTP failure or a failed brief
+    // build) — preserve that distinction so the run log shows "empty" not
+    // "fail" for a chain that answered 200-but-blank all the way down.
+    const empty = err instanceof Error && /empty completion/i.test(err.message);
+    return { ok: false, empty, model: null };
   }
 }
 
@@ -203,6 +207,14 @@ async function resolveDueHorizons(
   return resolved;
 }
 
+/**
+ * Cron entrypoint for the followed-tickers tracking run. Bearer-authed. For
+ * each pick it resolves any due horizons, pulls a grounded council verdict
+ * (degrading gracefully when the model chain is unhealthy), and records one
+ * pipeline-run-log item per pick that reached a model. Writes a best-effort
+ * model-usage audit row (docs/model-usage/) that is never fatal to the run.
+ * Accepts `{ dry_run?: boolean; session?: string }`.
+ */
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -222,10 +234,21 @@ export async function POST(req: NextRequest) {
 
   const picks = await getLivePicks();
   if (picks.length === 0) {
+    // A successful run that happened to have no work is still an invocation —
+    // record a zero-item row so the usage report's "one row per run" holds and
+    // a quiet day is visible, not just absent.
+    const runLogged = await logPipelineRun({
+      pipeline: "followed-tickers",
+      dryRun,
+      session: body.session ?? null,
+      itemsTotal: 0,
+      items: [],
+      summary: { cohortSize: 0, note: "no live cohort" },
+    });
     return NextResponse.json({
       ok: true,
       readings: [],
-      meta: { note: "no live cohort — run followed-tickers-select first" },
+      meta: { note: "no live cohort — run followed-tickers-select first", runLogged },
     });
   }
 

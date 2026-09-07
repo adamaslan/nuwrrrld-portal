@@ -561,7 +561,11 @@ CREATE INDEX IF NOT EXISTS followed_ticker_scores_horizon_idx
 --   summary — pipeline-specific totals (cohortSize, missedObservations,
 --             degraded, generated, goldAgreement, verdictsGraded, …)
 CREATE TABLE IF NOT EXISTS pipeline_run_log (
-  id          TEXT PRIMARY KEY,
+  -- id is always supplied by logPipelineRun() (randomUUID) so the row is valid
+  -- on SQLite too, where the generated schema drops the default. NOT NULL is
+  -- placed after the default so gen-sqlite-schema.mjs's rewrite rule still
+  -- matches and yields `id TEXT PRIMARY KEY NOT NULL`.
+  id          TEXT PRIMARY KEY NOT NULL,
   pipeline    text        NOT NULL,   -- followed-tickers | followed-tickers-judge | precompute-ai
   run_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   dry_run     INTEGER     NOT NULL DEFAULT false,

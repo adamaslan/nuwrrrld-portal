@@ -97,8 +97,17 @@ function makeJudgeCall(apiKey: string, sink: RunItem[], phase: () => string) {
         fallback: model !== seatPrimaryModel(JUDGE_SEAT),
       });
       return answer;
-    } catch {
-      sink.push({ subject: phase(), seat: JUDGE_SEAT, model: null, outcome: "fail" });
+    } catch (err) {
+      // runSeat's terminal-empty error is distinct from a transport/HTTP
+      // failure — record "empty" for the former so the run log can tell a
+      // starved chain apart from an unreachable one.
+      const empty = err instanceof Error && /empty completion/i.test(err.message);
+      sink.push({
+        subject: phase(),
+        seat: JUDGE_SEAT,
+        model: null,
+        outcome: empty ? "empty" : "fail",
+      });
       return "";
     }
   };
@@ -120,6 +129,14 @@ function verdictFromJson(json: unknown): StructuredVerdict | null {
   return null;
 }
 
+/**
+ * Cron entrypoint for the judge run. Bearer-authed. Runs the gold-set gate
+ * first and bails (still logging a run row) if agreement is below threshold,
+ * then grades this week's verdict sample. Every model call the judge makes is
+ * captured into the pipeline run log (docs/model-usage/) so a later report can
+ * show which model served each grade and whether the chain had to rescue it.
+ * Accepts `{ dry_run?: boolean }`; a dry run grades but does not publish.
+ */
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {

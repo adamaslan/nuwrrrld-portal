@@ -54,16 +54,25 @@ jobs:
             exit 1
           fi
 
-          # Scheduled runs report the period that just *ended* (anchor = yesterday
-          # UTC). The 05:10 monthly cron only differs from the 05:00 weekly one by
-          # falling on the 1st, so key the period off the day-of-month.
+          # Period: from the manual input if given, else from *which* cron fired
+          # (both can fire on the same day — the 1st of a month that is a Monday).
           period="${{ github.event.inputs.period }}"
-          anchor="${{ github.event.inputs.date }}"
           if [ -z "${period}" ]; then
-            if [ "$(date -u +%d)" = "01" ]; then period="month"; else period="week"; fi
+            case "${{ github.event.schedule }}" in
+              '10 5 1 * *') period="month" ;;
+              *)            period="week"  ;;
+            esac
           fi
+          # Anchor: the manual input verbatim if given; a blank manual input means
+          # "today" (as the workflow_dispatch help says); a scheduled run reports
+          # the period that just *ended*, so anchor = yesterday UTC.
+          anchor="${{ github.event.inputs.date }}"
           if [ -z "${anchor}" ]; then
-            anchor="$(date -u -d 'yesterday' +%F)"
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              anchor="$(date -u -d 'yesterday' +%F)"
+            else
+              anchor="$(date -u +%F)"
+            fi
           fi
           echo "Reporting period=${period} anchor=${anchor}"
           node scripts/model-usage-report.mjs --period "${period}" --date "${anchor}"

@@ -47,6 +47,11 @@ if (!process.env.DATABASE_URL) {
 }
 
 // ── args ────────────────────────────────────────────────────────────────────
+/**
+ * Read `--<name> <value>` from argv. Returns `fallback` when the flag is absent
+ * or has no following token. Flags-as-booleans (`--dry-run`, `--stdout`) are
+ * handled separately with `process.argv.includes`.
+ */
 function argValue(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
@@ -61,12 +66,31 @@ if (!['day', 'week', 'month'].includes(PERIOD)) {
   console.error(`--period must be day | week | month (got "${PERIOD}")`);
   process.exit(1);
 }
-if (!/^\d{4}-\d{2}-\d{2}$/.test(ANCHOR)) {
-  console.error(`--date must be YYYY-MM-DD (got "${ANCHOR}")`);
+
+/**
+ * True only for a real calendar date in YYYY-MM-DD form. The format test alone
+ * accepts `2026-02-30`, which `new Date` silently rolls to March 2 — so the
+ * report period would then differ from the date the caller asked for. Require
+ * the parsed date to round-trip back to the same string.
+ */
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+if (!isValidIsoDate(ANCHOR)) {
+  console.error(`--date must be a real calendar date in YYYY-MM-DD form (got "${ANCHOR}")`);
   process.exit(1);
 }
 
 // ── period bounds (UTC) ─────────────────────────────────────────────────────
+/**
+ * Half-open [start, end) UTC window for the report.
+ *   - day:   the anchor date, 00:00Z .. next day 00:00Z
+ *   - week:  the ISO week containing the anchor (Monday 00:00Z .. next Monday)
+ *   - month: the 1st of the anchor's month 00:00Z .. the 1st of the next month
+ * `anchorIso` is a YYYY-MM-DD string (already validated by the caller).
+ */
 function periodBounds(period, anchorIso) {
   const d = new Date(`${anchorIso}T00:00:00Z`);
   let start;
@@ -124,7 +148,11 @@ try {
 }
 
 // Supplementary: interactive council calls (not covered by the pipelines above).
+// A failed query must not be rendered as "no data" — the scheduled workflow
+// commits whatever this produces, and a transient/permission/SQL error silently
+// hiding real council_messages rows is worse than an explicit "unavailable".
 let councilByModel = [];
+let councilUnavailable = false;
 try {
   councilByModel = await sql`
     SELECT model, count(*)::int AS calls, round(avg(latency_ms))::int AS avg_latency_ms
@@ -133,8 +161,16 @@ try {
     GROUP BY model
     ORDER BY calls DESC
   `;
-} catch {
+} catch (err) {
+  // 42P01 (table absent) is an expected state on a not-yet-migrated DB; any
+  // other failure is a real error worth showing as such in the report.
+  councilUnavailable = true;
   councilByModel = [];
+  console.warn(
+    `[model-usage] council_messages query failed (${err?.code || 'unknown'}): ${
+      err instanceof Error ? err.message : String(err)
+    }`,
+  );
 }
 
 // ── aggregate ───────────────────────────────────────────────────────────────
@@ -189,9 +225,11 @@ for (const r of runs) {
 const totalCalls = [...byModel.values()].reduce((n, g) => n + g.calls, 0);
 
 // ── render ──────────────────────────────────────────────────────────────────
+/** Format `n / d` as a whole-number percent for a table cell, or `—` when `d` is 0. */
 function pct(n, d) {
   return d > 0 ? `${((100 * n) / d).toFixed(0)}%` : '—';
 }
+/** Format a millisecond duration for a table cell: `—` for null, `1.2s` at or above 1000ms, else `340ms`. */
 function ms(n) {
   return n == null ? '—' : n >= 1000 ? `${(n / 1000).toFixed(1)}s` : `${Math.round(n)}ms`;
 }
@@ -285,8 +323,10 @@ if (tableMissing) {
 // ── supplementary: interactive council ──
 lines.push('## Interactive council (`council_messages`)');
 lines.push('');
-if (councilByModel.length === 0) {
-  lines.push('_None in this window (or table unavailable)._');
+if (councilUnavailable) {
+  lines.push('_⚠ `council_messages` query failed — this tally is unavailable, not empty. See the run log._');
+} else if (councilByModel.length === 0) {
+  lines.push('_None in this window._');
 } else {
   lines.push('| model | calls | avg latency |');
   lines.push('|---|--:|--:|');
