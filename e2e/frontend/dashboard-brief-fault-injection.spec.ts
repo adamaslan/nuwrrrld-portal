@@ -102,6 +102,10 @@ test.describe("Dashboard daily brief (/dashboard, OpenRouter-backed) frontend re
     // Model calls can legitimately take a while through the fallback chain;
     // give it real headroom rather than the default 5s action timeout.
     await expect(page.locator(".cockpit-brief-card")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator(".cockpit-brief-text")).not.toBeEmpty();
+    // Same headroom as the visibility check above — playwright.config.ts sets
+    // no expect.timeout override, so this would otherwise fall back to the
+    // 5s default and could fail before the brief text finishes streaming in,
+    // even though the card itself is already visible.
+    await expect(page.locator(".cockpit-brief-text")).not.toBeEmpty({ timeout: 30_000 });
   });
 });

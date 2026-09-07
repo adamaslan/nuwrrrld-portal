@@ -11,7 +11,8 @@ sources: [../../.github/workflows/e2e-resiliency.yml, ../../e2e/auth.setup.ts, .
 
 **2026-09-04** — Severity: **Low** for the product (no user impact, docs-only
 + CI-config root cause, no code path affecting real traffic changed), but
-**four consecutive CI runs** (PRs #106–#109 and #110's own first two attempts)
+**six consecutive CI runs** (PRs #106, #107, #108, #109, and #110's own
+first two attempts)
 failed on this before the real cause was found, and the working diagnosis in
 `docs/moo-todo.md` was actively wrong for all of them.
 
@@ -24,11 +25,11 @@ attributed this to the known, documented OTP fragility
 ([[entity-playwright-e2e]] / `docs/known-bugs.md` item 16 — the `+clerk_test`/
 fixed-OTP workaround) without reading the actual failure logs.
 
-Reading `gh run view --log-failed` across all four runs showed the OTP step
+Reading `gh run view --log-failed` across all six runs showed the OTP step
 was never reached — the failure is two steps earlier, at page load. The
 `[WebServer]` log printed the real reason on every run:
 
-```
+```text
 Clerk: Production Keys are only allowed for domain "nuwrrrld.com".
 API Error: The Request HTTP Origin header must be equal to or a subdomain of the requesting URL.
 ```

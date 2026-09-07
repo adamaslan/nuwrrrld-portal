@@ -43,6 +43,13 @@ test.describe("Credential preflight — core shape", () => {
   // (docs/clerk-dev-to-prod.md): the GitHub secrets these keys come from got
   // pointed at the live instance. Catch it here, immediately and legibly,
   // instead of as a mystery 30s auth-setup timeout four jobs downstream.
+  // Caveat shared with the inverse test above: VERCEL_ENV is set by Vercel's
+  // own build/runtime, not by Playwright, so this skip guard only works when
+  // the suite runs inside that context. Nothing in this repo currently runs
+  // E2E externally against production (e.g. NULOGDASH_BASE_URL pointed at
+  // the live site from a non-Vercel runner) — if that ever changes, the
+  // runner must export VERCEL_ENV=production itself or this check rejects
+  // legitimate pk_live_/sk_live_ keys.
   test("EXPOSE: E2E running against Clerk's production instance, which localhost cannot use", () => {
     test.skip(process.env.VERCEL_ENV === "production", "this check is for local/CI E2E only — see the inverse test above for prod");
     const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";

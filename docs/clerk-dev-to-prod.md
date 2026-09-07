@@ -227,11 +227,11 @@ Scope Vercel to `production` deliberately. Setting it for all environments
 puts live keys on every preview deploy, which inflates production MAU counts
 and means a preview branch can mutate real user data.
 
-GitHub's `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` secrets are a
-one-time setup, not part of this cutover — see §6 and
-`docs/manual-setup-todo.md` §5b. They should already hold the dev instance's
-`pk_test_`/`sk_test_` values (the same ones in `.env.local`) and this
-procedure never needs to touch them again.
+GitHub's `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` secrets must be
+set once before the E2E workflow runs — see §6 and
+`docs/manual-setup-todo.md` §5b. They must hold the dev instance's
+`pk_test_`/`sk_test_` values (the same ones in `.env.local`). After this
+one-time setup, this production cutover procedure never needs to modify them.
 
 Redeploy after updating — Vercel env changes do not apply to existing
 deployments.
