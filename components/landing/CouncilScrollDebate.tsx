@@ -45,7 +45,7 @@ export function CouncilScrollDebate() {
     return (
       <div className="council-debate council-debate--static">
         <div className="council-debate-sticky">
-          <p className="council-debate-ticker">Example — NVDA</p>
+          <p className="council-debate-ticker">Example — XLE</p>
           {SEATS.map((seat) => (
             <DebateLine key={seat.tag} seat={seat} revealed />
           ))}
@@ -57,7 +57,7 @@ export function CouncilScrollDebate() {
   return (
     <div ref={containerRef} className="council-debate" style={{ height: `${SEATS.length * VH_PER_SEAT}vh` }}>
       <div className="council-debate-sticky">
-        <p className="council-debate-ticker">Example — NVDA</p>
+        <p className="council-debate-ticker">Example — XLE</p>
         {SEATS.map((seat, i) => (
           <DebateLine key={seat.tag} seat={seat} revealed={i <= step} active={i === step} />
         ))}
