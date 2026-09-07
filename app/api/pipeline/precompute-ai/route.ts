@@ -23,7 +23,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
-import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked, FREE_MODEL_CHAIN } from "@/lib/openrouter";
+import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import {
   listWatchlistSubjects,
   savePrecomputed,
@@ -59,6 +60,10 @@ interface PrecomputeResult {
   ok: boolean;
   model?: string;
   reason?: string;
+  /** Wall-clock ms for the model call + stream drain, when one was attempted. */
+  latencyMs?: number;
+  /** True when the serving model was not the head of FREE_MODEL_CHAIN. */
+  fallback?: boolean;
 }
 
 /** Same stateless ticker-keyed call the interactive health route makes. */
@@ -156,6 +161,14 @@ function isQuotaExhausted(err: unknown): boolean {
   return /OpenRouter 429/.test(msg);
 }
 
+/**
+ * Cron entrypoint for the AI narrative precompute. Bearer-authed. Selects a
+ * batch of watchlist subjects, generates a narrative per subject through the
+ * OpenRouter model-fallback chain, and saves the results. Emits a model-usage
+ * audit row (docs/model-usage/) recording the exact model id that produced
+ * each narrative; `fallback` is left unset because the checked fetch helper
+ * does not report which chain position served.
+ */
 export async function POST(req: NextRequest) {
   const secret = process.env.PORTAL_PUSH_SECRET;
   if (!secret) {
@@ -215,12 +228,26 @@ export async function POST(req: NextRequest) {
   }
 
   if (subjects.length === 0) {
+    // Still an invocation — log a zero-item row so "one row per run" holds.
+    const runLogged = await logPipelineRun({
+      pipeline: "precompute-ai",
+      dryRun: false,
+      itemsTotal: 0,
+      items: [],
+      summary: {
+        selection,
+        generated: 0,
+        attempted: 0,
+        note: source === "ranking" ? "no ranked cards" : "no watchlist subjects",
+      },
+    });
     return NextResponse.json({
       ok: true,
       generated: 0,
       results: [],
       selection,
       note: source === "ranking" ? "no ranked cards available" : "no watchlist subjects",
+      runLogged,
     });
   }
 
@@ -234,6 +261,7 @@ export async function POST(req: NextRequest) {
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60_000);
+    const startedAt = Date.now();
     try {
       const { response, model } = await fetchWithModelFallbackChecked(
         apiKey,
@@ -250,8 +278,12 @@ export async function POST(req: NextRequest) {
         ctrl.signal,
       );
       const narrative = await collectCompletion(response.body!);
+      const latencyMs = Date.now() - startedAt;
+      // The checked helper returns only the winning id, not its chain position,
+      // so derive "did the chain have to rescue this" from the id itself.
+      const fallback = FREE_MODEL_CHAIN.indexOf(model as (typeof FREE_MODEL_CHAIN)[number]) > 0;
       if (!narrative.trim()) {
-        results.push({ subject, ok: false, reason: "empty completion" });
+        results.push({ subject, ok: false, reason: "empty completion", model, latencyMs, fallback });
         continue;
       }
 
@@ -271,7 +303,14 @@ export async function POST(req: NextRequest) {
         model,
         expiresAt,
       );
-      results.push({ subject, ok: saved, model, reason: saved ? undefined : "db write failed" });
+      results.push({
+        subject,
+        ok: saved,
+        model,
+        latencyMs,
+        fallback,
+        reason: saved ? undefined : "db write failed",
+      });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       results.push({ subject, ok: false, reason });
@@ -296,6 +335,24 @@ export async function POST(req: NextRequest) {
       `quotaExhausted=${quotaExhausted}`,
   );
 
+  // Model-usage audit row (docs/model-usage/). `fallback` is derived from the
+  // served id's position in FREE_MODEL_CHAIN (the checked helper doesn't report
+  // it directly); `latencyMs` covers the model call plus the stream drain.
+  const runItems: RunItem[] = results.map((r) => ({
+    subject: r.subject,
+    model: r.model ?? null,
+    outcome: r.ok ? "ok" : r.reason === "empty completion" ? "empty" : "fail",
+    latencyMs: r.latencyMs,
+    fallback: r.fallback,
+  }));
+  const runLogged = await logPipelineRun({
+    pipeline: "precompute-ai",
+    dryRun: false,
+    itemsTotal: subjects.length,
+    items: runItems,
+    summary: { selection, generated, attempted: results.length, quotaExhausted },
+  });
+
   return NextResponse.json({
     ok: true,
     // Which pool the subjects came from. Without it, a run that silently fell
@@ -306,5 +363,6 @@ export async function POST(req: NextRequest) {
     attempted: results.length,
     quotaExhausted,
     results,
+    runLogged,
   });
 }

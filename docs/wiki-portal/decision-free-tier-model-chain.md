@@ -9,7 +9,7 @@ sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29,
 
 ## Decision
 
-All six seats — and the grounding compiler — were intended to use only OpenRouter `:free` models, each with a primary model falling through a shared `FREE_MODEL_CHAIN` on failure, for a full ~11-call deliberation costing **$0** (the WS2.6 cost-control constraint). **This is no longer accurate for T1** — see "Validated by" below.
+All six seats — and the grounding compiler — use only OpenRouter `:free` models, each with a primary model falling through a shared `FREE_MODEL_CHAIN` on failure, for a full ~11-call deliberation costing **$0** (the WS2.6 cost-control constraint). This held, then drifted (T1 ran a paid model from ~PR #75 to PR #115), and is **true again as of PR #115 (2026-09-07)** — see "Validated by" below.
 
 ## Date
 
@@ -35,12 +35,13 @@ The council is a per-user feature gated behind the `nu_ai` entitlement and a dai
 ## Validated by
 
 - The chain-refresh infra shipped and passed code review (PR #30); PR #44 is that infra's first routine weekly refresh actually merging (`gemma-4-31b-it` → `nemotron-3-nano-omni-30b-a3b-reasoning`).
-- ⚠️ **The $0 claim is not accurate:** T1 uses `cohere/command-r7b-12-2024`, a paid model (~$0.20–$0.50 per deliberation), chosen for structured output quality. The other five seats use `:free` models. See [[entity-openrouter-client]] "Model assignment" table.
+- ✅ **The $0 claim is accurate again (PR #115, 2026-09-07).** T1 ran a paid model (`cohere/command-r7b-12-2024`, ~$0.20–$0.50 per deliberation) from ~PR #75 until PR #115 repointed it at `thinkingmachines/inkling-small:free`. All six seat primaries are now `:free`. `refresh-free-models.mjs`'s seat audit now prints `ok` / **`PAID`** / `DEAD` per seat, and [[entity-model-usage-log]] flags any `⚠ paid` model that served a real call — so the next drift is visible, not silent. See [[entity-openrouter-client]] "Model assignment".
 - ❌ **Refuted, 2026-07-30:** the previously-unvalidated concurrency risk below is real. OpenRouter free tier caps the **key**, not per-model, at 50 req/day (1000/day at ≥10 credits). One key shared across the whole app means council calls, `/api/brief`, and the refresh script's own probes all draw from the same 50 — any combination can exhaust it, at which point every model 429s at once and looks identical to "the whole free roster is dead." See [[entity-openrouter-client]] "Known failures" #3.
 
 ## See also
 
 - [[entity-openrouter-client]] — `SEAT_MODELS`, `FREE_MODEL_CHAIN`, `runSeat`
+- [[entity-model-usage-log]] — makes the `$0` invariant checkable after the fact (PR #115)
 - [[concept-small-model-prompting]] — the prompting discipline this forces
 - [[decision-compile-time-grounding]] — the sibling cost decision (no per-request embedding calls)
 - [[entity-ai-council]] — the consumer

@@ -38,6 +38,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
 - [[entity-sqlite-backup]] — `scripts/backup-to-sqlite.mjs` + `lib/db/schema.sqlite.sql`; point-in-time Neon → local SQLite snapshot export, zero new dependencies
 - [[entity-db-parity-suite]] — `scripts/gen-sqlite-schema.mjs` (generates the SQLite schema instead of hand-maintaining it) + `test/db-parity/`; contract-tests 10 of 14 `lib/*-db.ts` modules against both engines
+- [[entity-model-usage-log]] — `pipeline_run_log` + `lib/pipeline-run-log-db.ts` + `scripts/model-usage-report.mjs` (`npm run model-usage`); per-run audit of which OpenRouter model served each pipeline, rolled up daily/weekly/monthly into `docs/model-usage/`
 
 **Billing / Auth**
 - [[entity-billing]] — Clerk (auth + entitlement source of truth) + Stripe (checkout, portal, webhook sync); `lib/subscription.ts`, `lib/stripe.ts`, `app/api/stripe/*`, `app/api/webhooks/*`

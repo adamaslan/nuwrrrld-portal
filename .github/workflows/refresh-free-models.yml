@@ -26,7 +26,22 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           MODEL_CHAIN_SIZE: '4'
-        run: node scripts/refresh-free-models.mjs
+        # Exit 3 = the chain was refreshed fine but a SEAT_MODELS id is retired.
+        # That is a degraded council, not a broken one, and it must NOT stop the
+        # PR step below — a dead RISK seat blocking every weekly refresh is
+        # exactly the failure this handling fixes (P1). Any other non-zero exit
+        # (1 = catalog unreachable / too few working models) still fails the job.
+        run: |
+          set +e
+          node scripts/refresh-free-models.mjs
+          code=$?
+          if [ "$code" -eq 0 ]; then exit 0; fi
+          if [ "$code" -eq 3 ]; then
+            echo "::warning title=SEAT_MODELS has a retired id::Chain refreshed; a seat model no longer exists. Repoint SEAT_MODELS in lib/openrouter.ts. Continuing so the chain PR still opens."
+            exit 0
+          fi
+          echo "::error title=refresh-free-models failed::Exited $code — chain left untouched."
+          exit "$code"
 
       - name: Open PR if the chain changed
         uses: peter-evans/create-pull-request@v6

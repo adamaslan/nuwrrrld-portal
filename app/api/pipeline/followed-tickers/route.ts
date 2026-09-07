@@ -25,7 +25,8 @@ import {
   directionFromOutlook,
 } from "@/lib/council-verdict";
 import { validateStructuredVerdict } from "@/lib/council-validate";
-import { runSeat, seatSystemPrompt } from "@/lib/openrouter";
+import { runSeat, seatSystemPrompt, seatPrimaryModel } from "@/lib/openrouter";
+import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import { getLivePrice } from "@/lib/live-price-db";
 import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
 import { scorePick, type Horizon } from "@/lib/eval-scoring";
@@ -73,37 +74,72 @@ async function backtestRateFor(
   return match ? match.hit_rate : null;
 }
 
+interface CouncilVerdict {
+  direction: string;
+  invalidation: string;
+  raw: unknown;
+  /** Which model actually served the T1 call, for the pipeline run log. */
+  model: string;
+  latencyMs: number;
+  /** True when T1's primary lost and a FREE_MODEL_CHAIN entry served instead. */
+  fallback: boolean;
+  /** HTTP-200 with an empty completion after the chain was walked — distinct
+   *  from a parse failure or a thrown error. */
+  empty: boolean;
+}
+
 /** One grounded council seat, validated. Returns null on any failure so a
- *  degraded model chain doesn't abort the whole tracking run. */
+ *  degraded model chain doesn't abort the whole tracking run. The `error` /
+ *  `empty` fields let the caller log *why* a ticker produced no verdict. */
 async function councilVerdictFor(
   ticker: string,
   apiKey: string,
-): Promise<{ direction: string; invalidation: string; raw: unknown } | null> {
+): Promise<
+  | { ok: true; verdict: CouncilVerdict }
+  | { ok: false; empty: boolean; model: string | null }
+> {
   try {
     const question = `Directional outlook for ${ticker} over the next 1-5 trading days.`;
     const brief = await buildGroundedBrief(question, ticker, "T1");
-    const { answer } = await runSeat(
+    // No maxTokens override: runSeat's default (1200) is the documented floor
+    // below which the reasoning models in FREE_MODEL_CHAIN spend the whole
+    // budget on hidden chain-of-thought and return a 0-character answer, which
+    // here surfaced as councilVerdictFor -> null and the ticker being skipped
+    // (docs/free-model-rotation-status.md, P3). 500 was under that floor.
+    const { answer, model, latencyMs } = await runSeat(
       "T1",
       [
         { role: "system", content: seatSystemPrompt("T1") },
         { role: "user", content: `${brief}\n\n${question}` },
       ],
       apiKey,
-      500,
     );
+    const fallback = model !== seatPrimaryModel("T1");
     const verdict = parseStructuredVerdict(answer);
-    if (!verdict) return null;
+    if (!verdict) return { ok: false, empty: answer.trim().length === 0, model };
     // Two-layer contract: deterministic validators before anything downstream
     // trusts the verdict. A verdict with a hallucinated number is recorded but
     // flagged so the judge run can exclude it.
     const flags = validateStructuredVerdict(verdict, brief);
     return {
-      direction: directionFromOutlook(verdict.outlook),
-      invalidation: verdict.invalidation,
-      raw: { ...verdict, validatorFlags: flags.map((f) => f.message) },
+      ok: true,
+      verdict: {
+        direction: directionFromOutlook(verdict.outlook),
+        invalidation: verdict.invalidation,
+        raw: { ...verdict, validatorFlags: flags.map((f) => f.message) },
+        model,
+        latencyMs,
+        fallback,
+        empty: false,
+      },
     };
-  } catch {
-    return null;
+  } catch (err) {
+    // runSeat threw. It uses a distinct message when *every* model returned an
+    // empty completion (vs. a hard transport/HTTP failure or a failed brief
+    // build) — preserve that distinction so the run log shows "empty" not
+    // "fail" for a chain that answered 200-but-blank all the way down.
+    const empty = err instanceof Error && /empty completion/i.test(err.message);
+    return { ok: false, empty, model: null };
   }
 }
 
@@ -171,6 +207,14 @@ async function resolveDueHorizons(
   return resolved;
 }
 
+/**
+ * Cron entrypoint for the followed-tickers tracking run. Bearer-authed. For
+ * each pick it resolves any due horizons, pulls a grounded council verdict
+ * (degrading gracefully when the model chain is unhealthy), and records one
+ * pipeline-run-log item per pick that reached a model. Writes a best-effort
+ * model-usage audit row (docs/model-usage/) that is never fatal to the run.
+ * Accepts `{ dry_run?: boolean; session?: string }`.
+ */
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -190,10 +234,21 @@ export async function POST(req: NextRequest) {
 
   const picks = await getLivePicks();
   if (picks.length === 0) {
+    // A successful run that happened to have no work is still an invocation —
+    // record a zero-item row so the usage report's "one row per run" holds and
+    // a quiet day is visible, not just absent.
+    const runLogged = await logPipelineRun({
+      pipeline: "followed-tickers",
+      dryRun,
+      session: body.session ?? null,
+      itemsTotal: 0,
+      items: [],
+      summary: { cohortSize: 0, note: "no live cohort" },
+    });
     return NextResponse.json({
       ok: true,
       readings: [],
-      meta: { note: "no live cohort — run followed-tickers-select first" },
+      meta: { note: "no live cohort — run followed-tickers-select first", runLogged },
     });
   }
 
@@ -201,6 +256,7 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const readings: Reading[] = [];
+  const runItems: RunItem[] = [];
   let missedObservations = 0;
   let councilDegraded = 0;
 
@@ -213,8 +269,30 @@ export async function POST(req: NextRequest) {
     const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
-    const council = apiKey ? await councilVerdictFor(pick.ticker, apiKey) : null;
+    const councilResult = apiKey ? await councilVerdictFor(pick.ticker, apiKey) : null;
+    const council = councilResult?.ok ? councilResult.verdict : null;
     if (apiKey && !council) councilDegraded++;
+
+    // One run-log item per pick that reached the model (or tried to).
+    if (councilResult) {
+      runItems.push(
+        councilResult.ok
+          ? {
+              subject: pick.ticker,
+              seat: "T1",
+              model: councilResult.verdict.model,
+              outcome: "ok",
+              latencyMs: councilResult.verdict.latencyMs,
+              fallback: councilResult.verdict.fallback,
+            }
+          : {
+              subject: pick.ticker,
+              seat: "T1",
+              model: councilResult.model,
+              outcome: councilResult.empty ? "empty" : "fail",
+            },
+      );
+    }
 
     // thesis holding? — the live signal direction vs. the picked direction.
     const normLive = liveSignalDir
@@ -264,6 +342,23 @@ export async function POST(req: NextRequest) {
   }
 
   const backtestAvailable = readings.some((r) => r.backtestRate != null);
+  const horizonsResolved = readings.reduce((n, r) => n + r.resolved.length, 0);
+
+  // Best-effort model-usage audit row (docs/model-usage/). Never fatal.
+  const runLogged = await logPipelineRun({
+    pipeline: "followed-tickers",
+    dryRun,
+    session: body.session ?? null,
+    itemsTotal: picks.length,
+    items: runItems,
+    summary: {
+      cohortSize: picks.length,
+      missedObservations,
+      councilDegraded,
+      backtestAvailable,
+      horizonsResolved,
+    },
+  });
 
   return NextResponse.json({
     ok: true,
@@ -275,7 +370,8 @@ export async function POST(req: NextRequest) {
       missedObservations,
       degraded: councilDegraded,
       backtest_available: backtestAvailable,
-      horizonsResolved: readings.reduce((n, r) => n + r.resolved.length, 0),
+      horizonsResolved,
+      runLogged,
     },
   });
 }
