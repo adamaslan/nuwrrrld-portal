@@ -8,10 +8,11 @@ every claim against `main` post-#97/#101/#105/#108.
 
 ## What changed since PR #97 landed
 
-Four PRs merged on top of #97: **#101** (signal-engine: `isCryptoShaped`,
-real `dataQuality`, hydration constants), **#105** (SQLite schema generator +
-DB-parity suite), **#108** (demoted the landing page's live market-snapshot
-fetch to static sample data), plus doc-only #104/#106/#107/#109. None of them
+Seven PRs merged on top of #97 — three implementation, four doc-only:
+**#101** (signal-engine: `isCryptoShaped`, real `dataQuality`, hydration
+constants), **#105** (SQLite schema generator + DB-parity suite), **#108**
+(demoted the landing page's live market-snapshot fetch to static sample
+data), plus doc-only **#104/#106/#107/#109**. None of them
 touch `lib/openrouter.ts`, `app/api/council/*`, or the MOO simulation code —
 verified by `git log --oneline -- lib/openrouter.ts` (last touch is #97) and
 by reading `app/api/council/sample/route.ts` / `app/page.tsx`'s council
