@@ -39,6 +39,17 @@ here classifies each `SEAT_MODELS` entry `ok` / `PAID` / `DEAD`, and a `DEAD`
 seat now degrades the run (exit 3 → workflow warning) instead of failing the
 step before the PR is opened.
 
+As of `feat/pipeline-full-runs-nulogdash` (2026-09-08) a failed *scheduled*
+refresh also opens a `pipeline-failure` issue (`notify` job on
+`refresh-free-models.yml`) — the "standing CI failure" noted under "The ceiling
+nobody designed for" below was previously only a red mark in the Actions tab.
+Same rollout added the same `notify` job to `precompute-ai.yml`,
+`compile-grounding-pack.yml` and `backup-to-sqlite.yml`, so a stale chain, a
+stale grounding pack, or a dead backup now surface instead of degrading
+silently — the generalization of
+[[incident-2026-09-03-nightly-hydration-dead-15-days]] gap #1 ("Fails red is
+necessary, not sufficient").
+
 **Layer 3 — Refuse to make things worse.** The refresh script carries
 `MIN_WORKING = 1`: if fewer than one model survives probing, it writes nothing
 and exits non-zero, leaving the last known-good chain in place. A refresh that

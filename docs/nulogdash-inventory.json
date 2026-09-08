@@ -1,6 +1,28 @@
 {
-  "generatedAt": "2026-08-05T10:03:40.125Z",
+  "generatedAt": "2026-09-08T07:08:34.872Z",
   "features": [
+    {
+      "slug": "undocumented-post--api-analyze",
+      "label": "POST /api/analyze (undocumented)",
+      "method": "POST",
+      "path": "/api/analyze",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-post--api-attribution",
+      "label": "POST /api/attribution (undocumented)",
+      "method": "POST",
+      "path": "/api/attribution",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
     {
       "slug": "backtest",
       "label": "Backtest",
@@ -34,6 +56,28 @@
       "writesData": false,
       "note": null,
       "excluded": null
+    },
+    {
+      "slug": "undocumented-get--api-consent",
+      "label": "GET /api/consent (undocumented)",
+      "method": "GET",
+      "path": "/api/consent",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-post--api-consent",
+      "label": "POST /api/consent (undocumented)",
+      "method": "POST",
+      "path": "/api/consent",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
     },
     {
       "slug": "council-deliberate",
@@ -109,6 +153,28 @@
       "excluded": null
     },
     {
+      "slug": "undocumented-get--api-disclaimer",
+      "label": "GET /api/disclaimer (undocumented)",
+      "method": "GET",
+      "path": "/api/disclaimer",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-post--api-disclaimer",
+      "label": "POST /api/disclaimer (undocumented)",
+      "method": "POST",
+      "path": "/api/disclaimer",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
       "slug": "feedback",
       "label": "Feedback submission",
       "method": "POST",
@@ -124,6 +190,22 @@
         "message": "nulogdash automated sweep — ignore"
       },
       "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "followed-tickers-read",
+      "label": "Followed-tickers — public read",
+      "method": "GET",
+      "path": "/api/followed-tickers",
+      "auth": false,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "writesData": false,
       "note": null,
       "excluded": null
     },
@@ -175,6 +257,28 @@
       "writesData": true,
       "note": null,
       "excluded": null
+    },
+    {
+      "slug": "undocumented-get--api-legal-consent",
+      "label": "GET /api/legal-consent (undocumented)",
+      "method": "GET",
+      "path": "/api/legal-consent",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-post--api-legal-consent",
+      "label": "POST /api/legal-consent (undocumented)",
+      "method": "POST",
+      "path": "/api/legal-consent",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
     },
     {
       "slug": "nuai",
@@ -297,6 +401,50 @@
       "writesData": true,
       "note": null,
       "excluded": null
+    },
+    {
+      "slug": "undocumented-post--api-privacy-delete",
+      "label": "POST /api/privacy/delete (undocumented)",
+      "method": "POST",
+      "path": "/api/privacy/delete",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-get--api-privacy-export",
+      "label": "GET /api/privacy/export (undocumented)",
+      "method": "GET",
+      "path": "/api/privacy/export",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-get--api-privacy-profile",
+      "label": "GET /api/privacy/profile (undocumented)",
+      "method": "GET",
+      "path": "/api/privacy/profile",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
+      "slug": "undocumented-post--api-privacy-rectify",
+      "label": "POST /api/privacy/rectify (undocumented)",
+      "method": "POST",
+      "path": "/api/privacy/rectify",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
     },
     {
       "slug": "push-register",
@@ -504,6 +652,17 @@
       "excluded": null
     },
     {
+      "slug": "undocumented-get--api-signals-top",
+      "label": "GET /api/signals/top (undocumented)",
+      "method": "GET",
+      "path": "/api/signals/top",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
       "slug": "stripe-checkout",
       "label": "Billing — start checkout",
       "method": "POST",
@@ -561,6 +720,41 @@
   ],
   "excluded": [
     {
+      "feature": "pipeline-followed-tickers",
+      "path": "POST /api/pipeline/followed-tickers",
+      "reason": "server-to-server (Bearer CRON_SECRET); appends benchmark observations — covered by track-followed-tickers.yml"
+    },
+    {
+      "feature": "pipeline-followed-tickers-judge",
+      "path": "POST /api/pipeline/followed-tickers-judge",
+      "reason": "server-to-server (Bearer CRON_SECRET); spends model quota + writes judge scores — covered by judge-followed-tickers.yml"
+    },
+    {
+      "feature": "pipeline-followed-tickers-select",
+      "path": "POST /api/pipeline/followed-tickers-select",
+      "reason": "server-to-server (Bearer CRON_SECRET); freezes the monthly benchmark cohort — covered by select-followed-tickers.yml"
+    },
+    {
+      "feature": "pipeline-hydrate-universe-status",
+      "path": "GET /api/pipeline/hydrate-universe",
+      "reason": "server-to-server pipeline route; not a user-facing feature"
+    },
+    {
+      "feature": "pipeline-hydrate-universe-put",
+      "path": "PUT /api/pipeline/hydrate-universe",
+      "reason": "server-to-server (Bearer PORTAL_PUSH_SECRET); bulk-writes ticker_universe — covered by hydrate-universe.yml"
+    },
+    {
+      "feature": "pipeline-hydrate-universe",
+      "path": "POST /api/pipeline/hydrate-universe",
+      "reason": "server-to-server (Bearer PORTAL_PUSH_SECRET); writes ticker_cards — covered by hydrate-universe.yml"
+    },
+    {
+      "feature": "pipeline-precompute-ai",
+      "path": "POST /api/pipeline/precompute-ai",
+      "reason": "server-to-server (Bearer PORTAL_PUSH_SECRET); spends model quota + writes precomputed_ai — covered by precompute-ai.yml"
+    },
+    {
       "feature": "retention-digest-email",
       "path": "POST /api/retention/digest-email",
       "reason": "sends a real email to real users; not safe to fire on a routine sweep"
@@ -591,5 +785,19 @@
       "reason": "requires a Stripe-signed payload from `stripe listen`; not a plain fetch target"
     }
   ],
-  "driftWarnings": []
+  "driftWarnings": [
+    "POST /api/analyze (app/api/analyze/route.ts) has no FEATURE_META entry",
+    "POST /api/attribution (app/api/attribution/route.ts) has no FEATURE_META entry",
+    "GET /api/consent (app/api/consent/route.ts) has no FEATURE_META entry",
+    "POST /api/consent (app/api/consent/route.ts) has no FEATURE_META entry",
+    "GET /api/disclaimer (app/api/disclaimer/route.ts) has no FEATURE_META entry",
+    "POST /api/disclaimer (app/api/disclaimer/route.ts) has no FEATURE_META entry",
+    "GET /api/legal-consent (app/api/legal-consent/route.ts) has no FEATURE_META entry",
+    "POST /api/legal-consent (app/api/legal-consent/route.ts) has no FEATURE_META entry",
+    "POST /api/privacy/delete (app/api/privacy/delete/route.ts) has no FEATURE_META entry",
+    "GET /api/privacy/export (app/api/privacy/export/route.ts) has no FEATURE_META entry",
+    "GET /api/privacy/profile (app/api/privacy/profile/route.ts) has no FEATURE_META entry",
+    "POST /api/privacy/rectify (app/api/privacy/rectify/route.ts) has no FEATURE_META entry",
+    "GET /api/signals/top (app/api/signals/top/route.ts) has no FEATURE_META entry"
+  ]
 }

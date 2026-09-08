@@ -670,3 +670,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-06] ingest | PR #113 fix(landing): dim text contrast — council debate labels and the --dim token | pages touched: 4
 
 ## [2026-09-07] ingest | PR #115 feat(openrouter): fix dead/paid council seats + per-run model-usage log | pages touched: 5
+
+## [2026-09-08] ingest | PR (pending) feat: GHA failure-notify on 4 scheduled workflows + precompute-ai observability + Modal de-schedule + nulogdash drift | pages touched: 3

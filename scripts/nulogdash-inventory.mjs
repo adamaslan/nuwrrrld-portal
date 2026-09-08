@@ -272,6 +272,53 @@ const FEATURE_META = {
     label: "Live price ingest (internal)",
     excluded: "internal WS-worker ingest endpoint gated by PORTAL_PUSH_SECRET, not a user-facing feature",
   },
+
+  // Server-to-server pipeline triggers. All are Bearer-authed (CRON_SECRET or
+  // PORTAL_PUSH_SECRET), not Clerk-session features, and each does real writes
+  // against Neon / the model quota. Their coverage is the scheduled workflows
+  // in .github/workflows/ (+ deploy/*/modal_app.py), not this sweep — firing
+  // them here would double-spend quota and mutate benchmark tables.
+  "POST /api/pipeline/precompute-ai": {
+    slug: "pipeline-precompute-ai",
+    label: "Pipeline — nightly AI precompute",
+    excluded: "server-to-server (Bearer PORTAL_PUSH_SECRET); spends model quota + writes precomputed_ai — covered by precompute-ai.yml",
+  },
+  "POST /api/pipeline/hydrate-universe": {
+    slug: "pipeline-hydrate-universe",
+    label: "Pipeline — universe hydration",
+    excluded: "server-to-server (Bearer PORTAL_PUSH_SECRET); writes ticker_cards — covered by hydrate-universe.yml",
+  },
+  "GET /api/pipeline/hydrate-universe": {
+    slug: "pipeline-hydrate-universe-status",
+    label: "Pipeline — universe hydration (status)",
+    excluded: "server-to-server pipeline route; not a user-facing feature",
+  },
+  "PUT /api/pipeline/hydrate-universe": {
+    slug: "pipeline-hydrate-universe-put",
+    label: "Pipeline — universe hydration (seed)",
+    excluded: "server-to-server (Bearer PORTAL_PUSH_SECRET); bulk-writes ticker_universe — covered by hydrate-universe.yml",
+  },
+  "POST /api/pipeline/followed-tickers": {
+    slug: "pipeline-followed-tickers",
+    label: "Pipeline — followed-tickers daily observer",
+    excluded: "server-to-server (Bearer CRON_SECRET); appends benchmark observations — covered by track-followed-tickers.yml",
+  },
+  "POST /api/pipeline/followed-tickers-judge": {
+    slug: "pipeline-followed-tickers-judge",
+    label: "Pipeline — followed-tickers LLM judge",
+    excluded: "server-to-server (Bearer CRON_SECRET); spends model quota + writes judge scores — covered by judge-followed-tickers.yml",
+  },
+  "POST /api/pipeline/followed-tickers-select": {
+    slug: "pipeline-followed-tickers-select",
+    label: "Pipeline — followed-tickers monthly cohort",
+    excluded: "server-to-server (Bearer CRON_SECRET); freezes the monthly benchmark cohort — covered by select-followed-tickers.yml",
+  },
+  "GET /api/followed-tickers": {
+    slug: "followed-tickers-read",
+    label: "Followed-tickers — public read",
+    auth: false,
+    dependencies: ["neon"],
+  },
 };
 
 // ---------------------------------------------------------------------------

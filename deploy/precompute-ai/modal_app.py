@@ -1,32 +1,32 @@
-"""Modal deployment of the nightly AI precompute (Option D).
+"""Modal runner for the AI precompute (Option D) — MANUAL / FAILOVER ONLY.
 
-The scheduling *is* the design. OpenRouter's free tier caps the whole API key
+The scheduling rationale is real: OpenRouter's free tier caps the whole API key
 at some number of requests/day (this account's `auth/key` endpoint reports
 `limit: null` — not independently confirmed here as 50 vs. 1000; see
 docs/max-coverage-simplest-path.md "Correction" section) and resets at UTC
-midnight. Today batch AI work and interactive Nu AI chat compete for that
-single bucket, and batch usually wins simply by running first — so a user
-asking a question in the afternoon can find the allowance already spent on a
-narrative nobody was waiting for.
+midnight. Batch AI work and interactive Nu AI chat compete for that single
+bucket, and batch wins by running first — so the batch is run a few minutes
+*after* the reset, generated into Neon, and served as cached reads at zero
+quota cost for the rest of the day.
 
-This job runs a few minutes *after* the reset, when the quota is at its
-freshest, generates the batch artifacts, and stores them in Neon. The app then
-serves them as ordinary cached reads at zero quota cost, leaving the day's
-allowance for calls a user is actually waiting on.
+**But this file does not own that schedule.** `.github/workflows/precompute-ai.yml`
+is the live scheduler (docs/deploy-runner-decision.md, Finding 1). This module
+carries NO `schedule=` — running both would double-spend the shared quota on
+identical output (incident-2026-09-04-precompute-ai-double-schedule). It stays
+here as a deployable manual runner: a one-off backfill, or failover if GHA is
+down.
 
-Free-tier quota is a renewable resource with a schedule; a scheduler is the
-right tool for spending a scheduled resource.
-
-Deploy (one-time):
+Run once manually:
     pip install modal
     modal token new
     modal secret create nuwrrrld-precompute \\
         PORTAL_PUSH_SECRET=... \\
         PORTAL_URL=https://financial.nuwrrrld.com
-    modal deploy deploy/precompute-ai/modal_app.py
-
-Run once manually (bypasses the cron):
     modal run deploy/precompute-ai/modal_app.py
+
+If GHA is being retired and Modal is taking over the schedule, re-add
+`schedule=modal.Cron("10 0 * * *")` to the @app.function below IN THE SAME
+CHANGE that disables the GHA workflow — never with both active.
 """
 
 import os
@@ -56,13 +56,23 @@ def _portal_base() -> str:
     return os.environ.get("PORTAL_URL", "https://financial.nuwrrrld.com").rstrip("/")
 
 
+# NO `schedule=` here — deliberately.
+#
+# .github/workflows/precompute-ai.yml owns the daily 00:10 UTC schedule for
+# this exact endpoint. This file previously also carried
+# `schedule=modal.Cron("10 0 * * *")` — the *same minute* — so if this app were
+# ever `modal deploy`-ed, both runners would fire nightly and double the draw
+# against the single shared OpenRouter free-tier quota bucket for identical
+# output (incident-2026-09-04-precompute-ai-double-schedule).
+#
+# The pair is a documented either/or; GitHub Actions is the chosen live
+# scheduler (docs/deploy-runner-decision.md, Finding 1). This function stays
+# deployable and runnable on demand (`modal run deploy/precompute-ai/modal_app.py`)
+# for a one-off backfill or to fail over if GHA is down — it just doesn't
+# self-schedule. Re-add a `schedule=` here ONLY as part of disabling the GHA
+# workflow, never alongside it.
 @app.function(
     image=image,
-    # 00:10 UTC daily — a few minutes after OpenRouter's free-tier reset at UTC
-    # midnight, so the run gets the freshest possible quota. Not on the hour:
-    # the reset itself is a busy moment across every free-tier account, and a
-    # small offset avoids racing it.
-    schedule=modal.Cron("10 0 * * *"),
     secrets=[_SECRET],
     timeout=900,
     retries=modal.Retries(max_retries=1, initial_delay=120.0),
@@ -87,11 +97,27 @@ def precompute_ai() -> dict:
             headers={"Authorization": f"Bearer {secret}"},
             json={"maxSubjects": MAX_SUBJECTS},
         )
-        response.raise_for_status()
+        # The route now returns 502 (not a clean 200) when it attempted
+        # subjects and generated nothing, so this actually catches a dead run.
+        # Surface the body's failureMode before re-raising so the Modal log
+        # says *why*, not just "502".
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+            except ValueError:
+                body = {}
+            print(
+                f"[precompute] HTTP {response.status_code} "
+                f"failureMode={body.get('failureMode')} "
+                f"generated={body.get('generated')}/{body.get('attempted')}"
+            )
+            response.raise_for_status()
         result = response.json()
 
     generated = result.get("generated", 0)
     attempted = result.get("attempted", 0)
+    if result.get("budgetStopped"):
+        print("[precompute] NOTE: run stopped early to stay inside maxDuration — partial batch.")
     print(f"[precompute] generated={generated}/{attempted}")
 
     if result.get("quotaExhausted"):

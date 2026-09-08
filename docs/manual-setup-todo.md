@@ -507,6 +507,48 @@ Full table + reasoning: [docs/pipeline-route-status-issues.md](pipeline-route-st
 
 ---
 
+## 5e. precompute-ai / Modal double-schedule — make the code change take effect
+
+The branch `feat/pipeline-full-runs-nulogdash` removed `schedule=modal.Cron(...)`
+from `deploy/precompute-ai/modal_app.py` so GitHub Actions
+(`precompute-ai.yml`) is the sole scheduler
+(incident-2026-09-04-precompute-ai-double-schedule). That change is inert until
+someone runs Modal against the real account:
+
+- [ ] **Confirm whether `nuwrrrld-precompute-ai` is currently deployed** —
+      `modal app list`. Per incident-2026-08-18 it never has been, but that was
+      not re-verified.
+- [ ] **If it is deployed:** `modal deploy deploy/precompute-ai/modal_app.py`
+      once (picks up the removed schedule), or `modal app stop nuwrrrld-precompute-ai`.
+      Until then, if it was ever deployed with the old schedule, both runners
+      still fire nightly at 00:10 UTC and double-spend the OpenRouter quota.
+- [ ] **Create the `pipeline-failure` label** (also listed in §5d) —
+      `gh label create pipeline-failure --color B60205 --description "Scheduled pipeline run failed"`.
+      The new `notify` jobs on `precompute-ai.yml`, `refresh-free-models.yml`,
+      `compile-grounding-pack.yml`, and `backup-to-sqlite.yml` all reference it.
+
+## 5f. nulogdash sweep — local env + remaining inventory drift
+
+- [ ] **Set `NULOGDASH_BASE_URL` and `NULOGDASH_SESSION_COOKIE` in `.env.local`.**
+      Both currently ship as empty `KEY=` lines. `NULOGDASH_BASE_URL=` empty no
+      longer breaks the sweep (the `??` → trim-and-`||` fix in
+      `scripts/nulogdash.mjs`), but it still needs a real value —
+      `http://localhost:3000` — to point anywhere. `NULOGDASH_SESSION_COOKIE`
+      needs a live `__session` cookie for a dedicated test user or 28 auth
+      features stay `blocked`.
+- [ ] **Set a local `CRON_SECRET`** (currently commented out) if you want to
+      exercise the `followed-tickers*` pipeline routes locally — any random
+      value, matched by the `Authorization: Bearer` header you pass.
+- [ ] **13 inventory drift warnings remain** after this PR (was 21): the
+      GDPR/consent endpoints (`/api/consent`, `/api/disclaimer`,
+      `/api/legal-consent`, `/api/privacy/{delete,export,profile,rectify}`) plus
+      `/api/analyze`, `/api/attribution`, `/api/signals/top`. Each needs a
+      `FEATURE_META` entry (or an `excluded:` reason) in
+      `scripts/nulogdash-inventory.mjs` — deciding auth/body/deps per route is a
+      judgement call, tracked here as a follow-up batch.
+
+---
+
 ## 6. Legal / vendor — blocks Phases 3.1, 4.2–4.4, 7
 
 These need a signature or a qualified review, not a login.
