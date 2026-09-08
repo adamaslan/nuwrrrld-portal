@@ -28,6 +28,8 @@
  *   --no-dry-run    send dry_run:false (WRITES TO PROD); requires --yes  [Path C]
  *   --yes           confirm a --no-dry-run call        [Path C]
  *   --print         print the commands/requests, run nothing
+ *   --open          open the generated HTML report when a run-log pipeline call succeeds [Path C]
+ *   --no-report     skip auto-generating the HTML report after a successful pipeline call [Path C]
  *
  * Examples:
  *   node scripts/local-trigger.mjs D ci
@@ -49,7 +51,10 @@ const DEFAULT_PORTAL_URL = "https://financial.nuwrrrld.com";
 // dispatch:   can `gh workflow run` / the Actions UI fire it (workflow_dispatch)
 // inputs:     dispatch input names (Path A help + validation)
 // calls:      ordered endpoint calls the workflow makes (Path C)
-//               { path, session?, dryRunnable, body(dryRun) -> object }
+//               { path, session?, dryRunnable, body(dryRun) -> object,
+//                 secret? (env var name; default "CRON_SECRET"),
+//                 pipeline? (PipelineName; triggers the HTML report after a
+//                   successful call — see lib/pipeline-run-log-db.ts) }
 // scripts:    shell commands that do the workflow's work locally (Path D)
 const WORKFLOWS = {
   // ── Shape 1: CI (event-driven) ─────────────────────────────────────────
@@ -104,6 +109,10 @@ const WORKFLOWS = {
         path: "/api/pipeline/followed-tickers",
         session: "followed-daily",
         dryRunnable: true,
+        // Writes a pipeline_run_log row on the "followed-tickers" pipeline —
+        // named here so pathC can trigger scripts/pipeline-run-report.mjs
+        // after a successful call. See lib/pipeline-run-log-db.ts PipelineName.
+        pipeline: "followed-tickers",
       },
     ],
   },
@@ -130,6 +139,7 @@ const WORKFLOWS = {
         path: "/api/pipeline/followed-tickers-judge",
         dryRunnable: true,
         body: (dryRun) => ({ dry_run: dryRun }),
+        pipeline: "followed-tickers-judge",
       },
     ],
   },
@@ -152,11 +162,16 @@ const WORKFLOWS = {
     calls: [
       {
         path: "/api/pipeline/precompute-ai",
-        dryRunnable: false,
-        // handler does INSERT ... ON CONFLICT DO UPDATE and spends AI quota
-        // unconditionally — never send it on the default path.
+        // Auths against PORTAL_PUSH_SECRET, not CRON_SECRET — the only call
+        // in this registry that does. See the `secret` resolution in pathC.
+        secret: "PORTAL_PUSH_SECRET",
+        dryRunnable: true,
+        // requiresConfirm only gates the non-dry-run (writing, quota-spending)
+        // path — a dry run rehearses subject selection without a model call
+        // or a DB write, so it needs no --yes.
         requiresConfirm: true,
-        body: () => ({ maxSubjects: 3 }),
+        body: (dryRun) => ({ maxSubjects: 3, dry_run: dryRun }),
+        pipeline: "precompute-ai",
       },
     ],
   },
@@ -225,6 +240,8 @@ function parseArgs(argv) {
     else if (a === "--no-dry-run") opts.noDryRun = true;
     else if (a === "--yes") opts.yes = true;
     else if (a === "--print") opts.print = true;
+    else if (a === "--open") opts.open = true;
+    else if (a === "--no-report") opts.noReport = true;
     else if (a === "-h" || a === "--help") opts.help = true;
     else if (a.startsWith("--")) throw new UsageError(`unknown option ${a}`);
     else positional.push(a);
@@ -406,22 +423,30 @@ async function pathC(w, opts) {
     return 2;
   }
 
-  const secret = env.CRON_SECRET;
-  if (!secret && !opts.print) {
-    console.error(
-      "\x1b[31mCRON_SECRET not found in .env.local or the environment.\x1b[0m",
-    );
-    return 2;
-  }
-
   let worst = 0;
+  const ranPipelines = [];
   for (const call of w.calls) {
-    // A call with no dry_run contract (route unimplemented, or writes
-    // unconditionally) cannot be made safe by the default — gate it.
-    if (call.requiresConfirm && !confirmed) {
+    // Each call authenticates against its own secret — precompute-ai checks
+    // PORTAL_PUSH_SECRET, everything else checks CRON_SECRET (route contracts,
+    // not this script's choice). Sending the wrong one is a silent 401, so
+    // resolve per call rather than once for the whole workflow.
+    const secretName = call.secret || "CRON_SECRET";
+    const secret = env[secretName];
+    if (!secret && !opts.print) {
       console.error(
-        `\x1b[31m${call.path} has no dry-run contract — it can write / consume quota.\n` +
-          `Re-run with --no-dry-run --yes to send it, or skip this workflow.\x1b[0m`,
+        `\x1b[31m${secretName} not found in .env.local or the environment (needed for ${call.path}).\x1b[0m`,
+      );
+      worst = 2;
+      continue;
+    }
+
+    // requiresConfirm only gates an actual write/spend (--no-dry-run) — a
+    // dry-run call that has a real dry_run contract (dryRunnable) is safe to
+    // send without --yes and should not be blocked here.
+    if (call.requiresConfirm && !dryRun && !confirmed) {
+      console.error(
+        `\x1b[31m${call.path} writes / consumes quota when not run as a dry run.\n` +
+          `Re-run with --no-dry-run --yes to send it for real, or drop --no-dry-run to rehearse it.\x1b[0m`,
       );
       worst = 2;
       continue;
@@ -435,7 +460,7 @@ async function pathC(w, opts) {
     const url = `${base}${call.path}`;
     if (opts.print) {
       console.log(
-        `curl -X POST ${url} -H 'Authorization: Bearer $CRON_SECRET' -d '${
+        `curl -X POST ${url} -H 'Authorization: Bearer $${secretName}' -d '${
           JSON.stringify(body)
         }'`,
       );
@@ -462,9 +487,21 @@ async function pathC(w, opts) {
       console.log(`\x1b[${res.ok ? 32 : 31}mHTTP ${res.status}\x1b[0m  ${ms}ms`);
       console.log(pretty.slice(0, 4000));
       if (!res.ok) worst = res.status;
+      else if (call.pipeline) ranPipelines.push(call.pipeline);
     } catch (err) {
       console.error(`\x1b[31mrequest failed: ${err.message}\x1b[0m`);
       worst = 1;
+    }
+  }
+
+  // A call that writes a pipeline_run_log row (see call.pipeline below) just
+  // produced a fresh run — generate its descriptive HTML report unless the
+  // caller asked to skip it. Best-effort: a report failure must not turn an
+  // otherwise-successful trigger into a failing command.
+  if (!opts.print && !opts.noReport && ranPipelines.length > 0 && worst === 0) {
+    for (const pipeline of ranPipelines) {
+      const openFlag = opts.open ? " --open" : "";
+      run(`node scripts/pipeline-run-report.mjs --pipeline ${pipeline}${openFlag}`);
     }
   }
   return worst && worst >= 400 ? 1 : worst;

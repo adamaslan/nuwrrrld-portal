@@ -23,6 +23,7 @@
     "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
     "db:hydrate:dev": "node --env-file=.env.local scripts/hydrate-dev.mjs",
     "model-usage": "node scripts/model-usage-report.mjs",
+    "pipeline-run-report": "node scripts/pipeline-run-report.mjs",
     "nulogdash:inventory": "node scripts/nulogdash-inventory.mjs",
     "nulogdash": "npm run nulogdash:inventory && node --env-file=.env.local scripts/nulogdash.mjs",
     "stash:status": "node scripts/stash-status.mjs",
