@@ -34,6 +34,10 @@ const envSchema = z.object({
   DISCORD_FEEDBACK_WEBHOOK_URL: z.string().url().optional(),
   SIGNALS_ENGINE_URL: z.string().url().optional(),
   NULOGDASH_ADMIN_EMAILS: z.string().optional(),
+  // Production Neon branch host. When set, lib/pipeline-db-guard.ts and
+  // scripts/local-trigger.mjs refuse a live (--no-dry-run / dashboard) pipeline
+  // run whose DATABASE_URL resolves to this host. Unset ⇒ guard inert.
+  PRODUCTION_DB_HOST: z.string().optional(),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
 });
 

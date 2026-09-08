@@ -25,7 +25,8 @@
  *   --job <name>    run a single job                   [Path B]
  *   --local         hit http://localhost:3000          [Path C]
  *   --url <base>    hit an explicit base URL           [Path C]
- *   --no-dry-run    send dry_run:false (WRITES TO PROD); requires --yes  [Path C]
+ *   --no-dry-run    send dry_run:false (WRITES TO PROD); requires --yes; refused
+ *                   if DATABASE_URL matches PRODUCTION_DB_HOST         [Path C]
  *   --yes           confirm a --no-dry-run call        [Path C]
  *   --print         print the commands/requests, run nothing
  *   --open          open the generated HTML report when a run-log pipeline call succeeds [Path C]
@@ -402,6 +403,27 @@ async function pathC(w, opts) {
       "\x1b[31m--no-dry-run writes to production. Re-run with --yes to confirm.\x1b[0m",
     );
     return 2;
+  }
+
+  // Structural guard (docs/admin-console-todo.md §3 / §5.7): a live run must not
+  // write through a DATABASE_URL pointed at the production Neon branch. Mirrors
+  // lib/pipeline-db-guard.ts — kept inline because this .mjs cannot import TS.
+  // Opt-in: only bites when PRODUCTION_DB_HOST is set.
+  if (confirmed && !opts.print) {
+    const prodHost = (env.PRODUCTION_DB_HOST || "").trim().toLowerCase();
+    let dbHost = null;
+    try {
+      if (env.DATABASE_URL) dbHost = new URL(env.DATABASE_URL).hostname.toLowerCase();
+    } catch {
+      /* unparseable — treat as "not production", the route's own auth still applies */
+    }
+    if (prodHost && dbHost === prodHost) {
+      console.error(
+        "\x1b[31m--no-dry-run refused: DATABASE_URL resolves to the host named by " +
+          "PRODUCTION_DB_HOST. Point it at a dev branch, or clear PRODUCTION_DB_HOST.\x1b[0m",
+      );
+      return 2;
+    }
   }
 
   // hydrate-universe is script-driven, not a raw curl. Honor --no-dry-run here
