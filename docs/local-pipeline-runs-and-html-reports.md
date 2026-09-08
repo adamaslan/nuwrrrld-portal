@@ -8,10 +8,13 @@ of each run?
 ran locally read-only. The manual-trigger path had two auth-wiring defects that
 made it fail before reaching a route, `precompute-ai` had no safe rehearsal mode,
 and no HTML report generator for a pipeline run existed anywhere in the repo.
-All four are fixed. Dashboard-level surfacing (a UI tab, trigger buttons) is
-still a separate, larger build — see §3.
+All four are fixed. **Dashboard-level surfacing is built** — a
+`/dashboard/nulogdash/pipelines` tab plus a per-run detail page (§1.5). Trigger
+*buttons* are now built too (MFA-gated dry-run + typed live-run confirm) — see
+§3 and admin-console-todo.md §2.
 
-Written: 2026-09-08. Updated: 2026-09-08 (fixes applied).
+Written: 2026-09-08. Updated: 2026-09-08 (fixes applied; pipelines tab added and
+the whole flow re-verified locally end to end).
 Branch: `feat/pipeline-local-runs-fixes` (cut from `origin/main` — the original
 investigation branch, `feat/pipeline-full-runs-nulogdash`, already had an open
 PR #116, so this unrelated work went on its own branch per the repo's
@@ -109,6 +112,36 @@ npm run model-usage -- --stdout --dry-run
 single-run *detail view* (HTML). Use the first for a week's trend, the second
 for "what exactly happened in the run I just fired."
 
+### 1.5 The dashboard surfaces the runs — read-only
+
+```bash
+npm run dev
+open http://localhost:3000/dashboard/nulogdash/pipelines
+```
+
+A tab strip on `/dashboard/nulogdash` now switches between the feature sweep and
+`/dashboard/nulogdash/pipelines`, which reads `pipeline_run_log` directly:
+
+- **Latest-run card per pipeline** — timestamp, dry-run/live badge, item counts,
+  or "Never run" when that pipeline has no row.
+- **Recent runs table** (50 newest across all three), each linking to
+  `/dashboard/nulogdash/pipelines/<id>`.
+- **Per-run detail page** — the in-browser equivalent of §1.3's HTML report:
+  metadata, outcome cards, the per-model rollup, every item's
+  subject/seat/model/outcome/latency/fallback, and the raw `summary` blob.
+
+Gated by `isNulogdashAdmin` exactly like the parent page (verified primary email
+on `NULOGDASH_ADMIN_EMAILS` → otherwise `notFound()`). Purely read-only, so it
+does **not** require MFA — `canPerformAdminAction` still gates nothing, because
+nothing here mutates. All three pages are `force-dynamic`, so firing a pipeline
+and refreshing is enough.
+
+Read functions live in `lib/pipeline-run-log-db.ts` (`listPipelineRuns`,
+`getPipelineRun`, `summarizeOutcomes`). Unlike `logPipelineRun` they **throw**
+rather than swallowing: this is the table's first request-path reader, and a
+dashboard that silently renders "no runs" on a failed query is worse than one
+that errors.
+
 ---
 
 ## 2. What was fixed
@@ -154,6 +187,15 @@ pattern, and `scripts/local-signal-report.mjs`'s self-contained themed-HTML
 structure. Wired into `local-trigger.mjs` Path C via each pipeline call's new
 `pipeline` field, so a manual trigger produces its report automatically.
 
+### Fix 5 — the pipelines dashboard tab (§1.5)
+
+`/dashboard/nulogdash/pipelines` + `/dashboard/nulogdash/pipelines/[id]`, backed
+by three new read functions in `lib/pipeline-run-log-db.ts`. This closes what was
+Issue 5 ("dashboard surfacing"): the runs the CLI produces are now visible in the
+browser without opening a `file://` report. `listPipelineRuns` clamps its `limit`
+(1–200) and `getPipelineRun` rejects a non-uuid id before it reaches Postgres, so
+a mistyped URL is a 404 rather than a 500 on a `22P02` cast error.
+
 ### Not fixed — still real, still open
 
 - **§2.5 shared-DB risk** (was Issue 7): `.env.local`'s `DATABASE_URL` is a
@@ -161,10 +203,6 @@ structure. Wired into `local-trigger.mjs` Path C via each pipeline call's new
   rows through whatever branch that string points at. Verify it's a **dev**
   branch, not production, before running any pipeline with `--no-dry-run`
   locally — this fix set did not touch that string and doesn't need to.
-- **Dashboard surfacing** (was Issue 5): `/dashboard/nulogdash` still renders
-  `.nulogdash/latest.json` (the feature sweep), with no knowledge of
-  `pipeline_run_log` or the new report files. A `/dashboard/nulogdash/pipelines`
-  tab reading `pipeline_run_log` and linking generated reports is unbuilt.
 - **In-dashboard trigger buttons** (was Issue 6): `app/dashboard/nulogdash/page.tsx`
   is still a pure server component — no `"use client"`, no `onClick`, no
   `fetch`. `canPerformAdminAction` (`lib/nulogdash.ts:97`) exists precisely to
@@ -179,19 +217,28 @@ structure. Wired into `local-trigger.mjs` Path C via each pipeline call's new
 
 ## 3. If dashboard-level triggers are wanted next
 
-Not done here — flagging the shape for later:
+> Everything below, plus the `middleware.ts` → `proxy.ts` deprecation, the
+> shared-`DATABASE_URL` risk, and the "lightweight React app vs. built into the
+> existing app" question, is tracked as a checklist in
+> [docs/admin-console-todo.md](admin-console-todo.md). That file is the live
+> one; this section is the sketch it grew out of.
 
-1. A `/dashboard/nulogdash/pipelines` server-rendered tab: query
-   `pipeline_run_log` (latest N per pipeline), link each row to its
-   `docs/pipeline-runs/*.html` report if one exists locally, or regenerate it
-   server-side on click.
-2. A "run" button per pipeline as a `"use client"` island + Next.js Server
-   Action, gated by `canPerformAdminAction` (MFA-required — already exists,
-   currently unused for exactly this reason).
-3. The action POSTs the same route `local-trigger.mjs` does, defaulting to
-   `dry_run: true` with an explicit second confirmation step before a real run
-   — mirroring the CLI's `--no-dry-run --yes` pair so the safety property isn't
-   weaker in the browser than the terminal.
+**All three are now built** (admin-console-todo.md §2/§4):
+
+1. ~~A `/dashboard/nulogdash/pipelines` server-rendered tab~~ — built (§1.5).
+   The `[id]` detail page now also shows the deterministic
+   `docs/pipeline-runs/<ts>-<pipeline>.html` path when that file exists locally
+   (`NODE_ENV`-guarded; the DB-rendered page stays canonical). Server-side
+   regeneration on click was **not** built — unnecessary.
+2. ~~A "run" button per pipeline~~ — built: `TriggerControls.tsx`
+   (`"use client"`) → `lib/nulogdash-actions.ts` Server Actions, rendered only
+   when `canPerformAdminAction(user)` (which now has a live caller).
+3. ~~The action POSTs the same route `local-trigger.mjs` does~~ — built as a
+   **loopback** POST with the bearer secret attached server-side. There is no
+   client `dry_run`: `triggerPipelineRun` is dry-only and mints a single-use
+   2-min token; `confirmLivePipelineRun` is live-only and needs that token, the
+   typed-back pipeline name, a non-prod `DATABASE_URL`, and rate headroom —
+   stricter than the CLI's `--no-dry-run --yes`.
 
 ---
 
@@ -200,6 +247,7 @@ Not done here — flagging the shape for later:
 ```bash
 # dashboard
 npm run dev && open http://localhost:3000/dashboard/nulogdash
+open http://localhost:3000/dashboard/nulogdash/pipelines   # every pipeline_run_log row
 
 # feature sweep that feeds the dashboard
 npm run nulogdash

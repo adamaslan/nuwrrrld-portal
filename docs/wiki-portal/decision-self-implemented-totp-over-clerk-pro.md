@@ -2,7 +2,7 @@
 date: 2026-08-17
 type: decision
 tags: [auth, clerk, mfa, totp, nulogdash, security]
-sources: [docs/admin-totp-plan.md, docs/clerk-todos.md, lib/nulogdash.ts, PR#63]
+sources: [docs/admin-totp-plan.md, docs/clerk-todos.md, lib/nulogdash.ts, lib/nulogdash-actions.ts, PR#63]
 ---
 
 # decision: self-implement TOTP rather than pay for Clerk Pro or migrate providers
@@ -76,6 +76,20 @@ cost boundary for a feature the *app itself* needs, not an end user.
   marked superseded by this decision rather than done — the Clerk-native
   approach it described is no longer the plan.
 
+## Update — the gate now has its first real consumer (2026-09-08)
+
+The nulogdash pipeline **trigger buttons** (`lib/nulogdash-actions.ts`,
+[[decision-nulogdash-browser-trigger-handshake]]) render and function only under
+`canPerformAdminAction`. Until this, the gate protected nothing — it was a
+correct check with no call site. Now the console's one write path sits behind
+it, which means: with `twoFactorEnabled` permanently `false` on the free Clerk
+tier, **every operator is dry-run-only in the browser**, and the self-TOTP plan
+is what stands between "the buttons exist" and "the buttons work". The rate
+limiter this decision lists as a **blocking** prerequisite is partly in place
+for the trigger path (`lib/rate-limit.ts`, 1 live run / pipeline / 5 min / user)
+but is still the in-process best-effort limiter, not the hardened one
+`docs/admin-totp-plan.md` specifies.
+
 ## Validated by
 
 Not yet — plan only. Will be validated by `docs/admin-totp-plan.md`'s own
@@ -96,3 +110,6 @@ once implemented.
 - [[decision-clerk-subdomain-without-satellite]] — the other free-plan
   limitation hit on this instance (satellite domains, not MFA), from the
   2026-09-02 production cutover
+- [[decision-nulogdash-browser-trigger-handshake]] — the write path that made
+  this gate load-bearing
+- [[entity-model-usage-log]] — the pipeline audit table the gated buttons fire

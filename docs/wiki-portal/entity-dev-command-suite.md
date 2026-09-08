@@ -34,7 +34,12 @@ and the hub every command links back to.
   the underlying npm/node script. `list` prints the registry. Same "encode the
   repeatable workflow once, run any cell of it" shape as the slash commands,
   but for CI triggering rather than shipping. Path C never routes `CRON_SECRET`
-  through anything but the request itself.
+  through anything but the request itself, and `--no-dry-run` is refused when
+  `DATABASE_URL` resolves to `PRODUCTION_DB_HOST` (`lib/pipeline-db-guard.ts`,
+  mirrored inline here) — opt-in, inert until that var is set. The
+  `/dashboard/nulogdash/pipelines` tab now offers a browser trigger path
+  parallel to Path C, gated by [[decision-self-implemented-totp-over-clerk-pro|MFA]]
+  and a typed live-run confirmation ([[decision-nulogdash-browser-trigger-handshake]]).
 
 ## Where used
 

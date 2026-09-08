@@ -1,0 +1,611 @@
+<title>nulogdash Trigger Path</title>
+<meta name="description" content="How the nulogdash admin console fires pipeline runs, the security risks that design contains, and what changed this session." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+
+<style>
+  :root {
+    --ground: #fbfbf9;
+    --surface: #ffffff;
+    --surface-sunk: #f3f4f2;
+    --ink: #1a1d21;
+    --ink-soft: #4a4f57;
+    --ink-faint: #6b7280;
+    --rule: #e2e3df;
+    --rule-soft: #edeeea;
+    --accent: #2f6fd0;
+    --accent-ink: #23539c;
+    --ok: #1a8f4c;
+    --ok-bg: rgba(34, 197, 94, 0.12);
+    --warn: #b9760a;
+    --warn-bg: rgba(245, 158, 11, 0.13);
+    --danger: #cf3b3b;
+    --danger-bg: rgba(239, 68, 68, 0.11);
+    --shadow: 0 1px 2px rgba(16, 18, 20, 0.04), 0 6px 20px rgba(16, 18, 20, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f1113;
+      --surface: #16191c;
+      --surface-sunk: #1c2024;
+      --ink: #e8e9e6;
+      --ink-soft: #b3b7bd;
+      --ink-faint: #8b9098;
+      --rule: #2a2e33;
+      --rule-soft: #22262b;
+      --accent: #6ba7ec;
+      --accent-ink: #9cc4f4;
+      --ok: #4ecb7e;
+      --ok-bg: rgba(34, 197, 94, 0.15);
+      --warn: #f0a63b;
+      --warn-bg: rgba(245, 158, 11, 0.15);
+      --danger: #f07272;
+      --danger-bg: rgba(239, 68, 68, 0.14);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 26px rgba(0, 0, 0, 0.36);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0f1113;
+    --surface: #16191c;
+    --surface-sunk: #1c2024;
+    --ink: #e8e9e6;
+    --ink-soft: #b3b7bd;
+    --ink-faint: #8b9098;
+    --rule: #2a2e33;
+    --rule-soft: #22262b;
+    --accent: #6ba7ec;
+    --accent-ink: #9cc4f4;
+    --ok: #4ecb7e;
+    --ok-bg: rgba(34, 197, 94, 0.15);
+    --warn: #f0a63b;
+    --warn-bg: rgba(245, 158, 11, 0.15);
+    --danger: #f07272;
+    --danger-bg: rgba(239, 68, 68, 0.14);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 26px rgba(0, 0, 0, 0.36);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem) 6rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  @media (min-width: 940px) {
+    .wrap { grid-template-columns: 210px minmax(0, 680px); gap: 3.5rem; }
+    .toc { position: sticky; top: 2.5rem; align-self: start; }
+  }
+
+  /* ── contents rail ── */
+  .toc { font-size: 0.82rem; line-height: 1.5; }
+  .toc p {
+    margin: 0 0 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-weight: 600;
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+  }
+  .toc ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+  .toc a { color: var(--ink-soft); text-decoration: none; display: block; }
+  .toc a:hover { color: var(--accent-ink); }
+  .toc .num {
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--ink-faint);
+    font-size: 0.74rem;
+    margin-right: 0.5rem;
+  }
+
+  /* ── masthead ── */
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.4rem; margin-bottom: 0.6rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 0.7rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 5vw, 2.7rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    margin: 0 0 0.7rem;
+    text-wrap: balance;
+  }
+  .standfirst { font-size: 1.06rem; color: var(--ink-soft); margin: 0; max-width: 60ch; }
+  .meta {
+    margin-top: 1.2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1.4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 500; }
+
+  section { margin-top: 3rem; scroll-margin-top: 2rem; }
+  section > h2 {
+    font-size: 1.32rem;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.4rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+  }
+  section > h2 .h-num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .lede { color: var(--ink-soft); margin: 0 0 1.4rem; }
+  h3 { font-size: 1.02rem; margin: 1.8rem 0 0.5rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent-ink); text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; }
+
+  code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.86em;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule-soft);
+    border-radius: 5px;
+    padding: 0.08em 0.38em;
+    word-break: break-word;
+  }
+  pre {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+    margin: 1.4rem 0;
+  }
+  .callout.invariant { border-left: 3px solid var(--accent); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  /* ── table ── */
+  .tbl-scroll { overflow-x: auto; margin: 1.2rem 0; border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 480px; }
+  th, td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th {
+    background: var(--surface-sunk);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { font-size: 0.8em; }
+
+  /* ── sequence ── */
+  .steps { list-style: none; counter-reset: s; margin: 1.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+  .steps li {
+    counter-increment: s;
+    position: relative;
+    padding: 0 0 1.5rem 3rem;
+    border-left: 2px solid var(--rule);
+  }
+  .steps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .steps li::before {
+    content: counter(s);
+    position: absolute;
+    left: -0.95rem;
+    top: -0.15rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .steps li b { display: block; margin-bottom: 0.15rem; }
+  .steps li p { margin: 0.3rem 0 0; font-size: 0.92rem; color: var(--ink-soft); }
+
+  /* ── risk cards ── */
+  .risks { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.4rem; }
+  .risk {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .risk-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .risk-head h3 { margin: 0; font-size: 1rem; }
+  .chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.16rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .chip.contained { background: var(--ok-bg); color: var(--ok); }
+  .chip.partial { background: var(--warn-bg); color: var(--warn); }
+  .chip.human { background: var(--danger-bg); color: var(--danger); }
+  .risk p { margin: 0.35rem 0 0; font-size: 0.92rem; }
+  .risk .mitigation { color: var(--ink-soft); }
+  .risk .mitigation b { color: var(--ink); }
+
+  /* ── change log ── */
+  .unit { border: 1px solid var(--rule); border-radius: 10px; padding: 1.1rem 1.25rem; margin-top: 1rem; box-shadow: var(--shadow); background: var(--surface); }
+  .unit > h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+  .unit .files { margin: 0.6rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem; }
+  .unit .files li { padding-left: 1.1rem; position: relative; color: var(--ink-soft); }
+  .unit .files li::before { content: "›"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+
+  ul.plain { margin: 1rem 0; padding-left: 1.3rem; }
+  ul.plain li { margin-bottom: 0.5rem; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .toc a { transition: color 0.15s ease; }
+  }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <ol>
+      <li><a href="#what"><span class="num">00</span>What this is</a></li>
+      <li><a href="#paths"><span class="num">01</span>Two ways to trigger</a></li>
+      <li><a href="#flow"><span class="num">02</span>How a live run happens</a></li>
+      <li><a href="#risks"><span class="num">03</span>Security risks &amp; containment</a></li>
+      <li><a href="#changed"><span class="num">04</span>What changed this session</a></li>
+      <li><a href="#human"><span class="num">05</span>Still needs a human</a></li>
+      <li><a href="#verify"><span class="num">06</span>Verification done</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="masthead">
+      <p class="eyebrow">nuwrrrld-portal · admin console</p>
+      <h1>Firing pipelines from nulogdash</h1>
+      <p class="standfirst">
+        The <code>/dashboard/nulogdash</code> console can now trigger the three
+        model-spending pipelines from the browser. This is the console's only
+        write path — here is how it works, and the security reasoning that
+        shapes every part of it.
+      </p>
+      <div class="meta">
+        <span><b>branch</b> feat/pipeline-local-runs-fixes</span>
+        <span><b>scope</b> admin-console-todo.md §1–§5</span>
+        <span><b>date</b> 2026-09-08</span>
+      </div>
+    </header>
+
+    <section id="what">
+      <h2><span class="h-num">00</span>What this is</h2>
+      <p class="lede">
+        Until this change, everything under <code>app/dashboard/nulogdash/**</code>
+        was a read-only server component. Nothing in a browser session could
+        spend OpenRouter quota or write a database row.
+      </p>
+      <p>
+        Adding a "run" button is the one change that removes that property, so
+        it was built to a single rule:
+      </p>
+      <div class="callout invariant">
+        <span class="tag">The invariant</span>
+        <p>
+          <b>The browser must never be able to do something
+          <code>scripts/local-trigger.mjs</code> would have refused.</b> The CLI
+          defaults to <code>dry_run: true</code> and refuses <code>--no-dry-run</code>
+          without <code>--yes</code>. The dashboard needs a server-enforced
+          equivalent for both halves, and cannot trust the client for either.
+        </p>
+      </div>
+      <p>
+        Two Clerk gates already existed for this and were finally wired up:
+        <code>isNulogdashAdmin</code> (verified primary email on an allowlist)
+        guards <em>reading</em> a report; <code>canPerformAdminAction</code> adds
+        a <b>two-factor-enabled</b> requirement and guards anything that
+        <em>mutates</em>. The trigger UI renders only under the second.
+      </p>
+    </section>
+
+    <section id="paths">
+      <h2><span class="h-num">01</span>Two ways to trigger</h2>
+      <p class="lede">Same routes, same auth secrets, same dry-run contract — different front door.</p>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr><th>&nbsp;</th><th>CLI</th><th>Dashboard</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Entry</b></td>
+              <td><code>node scripts/local-trigger.mjs C &lt;wf&gt; --local</code></td>
+              <td>Dry-run button per pipeline card (MFA admins only)</td>
+            </tr>
+            <tr>
+              <td><b>Default</b></td>
+              <td>Dry run</td>
+              <td>Dry run — there is no client field that requests "live"</td>
+            </tr>
+            <tr>
+              <td><b>Live run</b></td>
+              <td><code>--no-dry-run --yes</code></td>
+              <td>Second server call with a one-time token + typed pipeline name</td>
+            </tr>
+            <tr>
+              <td><b>Prod-DB guard</b></td>
+              <td>Refused if <code>DATABASE_URL</code> host = <code>PRODUCTION_DB_HOST</code></td>
+              <td>Same check, via <code>assertNotProductionDb()</code></td>
+            </tr>
+            <tr>
+              <td><b>Rate limit</b></td>
+              <td>None (a human at a terminal)</td>
+              <td>1 live run / pipeline / 5 min, keyed on user</td>
+            </tr>
+            <tr>
+              <td><b>Attribution</b></td>
+              <td><code>session</code> optional on the request</td>
+              <td><code>session: "nulogdash:&lt;admin email&gt;"</code> on the run-log row</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The pipeline&nbsp;→&nbsp;route&nbsp;→&nbsp;secret map is single-sourced in
+        <code>lib/nulogdash-trigger.ts</code> and mirrors the CLI:
+        <code>followed-tickers</code> and <code>followed-tickers-judge</code>
+        authenticate with <code>CRON_SECRET</code>; <code>precompute-ai</code>
+        with <code>PORTAL_PUSH_SECRET</code>.
+      </p>
+    </section>
+
+    <section id="flow">
+      <h2><span class="h-num">02</span>How a live run happens</h2>
+      <p class="lede">
+        A genuine sequence — each step is a separate server round trip, and the
+        chain breaks closed at every point.
+      </p>
+      <ol class="steps">
+        <li>
+          <b>Admin clicks “Dry run”.</b>
+          <p>
+            <code>triggerPipelineRun({ pipeline })</code> re-derives identity
+            from the session (<code>auth()</code> → <code>currentUser()</code> →
+            <code>canPerformAdminAction</code>), validates the pipeline name
+            against a fixed set, then loopback-POSTs the route with
+            <code>dry_run: true</code> and the bearer secret attached
+            server-side.
+          </p>
+        </li>
+        <li>
+          <b>Server mints a confirm token.</b>
+          <p>
+            On a successful dry run, a single-use token with a 2-minute TTL,
+            keyed to <code>{pipeline, userId}</code>, is returned to the client.
+            It is the browser's equivalent of the CLI's <code>--yes</code>.
+          </p>
+        </li>
+        <li>
+          <b>Admin types the pipeline name and clicks “Run live”.</b>
+          <p>
+            The client sends the token plus the typed string. The “Run live”
+            button stays disabled until the typed text exactly matches.
+          </p>
+        </li>
+        <li>
+          <b>Server re-checks everything.</b>
+          <p>
+            <code>confirmLivePipelineRun</code> re-runs the admin/MFA check,
+            burns the token (valid only if unexpired and an exact match),
+            confirms <code>typedName === pipeline</code>, then calls
+            <code>assertNotProductionDb()</code> and the per-user
+            <code>rateLimit()</code>. Any failure returns an error and fires
+            nothing.
+          </p>
+        </li>
+        <li>
+          <b>Live POST.</b>
+          <p>
+            Only now does the route get <code>dry_run: false</code>, with
+            <code>session: "nulogdash:&lt;email&gt;"</code> so the resulting
+            <code>pipeline_run_log</code> row names who fired it. The pipelines
+            table revalidates.
+          </p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="risks">
+      <h2><span class="h-num">03</span>Security risks &amp; containment</h2>
+      <p class="lede">
+        Every risk this feature introduces, and where in the code it is held.
+        “Contained” means enforced server-side and tested; “needs a human” means
+        the control exists but is inert until someone sets a value.
+      </p>
+      <div class="risks">
+        <div class="risk">
+          <div class="risk-head"><h3>A browser session spends model quota</h3><span class="chip contained">contained</span></div>
+          <p>Any live run calls OpenRouter and can burn the free-model budget or a paid key.</p>
+          <p class="mitigation"><b>Held by:</b> MFA-gated visibility; a two-call token handshake (no one-shot live fire); a 1-per-5-min per-user rate limit on live runs; dry run is always the default.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>A live run writes production data</h3><span class="chip human">needs a human</span></div>
+          <p><code>DATABASE_URL</code> is one string; nothing structurally distinguished a dev Neon branch from production.</p>
+          <p class="mitigation"><b>Held by:</b> <code>assertNotProductionDb()</code> refuses a live run when <code>DATABASE_URL</code> resolves to <code>PRODUCTION_DB_HOST</code>. <b>Inert until</b> that env var is set in <code>.env.local</code> and Vercel — the guard only warns otherwise.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>The auth secret leaks to the client</h3><span class="chip contained">contained</span></div>
+          <p>The pipeline routes authenticate with <code>Bearer CRON_SECRET</code> / <code>PORTAL_PUSH_SECRET</code>. If the browser called them directly, that secret would have to ship to the browser.</p>
+          <p class="mitigation"><b>Held by:</b> the mutation is a Server Action, not a client <code>fetch</code>. The secret is read from <code>process.env</code> and attached to a loopback request entirely server-side; the client payload is <code>{ pipeline }</code> and, for the second call, <code>{ pipeline, confirmToken, typedName }</code> — nothing else.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>Cross-site request forgery on a spend endpoint</h3><span class="chip contained">contained</span></div>
+          <p>A hand-rolled <code>POST</code> route that spends money is a CSRF target.</p>
+          <p class="mitigation"><b>Held by:</b> Next.js Server Actions carry a built-in same-origin check. No new public mutation endpoint was added.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>Client forges identity or permission</h3><span class="chip contained">contained</span></div>
+          <p>A payload claiming “I am an admin” or “this is authorized”.</p>
+          <p class="mitigation"><b>Held by:</b> both actions re-derive <code>userId</code> and re-run <code>canPerformAdminAction</code> from the Clerk session on every call. Nothing the client says about identity is read. The pipeline string is validated against a closed union — an unvalidated value there would be a request-forgery primitive aimed at the app's own internals.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>Replay / double-fire</h3><span class="chip contained">contained</span></div>
+          <p>Re-submitting a confirmation, or a double-click storm.</p>
+          <p class="mitigation"><b>Held by:</b> the confirm token is deleted on first use regardless of outcome and expires after 2 minutes; the rate limiter blocks the immediate retry. <b>Caveat:</b> both stores are in-process (per the <code>lib/rate-limit.ts</code> note) — best-effort on serverless, enough to force deliberate use, not a distributed lock.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>The auth boundary moved (proxy.ts rename)</h3><span class="chip contained">contained</span></div>
+          <p><code>middleware.ts</code> → <code>proxy.ts</code> touches the file that decides who is authenticated, and shifts it from the Edge to the Node.js runtime.</p>
+          <p class="mitigation"><b>Held by:</b> behaviour is unchanged — <code>clerkMiddleware()</code> stays the default export (valid under the proxy convention), <code>config.matcher</code> is untouched. Re-verified locally: unauthed <code>/dashboard/nulogdash</code> still 307s, internal-secret routes still reach their bearer check (401, not an edge 404), <code>/api/council/public</code> still bypasses <code>auth.protect()</code>. The pure-JS timing-safe compare in <code>lib/http-auth.ts</code> is kept as-is.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>MFA banner over-promised</h3><span class="chip contained">contained</span></div>
+          <p><code>MfaNotice</code> named actions that don't exist (“impersonate, disable, reset password, reindex”).</p>
+          <p class="mitigation"><b>Held by:</b> copy narrowed to what actually exists — “actions that spend model quota or write rows (triggering a pipeline run)” — with the test updated to assert it.</p>
+        </div>
+        <div class="risk">
+          <div class="risk-head"><h3>Widening what the buttons can fire</h3><span class="chip partial">deferred</span></div>
+          <p>Adding <code>followed-tickers-select</code> / <code>hydrate-universe</code> to the console also widens the trigger surface.</p>
+          <p class="mitigation"><b>Decision:</b> deferred, not declined — a deliberate follow-up after the trigger UI has proven safe, not folded into this change.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="changed">
+      <h2><span class="h-num">04</span>What changed this session</h2>
+      <p class="lede">Four units, sequenced so the sensitive surfaces stand alone.</p>
+
+      <div class="unit">
+        <h3>Unit 1 — production-DB write guard <span style="color:var(--ink-faint);font-weight:400">(§3 / §5.7)</span></h3>
+        <p style="margin:0;font-size:0.92rem;color:var(--ink-soft)">A structural refusal to run live against production, keyed on one opt-in env var.</p>
+        <ul class="files">
+          <li><code>lib/pipeline-db-guard.ts</code> — new. <code>resolveDbHost</code>, <code>assertNotProductionDb</code>, <code>ProductionDbWriteError</code>; inert (warns once) until <code>PRODUCTION_DB_HOST</code> is set.</li>
+          <li><code>lib/env.ts</code> — <code>PRODUCTION_DB_HOST</code> added as optional.</li>
+          <li><code>scripts/local-trigger.mjs</code> — inline mirror: <code>--no-dry-run</code> refused on a prod-host match.</li>
+          <li><code>.env.example</code> — documented, no value.</li>
+          <li><code>__tests__/pipeline-db-guard.test.ts</code> — new, 6 cases.</li>
+        </ul>
+      </div>
+
+      <div class="unit">
+        <h3>Unit 2 — smaller gaps <span style="color:var(--ink-faint);font-weight:400">(§4)</span></h3>
+        <ul class="files">
+          <li><code>app/dashboard/nulogdash/pipelines/[id]/page.tsx</code> — shows the deterministic on-disk HTML-report path when present (<code>NODE_ENV</code>-guarded); DB-rendered page stays canonical.</li>
+          <li><code>app/dashboard/nulogdash/page.tsx</code> + <code>page.test.tsx</code> — <code>MfaNotice</code> copy narrowed and re-asserted.</li>
+          <li><code>app/dashboard/nulogdash/pipelines/page.tsx</code> — <code>?limit=</code> pagination (50 default) into the already-clamped <code>listPipelineRuns</code>, with a 50·100·200 row.</li>
+        </ul>
+      </div>
+
+      <div class="unit">
+        <h3>Unit 3 — <code>middleware.ts</code> → <code>proxy.ts</code> <span style="color:var(--ink-faint);font-weight:400">(§1)</span></h3>
+        <ul class="files">
+          <li><code>git mv middleware.ts proxy.ts</code> — default export kept; Clerk v7.5.2 is Next-16-aware.</li>
+          <li><code>proxy.ts</code>, <code>lib/http-auth.ts</code>, <code>docs/API-ROUTE-AUTH.md</code> — rename + Node-runtime notes.</li>
+          <li>Re-verified against a running dev server (307 / 401 / bypass all intact); <code>npm run build</code> shows <code>ƒ Proxy (Middleware)</code>.</li>
+        </ul>
+      </div>
+
+      <div class="unit">
+        <h3>Unit 4 — trigger buttons <span style="color:var(--ink-faint);font-weight:400">(§2 / §5)</span></h3>
+        <ul class="files">
+          <li><code>lib/nulogdash-trigger.ts</code> — new. Pure helpers: pipeline→route+secret map, <code>TriggerResult</code>, the confirm-token store.</li>
+          <li><code>lib/nulogdash-actions.ts</code> — new, <code>"use server"</code> (the repo's first). <code>triggerPipelineRun</code> (dry only) + <code>confirmLivePipelineRun</code> (live only).</li>
+          <li><code>app/dashboard/nulogdash/pipelines/_components/TriggerControls.tsx</code> — new, <code>"use client"</code>. Button, pending state, type-to-confirm, result line. No fetch/auth/secrets.</li>
+          <li><code>app/dashboard/nulogdash/pipelines/page.tsx</code> — renders it per card only under <code>canPerformAdminAction</code>.</li>
+          <li>Pipeline routes — optional <code>session</code> body field on <code>followed-tickers-judge</code> and <code>precompute-ai</code> for run-log attribution (<code>followed-tickers</code> already had it).</li>
+          <li><code>__tests__/nulogdash-actions.test.ts</code> — new, 10 cases.</li>
+          <li><code>app/dashboard/nulogdash/nulogdash.css</code> — <code>.nld-trigger*</code> styles.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="human">
+      <h2><span class="h-num">05</span>Still needs a human</h2>
+      <p class="lede">The code is in; these cannot be done from a diff. Tracked in <code>docs/manual-setup-todo.md §9</code>.</p>
+      <ul class="plain">
+        <li><b>Confirm the local <code>DATABASE_URL</code> is a dev Neon branch</b>, not production.</li>
+        <li><b>Set <code>PRODUCTION_DB_HOST</code></b> (host only) in <code>.env.local</code> and the Vercel project env. Until then the prod-DB guard only warns.</li>
+        <li><b>Enrol Clerk MFA</b> on the admin account — the trigger buttons render only under <code>canPerformAdminAction</code>, which requires it.</li>
+        <li><b>Run one real end-to-end trigger</b> as an MFA admin: dry run → row appears attributed to your email; live run → typed confirm required, second attempt rate-limited; with <code>PRODUCTION_DB_HOST</code> matching the local host, the live run is refused.</li>
+        <li><b>Decide later</b> whether <code>followed-tickers-select</code> / <code>hydrate-universe</code> should ever be triggerable (deferred).</li>
+      </ul>
+    </section>
+
+    <section id="verify">
+      <h2><span class="h-num">06</span>Verification done</h2>
+      <ul class="plain">
+        <li><code>npm run build</code> — green; routes for both nulogdash pipeline pages and the Server Action compile; summary line reads <code>ƒ Proxy (Middleware)</code>.</li>
+        <li><code>npm run lint</code> — clean.</li>
+        <li><code>npx tsc --noEmit</code> — clean.</li>
+        <li><code>node scripts/check-shared-drift.mjs</code> — all shared files in sync.</li>
+        <li>Test suites: <code>pipeline-db-guard</code> (6), <code>nulogdash-actions</code> (10), plus <code>nulogdash-admin</code>, <code>pipeline-run-log</code>, and the <code>app/dashboard/nulogdash</code> component tests — 72 passing together.</li>
+        <li>Running dev server, no cookie: <code>GET /dashboard/nulogdash</code> → 307; <code>POST /api/pipeline/followed-tickers</code> (no bearer) → 401; <code>/api/council/public</code> → not auth-blocked. Boot log shows no “middleware deprecated” warning and a <code>proxy.ts</code> timing line.</li>
+        <li>CLI guard: <code>PRODUCTION_DB_HOST</code> matching the DB host makes <code>local-trigger.mjs … --no-dry-run --yes</code> exit non-zero and send nothing.</li>
+      </ul>
+      <p style="margin-top:1.2rem">
+        Not yet verified — needs a human (§05): a live browser trigger by an
+        MFA-enrolled admin, and the prod-DB refusal with a real
+        <code>PRODUCTION_DB_HOST</code>.
+      </p>
+    </section>
+
+    <footer>
+      docs/admin-console-trigger-guide.html · companion to admin-console-todo.md,
+      local-pipeline-runs-and-html-reports.md, manual-setup-todo.md
+    </footer>
+  </main>
+</div>

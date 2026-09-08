@@ -650,6 +650,31 @@ nudge the review bot, then re-run `/bugmerge1` (or `/bugz`) on them:
 
 ---
 
+## 9. `PRODUCTION_DB_HOST` — arm the live-pipeline-run guard
+
+Code shipped on `feat/pipeline-local-runs-fixes` (`lib/pipeline-db-guard.ts` +
+an inline mirror in `scripts/local-trigger.mjs`): a live pipeline run
+(`local-trigger.mjs --no-dry-run`, or a nulogdash trigger button once §2 of
+[admin-console-todo.md](admin-console-todo.md) lands) is refused when
+`DATABASE_URL` resolves to the host in `PRODUCTION_DB_HOST`. **The guard is
+inert until a human sets that variable** — it only warns.
+
+- [ ] Confirm `.env.local`'s `DATABASE_URL` points at a **dev** Neon branch,
+      not production (Neon console → Branches → compare the host in the string).
+- [ ] Set `PRODUCTION_DB_HOST` to the **production** branch host (host only,
+      e.g. `ep-...-pooler.<region>.aws.neon.tech`) in:
+      - `.env.local` (guards local `--no-dry-run`)
+      - the Vercel project env (guards the dashboard trigger buttons on deploy)
+- [ ] Verify: with it set to the local DB's own host,
+      `node scripts/local-trigger.mjs C track-followed-tickers --local --no-dry-run --yes`
+      exits non-zero with "refused" and sends no request. Then set it to the
+      real prod host and confirm dev `--no-dry-run` still works.
+
+Name the variable, never paste a host value into chat or a committed file
+other than `.env.local` / the Vercel dashboard.
+
+---
+
 ## Suggested order
 
 **One Stripe dashboard session covers three items** — the webhook secret, the
