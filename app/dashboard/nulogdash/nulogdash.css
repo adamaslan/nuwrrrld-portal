@@ -50,3 +50,66 @@
 .nld-reason { cursor: pointer; }
 .nld-reason summary { color: var(--text-dim); font-size: .8rem; }
 .nld-reason p { margin: .35rem 0 0; font-size: .8rem; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
+
+/* ── pipeline runs (/dashboard/nulogdash/pipelines) ─────────────────────── */
+
+/* Tab strip between the feature sweep and the pipeline-run log. Only two
+   destinations today, so a plain link row rather than a routed tab widget. */
+.nld-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.nld-tab {
+  padding: .35rem .85rem; border: 1px solid var(--border); border-radius: 999px;
+  font-size: .8rem; color: var(--text-dim); text-decoration: none;
+}
+.nld-tab:hover { color: var(--text); border-color: var(--text-dim); }
+.nld-tab--active { color: var(--text); border-color: var(--neon-yellow); }
+
+.nld-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .75rem; margin-bottom: 2rem;
+}
+.nld-card {
+  display: flex; flex-direction: column; gap: .25rem;
+  border: 1px solid var(--border); border-radius: 12px; padding: .85rem 1rem;
+}
+.nld-card-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.nld-card strong { font-size: 1.05rem; color: var(--text); }
+.nld-card-sub { font-size: .75rem; color: var(--text-dim); }
+
+/* The run's own `summary` blob, verbatim — it is pipeline-specific and has no
+   fixed shape, so it is shown rather than parsed. Scrolls in its own box so a
+   long blob never widens the page. */
+.nld-pre {
+  border: 1px solid var(--border); border-radius: 12px; padding: 1rem;
+  font-size: .78rem; color: var(--text-dim); overflow-x: auto;
+  white-space: pre; margin: 0;
+}
+
+/* Informational, not a fault: a dry run succeeding is the expected outcome, so
+   this must not borrow .nld-drift's error red. */
+.nld-note {
+  border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem; color: var(--text-dim); font-size: .85rem;
+}
+.nld-note strong { color: var(--text); }
+
+/* ── pipeline trigger controls (admin, MFA-gated) ───────────────────────── */
+.nld-trigger { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .6rem; }
+.nld-trigger-btn {
+  font: inherit; font-size: .78rem; padding: .3rem .7rem; border-radius: 8px;
+  border: 1px solid var(--border); background: transparent; color: var(--text);
+  cursor: pointer;
+}
+.nld-trigger-btn:hover:not(:disabled) { border-color: var(--text-dim); }
+.nld-trigger-btn:disabled { opacity: .5; cursor: progress; }
+.nld-trigger-btn--live { border-color: #f59e0b; color: #f59e0b; }
+.nld-trigger-confirm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  margin-top: .5rem; font-size: .78rem; color: var(--text-dim);
+}
+.nld-trigger-confirm input {
+  font: inherit; font-size: .78rem; padding: .25rem .5rem; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent; color: var(--text);
+}
+.nld-trigger-msg { font-size: .78rem; margin-top: .4rem; }
+.nld-trigger-msg--ok { color: var(--bull, #22c55e); }
+.nld-trigger-msg--err { color: var(--bear, #ef4444); }

@@ -30,11 +30,34 @@ export function MfaNotice() {
     <div className="nld-mfa-notice">
       <strong>Two-factor authentication required for admin actions.</strong>
       <p>
-        You can view reports, but actions that change data (impersonate,
-        disable, reset password, reindex) stay disabled until you enrol a
-        second factor in your account security settings.
+        You can view reports, but actions that spend model quota or write rows
+        (triggering a pipeline run) stay disabled until you enrol a second
+        factor in your account security settings.
       </p>
     </div>
+  );
+}
+
+/** Tab strip shared with /dashboard/nulogdash/pipelines. Lives here because
+ * the feature sweep is the console's root; the pipelines page imports it. */
+export function NulogdashTabs({ active }: { active: "sweep" | "pipelines" }) {
+  return (
+    <nav className="nld-tabs" aria-label="nulogdash sections">
+      <Link
+        href="/dashboard/nulogdash"
+        className={`nld-tab${active === "sweep" ? " nld-tab--active" : ""}`}
+        aria-current={active === "sweep" ? "page" : undefined}
+      >
+        Feature sweep
+      </Link>
+      <Link
+        href="/dashboard/nulogdash/pipelines"
+        className={`nld-tab${active === "pipelines" ? " nld-tab--active" : ""}`}
+        aria-current={active === "pipelines" ? "page" : undefined}
+      >
+        Pipeline runs
+      </Link>
+    </nav>
   );
 }
 
@@ -80,6 +103,7 @@ export default async function NulogdashPage() {
       <main className="nld-page">
         <Link href="/dashboard" className="nld-back">← Dashboard</Link>
         <h1>nulogdash</h1>
+        <NulogdashTabs active="sweep" />
         {!canMutate && <MfaNotice />}
         <p className="nld-empty">
           No run yet. From Claude Code, run <code>/nulogdash</code>, or from a
@@ -109,6 +133,7 @@ export default async function NulogdashPage() {
     <main className="nld-page">
       <Link href="/dashboard" className="nld-back">← Dashboard</Link>
       <h1>nulogdash</h1>
+      <NulogdashTabs active="sweep" />
       <p className="nld-meta">
         Last run {new Date(run.runAt).toLocaleString()} · {run.branch}@{run.gitSha} · {run.baseUrl}
       </p>

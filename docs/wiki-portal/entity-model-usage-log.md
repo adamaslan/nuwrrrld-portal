@@ -2,7 +2,7 @@
 date: 2026-09-07
 type: entity
 tags: [observability, models, pipelines, openrouter, cost, audit]
-sources: [../../lib/pipeline-run-log-db.ts, ../../lib/db/schema.sql, ../../scripts/model-usage-report.mjs, ../../app/api/pipeline/followed-tickers/route.ts, ../../app/api/pipeline/followed-tickers-judge/route.ts, ../../app/api/pipeline/precompute-ai/route.ts, ../../.github/workflows/model-usage-report.yml, ../model-usage/README.md, PR#115]
+sources: [../../lib/pipeline-run-log-db.ts, ../../lib/db/schema.sql, ../../scripts/model-usage-report.mjs, ../../app/api/pipeline/followed-tickers/route.ts, ../../app/api/pipeline/followed-tickers-judge/route.ts, ../../app/api/pipeline/precompute-ai/route.ts, ../../.github/workflows/model-usage-report.yml, ../../app/dashboard/nulogdash/pipelines/page.tsx, ../../lib/nulogdash-actions.ts, ../model-usage/README.md, PR#115]
 ---
 
 # Entity: Model-Usage Log (`pipeline_run_log`)
@@ -24,7 +24,8 @@ Before this, model-per-call was recorded only where a table already had a `model
   | `items` (jsonb) | compact per-unit list `[{ subject, seat, model, outcome }]`, `outcome ∈ ok \| empty \| fail \| skip` |
   | `summary` (jsonb) | pipeline-specific totals (cohortSize, councilDegraded, generated, goldAgreement, verdictsGraded, …) |
 
-- **`lib/pipeline-run-log-db.ts`** — `logPipelineRun(run)` (one INSERT) and `rollupModels(items)` (pure fold from the flat item list to the `models` column). **Best-effort by design**: `logPipelineRun` catches and logs its own errors and returns a boolean — nothing in a request path reads the table back, so losing an audit row must never fail a pipeline run. This is the opposite stance from [[concept-followed-tickers-tracking|followed-tickers-db]], where a dropped write is fatal.
+- **`lib/pipeline-run-log-db.ts`** — write side: `logPipelineRun(run)` (one INSERT) and `rollupModels(items)` (pure fold to the `models` column), **best-effort by design** — it catches and logs its own errors and returns a boolean, so losing an audit row never fails a pipeline run. Opposite stance from [[concept-followed-tickers-tracking|followed-tickers-db]], where a dropped write is fatal.
+  Read side (added since PR #115): `listPipelineRuns(limit)` / `getPipelineRun(id)` / `summarizeOutcomes(items)`, the first *request-path* readers — the `/dashboard/nulogdash/pipelines` tab. These **throw** rather than swallow: a dashboard silently showing "no runs" on a failed query is worse than one that errors. `listPipelineRuns` clamps `limit` to 1–200; `getPipelineRun` uuid-shape-guards before the Postgres cast.
 
 - **`scripts/model-usage-report.mjs`** (`npm run model-usage`) — reads the table for a `--period day|week|month` window (anchored on `--date`, default today) and writes `docs/model-usage/<start>-<period>.md`: a by-model table (calls, share, empty, chain-rescued, avg latency, `$0` for `:free` / `⚠ paid` otherwise), a by-pipeline breakdown, a chronological runs table, and a supplementary `council_messages` tally. Degrades to an explanatory stub if the table doesn't exist yet (un-migrated DB). Same `.env.local` fallback as `db-migrate`; zero extra deps.
 
@@ -32,7 +33,7 @@ Before this, model-per-call was recorded only where a table already had a `model
 
 ## Where used
 
-The three model-spending pipeline routes each call `logPipelineRun` once at the end; nothing else writes the table, and only `model-usage-report.mjs` + the workflow read it.
+The three model-spending pipeline routes each call `logPipelineRun` once at the end. Writers: the [[entity-dev-command-suite|`local-trigger.mjs`]] Path-C cron simulation, the scheduled workflows, and now the nulogdash trigger action (`lib/nulogdash-actions.ts`), which loopback-POSTs the same routes and sets `session: "nulogdash:<admin email>"` so the row names who fired it. `followed-tickers-judge` and `precompute-ai` gained an optional `session` body field for this (`followed-tickers` already threaded one). Readers: `npm run model-usage` + its workflow, and the `/dashboard/nulogdash/pipelines` tab (latest-run cards, a `?limit=`-paged table, a per-run detail page).
 
 | pipeline | unit | model source |
 |---|---|---|
@@ -48,6 +49,7 @@ Reads: `npm run model-usage` locally, and `model-usage-report.yml` on the weekly
 - **`precompute-ai` fallback depth is invisible.** `fetchWithModelFallbackChecked` returns only the winning model, not whether it was the first tried, so those rows always show `fallbacks: 0`.
 - **Interactive surfaces aren't in this table.** `/api/nuai`, `/api/brief`, `/api/portfolio/health-ai` still record only tokens-per-user-per-day (`nuai_usage`), not which model. The report pulls `council_messages` as a partial supplement; the `fetchWithModelFallback*` routes are still dark.
 - **Early-return runs don't log.** A pipeline that exits before any model call (`precompute-ai` with zero subjects, `followed-tickers` with an empty cohort) writes no row — nothing to record, but a reader can't tell "didn't run" from "ran, logged nothing".
+- **The nulogdash trigger buttons are invisible until MFA works.** They render only under `canPerformAdminAction`, whose `twoFactorEnabled` requirement is still Clerk-Pro-gated / self-TOTP-pending ([[decision-self-implemented-totp-over-clerk-pro]]). So this tab is the first real consumer of that gate, and today it's read + dry-run-only for every operator.
 - **Migration-gated.** The table only exists after `npm run db:migrate` (auto on deploy via `prebuild`). Until then the report emits a stub instead of failing — but a run before the migration lands is lost, not backfilled.
 
 ## Open questions
@@ -64,6 +66,8 @@ Reads: `npm run model-usage` locally, and `model-usage-report.yml` on the weekly
 - [[decision-free-tier-model-chain]] — the `$0` invariant this log makes checkable after the fact
 - [[concept-followed-tickers-tracking]] — one of the three logged pipelines
 - [[entity-db-parity-suite]] — `pipeline_run_log` rides the same schema-parity contract
-- [[entity-dev-command-suite]] — `npm run model-usage` alongside the other run/report scripts
+- [[entity-dev-command-suite]] — `npm run model-usage` and `local-trigger.mjs` alongside the other run/report scripts
+- [[decision-nulogdash-browser-trigger-handshake]] — how the nulogdash tab fires these pipelines from the browser without weakening the CLI's dry-run default
+- [[decision-self-implemented-totp-over-clerk-pro]] — the MFA gate the trigger buttons render behind
 - `../model-usage/README.md` — operator-facing usage
 - `../free-model-rotation-status.md` — the P1–P4 audit this shipped with

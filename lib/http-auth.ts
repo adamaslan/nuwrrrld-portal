@@ -9,10 +9,14 @@
  * secret one byte at a time. These helpers move every such comparison to a
  * constant-time algorithm that always inspects the full input.
  *
- * Implemented in pure JS (no `node:crypto`) on purpose: middleware.ts imports
- * this and runs on the Edge runtime, where `node:crypto` is not available.
+ * Implemented in pure JS (no `node:crypto`) on purpose. This originally existed
+ * because `middleware.ts` imported it and ran on the Edge runtime. Under the
+ * Next 16 `proxy.ts` convention (which defaults to the Node.js runtime) that
+ * constraint is relaxed, but the pure-JS compare is correct, dependency-free,
+ * and covered by tests, so it stays — do not "upgrade" it to `timingSafeEqual`.
  *
- * Referenced by docs/todo-auth-cookies-tracking.md Phase 1.3.
+ * Referenced by docs/todo-auth-cookies-tracking.md Phase 1.3 and
+ * docs/admin-console-todo.md §1.
  */
 
 /**

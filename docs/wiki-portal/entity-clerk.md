@@ -2,7 +2,7 @@
 date: 2026-09-02
 type: entity
 tags: [auth, clerk, sessions, oauth, billing]
-sources: [middleware.ts, lib/env.ts, app/api/health/route.ts, docs/clerk-dev-to-prod.md, docs/clerk-free-plan-best-practices.md, PR#96]
+sources: [proxy.ts, lib/env.ts, app/api/health/route.ts, docs/clerk-dev-to-prod.md, docs/clerk-free-plan-best-practices.md, PR#96]
 ---
 
 # entity: Clerk
@@ -27,14 +27,18 @@ with two instances:
   configured with primary domain `nuwrrrld.com`, live on `financial.nuwrrrld.com`
   since 2026-09-02.
 
-`middleware.ts` wraps every route in `clerkMiddleware`, splits protected
-routes (`/dashboard`, most of `/api/*`) from public/internal-secret/
-webhook-signed routes — see `docs/API-ROUTE-AUTH.md` for the full
-classification table.
+`proxy.ts` (renamed from `middleware.ts` under the Next 16 `proxy` file
+convention — `clerkMiddleware` stays the default export; `config.matcher`
+unchanged) wraps every route in `clerkMiddleware`, splits protected routes
+(`/dashboard`, most of `/api/*`) from public/internal-secret/webhook-signed
+routes — see `docs/API-ROUTE-AUTH.md` for the full classification table. The
+rename also shifts this from the Edge runtime to Node.js; the pure-JS
+timing-safe bearer compare in `lib/http-auth.ts` (written for Edge) still
+applies and is kept as-is.
 
 ## Where used
 
-- `middleware.ts` — edge-level route protection, `auth.protect()`.
+- `proxy.ts` — route protection, `auth.protect()` (Node runtime post-rename).
 - `app/api/webhooks/clerk/route.ts` — syncs user/org events (see
   [[entity-billing]] for the subscription metadata this writes).
 - `app/api/health/route.ts` — dependency health check; flags a dev key

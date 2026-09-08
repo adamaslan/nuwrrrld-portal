@@ -3,7 +3,9 @@
 Source of truth for how every route under `app/api/` is authenticated.
 Produced by Phase 1.3 of [docs/todo-auth-cookies-tracking.md](todo-auth-cookies-tracking.md).
 
-Keep this table in sync with `isProtectedApiRoute` in [middleware.ts](../middleware.ts).
+Keep this table in sync with `isProtectedApiRoute` in [proxy.ts](../proxy.ts)
+(renamed from `middleware.ts` under the Next 16 `proxy` file convention —
+docs/admin-console-todo.md §1; "middleware" below still names the same file).
 
 ## Buckets
 
@@ -33,6 +35,9 @@ Keep this table in sync with `isProtectedApiRoute` in [middleware.ts](../middlew
 | `/api/launch/remind` | POST | internal-secret | `LAUNCH_REMIND_SECRET` |
 | `/api/legal-consent` | GET, POST | auth-required | Clerk |
 | `/api/nuai` | POST | auth-required | Clerk |
+| `/api/pipeline/followed-tickers` | POST | internal-secret | `CRON_SECRET` |
+| `/api/pipeline/followed-tickers-judge` | POST | internal-secret | `CRON_SECRET` |
+| `/api/pipeline/followed-tickers-select` | POST | internal-secret | `CRON_SECRET` |
 | `/api/pipeline/hydrate-universe` | GET, PUT, POST | internal-secret | `PORTAL_PUSH_SECRET` |
 | `/api/pipeline/precompute-ai` | POST | internal-secret | `PORTAL_PUSH_SECRET` |
 | `/api/portfolio/health` | GET | auth-required | Clerk |

@@ -219,7 +219,14 @@ export async function POST(req: NextRequest) {
     source?: string;
     universe?: string;
     horizon?: string;
+    dry_run?: boolean;
+    session?: string;
   };
+  const dryRun = body.dry_run === true;
+  // Optional caller label for run-log attribution (docs/admin-console-todo.md
+  // §5.6). Scheduled callers omit it; the nulogdash trigger action sends
+  // "nulogdash:<admin email>".
+  const session = typeof body.session === "string" ? body.session : null;
   const maxSubjects = Math.min(
     MAX_SUBJECTS_CEILING,
     Math.max(1, Number(body.maxSubjects) || DEFAULT_MAX_SUBJECTS),
@@ -259,7 +266,8 @@ export async function POST(req: NextRequest) {
     // Still an invocation — log a zero-item row so "one row per run" holds.
     const runLogged = await logPipelineRun({
       pipeline: "precompute-ai",
-      dryRun: false,
+      dryRun,
+      session,
       itemsTotal: 0,
       items: [],
       summary: {
@@ -271,10 +279,40 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({
       ok: true,
+      dryRun,
       generated: 0,
       results: [],
       selection,
       note: source === "ranking" ? "no ranked cards available" : "no watchlist subjects",
+      runLogged,
+    });
+  }
+
+  // A dry run rehearses subject selection only — no model call, no quota
+  // spend, no DB write. It exists so the manual-trigger path (see
+  // scripts/local-trigger.mjs) can be run by default without --yes, the same
+  // way the other two pipelines' dry runs work.
+  if (dryRun) {
+    const rehearsed = subjects.slice(0, maxSubjects);
+    const runItems: RunItem[] = rehearsed.map((subject) => ({
+      subject,
+      model: null,
+      outcome: "skip",
+    }));
+    const runLogged = await logPipelineRun({
+      pipeline: "precompute-ai",
+      dryRun: true,
+      session,
+      itemsTotal: subjects.length,
+      items: runItems,
+      summary: { selection, wouldAttempt: rehearsed.length },
+    });
+    return NextResponse.json({
+      ok: true,
+      dryRun: true,
+      selection,
+      wouldAttempt: rehearsed.length,
+      subjects: rehearsed,
       runLogged,
     });
   }
@@ -398,6 +436,7 @@ export async function POST(req: NextRequest) {
   const runLogged = await logPipelineRun({
     pipeline: "precompute-ai",
     dryRun: false,
+    session,
     itemsTotal: subjects.length,
     items: runItems,
     summary: {
@@ -413,6 +452,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       ok: !totalFailure,
+      dryRun: false,
       // Which pool the subjects came from. Without it, a run that silently fell
       // back to the watchlist because the ranking was empty is indistinguishable
       // from one that read the ranking and found those tickers on top.

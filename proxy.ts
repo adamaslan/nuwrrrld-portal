@@ -1,9 +1,15 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { bearerTokenMatches } from '@/lib/http-auth'
 
+// This file was `middleware.ts` until the Next 16 rename to the `proxy` file
+// convention (docs/admin-console-todo.md §1). Behaviour is unchanged: Clerk's
+// `clerkMiddleware()` is still exported as the default handler, and Clerk v7
+// recognises the `proxy` convention. One real difference — `proxy` runs on the
+// Node.js runtime by default, not Edge — see the note in lib/http-auth.ts.
+//
 // /dashboard (and any future /dashboard/* route) requires a signed-in session.
-// Blocks unauthenticated requests at the edge before the page renders; the
-// per-page auth() guard in app/dashboard/page.tsx stays as defense in depth.
+// Blocks unauthenticated requests before the page renders; the per-page auth()
+// guard in app/dashboard/page.tsx stays as defense in depth.
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)'])
 
 // -------------------------------------------------------------------------
