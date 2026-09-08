@@ -53,8 +53,10 @@ Requirements, all already satisfied in `.env.local`:
 - `NULOGDASH_ADMIN_EMAILS` must contain your Clerk primary email, **verified**
   (`lib/nulogdash.ts:66-80`). Not on the list → `notFound()`, not a 403.
 - Mutating actions additionally require MFA enrolment
-  (`canPerformAdminAction`, `lib/nulogdash.ts:97`) — currently nothing on the
-  page mutates, so this only shows an `MfaNotice` banner.
+  (`canPerformAdminAction`, `lib/nulogdash.ts:97`). Without it you still see the
+  console and an `MfaNotice` banner, but the pipeline **trigger buttons** on
+  the `/pipelines` tab do not render — a dry run needs MFA, and a live run
+  needs a typed confirmation on top (§3).
 - The page is `dynamic = "force-dynamic"`, so a re-run + refresh is enough; no
   cache busting needed.
 
@@ -112,7 +114,7 @@ npm run model-usage -- --stdout --dry-run
 single-run *detail view* (HTML). Use the first for a week's trend, the second
 for "what exactly happened in the run I just fired."
 
-### 1.5 The dashboard surfaces the runs — read-only
+### 1.5 The dashboard surfaces the runs (read) — and can trigger them (§3)
 
 ```bash
 npm run dev
@@ -130,11 +132,14 @@ A tab strip on `/dashboard/nulogdash` now switches between the feature sweep and
   metadata, outcome cards, the per-model rollup, every item's
   subject/seat/model/outcome/latency/fallback, and the raw `summary` blob.
 
+The latest-run cards also carry a **Dry run** button (and a typed live-run
+confirm) for admins with MFA — `canPerformAdminAction`, see §3. The table and
+detail pages stay read-only.
+
 Gated by `isNulogdashAdmin` exactly like the parent page (verified primary email
-on `NULOGDASH_ADMIN_EMAILS` → otherwise `notFound()`). Purely read-only, so it
-does **not** require MFA — `canPerformAdminAction` still gates nothing, because
-nothing here mutates. All three pages are `force-dynamic`, so firing a pipeline
-and refreshing is enough.
+on `NULOGDASH_ADMIN_EMAILS` → otherwise `notFound()`). Reading a run does **not**
+require MFA; `canPerformAdminAction` gates only the trigger buttons (§3). All
+three pages are `force-dynamic`, so firing a pipeline and refreshing is enough.
 
 Read functions live in `lib/pipeline-run-log-db.ts` (`listPipelineRuns`,
 `getPipelineRun`, `summarizeOutcomes`). Unlike `logPipelineRun` they **throw**

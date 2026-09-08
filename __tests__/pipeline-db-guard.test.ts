@@ -33,8 +33,13 @@ describe("assertNotProductionDb", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
   afterEach(() => {
-    process.env.DATABASE_URL = OLD.DATABASE_URL;
-    process.env.PRODUCTION_DB_HOST = OLD.PRODUCTION_DB_HOST;
+    // Node coerces every process.env assignment to a string, so restoring an
+    // originally-undefined key would store the literal "undefined" and leave
+    // the guard permanently "configured" for later tests. Delete instead.
+    for (const [key, value] of Object.entries(OLD)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     vi.restoreAllMocks();
   });
 

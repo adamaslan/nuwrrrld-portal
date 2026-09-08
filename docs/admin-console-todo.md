@@ -182,8 +182,9 @@ Ordered as a checklist. The safety property to preserve, stated once:
 
 ### 5.1 Server Actions, not a client `fetch` to the pipeline route
 
-- [ ] Put the mutation in a **Next.js Server Action**, not a `fetch()` from a
-      client component to `/api/pipeline/*`.
+- [x] The mutations are **Next.js Server Actions** (`lib/nulogdash-actions.ts`),
+      not a client `fetch()` to `/api/pipeline/*`. The action attaches the
+      bearer secret and loopback-POSTs the route server-side.
 
 Why this is the security-relevant choice: the pipeline routes authenticate with
 `Authorization: Bearer $CRON_SECRET` / `$PORTAL_PUSH_SECRET`. For a browser to
@@ -195,33 +196,38 @@ check, which a hand-rolled `POST` endpoint would have to reproduce.
 
 ### 5.2 Re-authorize inside the action — every time
 
-- [ ] First lines of every action: `await auth()`, then `currentUser()`, then
-      **`canPerformAdminAction(user)`** — not `isNulogdashAdmin`.
+- [x] Both actions start with `await auth()` → `currentUser()` →
+      **`canPerformAdminAction(user)`** (`requireAdmin` in
+      `lib/nulogdash-actions.ts`) — not `isNulogdashAdmin`.
 
 `canPerformAdminAction` additionally requires `twoFactorEnabled`. That is the
 whole point of it being a separate function: an env-var email allowlist is one
 string comparison from full admin, acceptable for reading a report and not for
 spending money.
 
-- [ ] Never trust anything the client sends about identity or permission. The
-      action re-derives both from the session; the client's role in the payload
-      is `{ pipeline, dryRun }` and nothing else.
-- [ ] Validate `pipeline` against the `PipelineName` union with `zod` (already a
-      dependency) — an unvalidated string here is a request-forgery primitive
-      pointed at the app's own internals.
+- [x] Nothing the client sends about identity or permission is trusted — both
+      are re-derived from the session. **The client payload carries no
+      outcome selector at all:** `triggerPipelineRun` takes `{ pipeline }` and
+      is *always* a dry run; `confirmLivePipelineRun` takes
+      `{ pipeline, confirmToken, typedName }` and is *always* a live run.
+- [x] `pipeline` is validated against a fixed set (`isTriggerablePipeline`,
+      mirroring the `PipelineName` union) before anything fires.
 
-### 5.3 Make `dryRun` fail closed
+### 5.3 Live runs fail closed — by having no client switch to flip
 
-- [ ] Default `dryRun` to `true` **server-side**. Absent, malformed, or
-      `"false"`-as-a-string all resolve to a dry run. Only an explicit boolean
-      `false` plus §5.4's confirmation may produce a live run.
-
-The client sending `dryRun: false` must never be sufficient on its own.
+- [x] There is no `dryRun` boolean in either payload. The only route to a live
+      run is `confirmLivePipelineRun`, which requires the token minted by a
+      prior successful dry run (§5.4). "Missing/`"false"`-string/malformed
+      `dryRun` → dry run" is satisfied trivially: the dry-run action ignores
+      everything except `pipeline`.
 
 ### 5.4 A real second confirmation, server-verified
 
-- [ ] Mirror `--no-dry-run --yes` as **two round trips**, not a `window.confirm`.
-      A modal the client can skip is not a control.
+- [x] `--no-dry-run --yes` is mirrored as **two action calls**, not a
+      `window.confirm`. A live run needs a short-lived (2 min), single-use
+      token that `triggerPipelineRun` minted server-side for that exact
+      `{ pipeline, userId }` (`mintConfirmToken`/`consumeConfirmToken` in
+      `lib/nulogdash-trigger.ts`), **plus** `typedName === pipeline`.
 
 Concretely: a live run needs a second action call carrying a short-lived,
 single-use token the first call minted server-side for that exact
@@ -230,8 +236,9 @@ extra friction on top; it is not a substitute.
 
 ### 5.5 Rate-limit the action
 
-- [ ] `rateLimit()` from `lib/rate-limit.ts`, keyed on `userId`, something like
-      1 live run per pipeline per 5 minutes.
+- [x] `rateLimit()` from `lib/rate-limit.ts`, keyed
+      `pipeline-live:<userId>:<pipeline>`, 1 live run per pipeline per 5
+      minutes.
 
 Note its documented limit: in-process, per-instance, best-effort on serverless.
 That is enough to stop a double-click storm; it is **not** a hard quota. If a
@@ -240,10 +247,11 @@ already flags.
 
 ### 5.6 Attribute the run
 
-- [ ] Set `session` on the `pipeline_run_log` row to something naming the
-      triggering admin (`primaryEmail(user)` exists for exactly this and is
-      explicitly *not* the access-control path). Then "who fired this live run"
-      is answerable from the table the console already renders.
+- [x] The action passes `session: "nulogdash:<primaryEmail(user)>"` to the
+      route, landing on the `pipeline_run_log` row. `followed-tickers-judge`
+      and `precompute-ai` gained an optional `session` body field for this;
+      `followed-tickers` already had one. "Who fired this live run" is
+      answerable from the table the console renders.
 
 ### 5.7 Guard the destination before the button exists
 
@@ -254,9 +262,10 @@ already flags.
 
 ### 5.8 Keep the client island minimal
 
-- [ ] One small `"use client"` component: a button, a pending state, the
-      confirmation step, an error message. No data fetching, no auth logic, no
-      secrets. Everything that decides anything stays in the Server Action.
+- [x] `app/dashboard/nulogdash/pipelines/_components/TriggerControls.tsx` — a
+      button, a `useTransition` pending state, the type-to-confirm step, an
+      error line. No data fetching, no auth logic, no secrets. Everything that
+      decides anything is in the Server Action.
 
 ---
 
@@ -290,15 +299,16 @@ already true:
 2. **Client islands only where interaction demands it** (§5.8) — a button and
    its pending state, nothing that decides anything.
 3. **Mutations are Server Actions**, gated by `canPerformAdminAction`, CSRF-
-   checked by the framework, rate-limited, fail-closed on `dryRun` (§5).
-4. **Defense in depth stays doubled.** `middleware.ts`'s `/dashboard(.*)`
-   matcher blocks unauthenticated requests at the edge; each page *also* calls
-   `auth()` and the admin gate. Neither is load-bearing alone. Keep both — and
-   keep them both working through §1's rename.
+   checked by the framework, rate-limited, live-only-by-construction (§5).
+4. **Defense in depth stays doubled.** `proxy.ts`'s (ex-`middleware.ts`, Next
+   16 rename — now Node.js runtime, not Edge) `/dashboard(.*)` matcher blocks
+   unauthenticated requests before render; each page *also* calls `auth()` and
+   the admin gate. Neither is load-bearing alone — both kept, both verified
+   through §1's rename.
 5. **Read and write are separate gates.** Reading a report needs
    `isNulogdashAdmin`; anything that mutates needs `canPerformAdminAction`
-   (MFA). This split already exists in `lib/nulogdash.ts` and is currently
-   unused on the write side only because there is no write side yet.
+   (MFA). `lib/nulogdash-actions.ts` is now the first caller of the write-side
+   gate.
 6. **The console renders no secret and no other user's data.** It shows
    pipeline telemetry. Whatever else lands here later, that boundary is worth
    stating out loud before something gets added that quietly crosses it.

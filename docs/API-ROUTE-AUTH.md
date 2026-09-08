@@ -35,6 +35,9 @@ docs/admin-console-todo.md §1; "middleware" below still names the same file).
 | `/api/launch/remind` | POST | internal-secret | `LAUNCH_REMIND_SECRET` |
 | `/api/legal-consent` | GET, POST | auth-required | Clerk |
 | `/api/nuai` | POST | auth-required | Clerk |
+| `/api/pipeline/followed-tickers` | POST | internal-secret | `CRON_SECRET` |
+| `/api/pipeline/followed-tickers-judge` | POST | internal-secret | `CRON_SECRET` |
+| `/api/pipeline/followed-tickers-select` | POST | internal-secret | `CRON_SECRET` |
 | `/api/pipeline/hydrate-universe` | GET, PUT, POST | internal-secret | `PORTAL_PUSH_SECRET` |
 | `/api/pipeline/precompute-ai` | POST | internal-secret | `PORTAL_PUSH_SECRET` |
 | `/api/portfolio/health` | GET | auth-required | Clerk |

@@ -58,6 +58,7 @@ export function RunRow({ run }: { run: PipelineRunRow }) {
 
 const PAGE_SIZES = [50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200; // must match the clamp in listPipelineRuns
 
 export default async function PipelineRunsPage({
   searchParams,
@@ -75,9 +76,13 @@ export default async function PipelineRunsPage({
   // flag here only decides whether to render the controls at all.
   const canTrigger = canPerformAdminAction(user);
 
-  // listPipelineRuns already clamps to 1–200; this only picks the request size.
+  // Clamp to the same 1–MAX_PAGE_SIZE window listPipelineRuns enforces, so the
+  // "Showing up to N" label never claims more rows than the query can return.
   const parsedLimit = Number.parseInt((await searchParams).limit ?? "", 10);
-  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_PAGE_SIZE;
+  const limit =
+    Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, MAX_PAGE_SIZE)
+      : DEFAULT_PAGE_SIZE;
 
   const runs = await listPipelineRuns(limit);
   const latestByPipeline = new Map(
