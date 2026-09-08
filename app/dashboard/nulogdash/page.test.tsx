@@ -22,7 +22,7 @@ describe("MfaNotice", () => {
   it("tells the admin why mutating actions are withheld", () => {
     render(<MfaNotice />);
     expect(screen.getByText(/two-factor authentication required for admin actions/i)).toBeInTheDocument();
-    expect(screen.getByText(/impersonate, disable, reset password, reindex/i)).toBeInTheDocument();
+    expect(screen.getByText(/spend model quota or write rows \(triggering a pipeline run\)/i)).toBeInTheDocument();
   });
 
   it("has no accessibility violations", async () => {

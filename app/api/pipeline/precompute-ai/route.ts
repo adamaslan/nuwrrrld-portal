@@ -220,8 +220,13 @@ export async function POST(req: NextRequest) {
     universe?: string;
     horizon?: string;
     dry_run?: boolean;
+    session?: string;
   };
   const dryRun = body.dry_run === true;
+  // Optional caller label for run-log attribution (docs/admin-console-todo.md
+  // §5.6). Scheduled callers omit it; the nulogdash trigger action sends
+  // "nulogdash:<admin email>".
+  const session = typeof body.session === "string" ? body.session : null;
   const maxSubjects = Math.min(
     MAX_SUBJECTS_CEILING,
     Math.max(1, Number(body.maxSubjects) || DEFAULT_MAX_SUBJECTS),
@@ -262,6 +267,7 @@ export async function POST(req: NextRequest) {
     const runLogged = await logPipelineRun({
       pipeline: "precompute-ai",
       dryRun,
+      session,
       itemsTotal: 0,
       items: [],
       summary: {
@@ -296,6 +302,7 @@ export async function POST(req: NextRequest) {
     const runLogged = await logPipelineRun({
       pipeline: "precompute-ai",
       dryRun: true,
+      session,
       itemsTotal: subjects.length,
       items: runItems,
       summary: { selection, wouldAttempt: rehearsed.length },
@@ -429,6 +436,7 @@ export async function POST(req: NextRequest) {
   const runLogged = await logPipelineRun({
     pipeline: "precompute-ai",
     dryRun: false,
+    session,
     itemsTotal: subjects.length,
     items: runItems,
     summary: {

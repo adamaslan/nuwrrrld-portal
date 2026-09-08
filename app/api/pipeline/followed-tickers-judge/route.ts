@@ -150,8 +150,12 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
-  const body = (await req.json().catch(() => ({}))) as { dry_run?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { dry_run?: boolean; session?: string };
   const dryRun = body.dry_run === true;
+  // Optional caller label, threaded onto the run-log row for attribution
+  // (docs/admin-console-todo.md §5.6). Cron callers omit it; the nulogdash
+  // trigger action passes "nulogdash:<admin email>".
+  const session = typeof body.session === "string" ? body.session : null;
   const judgeItems: RunItem[] = [];
   let phase = "gold-gate";
   const call = makeJudgeCall(apiKey, judgeItems, () => phase);
@@ -170,6 +174,7 @@ export async function POST(req: NextRequest) {
     await logPipelineRun({
       pipeline: "followed-tickers-judge",
       dryRun,
+      session,
       itemsTotal: goldSet.length,
       items: judgeItems,
       summary: {
@@ -258,6 +263,7 @@ export async function POST(req: NextRequest) {
   const runLogged = await logPipelineRun({
     pipeline: "followed-tickers-judge",
     dryRun,
+    session,
     itemsTotal: goldSet.length + sample.length,
     items: judgeItems,
     summary: {
