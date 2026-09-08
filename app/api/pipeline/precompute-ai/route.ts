@@ -47,6 +47,34 @@ export const maxDuration = 300;
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
 
+/** Per-subject wall-clock ceiling for the model call + stream drain. Was an
+ *  inline `60_000` — too tight for the slower reasoning models at the head of
+ *  FREE_MODEL_CHAIN, which routinely need ~50s just to emit content, so a run
+ *  would abort every subject and still report HTTP 200. Widened, and the loop
+ *  now stops before it would exceed `maxDuration` rather than being killed
+ *  mid-subject by the platform. */
+const PER_SUBJECT_TIMEOUT_MS = 110_000;
+
+/** Leave this much of `maxDuration` unspent for fetchHealth + the DB write +
+ *  the run-log write that follow the model call. */
+const TAIL_BUDGET_MS = 25_000;
+
+/** Classify why a run produced nothing, so a caller (Modal, the GHA step, the
+ *  run log) can tell "quota gone" from "models too slow" from "bad key" without
+ *  string-matching a prose error. */
+function classifyFailure(
+  results: PrecomputeResult[],
+  quotaExhausted: boolean,
+): "quota" | "timeout" | "empty" | "auth" | "error" | null {
+  if (results.length === 0) return null;
+  if (quotaExhausted) return "quota";
+  const reasons = results.map((r) => r.reason ?? "");
+  if (reasons.every((r) => r === "empty completion")) return "empty";
+  if (reasons.some((r) => /abort/i.test(r))) return "timeout";
+  if (reasons.some((r) => /OpenRouter (401|403)/.test(r))) return "auth";
+  return "error";
+}
+
 /** Hard ceiling per invocation, independent of the caller's request, so a
  *  misconfigured schedule can't drain the day's quota in one run. */
 const MAX_SUBJECTS_CEILING = 25;
@@ -253,14 +281,29 @@ export async function POST(req: NextRequest) {
 
   const results: PrecomputeResult[] = [];
   let quotaExhausted = false;
+  let budgetStopped = false;
+  const runStartedAt = Date.now();
+  const wallClockBudgetMs = maxDuration * 1000 - TAIL_BUDGET_MS;
 
   for (const subject of subjects.slice(0, maxSubjects)) {
+    // Stop before a subject that couldn't finish inside the route's own
+    // maxDuration — a platform kill mid-subject loses the results already in
+    // hand and never writes the run-log row.
+    if (Date.now() - runStartedAt + PER_SUBJECT_TIMEOUT_MS > wallClockBudgetMs) {
+      budgetStopped = true;
+      console.warn(
+        `[precompute-ai] stopping after ${results.length} subject(s) — not enough ` +
+          `wall-clock budget left for another ${PER_SUBJECT_TIMEOUT_MS}ms attempt`,
+      );
+      break;
+    }
+
     const tickers = subject.split(",").filter(Boolean);
     const health = await fetchHealth(tickers);
     const prompt = buildHealthPrompt(tickers, health);
 
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 60_000);
+    const timer = setTimeout(() => ctrl.abort(), PER_SUBJECT_TIMEOUT_MS);
     const startedAt = Date.now();
     try {
       const { response, model } = await fetchWithModelFallbackChecked(
@@ -330,9 +373,16 @@ export async function POST(req: NextRequest) {
   }
 
   const generated = results.filter((r) => r.ok).length;
+  // A run that attempted subjects and generated none is a failure, not a
+  // no-op — returning a clean 200 here made a dead nightly job indistinguishable
+  // from a healthy one to any caller that only checks the HTTP status
+  // (deploy/precompute-ai/modal_app.py's `raise_for_status()`).
+  const totalFailure = results.length > 0 && generated === 0;
+  const failureMode = totalFailure ? classifyFailure(results, quotaExhausted) : null;
   console.info(
     `[precompute-ai] selection=${selection} generated=${generated}/${results.length} ` +
-      `quotaExhausted=${quotaExhausted}`,
+      `quotaExhausted=${quotaExhausted} budgetStopped=${budgetStopped} ` +
+      `failureMode=${failureMode ?? "none"}`,
   );
 
   // Model-usage audit row (docs/model-usage/). `fallback` is derived from the
@@ -350,19 +400,36 @@ export async function POST(req: NextRequest) {
     dryRun: false,
     itemsTotal: subjects.length,
     items: runItems,
-    summary: { selection, generated, attempted: results.length, quotaExhausted },
+    summary: {
+      selection,
+      generated,
+      attempted: results.length,
+      quotaExhausted,
+      budgetStopped,
+      failureMode,
+    },
   });
 
-  return NextResponse.json({
-    ok: true,
-    // Which pool the subjects came from. Without it, a run that silently fell
-    // back to the watchlist because the ranking was empty is indistinguishable
-    // from one that read the ranking and found those tickers on top.
-    selection,
-    generated,
-    attempted: results.length,
-    quotaExhausted,
-    results,
-    runLogged,
-  });
+  return NextResponse.json(
+    {
+      ok: !totalFailure,
+      // Which pool the subjects came from. Without it, a run that silently fell
+      // back to the watchlist because the ranking was empty is indistinguishable
+      // from one that read the ranking and found those tickers on top.
+      selection,
+      generated,
+      attempted: results.length,
+      quotaExhausted,
+      // True when the loop stopped early to stay inside maxDuration rather than
+      // being killed mid-subject — the run is partial, not failed.
+      budgetStopped,
+      // null on success; otherwise "quota" | "timeout" | "empty" | "auth" | "error".
+      failureMode,
+      results,
+      runLogged,
+    },
+    // 502 so a status-only caller (Modal's raise_for_status) also sees the
+    // failure; the GHA step already caught this via a jq check on the body.
+    { status: totalFailure ? 502 : 200 },
+  );
 }

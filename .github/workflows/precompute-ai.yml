@@ -96,3 +96,31 @@ jobs:
             echo "::error::attempted ${attempted} subject(s) but generated none"
             exit 1
           fi
+
+  # ── Notify on failure ──────────────────────────────────────────────────
+  # A scheduled run that fails otherwise only leaves a red mark in a tab
+  # nobody opens (incident-2026-09-03-nightly-hydration-dead-15-days: "Fails
+  # red is necessary, not sufficient"). Skip the noise on manual runs — the
+  # operator is already watching those.
+  notify:
+    name: Failure notification
+    needs: [precompute]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Nightly AI precompute failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          The nightly \`/api/pipeline/precompute-ai\` trigger failed or produced zero
+          artifacts. Common causes: \`PORTAL_PUSH_SECRET\` unset, OpenRouter quota
+          already spent at 00:10 UTC, or the model chain timing out per subject." \
+            --label "pipeline-failure"

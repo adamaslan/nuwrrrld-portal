@@ -86,7 +86,13 @@ session.
 ## Open items
 
 - [ ] R0.1 — three repo secrets restored, nightly run green
-- [ ] R0.2 — failure notification wired
+- [~] R0.2 — failure notification wired. `hydrate-universe.yml` already had an
+      `if: failure()` notify job; `feat/pipeline-full-runs-nulogdash`
+      (2026-09-08) extended the same `pipeline-failure`-issue pattern to the
+      four scheduled workflows that still lacked it (`precompute-ai`,
+      `refresh-free-models`, `compile-grounding-pack`, `backup-to-sqlite`), so
+      gap #1 is closed repo-wide **once the `pipeline-failure` label exists**
+      (`docs/manual-setup-todo.md` §5d/§5e).
 - [ ] R0.3 — writer-independent freshness check live
 - [ ] `entity-ticker-universe-pipeline` Known failure #4 updated from
       "half-closed" to reflect that the sync was never run

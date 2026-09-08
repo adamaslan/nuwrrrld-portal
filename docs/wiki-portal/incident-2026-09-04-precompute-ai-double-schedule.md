@@ -42,6 +42,22 @@ conflict with no error, no crash, and no signal beyond doubled quota spend.
 
 ## Resolution
 
+**Code half resolved (`feat/pipeline-full-runs-nulogdash`, 2026-09-08).**
+`deploy/precompute-ai/modal_app.py` no longer carries `schedule=modal.Cron(...)`
+— the `@app.function` is now a manual/failover runner only, and its docstring
+plus an inline comment state that GHA (`precompute-ai.yml`) owns the schedule
+and that re-adding a Modal `schedule=` must happen *in the same change* that
+disables the GHA workflow, never alongside it. The two `10 0 * * *` cron lines
+can no longer both be active from a plain `modal deploy`.
+
+**Operational half still open.** The code change is inert until someone runs
+`modal deploy deploy/precompute-ai/modal_app.py` (to pick up the removed
+schedule) or `modal app stop nuwrrrld-precompute-ai` against the real account —
+tracked in `docs/manual-setup-todo.md` §5e. If the app was ever deployed with
+the old schedule, both runners keep firing until that deploy/stop happens.
+
+Prior state, for context:
+
 **Not resolved in PR #105.** Determining which scheduler is currently live
 requires `modal app list` (or the Modal dashboard) against the real account —
 information not available from a repo checkout — and disabling a schedule
@@ -71,8 +87,11 @@ left for the repo owner.
 ## Open items
 
 - ❓ Confirm via `modal app list` whether `nuwrrrld-precompute-ai` is
-  currently deployed; if so, disable its `schedule=` per the resolution
-  above.
+  currently deployed; if so, `modal deploy` (to adopt the now-removed
+  schedule) or `modal app stop` it. `docs/manual-setup-todo.md` §5e.
+- ✅ `schedule=` removed from `deploy/precompute-ai/modal_app.py`
+  (`feat/pipeline-full-runs-nulogdash`) — a bare `modal deploy` can no longer
+  recreate the collision.
 - ❓ Should `deploy-runner-decision.md`-style audits become a standing check
   (e.g. a periodic diff of every `cron`/`modal.Cron` schedule across the repo)
   rather than a one-time finding, given this drift happened silently once

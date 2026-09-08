@@ -25,8 +25,12 @@ const INVENTORY_FILE = join(ROOT, "docs", "nulogdash-inventory.json");
 const RUNS_DIR = join(ROOT, ".nulogdash", "runs");
 const LATEST_FILE = join(ROOT, ".nulogdash", "latest.json");
 
-const BASE_URL = process.env.NULOGDASH_BASE_URL ?? "http://localhost:3000";
-const SESSION_COOKIE = process.env.NULOGDASH_SESSION_COOKIE ?? "";
+// `??` only guards against undefined — an env var set to an empty string
+// (NULOGDASH_BASE_URL= with nothing after it, a common .env.local state) would
+// otherwise pass straight through and every probe would fail with
+// "Failed to parse URL from /api/health". Trim and treat blank as unset.
+const BASE_URL = process.env.NULOGDASH_BASE_URL?.trim() || "http://localhost:3000";
+const SESSION_COOKIE = process.env.NULOGDASH_SESSION_COOKIE?.trim() ?? "";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 const args = process.argv.slice(2);
@@ -90,7 +94,7 @@ async function checkDependencies() {
     deps.stripe = { ok: true };
   }
 
-  const mcpUrl = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+  const mcpUrl = process.env.MCP_BACKEND_URL?.trim() || "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
   try {
     const res = await withTimeout((signal) => fetch(`${mcpUrl}/health`, { signal }));
     deps.mcp = res.ok ? { ok: true } : { ok: false, reason: `MCP backend returned ${res.status}` };

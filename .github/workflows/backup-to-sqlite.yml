@@ -103,3 +103,31 @@ jobs:
           # copy for debugging/disaster recovery, not the system of record.
           retention-days: 14
           if-no-files-found: error
+
+  # ── Notify on failure ──────────────────────────────────────────────────
+  # A silently-dead backup is dangerous precisely because nothing depends on
+  # it day-to-day — you find out it stopped when you reach for it. Scheduled
+  # runs only; a manual run's operator is already watching.
+  notify:
+    name: Failure notification
+    needs: [backup]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Daily Neon→SQLite backup failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          The daily point-in-time SQLite snapshot did not complete. Likely:
+          \`DATABASE_URL\` unset, a schema change the backup script can't map, or
+          Neon unreachable. This is a recovery convenience copy, not Neon PITR —
+          but a long gap here is worth knowing about." \
+            --label "pipeline-failure"

@@ -1,0 +1,770 @@
+<!doctype html>
+<title>OpenRouter Pipeline Test Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground: #f3f5f8;
+    --surface: #ffffff;
+    --surface-2: #eef1f5;
+    --ink: #1b2330;
+    --ink-soft: #465368;
+    --ink-muted: #5c6a7d;
+    --border: #d6dde6;
+    --border-strong: #b9c4d1;
+    --accent: #b45309;
+    --accent-soft: #f4e6d4;
+    --pass: #2f7a57;
+    --fail: #c0392f;
+    --blocked: #a56b1e;
+    --info: #3060a8;
+    --shadow: 0 1px 2px rgba(20, 32, 48, .06), 0 8px 24px rgba(20, 32, 48, .05);
+    color-scheme: light;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --ground: #0d1219;
+      --surface: #151d28;
+      --surface-2: #1b2531;
+      --ink: #e0e7ef;
+      --ink-soft: #96a3b6;
+      --ink-muted: #8b98ab;
+      --border: #263140;
+      --border-strong: #35434f;
+      --accent: #e0942f;
+      --accent-soft: #3a2c17;
+      --pass: #4bbd88;
+      --fail: #e5695f;
+      --blocked: #d69b45;
+      --info: #6ea3e6;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1219;
+    --surface: #151d28;
+    --surface-2: #1b2531;
+    --ink: #e0e7ef;
+    --ink-soft: #96a3b6;
+    --ink-muted: #8b98ab;
+    --border: #263140;
+    --border-strong: #35434f;
+    --accent: #e0942f;
+    --accent-soft: #3a2c17;
+    --pass: #4bbd88;
+    --fail: #e5695f;
+    --blocked: #d69b45;
+    --info: #6ea3e6;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: clamp(2.2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.2rem) 5rem;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: .74rem;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(2rem, 5.5vw, 3.05rem);
+    line-height: 1.05;
+    letter-spacing: -.02em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  .standfirst {
+    font-size: 1.12rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0 0 2rem;
+  }
+  .meta-line {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: .8rem;
+    color: var(--ink-muted);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: .8rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem 1.6rem;
+  }
+  .meta-line span { white-space: nowrap; }
+  .meta-line b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.42rem;
+    letter-spacing: -.01em;
+    margin: 3.4rem 0 .4rem;
+    padding-top: 1.2rem;
+    border-top: 2px solid var(--border-strong);
+    text-wrap: balance;
+  }
+  h2 .h2-index {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .8rem;
+    color: var(--accent);
+    font-weight: 500;
+    display: block;
+    letter-spacing: .1em;
+    margin-bottom: .35rem;
+  }
+  h2 + .section-note {
+    color: var(--ink-muted);
+    font-size: .95rem;
+    margin: .2rem 0 1.6rem;
+  }
+
+  /* ---- summary tiles ---- */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: .8rem;
+    margin: 2.4rem 0 1rem;
+  }
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.1rem 1.05rem;
+    box-shadow: var(--shadow);
+  }
+  .tile .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .68rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin: 0 0 .5rem;
+  }
+  .tile .figure {
+    font-family: "Archivo", sans-serif;
+    font-weight: 700;
+    font-size: 1.7rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .sub {
+    font-size: .82rem;
+    color: var(--ink-soft);
+    margin-top: .35rem;
+  }
+  .tile.is-bad .figure { color: var(--fail); }
+  .tile.is-ok .figure { color: var(--pass); }
+  .tile.is-warn .figure { color: var(--blocked); }
+
+  /* ---- root cause callout ---- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--fail);
+    border-radius: 8px;
+    padding: 1.3rem 1.4rem;
+    margin: 2rem 0;
+    box-shadow: var(--shadow);
+  }
+  .callout h3 {
+    margin: 0 0 .5rem;
+    font-family: "Archivo", sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .callout p { margin: .5rem 0 0; color: var(--ink-soft); font-size: .96rem; }
+
+  .update-banner {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 1.2rem 1.35rem;
+    margin: 2rem 0;
+  }
+  .update-banner h3 {
+    margin: 0 0 .5rem;
+    font-family: "Archivo", sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .update-banner p { margin: .5rem 0 0; font-size: .95rem; color: var(--ink); }
+  .update-banner ul { margin: .6rem 0 0; padding-left: 1.2rem; font-size: .93rem; color: var(--ink-soft); }
+  .update-banner li { margin: .3rem 0; }
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: .88em;
+  }
+  code {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .06em .38em;
+    word-break: break-word;
+  }
+
+  /* ---- findings ---- */
+  ol.findings { list-style: none; counter-reset: f; padding: 0; margin: 1.4rem 0 0; }
+  ol.findings > li {
+    counter-increment: f;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.15rem 1.25rem 1.2rem 3.55rem;
+    margin-bottom: .8rem;
+    position: relative;
+    box-shadow: var(--shadow);
+  }
+  ol.findings > li::before {
+    content: counter(f, decimal-leading-zero);
+    position: absolute;
+    left: 1.1rem;
+    top: 1.15rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.findings h4 {
+    margin: 0 0 .4rem;
+    font-size: 1.03rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  ol.findings p { margin: .4rem 0 0; font-size: .95rem; color: var(--ink-soft); }
+  .chip {
+    display: inline-block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .64rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: .2em .6em;
+    border-radius: 4px;
+    border: 1px solid currentColor;
+    margin-bottom: .55rem;
+  }
+  .chip.sev-crit { color: var(--fail); }
+  .chip.sev-high { color: var(--blocked); }
+  .chip.sev-med  { color: var(--info); }
+
+  /* ---- tables ---- */
+  .table-scroll { overflow-x: auto; margin: 1.4rem 0; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td {
+    text-align: left;
+    padding: .7rem .9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    background: var(--surface-2);
+  }
+  tr:last-child td { border-bottom: 0; }
+  td.mono, td .mono { font-variant-numeric: tabular-nums; }
+  .status-dot { font-weight: 600; }
+  .status-dot.p { color: var(--pass); }
+  .status-dot.f { color: var(--fail); }
+  .status-dot.b { color: var(--blocked); }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.4rem;
+    border-top: 2px solid var(--border-strong);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .78rem;
+    color: var(--ink-muted);
+    line-height: 1.9;
+  }
+  .disclaimer { margin-top: 1rem; font-style: italic; font-family: "IBM Plex Sans", sans-serif; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    ol.findings > li { transition: border-color .15s ease; }
+  }
+  ol.findings > li:hover { border-color: var(--border-strong); }
+
+  @media (max-width: 540px) {
+    body { font-size: 16px; }
+    ol.findings > li { padding-left: 1.25rem; padding-top: 2.6rem; }
+    ol.findings > li::before { top: 1rem; }
+  }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">NuWrrrld Portal · Pipeline Diagnostics</p>
+  <h1>OpenRouter is down locally, and the pipeline hides it</h1>
+  <p class="standfirst">
+    A full pass over every OpenRouter-touching path in <code>nuwrrrld-portal</code> —
+    the live model test suite, the mocked unit suite, the Modal-driven pipeline
+    endpoints, and a local <span class="mono">nulogdash</span> sweep. The run started
+    with an expired API key (§1, now rotated); §2–§5 are about how quietly the
+    pipeline reported that, and §6 is what the working key exposed underneath —
+    a chain whose biggest models can't answer inside the timeouts wrapped around them.
+  </p>
+
+  <div class="meta-line">
+    <span>run <b>2026-09-07</b></span>
+    <span>branch <b>feat/admin-pro-nulogdash-openrouter-report</b></span>
+    <span>host <b>localhost:3000</b> (next dev 16.2.9)</span>
+    <span>key state <b>rotated — see update</b></span>
+  </div>
+
+  <div class="update-banner">
+    <h3>Update · key rotated same day</h3>
+    <p>
+      <code>OPENROUTER_API_KEY</code> was replaced with a valid key later on 2026-09-07.
+      <code>/auth/key</code> now returns <code>200</code>
+      (<code>is_free_tier:false</code>, <code>$5</code> credit cap, expires 2026-12-06)
+      and <code>POST /api/council/sample</code> now returns <code>200</code> with real
+      T1/T2 answers in &lt;2s. Findings 01–05 in §1 are resolved as written.
+      What the rotation exposed underneath:
+    </p>
+    <ul>
+      <li><strong>precompute-ai still can't finish a subject</strong> — now it aborts at
+        the route's own <code>60s</code> timer (<code>"This operation was aborted"</code>,
+        <code>generated:0/1</code>) instead of 401'ing. The two largest chain models are
+        the cause — see §6.</li>
+      <li><strong>the big reasoning models are barely usable for this workload</strong> —
+        <code>nemotron-3-ultra-550b</code> took 53s for a 16-token reply and put the whole
+        answer in <code>reasoning</code>, none in <code>content</code>;
+        <code>nemotron-3-super-120b</code> streamed <code>5253</code> SSE frames of which
+        <code>5252</code> were empty before the budget ran out.</li>
+      <li><strong>small models answer fast but shallow</strong> — T1 (<code>command-r7b</code>)
+        echoed the prompt's rule-citation instructions back verbatim
+        (<code>BECAUSE: [1] says "quote" …</code>); T2 replied <code>"no data provided"</code>.
+        Mechanically green, substantively weak.</li>
+      <li><strong>live suite re-run: 16 / 35 pass</strong> (up from 8). The 19 remaining
+        failures are no longer auth — they split into: chain returns
+        <code>503 / empty completion</code> (6), seat latency <code>21–33s</code> against
+        a <code>20s</code> budget (6), transient <code>ENOTFOUND openrouter.ai</code> with
+        no suite-level retry (7), one <code>120s</code> vitest timeout. Full run took
+        <strong>18 minutes</strong>.</li>
+    </ul>
+  </div>
+
+  <div class="tiles">
+    <div class="tile is-warn">
+      <p class="label">Live model tests</p>
+      <div class="figure">8&nbsp;→&nbsp;16 / 35</div>
+      <p class="sub">expired key → rotated; 19 still fail (§6)</p>
+    </div>
+    <div class="tile is-ok">
+      <p class="label">Mocked unit tests</p>
+      <div class="figure">51 / 51</div>
+      <p class="sub">fallback logic fully green</p>
+    </div>
+    <div class="tile is-warn">
+      <p class="label">nulogdash sweep</p>
+      <div class="figure">4 / 59</div>
+      <p class="sub">21 fail · 28 blocked · 6 excluded</p>
+    </div>
+    <div class="tile is-bad">
+      <p class="label">AI pipeline endpoints</p>
+      <div class="figure">0 / 4</div>
+      <p class="sub">hydrate (no-model) is the only 200 that did work</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>Root cause (now fixed) — the OpenRouter API key was expired</h3>
+    <p>
+      At the start of this run, a direct probe of
+      <code>GET https://openrouter.ai/api/v1/auth/key</code> with the key from
+      <code>.env.local</code> returned
+      <code>401 {"error":{"message":"API key expired."}}</code>. Every model call —
+      seat calls, streaming calls, the precompute batch — failed the same way and walked
+      its entire fallback chain to get there. Catalog probes (<code>/api/v1/models</code>)
+      still passed, so the <code>FREE_MODEL_CHAIN</code> ids were healthy; the credential
+      was the single broken link. <strong>Resolved the same day by rotating
+      <code>OPENROUTER_API_KEY</code></strong> (still to do: the same rotation in the
+      Vercel project env). The observability findings in §2–§5 stand regardless — they
+      are about how the pipeline <em>reported</em> the outage.
+    </p>
+  </div>
+
+  <h2><span class="h2-index">§ 01 / 06</span>Credentials &amp; environment</h2>
+  <p class="section-note">The findings that a new key fixes outright — plus the ones a new key <em>won't</em>.</p>
+
+  <ol class="findings">
+    <li>
+      <span class="chip sev-crit">critical</span>
+      <h4>The dev/CI OpenRouter key is expired, not just rate-limited</h4>
+      <p>Both <code>/auth/key</code> and <code>/chat/completions</code> return
+      <code>401 "API key expired."</code>. This is a hard credential failure that never
+      self-heals — unlike the <code>402</code>/<code>429</code> the fallback chain was
+      built for. Until it is rotated, every AI feature in the portal is dark locally.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>27 of 35 live tests fail for exactly one reason</h4>
+      <p><code>council-verdict</code> (8), <code>streaming</code> (5),
+      <code>openrouter-resilience</code> bursts (3), <code>model-chain</code> and
+      <code>council-verdict</code> format contracts — all throw
+      <code>OpenRouter 401: … all models failed</code>. The suite has no assertion that
+      separates "credential expired" from "model misbehaved", so 27 red lines all read
+      as product regressions.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4><code>refresh-free-models.mjs</code> refuses to run without a live key</h4>
+      <p>The weekly chain-maintenance job exits with
+      <code>OPENROUTER_API_KEY is required (or pass --no-probe)</code>. So the moment auth
+      breaks, the script that keeps <code>FREE_MODEL_CHAIN</code> current also stops —
+      the chain silently freezes exactly when it might need updating.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>The <code>live</code> vitest project shares the dev key</h4>
+      <p><code>test/live-setup.ts</code> loads <code>.env.local</code> and keys off
+      <code>OPENROUTER_API_KEY.length &gt; 0</code>. There is no dedicated CI probe
+      credential and no owner alerted when it lapses — a prod key rotation takes the
+      whole live suite down with it and nothing pages.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4><code>describeLive</code> can't tell "no key" from "dead key"</h4>
+      <p>It only checks presence, so an expired key runs every live test to a failing
+      assertion instead of skipping with a single clear
+      "credential expired — suite skipped" line. The setup file's own warning
+      ("a green run in this state proves nothing") never fires here because the run
+      isn't green — it's just misattributed.</p>
+    </li>
+  </ol>
+
+  <h2><span class="h2-index">§ 02 / 06</span>Error handling &amp; observability</h2>
+  <p class="section-note">How the pipeline surfaces a total model outage to the humans and cron jobs watching it.</p>
+
+  <ol class="findings">
+    <li>
+      <span class="chip sev-crit">critical</span>
+      <h4><code>POST /api/pipeline/precompute-ai</code> returns <code>200 OK</code> on total failure</h4>
+      <p>Observed body: <code>{"ok":true,"generated":0,"attempted":2,"quotaExhausted":false,
+      "results":[{…"reason":"OpenRouter 401: all models in chain failed"}×2]}</code>.
+      The Modal function checks <code>response.raise_for_status()</code> — a 2xx — and
+      logs a successful run. A nightly job that produced zero artifacts looks identical
+      to one that worked.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4><code>quotaExhausted: false</code> on an auth failure is actively misleading</h4>
+      <p>The Modal app has a dedicated warning path for
+      <code>quotaExhausted</code> ("something is spending it before the nightly run").
+      Because a 401 doesn't set that flag, the one alarm the pipeline has for
+      "AI batch produced nothing" stays silent for the failure that actually happened.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>Every model failure collapses to one opaque string</h4>
+      <p><code>fetchWithModelFallback</code> throws
+      <code>`OpenRouter ${lastStatus}: all models in chain failed`</code> — the status is
+      interpolated into prose, not returned as a field. Downstream callers can't branch
+      on <code>401</code> vs <code>402</code> vs <code>5xx</code> without string-matching
+      an error message.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>Council routes map a permanent auth error to a transient-sounding 503</h4>
+      <p><code>/api/council/sample</code> → <code>503 "Council unavailable"</code>;
+      <code>/api/council/public</code> → <code>503 "Council demo temporarily unavailable"</code>.
+      "Temporarily" is wrong — an expired key is permanent until someone acts. The stack
+      is logged at <code>error</code> level with no auth-vs-outage tag for alerting.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>No circuit breaker across a burst</h4>
+      <p>The resilience test fires a 5-seat parallel burst; each seat independently
+      walks <em>primary + 4-chain</em> and independently discovers the same dead key —
+      up to 11 round trips per deliberation, every one predestined to
+      <code>401</code>. Nothing caches "this key is bad right now."</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Failure messages misname the failure</h4>
+      <p>"has at least one model fast enough for an interactive JIT call" fails with
+      <code>no model answered at all</code>; the burst test fails with
+      <code>every seat failed under a 5-way parallel burst</code>. Both read as
+      latency/concurrency findings; both are auth. A test that can't name its own
+      failure cause sends the next engineer down the wrong path.</p>
+    </li>
+  </ol>
+
+  <h2><span class="h2-index">§ 03 / 06</span>Test-suite design</h2>
+  <p class="section-note">What the split between a green mocked suite and a red live suite tells us about coverage.</p>
+
+  <ol class="findings">
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4><code>npm test</code> is green while the models are unreachable</h4>
+      <p>The default script runs only <code>unit</code> + <code>components</code>
+      (51/51 here). The <code>live</code> project is opt-in. CI green therefore carries
+      no signal about whether OpenRouter actually answers — the two suites disagreed
+      completely this run and nothing flagged it.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>Format-contract tests have no offline fixture path</h4>
+      <p>All 8 <code>council-verdict.live.test.ts</code> cases — "survives
+      <code>stripReasoning</code>", "parses into four fields", "emits a single JSON
+      object <code>JSON.parse</code> accepts" — need a live completion. With the model
+      unreachable they give zero signal about the parser, which is the part most likely
+      to actually regress.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Stream-reconstruction logic goes dark when auth is down</h4>
+      <p>"does not drop or duplicate the primed bytes when reconstructing the stream" is
+      a genuinely valuable regression guard for
+      <code>fetchWithModelFallbackChecked</code>. It has no mocked twin, so the
+      byte-replay path in the streaming variant is untested whenever OpenRouter is
+      unavailable.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>The latency SLO test can't fail for a latency reason here</h4>
+      <p><code>expect(healthy[0].latencyMs).toBeLessThan(BUDGET)</code> is never reached —
+      the guard <code>expect(healthy.length).toBeGreaterThan(0)</code> throws first. The
+      interactive-JIT latency budget is currently unverifiable, and will stay that way
+      silently once a key is restored if the ordering isn't revisited.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Catalog checks pass, seat-behaviour checks fail — and nothing correlates them</h4>
+      <p>"every <code>FREE_MODEL_CHAIN</code> id is present" and "priced at $0" are green;
+      every call using those ids is red. A human reads the whole log to conclude
+      "ids fine, key dead." A single pre-flight assertion on <code>/auth/key</code> at
+      suite start would state that in one line.</p>
+    </li>
+  </ol>
+
+  <h2><span class="h2-index">§ 04 / 06</span>Model chain &amp; seat configuration</h2>
+  <p class="section-note">Structural notes on the fallback design, several already admitted in code comments.</p>
+
+  <ol class="findings">
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>The fallback chain has "nominal depth 4 and real depth 1" against an account failure</h4>
+      <p>The comment on <code>FREE_MODEL_CHAIN</code> says it outright. Three of four
+      entries are NVIDIA Nemotron; none of the depth helps when the failure is the
+      shared API key. This run is the exact scenario, and the chain absorbed none of
+      it.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4><code>SEAT_MODELS</code> is a hand-maintained literal "with no scheduled maintainer"</h4>
+      <p>Its own comment records that 5 of 6 seats sat on retired ids as recently as
+      2026-08-18 and 2026-09-02. The primary-model tier is one missed catalog audit away
+      from silently degrading every seat down to the chain — a degraded seat "looks like
+      a working one from the outside."</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Empty-completion-as-success is patched per-path, not centrally</h4>
+      <p><code>fetchWithModelFallbackChecked</code> (the variant that treats a
+      content-free 200 as failure) is opt-in and used only by
+      <code>/api/portfolio/health-ai</code>. <code>/api/nuai</code> and
+      <code>/api/brief</code> still call the unchecked <code>fetchWithModelFallback</code>.
+      The bug class (BUG-4, BUG-5, and the 2026-09-02 <code>max_tokens</code>
+      500→1200 fix) keeps recurring because the guard isn't the default.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>The per-seat retry ladder can blow the deliberation budget on its own</h4>
+      <p><code>runSeat</code> allows a 20s abort per model, up to 5 models
+      (primary + 4 chain) = ~100s worst case per seat, across 5 debate seats. Against a
+      <em>slow</em>-failing provider (not this run's fast 401), the ladder alone can
+      exceed the route's <code>maxDuration = 300</code>.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>All resilience investment targets model rot, not credential rot</h4>
+      <p>Vendor spread, weekly refresh, catalog probes, retired-id detection — all guard
+      against a model disappearing. The failure that took the whole system down today
+      was the key. There is no equivalent monitoring, alerting, or graceful-degrade
+      path for "the account is unauthenticated."</p>
+    </li>
+  </ol>
+
+  <h2><span class="h2-index">§ 05 / 06</span>Pipeline &amp; sweep infrastructure</h2>
+  <p class="section-note">What blocked a fuller end-to-end run of Modal and the other pipelines.</p>
+
+  <ol class="findings">
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4><code>NULOGDASH_BASE_URL=</code> (empty) defeats its own default</h4>
+      <p><code>scripts/nulogdash.mjs</code> does
+      <code>process.env.NULOGDASH_BASE_URL ?? "http://localhost:3000"</code>. An empty
+      string is not <code>undefined</code>, so <code>??</code> keeps it, and every probe
+      failed with <code>dev server unreachable at&nbsp; — Failed to parse URL from
+      /api/health</code>. Needs <code>|| </code> or an explicit trim-and-fallback. The
+      first sweep this run reported 53 false "blocked" before the var was overridden.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>Three OpenRouter-consuming pipelines can't run locally at all</h4>
+      <p><code>CRON_SECRET</code> is commented out in <code>.env.local</code>, so
+      <code>/api/pipeline/followed-tickers</code>,
+      <code>…/followed-tickers-judge</code> and <code>…/followed-tickers-select</code>
+      all return <code>503 "CRON_SECRET not configured"</code> — the daily observer, the
+      weekly LLM-as-judge, and the selector are untestable without adding the secret.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>The sweep has never exercised the interactive AI paths</h4>
+      <p><code>NULOGDASH_SESSION_COOKIE</code> unset → 28 of 59 features blocked,
+      including <code>nuai</code>, <code>council</code>, <code>council-deliberate</code>,
+      <code>brief</code>, <code>holdfold</code>, <code>portfolio-health-ai</code>,
+      <code>signals-digest</code>. Coverage of every user-facing AI feature is gated on
+      a manual Clerk cookie paste that no one refreshes.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Inventory drift: 21 warnings, and routes that 404 on probe</h4>
+      <p>The sweep marks <code>/api/analyze</code>, <code>/api/disclaimer</code>,
+      <code>/api/legal-consent</code>, <code>/api/privacy/{delete,export,profile}</code>
+      as <code>fail — HTTP 404</code>. The inventory lists endpoints that no longer
+      resolve; <code>nulogdash:inventory</code> reports "21 drift warning(s)" and
+      several routes with "no <code>FEATURE_META</code> entry."</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Only the zero-model lane actually completed</h4>
+      <p><code>POST /api/pipeline/hydrate-universe</code> returned
+      <code>200 · written:4 · modelCalls:0</code> in ~0.8s — the no-AI coverage path is
+      healthy. Every path that needs a model (<code>precompute-ai</code>,
+      <code>council/*</code>) failed. "Run the pipelines as fully as possible" currently
+      bottoms out at: the part that doesn't touch OpenRouter works; nothing else does.</p>
+    </li>
+  </ol>
+
+  <h2><span class="h2-index">§ 06 / 06 · post-rotation</span>What the working key exposed</h2>
+  <p class="section-note">Re-run after <code>OPENROUTER_API_KEY</code> was replaced with a valid credential, same day. These are new, not carried over.</p>
+
+  <ol class="findings">
+    <li>
+      <span class="chip sev-crit">critical</span>
+      <h4>precompute-ai aborts at 60s — it cannot complete one subject even with a good key</h4>
+      <p>With auth fixed, <code>POST /api/pipeline/precompute-ai {"maxSubjects":1}</code>
+      ran for <code>61s</code> and returned
+      <code>200 · generated:0/1 · reason:"This operation was aborted"</code>. The route
+      wraps the model call in a <code>60_000</code>ms <code>AbortController</code>
+      (<code>route.ts:236</code>); the chain can't produce a usable completion inside it.
+      The nightly Modal job would do this every night and log a 2xx "success" each time.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>The two largest chain models are unfit for a latency-bounded call</h4>
+      <p>Dev-log trace for that run:
+      <code>nemotron-3-ultra-550b:free → status=200 sawContent=false</code> (entire reply
+      in <code>reasoning</code>, zero <code>content</code>), then
+      <code>nemotron-3-super-120b:free → 5253 SSE frames, 5252 empty</code> before the
+      timer fired. A direct probe of the 550b model earlier took <code>53s</code> for a
+      16-token reply with <code>finish_reason:"length"</code>. These sit at the head of
+      <code>FREE_MODEL_CHAIN</code> and on <code>CHAIR</code>.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4><code>runSeat</code>'s 20s abort will silently drop CHAIR every time</h4>
+      <p><code>CHAIR = nemotron-3-ultra-550b:free</code>, which needs ~50s. Since
+      <code>runSeat</code> aborts each model at <code>20_000</code>ms, the synthesis seat
+      can never be served by its own primary — it always falls through to the chain,
+      whose first two entries have the same problem. The "spend the best model on the
+      hard job" design (§4) is defeated by the timeout.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>Small seats answer fast but return placeholder-grade content</h4>
+      <p><code>GET /api/council/sample</code> → <code>200</code> in 1.7s, but T1
+      (<code>cohere/command-r7b</code>) emitted the prompt's own instruction text as its
+      answer (<code>BECAUSE: [1] says "quote" — an evidence id from RULES …</code>) and
+      T2 (<code>gemma-4-31b:free</code>) returned <code>"no data provided"</code>. The
+      grounding contract from <code>council-prompting-small-models.md</code> isn't being
+      followed by the models it was written for.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4><code>/auth/key</code> semantics aren't what the code assumes</h4>
+      <p>The new key reports <code>is_free_tier:false</code>, <code>limit:5</code>,
+      <code>limit_reset:null</code>, <code>usage:0</code> — a <em>$5 credit cap</em>, not
+      a request count, and no daily reset field. The precompute route's docstring and
+      the Modal app both reason about "OpenRouter's free tier caps the key at ~50
+      requests/day, resetting at UTC midnight." That model doesn't match this key, so
+      the <code>quotaExhausted</code> accounting and the 00:10-UTC schedule rationale are
+      both built on an assumption the live API contradicts.</p>
+    </li>
+    <li>
+      <span class="chip sev-high">high</span>
+      <h4>Every seat call that answered still missed the 20s budget</h4>
+      <p>The re-run's latency assertions failed with real numbers
+      <code>21.3s · 21.3s · 25.2s · 25.6s · 26.0s · 33.3s</code> against
+      <code>expect(&lt;20000)</code>. The seat-latency budget in the test <em>is</em>
+      <code>runSeat</code>'s own 20s abort — so this isn't a strict test, it's a direct
+      measurement that the chain cannot serve a seat inside the timeout the code will
+      enforce on it in production. CHAIR's test ran <code>337s</code>; one test hit the
+      <code>120s</code> vitest ceiling outright.</p>
+    </li>
+    <li>
+      <span class="chip sev-med">medium</span>
+      <h4>The live suite has no tolerance for a transient network blip</h4>
+      <p>7 of the 19 failures were <code>TypeError: fetch failed</code> /
+      <code>getaddrinfo ENOTFOUND openrouter.ai</code> — intermittent DNS failures during
+      the 18-minute run, while other calls in the same run succeeded.
+      <code>runSeat</code> re-throws any non-abort error instead of advancing the chain
+      (unlike <code>fetchWithModelFallback</code>, which does continue past a network
+      error), so a single DNS hiccup on a seat call = a red test and, in production, a
+      dropped seat. An 18-minute suite that talks to one external host also needs a
+      retry wrapper of its own or it will be flaky regardless of code health.</p>
+    </li>
+  </ol>
+
+  <footer>
+    generated 2026-09-07 · nuwrrrld-portal · branch feat/admin-pro-nulogdash-openrouter-report<br>
+    sources: <span class="mono">vitest --project live</span> (35 tests, pre- and post-rotation) ·
+    <span class="mono">vitest --project unit</span> (openrouter-fallback + sse, 51 tests) ·
+    <span class="mono">scripts/nulogdash.mjs</span> vs local dev server (59 features) ·
+    direct <span class="mono">curl</span> of the pipeline endpoints, pre- and post-rotation ·
+    OpenRouter <span class="mono">/auth/key</span> + <span class="mono">/chat/completions</span> probes ·
+    <span class="mono">next dev</span> server logs<br>
+    admin change this session: <span class="mono">adamtimuraslan@gmail.com</span> appended to
+    <span class="mono">NULOGDASH_ADMIN_EMAILS</span> in <span class="mono">.env.local</span>
+    (still needs Vercel env + a verified primary Clerk email; MFA for mutating actions)
+    <p class="disclaimer">
+      Internal engineering diagnostics for NuWrrrld Financial. No secret values are
+      reproduced here — only variable names and HTTP status codes.
+    </p>
+  </footer>
+
+</div>
