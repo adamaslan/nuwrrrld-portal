@@ -1,0 +1,282 @@
+<title>nulogdash Drift Fix</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground: #f3f5f8; --surface: #ffffff; --surface-2: #eef1f5;
+    --ink: #1b2330; --ink-soft: #465368; --ink-muted: #5c6a7d;
+    --border: #d6dde6; --border-strong: #b9c4d1;
+    --accent: #b45309; --accent-soft: #f4e6d4;
+    --pass: #2f7a57; --fail: #c0392f; --blocked: #a56b1e; --info: #3060a8;
+    --shadow: 0 1px 2px rgba(20,32,48,.06), 0 8px 24px rgba(20,32,48,.05);
+    color-scheme: light;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --ground: #0d1219; --surface: #151d28; --surface-2: #1b2531;
+      --ink: #e0e7ef; --ink-soft: #96a3b6; --ink-muted: #8b98ab;
+      --border: #263140; --border-strong: #35434f;
+      --accent: #e0942f; --accent-soft: #3a2c17;
+      --pass: #4bbd88; --fail: #e5695f; --blocked: #d69b45; --info: #6ea3e6;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1219; --surface: #151d28; --surface-2: #1b2531;
+    --ink: #e0e7ef; --ink-soft: #96a3b6; --ink-muted: #8b98ab;
+    --border: #263140; --border-strong: #35434f;
+    --accent: #e0942f; --accent-soft: #3a2c17;
+    --pass: #4bbd88; --fail: #e5695f; --blocked: #d69b45; --info: #6ea3e6;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 840px; margin: 0 auto; padding: clamp(2.2rem,5vw,4rem) clamp(1.1rem,4vw,2.2rem) 5rem; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: .74rem; font-weight: 500; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: "Archivo", system-ui, sans-serif; font-weight: 800;
+    font-size: clamp(1.9rem,5vw,2.9rem); line-height: 1.06;
+    letter-spacing: -.02em; text-wrap: balance; margin: 0 0 1rem;
+  }
+  .standfirst { font-size: 1.1rem; color: var(--ink-soft); max-width: 62ch; margin: 0 0 2rem; }
+  .meta-line {
+    font-family: "IBM Plex Mono", monospace; font-size: .8rem; color: var(--ink-muted);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    padding: .8rem 0; display: flex; flex-wrap: wrap; gap: .4rem 1.6rem;
+  }
+  .meta-line b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: "Archivo", sans-serif; font-weight: 700; font-size: 1.4rem;
+    letter-spacing: -.01em; margin: 3rem 0 .6rem; padding-top: 1.1rem;
+    border-top: 2px solid var(--border-strong); text-wrap: balance;
+  }
+  h2 .ix {
+    font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--accent);
+    font-weight: 500; display: block; letter-spacing: .1em; margin-bottom: .3rem;
+  }
+  p { margin: .9rem 0; }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: .87em;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: .06em .38em; word-break: break-word;
+  }
+
+  /* before / after */
+  .ba {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .9rem;
+    margin: 2rem 0 1rem;
+  }
+  .ba .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.2rem 1.3rem; box-shadow: var(--shadow);
+  }
+  .ba .card.after { border-color: var(--pass); }
+  .ba h3 {
+    margin: 0 0 .9rem; font-family: "IBM Plex Mono", monospace;
+    font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+  }
+  .ba .row { display: flex; justify-content: space-between; align-items: baseline; padding: .3rem 0; font-size: .93rem; }
+  .ba .row + .row { border-top: 1px solid var(--border); }
+  .ba .n { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .n.pass { color: var(--pass); } .n.fail { color: var(--fail); }
+  .n.blocked { color: var(--blocked); } .n.muted { color: var(--ink-muted); }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 4px solid var(--info); border-radius: 8px;
+    padding: 1.2rem 1.35rem; margin: 1.6rem 0; box-shadow: var(--shadow);
+  }
+  .callout.amber { border-left-color: var(--accent); background: var(--accent-soft); }
+  .callout h3 { margin: 0 0 .4rem; font-family: "Archivo", sans-serif; font-size: 1.02rem; font-weight: 700; }
+  .callout.amber h3 { color: var(--accent); }
+  .callout p { margin: .4rem 0 0; font-size: .94rem; color: var(--ink-soft); }
+  .callout.amber p { color: var(--ink); }
+
+  .table-scroll { overflow-x: auto; margin: 1.4rem 0; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  th, td { text-align: left; padding: .62rem .85rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th {
+    font-family: "IBM Plex Mono", monospace; font-size: .64rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-muted); background: var(--surface-2); white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: .82rem; }
+  .cls {
+    font-family: "IBM Plex Mono", monospace; font-size: .68rem; font-weight: 600;
+    letter-spacing: .04em; padding: .16em .5em; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .cls.a { color: var(--blocked); }   /* auth:true */
+  .cls.p { color: var(--pass); }       /* auth:false / passes */
+  .cls.x { color: var(--fail); }       /* excluded */
+
+  ul { padding-left: 1.3rem; } li { margin: .5rem 0; } li b { font-weight: 600; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+
+  footer {
+    margin-top: 3.5rem; padding-top: 1.3rem; border-top: 2px solid var(--border-strong);
+    font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--ink-muted); line-height: 1.9;
+  }
+
+  @media (max-width: 560px) { body { font-size: 16px; } .ba { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">NuWrrrld Portal · nulogdash</p>
+  <h1>21 sweep failures were mostly the sweep not knowing 13 routes existed</h1>
+  <p class="standfirst">
+    Re-ran the feature sweep against current <code>main</code>, traced why six
+    routes "404'd", and closed all 21 inventory-drift warnings. The sweep now
+    reports <strong>5&nbsp;pass · 1&nbsp;fail · 38&nbsp;blocked · 0&nbsp;drift</strong>
+    — and the one real failure is an OpenRouter model issue, not a nulogdash one.
+  </p>
+
+  <div class="meta-line">
+    <span>date <b>2026-09-09</b></span>
+    <span>branch <b>fix/nulogdash-drift-and-baseurl</b></span>
+    <span>base <b>main @ d534a30</b> (incl. PR #115, #117)</span>
+    <span>file <b>scripts/nulogdash-inventory.mjs</b></span>
+  </div>
+
+  <div class="ba">
+    <div class="card before">
+      <h3>Before — 9/7 run @ 061e0f3</h3>
+      <div class="row"><span>Pass</span><span class="n pass">4</span></div>
+      <div class="row"><span>Fail</span><span class="n fail">21</span></div>
+      <div class="row"><span>Blocked</span><span class="n blocked">28</span></div>
+      <div class="row"><span>Not run</span><span class="n muted">6</span></div>
+      <div class="row"><span>Drift warnings</span><span class="n fail">21</span></div>
+    </div>
+    <div class="card after">
+      <h3>After — 9/9 run @ d534a30</h3>
+      <div class="row"><span>Pass</span><span class="n pass">5</span></div>
+      <div class="row"><span>Fail</span><span class="n fail">1</span></div>
+      <div class="row"><span>Blocked</span><span class="n blocked">38</span></div>
+      <div class="row"><span>Not run</span><span class="n muted">15</span></div>
+      <div class="row"><span>Drift warnings</span><span class="n pass">0</span></div>
+    </div>
+  </div>
+  <p style="font-size:.88rem;color:var(--ink-muted);margin-top:.4rem">
+    "Blocked" rose because 16 previously-failing rows are now correctly classified
+    as <em>needs a Clerk session</em>. "Not run" rose because 9 server-to-server /
+    destructive routes moved into the excluded list.
+  </p>
+
+  <h2><span class="ix">§ 1</span>Why six routes "404'd" — it wasn't a bug</h2>
+  <p>
+    <code>/api/analyze</code>, <code>/api/disclaimer</code>,
+    <code>/api/legal-consent</code>, <code>/api/privacy/{delete,export,profile}</code>
+    all returned an <em>HTML 404 page</em> to the sweep even though the route files
+    exist and export valid handlers. Cause:
+  </p>
+  <div class="callout">
+    <h3>Clerk's <code>clerkMiddleware</code> obscures protected API routes</h3>
+    <p>
+      All six sit inside <code>proxy.ts</code>'s <code>isProtectedApiRoute</code>
+      matcher. When an <strong>unauthenticated</strong> request hits a protected
+      API route, Clerk returns a <code>404</code> rather than a <code>401</code> —
+      by design, so the endpoint's existence isn't leaked. The sweep runs with no
+      <code>NULOGDASH_SESSION_COOKIE</code>, so every one of them 404'd. This is the
+      same "needs a session" state as the 28 rows already marked <em>blocked</em> —
+      it was just being scored as <code>fail</code> because those routes had no
+      <code>FEATURE_META</code> entry telling the runner they need auth.
+    </p>
+  </div>
+  <p>
+    <code>/api/privacy/rectify</code> and <code>/api/signals/top</code> returned a
+    plain <code>401</code> instead — they're guarded in the handler, not the proxy
+    matcher — but the effect on the sweep was the same false <code>fail</code>.
+  </p>
+
+  <h2><span class="ix">§ 2</span>The empty-<code>BASE_URL</code> bug — already fixed on main</h2>
+  <p>
+    The 9/7 sweep needed <code>NULOGDASH_BASE_URL</code> passed explicitly because
+    <code>NULOGDASH_BASE_URL=</code> (empty) in <code>.env.local</code> defeated the
+    <code>?? "http://localhost:3000"</code> default. PR&nbsp;#117 (proxy.ts rename +
+    nulogdash pipeline-runs tab) already changed it to
+    <code>process.env.NULOGDASH_BASE_URL?.trim() || "http://localhost:3000"</code>,
+    which treats empty-string as unset. Nothing to fix here — verified on
+    <code>d534a30</code>. (The explicit pass was still used this run, belt-and-braces.)
+  </p>
+
+  <h2><span class="ix">§ 3</span>What changed in <code>FEATURE_META</code></h2>
+  <p>13 previously-undocumented routes now have entries; 2 mislabels corrected; 2 routes moved to the excluded list.</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Route</th><th>Classified as</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST /api/analyze</code></td><td><span class="cls a">auth</span></td><td>proxy matcher → Clerk 404 unauth; deps <code>mcp</code></td></tr>
+        <tr><td><code>GET · POST /api/disclaimer</code></td><td><span class="cls a">auth</span></td><td>proxy matcher; POST writes an acknowledgement row</td></tr>
+        <tr><td><code>GET · POST /api/legal-consent</code></td><td><span class="cls a">auth</span></td><td>proxy matcher; POST records sign-up consent</td></tr>
+        <tr><td><code>GET · POST /api/consent</code></td><td><span class="cls p">no-auth</span></td><td>cookie consent — handler runs for anonymous visitors → <strong>now passes</strong></td></tr>
+        <tr><td><code>POST /api/attribution</code></td><td><span class="cls p">no-auth</span></td><td>marketing touch — anonymous-friendly → <strong>now passes</strong></td></tr>
+        <tr><td><code>GET /api/privacy/export</code></td><td><span class="cls a">auth</span></td><td>proxy matcher; DSAR Art. 15/20 export</td></tr>
+        <tr><td><code>GET /api/privacy/profile</code></td><td><span class="cls a">auth</span></td><td>proxy matcher; DSAR Art. 15/22 profile</td></tr>
+        <tr><td><code>POST /api/privacy/rectify</code></td><td><span class="cls a">auth</span></td><td>handler-guarded 401 + rate-limited; DSAR Art. 16</td></tr>
+        <tr><td><code>GET /api/signals/top</code></td><td><span class="cls a">auth</span></td><td>handler 401 unless session or internal bearer</td></tr>
+        <tr><td><code>GET /api/followed-tickers</code></td><td><span class="cls a">auth</span> <span style="color:var(--ink-muted)">(was no-auth)</span></td><td>corrected — handler returns 401 without a session/bearer</td></tr>
+        <tr><td><code>POST /api/launch/remind</code></td><td><span class="cls x">excluded</span> <span style="color:var(--ink-muted)">(was no-auth)</span></td><td>corrected — needs <code>LAUNCH_REMIND_SECRET</code> bearer, no user-facing form</td></tr>
+        <tr><td><code>POST /api/privacy/delete</code></td><td><span class="cls x">excluded</span></td><td>irreversibly deletes the test user's Clerk account + all their rows — never safe on a sweep</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="ix">§ 4</span>The one remaining failure</h2>
+  <div class="callout amber">
+    <h3><code>council-sample</code> → 503 · <code>OpenRouter 403: council T1 — all models failed</code></h3>
+    <p>
+      Not a nulogdash issue. PR&nbsp;#115 repointed the T1 seat to
+      <code>thinkingmachines/inkling-small:free</code>, which is returning
+      <strong>403</strong> for this account. <code>runSeat</code> treats 403 as
+      fatal (auth-class, not retryable) and does <em>not</em> fall through to
+      <code>FREE_MODEL_CHAIN</code>, so one 403 kills the whole seat and the
+      deliberation with it. Likely an OpenRouter data-policy / privacy-setting gate
+      on that specific model — check the account's model-access settings, or repoint
+      T1. <code>council-public</code> passed this run and failed a prior one, so it
+      is intermittent on model latency too — see the OpenRouter pipeline report.
+    </p>
+  </div>
+
+  <h2><span class="ix">§ 5</span>What still needs a human</h2>
+  <ul>
+    <li><b>A real <code>NULOGDASH_SESSION_COOKIE</code></b> — 38 features are
+      <em>blocked</em> pending a valid Clerk <code>__session</code> value for the
+      test user. Without it the sweep can never exercise the authenticated AI
+      paths (nuai, council, brief, holdfold, portfolio-*, signals-*).</li>
+    <li><b>The T1 <code>403</code></b> — enable the required model setting on the
+      OpenRouter account, or move T1 off <code>inkling-small:free</code>.</li>
+    <li><b>MFA on <code>adamtimuraslan@gmail.com</code></b> — the console renders
+      for this admin now, but trigger buttons stay disabled until a second factor
+      is enrolled (this is correct <code>canPerformAdminAction</code> behaviour).</li>
+    <li><b>Two other <code>next dev</code> servers</b> are running in this checkout
+      (ports shared, PIDs 63813 + others) — concurrent Claude sessions. Give each a
+      <code>git worktree</code> before the next run.</li>
+  </ul>
+
+  <footer>
+    generated 2026-09-09 · nuwrrrld-portal · branch fix/nulogdash-drift-and-baseurl<br>
+    changed: <code>scripts/nulogdash-inventory.mjs</code> (+125), regenerated
+    <code>docs/nulogdash-inventory.json</code><br>
+    sweep: <code>node --env-file=.env.local scripts/nulogdash.mjs</code> vs local dev server on <code>d534a30</code><br>
+    companion to <code>docs/openrouter-pipeline-test-report.html</code> ·
+    <code>docs/session-summary-admin-openrouter.html</code>
+  </footer>
+
+</div>
