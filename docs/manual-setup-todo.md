@@ -539,13 +539,90 @@ someone runs Modal against the real account:
 - [ ] **Set a local `CRON_SECRET`** (currently commented out) if you want to
       exercise the `followed-tickers*` pipeline routes locally — any random
       value, matched by the `Authorization: Bearer` header you pass.
-- [ ] **13 inventory drift warnings remain** after this PR (was 21): the
+- [x] ~~**13 inventory drift warnings remain** after this PR (was 21): the
       GDPR/consent endpoints (`/api/consent`, `/api/disclaimer`,
       `/api/legal-consent`, `/api/privacy/{delete,export,profile,rectify}`) plus
       `/api/analyze`, `/api/attribution`, `/api/signals/top`. Each needs a
       `FEATURE_META` entry (or an `excluded:` reason) in
       `scripts/nulogdash-inventory.mjs` — deciding auth/body/deps per route is a
-      judgement call, tracked here as a follow-up batch.
+      judgement call, tracked here as a follow-up batch.~~ — **done 2026-09-10,
+      PR #118.** All 13 described; drift is now 0. Two were resolved by
+      *excluding* rather than describing: `POST /api/privacy/delete` (deletes the
+      test user's Clerk account and every row they own — never safe on a sweep)
+      and `POST /api/launch/remind` (bearer-secret only, no user-facing form).
+      The six that appeared to 404 were never broken — they sit behind
+      `proxy.ts`'s matcher and Clerk answers an unauthenticated request to a
+      protected API route with `404`, not `401`.
+
+### Added 2026-09-10 (PR #118)
+
+- [ ] **Enrol MFA on the admin account** to unlock the nulogdash trigger buttons.
+      - **From**: PR #118 — e2e run against the live console
+      - **Blocked on**: a second factor on the allowlisted admin's Clerk account
+      - **Why it can't be code**: `canPerformAdminAction` requires
+        `twoFactorEnabled`, which only the account owner can set — and the free
+        Clerk tier may not offer it at all (see §3 and
+        `docs/wiki-portal/decision-self-implemented-totp-over-clerk-pro.md`)
+      - **Unblocks**: dry-run/live-run buttons on `/dashboard/nulogdash/pipelines`;
+        also the only way to e2e-test the *positive* trigger path, which is
+        currently unverified in a browser
+      - **Added**: 2026-09-10
+- [ ] **Add the new operator address to `NULOGDASH_ADMIN_EMAILS` in Vercel**
+      (production + preview), and confirm it is that Clerk account's **primary
+      and verified** address.
+      - **From**: PR #118 — admin gate verified locally only
+      - **Blocked on**: Vercel dashboard access; Clerk email verification
+      - **Why it can't be code**: `.env.local` is git-ignored and local-only;
+        `isNulogdashAdmin` reads the deployed env var and requires a *verified
+        primary* address, which the user must confirm in Clerk
+      - **Unblocks**: admin console access in deployed environments
+      - **Added**: 2026-09-10
+- [ ] **Set the rotated `OPENROUTER_API_KEY` in Vercel.**
+      - **From**: PR #118 session — the previous key had expired (`401 "API key
+        expired"`); a working key is now in `.env.local` only
+      - **Blocked on**: Vercel dashboard access
+      - **Why it can't be code**: secret values must never be committed or pass
+        through a session transcript
+      - **Unblocks**: every AI surface in deployed environments
+      - **Added**: 2026-09-10
+- [ ] **Resolve the T1 council seat's `403`.**
+      - **From**: PR #118 — the one remaining sweep failure (`council-sample`)
+      - **Blocked on**: an OpenRouter account/model-access setting, or a decision
+        to repoint the seat
+      - **Why it can't be code**: PR #115 pointed T1 at a `:free` model that
+        returns `403` for this account — likely a data-policy/privacy toggle only
+        the account owner can enable. Note `runSeat` treats `403` as fatal and
+        does **not** fall through to `FREE_MODEL_CHAIN`, so one 403 kills the
+        seat and the whole deliberation; that fallback behaviour is worth its own
+        issue either way.
+      - **Unblocks**: `council-sample`, `council-public`, and the landing-page
+        council demo
+      - **Added**: 2026-09-10
+- [ ] **Bring `gcp3-backend` back up** (`MCP_BACKEND_URL` returns a real `503`).
+      - **From**: PR #118 — `preflight` red, blocking the whole e2e browser chain
+      - **Blocked on**: whoever owns the Cloud Run deployment
+      - **Why it can't be code**: the service itself is not serving; a direct
+        probe of `{gcp3-backend-url}/health` returns
+        `503 "The service you requested is not available yet"`
+      - **Unblocks**: `health`, `auth-setup` and `frontend` Playwright projects —
+        currently **no browser test can run in CI at all**, including specs that
+        never touch this backend. Consider also splitting `MCP_BACKEND_URL` out
+        of `preflight` into its own gate, the same way `preflight-billing` was
+        carved out, so a third-party outage stops blocking the auth chain.
+      - **Added**: 2026-09-10
+- [ ] **Decide whether the operator email already published to `main` matters.**
+      - **From**: PR #118 — CodeRabbit "Sensitive Data Exposure" (CWE-359)
+      - **Blocked on**: an owner judgement call
+      - **Why it can't be code**: a personal address was written into two HTML
+        reports that another session committed and merged via PR #116 into this
+        **public** repo. PR #118 removes every occurrence from the working tree,
+        but **git history still contains them** — scrubbing history needs a
+        force-push/`filter-repo` and a decision about rewriting shared history.
+        Separately, `docs/Recent Docs/how-i-use-zo.md` carries a different
+        personal address, pre-existing and untouched by this PR.
+      - **Unblocks**: nothing technical — this is a privacy call about content
+        that has been publicly reachable since PR #116 merged
+      - **Added**: 2026-09-10
 
 ---
 

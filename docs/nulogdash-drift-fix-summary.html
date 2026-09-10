@@ -1,3 +1,4 @@
+<!doctype html>
 <title>nulogdash Drift Fix</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -173,9 +174,11 @@
     </div>
   </div>
   <p style="font-size:.88rem;color:var(--ink-muted);margin-top:.4rem">
-    "Blocked" rose because 16 previously-failing rows are now correctly classified
-    as <em>needs a Clerk session</em>. "Not run" rose because 9 server-to-server /
-    destructive routes moved into the excluded list.
+    The 20 failures that went away were reclassified, not silenced: <strong>+10</strong>
+    are now <em>blocked</em> (correctly reported as "needs a Clerk session"),
+    <strong>+9</strong> moved to <em>not run</em> (server-to-server or destructive
+    routes, now excluded), and <strong>+1</strong> genuinely passes
+    (<code>attribution</code>, reachable anonymously once described).
   </p>
 
   <h2><span class="ix">§ 1</span>Why six routes "404'd" — it wasn't a bug</h2>
@@ -262,8 +265,8 @@
       paths (nuai, council, brief, holdfold, portfolio-*, signals-*).</li>
     <li><b>The T1 <code>403</code></b> — enable the required model setting on the
       OpenRouter account, or move T1 off <code>inkling-small:free</code>.</li>
-    <li><b>MFA on <code>adamtimuraslan@gmail.com</code></b> — the console renders
-      for this admin now, but trigger buttons stay disabled until a second factor
+    <li><b>MFA on the newly-added admin account</b> — the console renders for
+      that admin now, but trigger buttons stay disabled until a second factor
       is enrolled (this is correct <code>canPerformAdminAction</code> behaviour).</li>
     <li><b>Two other <code>next dev</code> servers</b> are running in this checkout
       (ports shared, PIDs 63813 + others) — concurrent Claude sessions. Give each a
