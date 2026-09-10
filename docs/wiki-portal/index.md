@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-04 (portal PR #112 — E2E Clerk secret-collision incident)_
+_Last updated: 2026-09-10 (portal PR #118 — nulogdash entity page + admin e2e tier)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 

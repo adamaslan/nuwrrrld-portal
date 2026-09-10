@@ -66,7 +66,12 @@ what sits behind the second gate.
 ## Known failures
 
 1. **A route missing from `FEATURE_META` reported `fail`, not `blocked` —
-   21 of them (2026-09-07, fixed PR #118).** Six routes appeared to 404
+   13 routes, 21 failing sweep rows (2026-09-07, fixed PR #118).** Mind the two
+   different counts, which are unrelated and coincidentally equal at 21: the
+   2026-09-07 sweep showed **21 drift warnings** *and* **21 `fail` rows**. PR #116
+   then closed 8 drift warnings, leaving **13** for PR #118 — which is what "all
+   13 routes" below refers to. The `fail`-row count moved separately, 21 → 1.
+   Six routes appeared to 404
    outright: `/api/analyze`, `/api/disclaimer`, `/api/legal-consent`,
    `/api/privacy/{delete,export,profile}`. The routes were fine. They sit inside
    `proxy.ts`'s `isProtectedApiRoute` matcher, and **Clerk answers an

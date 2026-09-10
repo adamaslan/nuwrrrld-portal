@@ -675,4 +675,4 @@ shared-identity product is non-compliant until mobile adopts the module.
 
 ## [2026-09-08] ingest | PR #117 feat(nulogdash): pipeline runs tab + MFA-gated triggers, prod-DB guard, proxy.ts rename | pages touched: 6
 
-## [2026-09-10] ingest | PR #118 fix(nulogdash): close 21 inventory-drift warnings, add read-only admin e2e | pages touched: 6
+## [2026-09-10] ingest | PR #118 fix(nulogdash): close the remaining 13 inventory-drift warnings, add read-only admin e2e | pages touched: 6
