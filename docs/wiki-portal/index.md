@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-04 (portal PR #112 — E2E Clerk secret-collision incident)_
+_Last updated: 2026-09-10 (portal PR #118 — nulogdash entity page + admin e2e tier)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -48,6 +48,7 @@ One page per named component. These are the hubs — everything links to entitie
 
 **Dev Tooling / Workflow**
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`, `/local-check`, `/nulogdash`; guardrails + the pre-PR conflict guard
+- [[entity-nulogdash]] — the self-audit surface: `FEATURE_META` inventory ↔ `app/api/**` filesystem scan with bidirectional drift warnings, the sweep runner, and the MFA-gated admin console at `/dashboard/nulogdash`
 - [[entity-playwright-e2e]] — the fourth test layer above vitest: `e2e/` credential-gated fault injection (preflight/health/ci/frontend tiers), `e2e-resiliency.yml` CI, and the nulogdash browser-tier merge
 
 ---

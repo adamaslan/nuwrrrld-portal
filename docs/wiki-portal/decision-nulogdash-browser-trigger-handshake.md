@@ -99,9 +99,25 @@ admin-without-MFA rejected, unknown pipeline rejected, dry-run wiring (route +
 secret + body), non-2xx surfaced, live call without a valid token rejected,
 typed-name mismatch rejected, `PRODUCTION_DB_HOST` match refused, second live
 call inside 5 min rate-limited, token burned after one use. `npm run build`
-green (`ƒ Proxy (Middleware)` present). Live browser end-to-end by an
-MFA-enrolled admin is still unverified — it needs MFA, which is
-[[decision-self-implemented-totp-over-clerk-pro]].
+green (`ƒ Proxy (Middleware)` present).
+
+**Browser-level, 2026-09-10 (PR #118).** `e2e/frontend/nulogdash-admin.spec.ts`
+verifies the *negative* branch end-to-end: with `canPerformAdminAction` false,
+`TriggerControls` is absent from the rendered DOM entirely (`toHaveCount(0)`),
+not merely disabled. That distinction is load-bearing for this decision — a
+disabled button means the client island shipped and could be re-enabled in
+devtools, which would move these actions' own re-derived checks from
+defence-in-depth onto the critical path. Confirmed non-vacuous by mutation:
+forcing `canTrigger = true` turns the test red. The suite is read-only by
+construction (no test clicks a trigger, since that would fire a real run on
+every CI job), and a meta-test greps its own source to keep it that way.
+
+> ❓ Still unverified: the **positive** path. Nothing fires a dry run, a live
+> confirm, a burnt token, or a rate-limit rejection through a browser — all of
+> that remains unit-level only. It needs an MFA-enrolled admin
+> ([[decision-self-implemented-totp-over-clerk-pro]]) *and* a safe non-production
+> target. The e2e tier proves the gate holds shut; nothing yet proves it opens
+> correctly.
 
 ## See also
 

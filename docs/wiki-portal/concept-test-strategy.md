@@ -61,6 +61,34 @@ The three layers answer three different questions:
 A fourth, separate lane exists for the DB: `test:integration` runs
 `__tests__/signal-queue.integration.test.ts` against a real Neon branch in CI.
 
+### Correct ≠ reached — where `unit` stops and `e2e` has to start
+
+The three questions above are all about *behavior*. PR #118 surfaced a fourth
+that none of them answers: **is the correct logic actually wired in?**
+
+`__tests__/nulogdash-admin.test.ts` covers [[entity-nulogdash]]'s two access
+gates in ~25 cases — unverified addresses, non-primary addresses, empty
+allowlists, `twoFactorEnabled` truthy-but-not-`true`. It is thorough, and it
+proves the predicates are *correct*. It cannot prove they are *called*. Deleting
+`if (!isNulogdashAdmin(user)) notFound()` from `app/dashboard/nulogdash/page.tsx`
+leaves all ~25 green and hands the admin console to anyone with an account.
+
+The general shape: **a pure function extracted for testability is, by
+construction, testable without its caller** — which is the point, and also the
+gap. The stronger the extraction, the wider the gap. For an authorization
+boundary the gap is the whole security property, so it earns a browser test even
+though the logic beneath it is already exhaustively covered
+([[entity-playwright-e2e]]).
+
+Two practices from that PR generalize beyond it:
+
+- **Assert absence structurally, not cosmetically.** `toHaveCount(0)` on a
+  control, never "is disabled" — a disabled button still shipped to the client.
+- **Mutation-check any new absence assertion.** An assertion that something
+  *isn't* rendered passes just as happily when the page 404s, when a selector is
+  wrong, or when nothing loaded. Break the guard on purpose once and confirm the
+  test goes red; otherwise you have a test that can only pass.
+
 ## Where it appears
 
 - `vitest.config.ts` — the three-project definition

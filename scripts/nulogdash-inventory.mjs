@@ -220,16 +220,131 @@ const FEATURE_META = {
     body: { message: "nulogdash automated sweep — ignore" },
     writesData: true,
   },
+  // launch/remind is NOT a Clerk-session feature: it requires a
+  // LAUNCH_REMIND_SECRET bearer token and has no user-facing form. Firing it
+  // unauthenticated just yields a 401. Excluded like the other bearer-secret
+  // server-to-server routes below.
   "POST /api/launch/remind": {
     slug: "launch-remind",
     label: "Launch waitlist reminder",
+    excluded:
+      "server-to-server (Bearer LAUNCH_REMIND_SECRET); one-shot Product Hunt launch reminder, " +
+      "not a user-facing feature — triggered manually / by its own job",
+  },
+
+  // --- Consent, disclaimer & attribution (added 2026-09-09) ---
+  // analyze / disclaimer / legal-consent sit behind proxy.ts's
+  // isProtectedApiRoute matcher, so an unauthenticated probe gets Clerk's
+  // route-obscuring 404 (not a 401). Marking them auth:true makes the sweep
+  // report them as "blocked — needs NULOGDASH_SESSION_COOKIE" instead of
+  // "fail — HTTP 404", which is what they actually are.
+  "POST /api/analyze": {
+    slug: "analyze",
+    label: "Per-ticker live analysis",
+    auth: true,
+    dependencies: ["mcp"],
+    body: { symbol: "AAPL" },
+  },
+  "GET /api/disclaimer": {
+    slug: "disclaimer-get",
+    label: "Disclaimer — acknowledgement status",
+    auth: true,
+    dependencies: ["neon"],
+  },
+  "POST /api/disclaimer": {
+    slug: "disclaimer-ack",
+    label: "Disclaimer — record acknowledgement",
+    auth: true,
+    dependencies: ["neon"],
+    body: { surface: "nulogdash-sweep" },
+    writesData: true,
+  },
+  "GET /api/legal-consent": {
+    slug: "legal-consent-get",
+    label: "Legal consent — status",
+    auth: true,
+    dependencies: ["neon"],
+  },
+  "POST /api/legal-consent": {
+    slug: "legal-consent-post",
+    label: "Legal consent — record sign-up consent",
+    auth: true,
+    dependencies: ["neon"],
+    body: { surface: "web" },
+    writesData: true,
+  },
+  // consent / attribution are cookieless-friendly: the handler runs with or
+  // without a Clerk session (an anonymous visitor still sets a consent cookie
+  // / records a marketing touch), so they are reachable on an unauthenticated
+  // sweep and should PASS, not block.
+  "GET /api/consent": {
+    slug: "consent-get",
+    label: "Cookie consent — current choices",
     auth: false,
     dependencies: ["neon"],
-    body: { email: "nulogdash-test@example.com" },
+  },
+  "POST /api/consent": {
+    slug: "consent-post",
+    label: "Cookie consent — save choices",
+    auth: false,
+    dependencies: ["neon"],
+    body: { choices: { preferences: true, analytics: false, marketing: false }, source: "preferences" },
+    writesData: true,
+  },
+  "POST /api/attribution": {
+    slug: "attribution",
+    label: "Marketing attribution touch",
+    auth: false,
+    dependencies: ["neon"],
+    body: { first_touch: { source: "nulogdash", medium: "sweep" } },
     writesData: true,
   },
 
+  // --- Privacy / DSAR rights (added 2026-09-09) ---
+  // export / profile are in the proxy matcher (Clerk 404 unauth); rectify is
+  // handler-guarded only (returns its own 401) and rate-limited.
+  "GET /api/privacy/export": {
+    slug: "privacy-export",
+    label: "Privacy — data export (DSAR Art. 15/20)",
+    auth: true,
+    dependencies: ["neon"],
+  },
+  "GET /api/privacy/profile": {
+    slug: "privacy-profile",
+    label: "Privacy — automated-processing profile (DSAR Art. 15/22)",
+    auth: true,
+    dependencies: ["neon"],
+  },
+  "POST /api/privacy/rectify": {
+    slug: "privacy-rectify",
+    label: "Privacy — rectification request (DSAR Art. 16)",
+    auth: true,
+    dependencies: ["neon"],
+    body: {
+      field: "display_name",
+      current_value: "nulogdash sweep",
+      requested_value: "nulogdash sweep",
+      reason: "automated sweep — no-op rectification request",
+    },
+    writesData: true,
+  },
+
+  // --- Signals ranking (added 2026-09-09) ---
+  "GET /api/signals/top": {
+    slug: "signals-top",
+    label: "Signals — top ranking",
+    auth: true,
+    dependencies: ["neon"],
+  },
+
   // --- Deliberately excluded — see docs/nulogdash-dashboard-plan.md ---
+  "POST /api/privacy/delete": {
+    slug: "privacy-delete",
+    label: "Privacy — erase account (DSAR Art. 17)",
+    excluded:
+      "irreversibly deletes the test user's Clerk account (clerkClient.users.deleteUser) " +
+      "and every row they own across USER_TABLES; never safe to fire on a routine sweep",
+  },
   "POST /api/signals/drain": {
     slug: "signals-drain",
     label: "Signal queue drain",
@@ -313,10 +428,14 @@ const FEATURE_META = {
     label: "Pipeline — followed-tickers monthly cohort",
     excluded: "server-to-server (Bearer CRON_SECRET); freezes the monthly benchmark cohort — covered by select-followed-tickers.yml",
   },
+  // Requires a Clerk session OR the PORTAL_PUSH_SECRET bearer — an
+  // unauthenticated GET returns 401, so this is auth:true for sweep purposes
+  // (the session path is the user-facing one). Was mislabelled auth:false,
+  // which surfaced as a false "fail — HTTP 401".
   "GET /api/followed-tickers": {
     slug: "followed-tickers-read",
-    label: "Followed-tickers — public read",
-    auth: false,
+    label: "Followed-tickers — scoreboard read",
+    auth: true,
     dependencies: ["neon"],
   },
 };
