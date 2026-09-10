@@ -674,3 +674,5 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-08] ingest | PR #116 feat: GHA failure-notify on 4 scheduled workflows + precompute-ai observability + Modal de-schedule + nulogdash drift | pages touched: 3
 
 ## [2026-09-08] ingest | PR #117 feat(nulogdash): pipeline runs tab + MFA-gated triggers, prod-DB guard, proxy.ts rename | pages touched: 6
+
+## [2026-09-10] ingest | PR #118 fix(nulogdash): close 21 inventory-drift warnings, add read-only admin e2e | pages touched: 6

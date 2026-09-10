@@ -82,6 +82,26 @@ carries `E2E_CLERK_TEST_EMAIL`/`PASSWORD`; the sharded jobs never see them.
   to test Modal.com's cron-scheduled `refresh-free-models.mjs` run — that's
   an external compute platform with no browser surface; its CLI contract is
   covered separately in `e2e/ci/refresh-free-models.spec.ts`.
+- `e2e/frontend/nulogdash-admin.spec.ts` (added 2026-09-10, PR #118) — the
+  first spec asserting an **authorization boundary** rather than a degradation
+  path. [[entity-nulogdash]]'s two gates already have exhaustive unit coverage
+  (`__tests__/nulogdash-admin.test.ts`), but as *pure functions*: those tests
+  prove the predicates are correct, not that they are **reached**. A refactor
+  dropping `if (!isNulogdashAdmin(user)) notFound()` from `page.tsx` leaves every
+  unit test green and hands the console to anyone signed in. This spec closes
+  that gap in a browser — admin access (asserting the **status code**, since
+  `notFound()` is the non-admin path), the tab strip, the MFA notice on both
+  tabs, and the signed-out redirect asserted separately for each page because
+  each is a distinct component with its own copy of the guard.
+  **Deliberately read-only, enforced three ways**: clicking "Dry run" reaches
+  `lib/nulogdash-actions.ts`, which makes a real authenticated POST to a real
+  pipeline route (spending quota, writing a row), so no test activates any
+  control; trigger absence is asserted with `toHaveCount(0)` rather than
+  `disabled`, since a disabled button means the control shipped to a client that
+  could re-enable it; and a final test greps the spec's own source (via
+  `test.info().file` — `import.meta` does not parse in this CommonJS project) so
+  a later "let's check it actually works" edit fails loudly. Verified non-vacuous
+  by mutation: forcing `canTrigger = true` turns 3 of the 8 red.
 - `e2e/frontend/portfolio-health.spec.ts` — see "Diagnostic role" below.
 - `e2e/frontend/portfolio-liveness.spec.ts`, `e2e/frontend/signals-liveness.spec.ts`
   — see [[concept-live-backend-liveness-tests]], added 2026-08-18.
@@ -145,6 +165,20 @@ genuine regression, not confirmation of the old incident.
    `E2E_CLERK_SECRET_KEY` pair, and `e2e/preflight/credentials.spec.ts` gained
    a check that fails fast if that pair is ever pointed at production again.
    Full account: [[incident-2026-09-04-e2e-clerk-prod-key-in-ci]].
+0b. **`preflight` is currently red on `MCP_BACKEND_URL`, which blocks the whole
+   auth chain (2026-09-10, open).** A direct probe of `{gcp3-backend-url}/health`
+   returns a genuine `503 "The service you requested is not available yet"` — not
+   a cold start that resolves on retry. Because `health`, `auth-setup` and
+   transitively `frontend` all depend on `preflight`, **no browser test in this
+   suite can run at all** while gcp3-backend is down, including specs that never
+   touch it (`nulogdash-admin.spec.ts` needs Clerk and Neon only). This is the
+   gate-split principle above working *correctly* — the failure is named
+   precisely rather than producing forty confusing red frontend failures — but it
+   also shows the split is not yet fine-grained enough: `MCP_BACKEND_URL` is
+   asserted in the same `preflight` project as Clerk, so an unrelated third-party
+   outage still blocks the auth chain. The same argument that carved
+   `preflight-billing` out of `preflight` applies here. Workaround for local runs:
+   `--no-deps` against an existing `storageState`.
 1. **The sharded `e2e` job has never run — GCP WIF is unprovisioned.**
    `auth` now passes in CI (run `32089144456`, 2026-08-17), so all four shards
    start and then fail immediately at "Authenticate to GCP (keyless)" because
