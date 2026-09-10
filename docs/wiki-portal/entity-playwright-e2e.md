@@ -167,18 +167,30 @@ genuine regression, not confirmation of the old incident.
    Full account: [[incident-2026-09-04-e2e-clerk-prod-key-in-ci]].
 0b. **`preflight` is currently red on `MCP_BACKEND_URL`, which blocks the whole
    auth chain (2026-09-10, open).** A direct probe of `{gcp3-backend-url}/health`
-   returns a genuine `503 "The service you requested is not available yet"` — not
-   a cold start that resolves on retry. Because `health`, `auth-setup` and
-   transitively `frontend` all depend on `preflight`, **no browser test in this
-   suite can run at all** while gcp3-backend is down, including specs that never
-   touch it (`nulogdash-admin.spec.ts` needs Clerk and Neon only). This is the
-   gate-split principle above working *correctly* — the failure is named
-   precisely rather than producing forty confusing red frontend failures — but it
-   also shows the split is not yet fine-grained enough: `MCP_BACKEND_URL` is
-   asserted in the same `preflight` project as Clerk, so an unrelated third-party
-   outage still blocks the auth chain. The same argument that carved
-   `preflight-billing` out of `preflight` applies here. Workaround for local runs:
-   `--no-deps` against an existing `storageState`.
+   returns a genuine `503`/`500` ("The service you requested is not available
+   yet") — not a cold start that resolves on retry. Because `health`,
+   `auth-setup` and transitively `frontend` all depend on `preflight`, **no
+   browser test can run locally** while gcp3-backend is down, including specs
+   that never touch it (`nulogdash-admin.spec.ts` needs Clerk and Neon only).
+   This is the gate-split principle above working *correctly* — the failure is
+   named precisely rather than producing forty confusing red frontend failures —
+   but it also shows the split is not yet fine-grained enough: `MCP_BACKEND_URL`
+   is asserted in the same `preflight` project as Clerk, so an unrelated
+   third-party outage still blocks the auth chain. The same argument that carved
+   `preflight-billing` out of `preflight` applies here. Workaround for local
+   runs: `--no-deps` against an existing `storageState`.
+
+   > ⚠️ **CI fails differently, and the difference is unexplained.** On PR #118
+   > the `auth` job's failing step is **"Sign in and capture session"** — i.e.
+   > `e2e/auth.setup.ts` itself, *not* the MCP preflight assertion. So in CI the
+   > preflight gate apparently passed and sign-in failed on its own, which is
+   > known-failure #4's territory rather than this one. Two different failures
+   > that both surface as "the `auth` job is red", and conflating them is exactly
+   > the misdiagnosis known-failure #0 records (four consecutive runs blamed on
+   > OTP fragility before the real `[WebServer]` log lines were read). Whether CI
+   > skips the MCP assertion, points at a different backend, or fails sign-in for
+   > an unrelated reason is **not established here** — read the job's own log
+   > before assuming either cause.
 1. **The sharded `e2e` job has never run — GCP WIF is unprovisioned.**
    `auth` now passes in CI (run `32089144456`, 2026-08-17), so all four shards
    start and then fail immediately at "Authenticate to GCP (keyless)" because
