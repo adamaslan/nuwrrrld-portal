@@ -20,15 +20,18 @@ import { test, expect } from "@playwright/test";
  */
 
 test.describe("Portfolio Health Score (/api/portfolio/health)", () => {
-  test("DIAGNOSE: gcp3 returning non-ok (incl. the incident's actual 404-route-never-registered case) collapses to one generic 502", async ({ page }) => {
-    // app/api/portfolio/health/route.ts: any !res.ok from gcp3 — a 404
-    // because the route was never registered (the incident's real cause), a
-    // 500 because the backend crashed, anything — becomes a flat
-    // `{ error: "upstream error" }`, 502. This test reproduces that
-    // collapsed state; it does NOT distinguish 404 from 5xx, because the
-    // portal code doesn't either. If you're debugging a live "Health score
-    // unavailable" report, this ambiguity means you must check gcp3's own
-    // logs for the real status — the portal's response won't tell you.
+  test("DIAGNOSE: a 502 from the portal route still renders the generic string", async ({ page }) => {
+    // HISTORICAL. app/api/portfolio/health/route.ts no longer emits 502: a
+    // non-ok gcp3 response (including the incident's real cause — a 404
+    // because the route was never registered upstream) now falls through to
+    // the local ticker_cards scorer instead of erroring. See the
+    // "local fallback" test below for the behaviour that actually ships.
+    //
+    // This case is kept because a 502 can still arrive from a proxy or edge
+    // in front of the route, and the client must degrade legibly when it
+    // does. If you are debugging a live "Health score unavailable" report,
+    // check the server logs for `[portfolio-health] upstream_*` — the route
+    // now records which upstream failure it saw before falling back.
     await page.route("**/api/portfolio/health", (route) =>
       route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "upstream error" }) }),
     );
@@ -96,6 +99,59 @@ test.describe("Portfolio Health Score (/api/portfolio/health)", () => {
     // per-section classes (port-score-empty here) in PortfolioClient.tsx.
     await expect(page.locator(".port-health-error")).not.toBeVisible();
     await expect(page.locator(".port-score-empty")).toBeVisible();
+  });
+
+  test("EXPOSE: a locally-computed score renders as a result, labelled as local", async ({ page }) => {
+    // The shipped path. gcp3 has no portfolio route, so in practice every
+    // real score comes from the portal's own ticker_cards engine and arrives
+    // with X-Portfolio-Health-Source: local. It must render as a normal
+    // result — the panel being permanently dead is the bug being fixed — but
+    // it must also say where the number came from. An unlabelled substitute
+    // engine is the same class of silent swap that hid the original outage.
+    await page.route("**/api/portfolio/health", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "X-Portfolio-Health-Source": "local" },
+        body: JSON.stringify({
+          score: 71,
+          grade: "C",
+          factors: [
+            { name: "Signal strength", score: 53, impact: "neutral", description: "Quality-weighted mean." },
+            { name: "Signal coverage", score: 70, impact: "neutral", description: "7 of 10 tickers." },
+          ],
+          summary: "Grade C (71/100) from the portal's own signal engine.",
+          generatedAt: new Date().toISOString(),
+        }),
+      }),
+    );
+
+    await page.goto("/dashboard/portfolio");
+    await page.getByRole("button", { name: /run health score/i }).click();
+
+    await expect(page.locator(".port-health-result")).toBeVisible();
+    await expect(page.locator(".port-health-error")).not.toBeVisible();
+    // If this is what fails, the score renders but its provenance does not —
+    // check the X-Portfolio-Health-Source read in PortfolioClient.tsx.
+    await expect(page.locator(".port-health-source")).toContainText(/portal signal engine/i);
+  });
+
+  test("EXPOSE: 503 means no signals computed yet, not a generic outage", async ({ page }) => {
+    // The terminal honest state: upstream down AND no ticker_cards row for a
+    // single watchlist ticker. Distinct copy is the point — the incident's
+    // own finding was that three different faults rendered one string.
+    await page.route("**/api/portfolio/health", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "no signals computed for this watchlist yet" }),
+      }),
+    );
+
+    await page.goto("/dashboard/portfolio");
+    await page.getByRole("button", { name: /run health score/i }).click();
+
+    await expect(page.locator(".port-health-error")).toContainText(/no signals computed/i);
   });
 });
 
