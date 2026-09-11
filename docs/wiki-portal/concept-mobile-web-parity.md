@@ -328,9 +328,10 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > the mobile fix is a three-line read in `usePortfolio.ts` plus a label in
 > `PortfolioScreen.tsx`.
 >
-> Not yet mirrored into `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`
-> — this session was portal-only and no PR has been opened. The mirror is due
-> when it is.
+> Mirrored 2026-09-11 into `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`
+> and `concept-sync-requirements.md` (mobile PR #45) — `usePortfolio.ts`
+> already calls the portal's health route, so it gets the fix for free; a new
+> "response-contract parity" gap class was filed there for the unread headers.
 
 > ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~66%, but a second
 > provenance header now exists and mobile reads neither.**
@@ -358,9 +359,9 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > `lib/signal-chat-local.ts` is portal-only with no mobile counterpart (same
 > starting state `analyze-policy.ts` is still in).
 >
-> Not yet mirrored into `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`
-> — this session was portal-only. The mirror is due with the PR, alongside the
-> still-outstanding portfolio-health mirror noted above.
+> Mirrored 2026-09-11 alongside the portfolio-health entry above (same mobile PR).
+> No mobile caller of `/api/signals/{ticker}/chat` exists yet, so this one has no
+> free-fix effect — only the same unread-header gap, folded into the one entry.
 
 ## See also
 
