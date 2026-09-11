@@ -677,4 +677,6 @@ shared-identity product is non-compliant until mobile adopts the module.
 
 ## [2026-09-10] ingest | PR #118 fix(nulogdash): close the remaining 13 inventory-drift warnings, add read-only admin e2e | pages touched: 6
 
+## [2026-09-10] ingest | PR #119 fix(billing): nulogdash admins get Pro tier without a Stripe subscription | pages touched: 2
+
 ## [2026-09-11] ingest | PR #120 fix(db): declare signal_digest_cache.created_at so nightly backups stop failing | pages touched: 3

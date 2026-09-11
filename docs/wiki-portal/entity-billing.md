@@ -1,8 +1,8 @@
 ---
-date: 2026-07-27
+date: 2026-09-10
 type: entity
 tags: [billing, subscription, stripe, clerk, auth]
-sources: [lib/subscription.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45]
+sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
 ---
 
 # entity: Billing / Auth (Clerk + Stripe)
@@ -85,6 +85,21 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
 
 ## Known issues
 
+- ✅ **Fixed (PR #119, 2026-09-10): admin sign-in did not grant Pro tier.**
+  `hasEntitlement()` read only Clerk `publicMetadata.subscription_tier`,
+  written exclusively by the Stripe webhook — being on the unrelated
+  `NULOGDASH_ADMIN_EMAILS` allowlist ([[entity-nulogdash]]) never touched that
+  metadata, so the admin account stayed `free` on `/dashboard` despite
+  "being an admin." Fixed by `resolveTier(status, adminIdentity)`, wired into
+  every `hasEntitlement` call site except `dashboard/billing` and
+  `dashboard/upgrade` (those intentionally show real Stripe state, not a
+  fabricated Pro plan). `resolveTier()` and `parseSubscriptionMetadataWithAdmin()`
+  live in the new **`lib/subscription-admin.ts`**, not `lib/subscription.ts` —
+  the first draft put them directly in the shared file and `shared-drift-check`
+  caught it before merge (nulogdash has no mobile equivalent, and
+  `lib/subscription.ts` must stay byte-identical — see "Open questions"
+  below). `lib/subscription.ts` itself is untouched by this PR.
+
 - ⚠️ **Both price IDs were wrong until PR #89 (2026-08-31).**
   `STRIPE_PRICE_ANNUAL` held the literal `price_annual_placeholder` and
   `STRIPE_PRICE_MONTHLY` pointed at an `active: false` archived $10.00 price,
@@ -118,15 +133,18 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
   Writes are mostly idempotent (overwrite semantics), but
   `checkout.session.completed` re-stamps the customer and re-syncs on every
   redelivery; not yet a confirmed bug, just an unhardened edge.
-- ❓ No CI/lint gate gating drift in `lib/subscription.ts` between this repo
-  and mobile — see [[concept-mobile-web-parity]], which now flags this exact
-  file as newly-drifted (PR #45 added `parseSubscriptionMetadata()` to the
-  portal copy only).
+- ❓ ~~No CI/lint gate gating drift in `lib/subscription.ts`~~ — there is
+  one, `shared-drift-check` (`scripts/check-shared-drift.mjs`, `ci.yml`),
+  and PR #119 is the proof it works: its first draft added admin-tier logic
+  straight into `lib/subscription.ts`, the gate failed, and the fix was
+  extracting that logic into `lib/subscription-admin.ts` instead of loosening
+  the check. The PR #45 drift this question originally referred to was closed
+  by mobile PR #29 (2026-08-07) — see [[concept-mobile-web-parity]].
 
 ## See also
 
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — the production incident this entity page was written alongside
-- [[concept-mobile-web-parity]] — the Subscription/billing matrix row, and the new `lib/subscription.ts` drift from this PR
-- [[concept-sync-requirements]] — de-drift task for `lib/subscription.ts`
+- [[concept-mobile-web-parity]] — the Subscription/billing matrix row (`lib/subscription.ts` byte-identical since mobile PR #29)
+- [[concept-sync-requirements]] — the de-drift priority list `lib/subscription.ts` was item 1 on
 - `docs/clerk-stripe-auth.md` — full architecture + CLI reference
 - `gcp3-mobile/docs/wiki-mobile/entity-billing.md` — the mobile sibling (thin client over this same portal-owned Stripe integration)

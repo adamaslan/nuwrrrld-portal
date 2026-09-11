@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
+import { hasEntitlement } from "@/lib/subscription";
+import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { getWatchlist } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = tierFromStatus(status);
+  const tier = resolveTier(status, user);
 
   if (!hasEntitlement("nu_ai", tier)) {
     return NextResponse.json({ error: "upgrade_required", upgradeUrl: "/pricing?source=portfolio" }, { status: 403 });

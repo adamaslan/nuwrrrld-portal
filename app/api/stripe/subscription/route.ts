@@ -1,6 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { parseSubscriptionMetadata } from "@/lib/subscription";
+import { parseSubscriptionMetadataWithAdmin } from "@/lib/subscription-admin";
 
 export async function GET() {
   const { userId } = await auth();
@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const user = await currentUser();
-  const state = parseSubscriptionMetadata(user?.publicMetadata);
+  const state = parseSubscriptionMetadataWithAdmin(user?.publicMetadata, user);
 
   return NextResponse.json(state);
 }

@@ -108,6 +108,15 @@ what sits behind the second gate.
 
 ## Open questions
 
+- ✅ Resolved (PR #119): `isNulogdashAdmin` and Pro-tier entitlement
+  ([[entity-billing]]) used to be unrelated by design — an admin's dashboard
+  Pro features stayed gated on a real Stripe subscription that most admin
+  accounts never had. `lib/subscription-admin.ts`'s `resolveTier()` (portal-only —
+  `lib/subscription.ts` itself stays byte-identical to mobile) now treats an
+  allowlisted, verified admin as `pro` for every feature gate, so the two
+  systems stay distinct in purpose (console access vs. feature tier) but no
+  longer leave admins locked out of the features they need to exercise.
+
 - ❓ Should the sweep runner adopt [[entity-playwright-e2e]]'s `storageState`
   instead of `NULOGDASH_SESSION_COOKIE`? The e2e suite already signs a dedicated
   test user in and caches the session for 6 days; the sweep re-solves the same
