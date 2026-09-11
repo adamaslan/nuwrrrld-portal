@@ -1,8 +1,8 @@
 ---
-date: 2026-07-27
+date: 2026-09-10
 type: entity
 tags: [billing, subscription, stripe, clerk, auth]
-sources: [lib/subscription.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45]
+sources: [lib/subscription.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
 ---
 
 # entity: Billing / Auth (Clerk + Stripe)
@@ -84,6 +84,17 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
   entity page otherwise covers.
 
 ## Known issues
+
+- ✅ **Fixed (PR #119, 2026-09-10): admin sign-in did not grant Pro tier.**
+  `hasEntitlement()` read only Clerk `publicMetadata.subscription_tier`,
+  written exclusively by the Stripe webhook — being on the unrelated
+  `NULOGDASH_ADMIN_EMAILS` allowlist ([[entity-nulogdash]]) never touched that
+  metadata, so the admin account stayed `free` on `/dashboard` despite
+  "being an admin." Fixed by `resolveTier(status, adminIdentity)`, which
+  resolves to `pro` for a verified allowlisted admin independent of Stripe
+  status, wired into every `hasEntitlement` call site except
+  `dashboard/billing` and `dashboard/upgrade` (those intentionally show real
+  Stripe state, not a fabricated Pro plan).
 
 - ⚠️ **Both price IDs were wrong until PR #89 (2026-08-31).**
   `STRIPE_PRICE_ANNUAL` held the literal `price_annual_placeholder` and
