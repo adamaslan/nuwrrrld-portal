@@ -3,6 +3,8 @@
  * Both surfaces import from here; neither defines its own copy.
  */
 
+import { isNulogdashAdmin } from './nulogdash';
+
 export type SubscriptionStatus =
   | 'free'
   | 'trialing'
@@ -97,6 +99,37 @@ export function tierFromStatus(status: SubscriptionStatus): SubscriptionTier {
 }
 
 /**
+ * Minimal shape needed to check the nulogdash admin allowlist, duplicated
+ * from lib/nulogdash.ts's AdminIdentity rather than imported, so this module
+ * never depends on Clerk's User type directly — callers pass their
+ * already-fetched `currentUser()` result, which satisfies this structurally.
+ */
+export interface TierAdminIdentity {
+  primaryEmailAddressId: string | null;
+  emailAddresses: {
+    id: string;
+    emailAddress: string;
+    verification: { status: string | null } | null;
+  }[];
+}
+
+/**
+ * Effective tier for feature gating: an allowlisted nulogdash admin
+ * (NULOGDASH_ADMIN_EMAILS) always resolves to 'pro', independent of Stripe
+ * status — lets admins exercise Pro features without a real subscription.
+ * Real billing pages (dashboard/billing, dashboard/upgrade) intentionally
+ * bypass this and read tierFromStatus() directly, since they display actual
+ * Stripe state and a fabricated "Pro" plan there would be misleading.
+ */
+export function resolveTier(
+  status: SubscriptionStatus,
+  adminIdentity: TierAdminIdentity | null | undefined,
+): SubscriptionTier {
+  if (isNulogdashAdmin(adminIdentity)) return 'pro';
+  return tierFromStatus(status);
+}
+
+/**
  * Returns true if trial has lapsed based on Stripe's trial_end timestamp.
  * Always derived from Stripe's field, never a local timer.
  */
@@ -128,6 +161,7 @@ function isSubscriptionStatus(value: unknown): value is SubscriptionStatus {
  */
 export function parseSubscriptionMetadata(
   raw: Record<string, unknown> | null | undefined,
+  adminIdentity?: TierAdminIdentity | null,
 ): SubscriptionState {
   const rawStatus = raw?.subscription_status;
   const status = isSubscriptionStatus(rawStatus) ? rawStatus : 'free';
@@ -150,7 +184,7 @@ export function parseSubscriptionMetadata(
 
   return {
     status,
-    tier: tierFromStatus(status),
+    tier: resolveTier(status, adminIdentity),
     trialEnd,
     isLoading: false,
   };

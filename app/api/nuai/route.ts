@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const user = await currentUser();
-  const { tier } = parseSubscriptionMetadata(user?.publicMetadata);
+  const { tier } = parseSubscriptionMetadata(user?.publicMetadata, user);
 
   if (!hasEntitlement("nu_ai", tier)) {
     return NextResponse.json({ error: "upgrade_required", upgradeUrl: "/pricing?source=nuai" }, { status: 403 });

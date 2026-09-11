@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { getViewData } from "@/lib/followed-tickers-db";
 import { buildFollowedTickersView } from "@/lib/shared/followed-tickers-view";
-import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
+import { hasEntitlement, resolveTier } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { currentUser } from "@clerk/nextjs/server";
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   if (userId && !isInternal) {
     const user = await currentUser();
     const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-    if (!hasEntitlement("pro_signals", tierFromStatus(status))) {
+    if (!hasEntitlement("pro_signals", resolveTier(status, user))) {
       return NextResponse.json({ error: "upgrade_required", feature: "pro_signals" }, { status: 403 });
     }
   }

@@ -83,7 +83,7 @@ export default async function Dashboard({
 
   const user = await currentUser();
   const firstName = user?.firstName ?? "investor";
-  const { status, tier } = parseSubscriptionMetadata(user?.publicMetadata);
+  const { status, tier } = parseSubscriptionMetadata(user?.publicMetadata, user);
   const isPro = tier === "pro";
   const isAdmin = isNulogdashAdmin(user);
 

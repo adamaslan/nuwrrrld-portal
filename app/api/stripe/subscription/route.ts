@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const user = await currentUser();
-  const state = parseSubscriptionMetadata(user?.publicMetadata);
+  const state = parseSubscriptionMetadata(user?.publicMetadata, user);
 
   return NextResponse.json(state);
 }
