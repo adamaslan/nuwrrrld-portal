@@ -623,6 +623,39 @@ someone runs Modal against the real account:
       - **Unblocks**: nothing technical — this is a privacy call about content
         that has been publicly reachable since PR #116 merged
       - **Added**: 2026-09-10
+- [ ] **gcp3's `/api/portfolio/health` returns `502` in CI e2e.**
+      - **From**: `/wait-merge1` run on PRs #119/#120 — `e2e/frontend/portfolio-liveness.spec.ts`
+        fails identically on both PRs (and, by the `main` e2e-resiliency runs
+        checked the same day, pre-existing on `main` too — not caused by
+        either PR)
+      - **Blocked on**: gcp3's deployment — the spec's own error names it
+        directly: "this is the exact 'route never registered' failure mode
+        from incident-2026-07-26-portfolio-health-endpoint-missing.md. Check
+        gcp3's deployment, not the portal." Distinct from the `MCP_BACKEND_URL`
+        503 entry above (PR #118, 2026-09-10) — that one is the whole backend
+        not serving; this one is the backend serving but this one route 502'ing,
+        confirmed by the same spec run's `neon: ok` / `mcp: ok` health check.
+      - **Why it can't be code**: the portal-side route already exists and
+        calls out correctly; the 502 originates on gcp3's Cloud Run service
+      - **Unblocks**: `e2e/frontend/portfolio-liveness.spec.ts`'s two portfolio
+        health checks (score + AI explain)
+      - **Added**: 2026-09-11
+- [ ] **CI's own `OPENROUTER_API_KEY` (GitHub Actions secret) may also be
+      stale, separately from the Vercel one above.**
+      - **From**: `/wait-merge1` run on PRs #119/#120 — `e2e/frontend/portfolio-liveness.spec.ts`'s
+        AI-explain check fails with `OpenRouter 401: all models in chain
+        failed` (`lib/openrouter.ts:372`, `app/api/portfolio/health-ai/route.ts:139`)
+        during the CI job itself, not against a deployed Vercel URL
+      - **Blocked on**: confirming whether `gh secret list`'s `OPENROUTER_API_KEY`
+        for this repo holds the same expired value the "Set the rotated
+        `OPENROUTER_API_KEY` in Vercel" item above already found — GitHub
+        Actions secrets and Vercel env vars are separate stores, so rotating
+        one does not rotate the other
+      - **Why it can't be code**: secret values must never be committed or
+        pass through a session transcript
+      - **Unblocks**: `e2e/frontend/portfolio-liveness.spec.ts`'s AI-explain
+        check, and any other e2e spec that calls a real OpenRouter model
+      - **Added**: 2026-09-11
 
 ---
 
