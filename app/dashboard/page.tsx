@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
-import { parseSubscriptionMetadata } from "@/lib/subscription";
+import { parseSubscriptionMetadataWithAdmin } from "@/lib/subscription-admin";
 import { isNulogdashAdmin } from "@/lib/nulogdash";
 import { DashboardCockpit } from "./DashboardCockpit";
 import { HealthBanner } from "./HealthBanner";
@@ -83,7 +83,7 @@ export default async function Dashboard({
 
   const user = await currentUser();
   const firstName = user?.firstName ?? "investor";
-  const { status, tier } = parseSubscriptionMetadata(user?.publicMetadata, user);
+  const { status, tier } = parseSubscriptionMetadataWithAdmin(user?.publicMetadata, user);
   const isPro = tier === "pro";
   const isAdmin = isNulogdashAdmin(user);
 

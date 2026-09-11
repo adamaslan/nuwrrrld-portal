@@ -16,7 +16,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { getViewData } from "@/lib/followed-tickers-db";
 import { buildFollowedTickersView } from "@/lib/shared/followed-tickers-view";
-import { hasEntitlement, resolveTier } from "@/lib/subscription";
+import { hasEntitlement } from "@/lib/subscription";
+import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { currentUser } from "@clerk/nextjs/server";
 

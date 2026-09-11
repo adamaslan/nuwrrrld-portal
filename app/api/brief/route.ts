@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { hasEntitlement, resolveTier } from "@/lib/subscription";
+import { hasEntitlement } from "@/lib/subscription";
+import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { fetchWithModelFallback } from "@/lib/openrouter";
 import { mapSignalsToHoldFold } from "@/lib/shared/holdfold-map";

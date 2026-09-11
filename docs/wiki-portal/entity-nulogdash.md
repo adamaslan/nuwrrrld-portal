@@ -111,7 +111,8 @@ what sits behind the second gate.
 - ✅ Resolved (PR #119): `isNulogdashAdmin` and Pro-tier entitlement
   ([[entity-billing]]) used to be unrelated by design — an admin's dashboard
   Pro features stayed gated on a real Stripe subscription that most admin
-  accounts never had. `lib/subscription.ts`'s `resolveTier()` now treats an
+  accounts never had. `lib/subscription-admin.ts`'s `resolveTier()` (portal-only —
+  `lib/subscription.ts` itself stays byte-identical to mobile) now treats an
   allowlisted, verified admin as `pro` for every feature gate, so the two
   systems stay distinct in purpose (console access vs. feature tier) but no
   longer leave admins locked out of the features they need to exercise.
