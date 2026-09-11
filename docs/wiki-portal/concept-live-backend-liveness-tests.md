@@ -7,6 +7,18 @@ sources: [../../e2e/frontend/portfolio-liveness.spec.ts, ../../e2e/frontend/sign
 
 # Concept — Live Backend Liveness Tests (create a portfolio, then test against real data)
 
+> ⚠️ **A liveness test encodes a status contract, and that contract can go
+> stale silently (2026-09-11).** When `/api/portfolio/health` gained its local
+> fallback, this suite's health test still threw *"MCP_BACKEND_URL is set but
+> the portal reports it as not configured"* on a 503 — a message that had been
+> correct and was now naming the wrong subsystem entirely (503 came to mean
+> "no computed cards," a hydration-pipeline fault). Nothing failed: the test
+> was green, because 503 was not being returned. **A liveness test can rot
+> without going red**, and its rot is invisible precisely because the
+> assertions pass. The rule this suggests: when a route's status codes change
+> meaning, its liveness test's *error strings* are part of the diff, not
+> documentation about it.
+
 How to actually exercise the portal against real upstream data — a real
 watchlist, a real gcp3 call, a real OpenRouter completion — rather than only
 the mocked fault-injection suite. Written after a session that found three
@@ -32,13 +44,20 @@ need it: Portfolio and Signals.
    data for works). An empty watchlist collapses every portfolio panel to its
    "empty" state before any backend call happens, so this step is not
    optional.
-3. Click "Run health score" — this hits `/api/portfolio/health` →
-   `{gcp3-backend-url}/api/portfolio/health?tickers=...`, a real call.
+3. Click "Run health score" — this hits `/api/portfolio/health`, which tries
+   `{gcp3-backend-url}/api/portfolio/health?tickers=...` and, since 2026-09-11,
+   falls back to scoring `ticker_cards` locally when that fails (which it
+   always does — the upstream route has never been registered). **What this
+   test is measuring therefore changed**: it is no longer "is gcp3 reachable"
+   but "does this surface produce an honest score from *some* engine, and does
+   it say which." The response's `X-Portfolio-Health-Source` header is the
+   thing to read. See [[decision-local-portfolio-scoring-over-upstream-wait]].
 4. Click "✦ Run AI health check" — hits `/api/portfolio/health-ai`, which
    calls gcp3 for grounding data *and* OpenRouter for the narrative. Two
    independent live dependencies in one click.
 5. Optimizer Suggestions fetches on mount — no click needed, but same
-   principle: `/api/portfolio/suggestions` → gcp3, live.
+   principle: `/api/portfolio/suggestions` → gcp3, live. Same 2026-09-11
+   caveat as step 3: unregistered upstream, local fallback.
 6. Go to `/dashboard/signals` — the digest (`/api/signals/digest`) is always
    live gcp3 data; there is no mock path in production. Expand a card and
    check its `generatedAt`/stale badge against the raw API response for the

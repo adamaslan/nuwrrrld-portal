@@ -37,17 +37,32 @@ test.describe("Portfolio panels — live backend liveness", () => {
   test("PORTFOLIO HEALTH SCORE — /api/portfolio/health returns a real, well-formed score", async ({ page }) => {
     const res = await page.request.get("/api/portfolio/health");
 
-    if (res.status() === 404 || res.status() === 502) {
+    // The status meanings changed when the route gained its local fallback.
+    // 502 is no longer reachable from a gcp3 404 — that now degrades to the
+    // portal's own ticker_cards scorer — so a 5xx here means something else
+    // broke. Each branch names a different layer rather than collapsing to
+    // one string, which is this incident's central lesson.
+    if (res.status() === 503) {
       throw new Error(
-        `gcp3's /api/portfolio/health returned ${res.status()} — this is the exact ` +
-        `"route never registered" failure mode from incident-2026-07-26-portfolio-health-endpoint-missing.md. ` +
-        `Check gcp3's deployment, not the portal.`,
+        "503: upstream is unavailable AND no watchlist ticker has a ticker_cards row. " +
+        "This is the terminal honest state, not a portal bug — check whether the " +
+        "nightly hydration has run (incident-2026-09-03-nightly-hydration-dead-15-days.md).",
       );
     }
-    if (res.status() === 503) {
-      throw new Error("MCP_BACKEND_URL is set but the portal reports it as not configured — check env wiring.");
+    if (res.status() === 204) {
+      throw new Error("204: the test user's watchlist is empty — seed it before asserting liveness.");
     }
-    expect(res.status(), `unexpected status from live gcp3 call: ${await res.text().catch(() => "")}`).toBe(200);
+    expect(res.status(), `unexpected status: ${await res.text().catch(() => "")}`).toBe(200);
+
+    // Which engine answered. In practice this is "local": gcp3 has never
+    // registered a portfolio route. Asserted rather than ignored so the day
+    // gcp3 *does* ship one, this test records the switch instead of silently
+    // changing what it is measuring.
+    const source = res.headers()["x-portfolio-health-source"];
+    expect(["upstream", "local"], `unrecognized health source: ${source}`).toContain(source);
+    if (source === "upstream") {
+      console.warn("[liveness] gcp3 answered /api/portfolio/health — the upstream route now exists.");
+    }
 
     const body = await res.json();
     expect(typeof body.score, "score must be a number").toBe("number");

@@ -65,6 +65,18 @@ failures #3 for why).
   session or `PORTAL_PUSH_SECRET`, matching `/api/signals/digest`, because the
   precompute-AI batch will read this ranking to pick its subjects and has no
   Clerk session. Query params `?universe=` / `?horizon=` / `?limit=`.
+- `lib/shared/portfolio-health-policy.ts` + `lib/portfolio-health-local.ts`
+  (2026-09-11) — the ranking's **third** consumer, and the first that reads it
+  as something other than a ranking. `/api/portfolio/health` and
+  `/api/portfolio/suggestions` score a user's watchlist by pulling the `t1`
+  cards for exactly those tickers and aggregating them (quality-weighted mean
+  score, BUY/SELL mix, breadth). The cards were built to rank a discovery feed;
+  a watchlist is a subset of the same universe, so the same rows answer a
+  portfolio question with no new pipeline. That is what made it possible to
+  stop waiting on gcp3's never-deployed portfolio route —
+  [[decision-local-portfolio-scoring-over-upstream-wait]]. **Consequence worth
+  naming: this pipeline's liveness is now user-visible on a surface that does
+  not mention it.** A frozen `bar_date` degrades a portfolio grade silently.
 - `lib/shared/universe-policy.ts` (PR #71) — the route's decisions as pure
   functions (scope, horizon, limit, strong-card threshold, card age, page
   summary), split out on the same rationale as

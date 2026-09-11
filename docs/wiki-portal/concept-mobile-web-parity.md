@@ -211,7 +211,7 @@ between the two denominators.
 | **Auth (Clerk)** | `@clerk/clerk-expo` | `@clerk/nextjs` | — (SDK differs by design) | ✅ Aligned — same provider + entitlement key |
 | **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **byte-identical (mobile PR #29)** | ✅ Synced — re-synced after PR #45 drift |
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
-| **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
+| **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical**; the *score itself* is now portal-computed and served to both | 🟡 Partial — both surfaces work again (2026-09-11), but only web reads `X-Portfolio-Health-Source` ([[entity-portfolio-intelligence]] failure 5) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
 | **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **byte-identical (mobile PR #30 + portal PR #51)** | ✅ Synced — was 🟡 Partial (open-issue #6, resolved); portal-only signal data plane depth is a separate axis ([[entity-signal-data-plane]]) |
 | **Signal cache / queue** | `signal-policy.ts` present, unconsumed | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` **byte-identical (mobile PR #32)** | 🟡 Partial — module shared, feature still portal-only |
@@ -296,6 +296,41 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - Identical logic modules: `lib/subscription.ts`, `lib/retention.ts`, `lib/portfolio.ts`
 - The `nuwrrrld-fullstack` skill exists specifically to single-source cross-surface
   business logic and keep Clerk parity — the mechanism this page measures.
+
+> ✅ **Portal portfolio-health local fallback (2026-09-11) assessed — headline
+> unchanged at ~62%, and it is the most interesting *unchanged* number on this
+> page.** The portal stopped waiting on gcp3's never-deployed
+> `/api/portfolio/health` and now scores watchlists from `ticker_cards`
+> ([[decision-local-portfolio-scoring-over-upstream-wait]]). Because
+> `gcp3-mobile`'s `lib/usePortfolio.ts` calls the **portal's** route rather
+> than gcp3 directly, mobile's Portfolio tab went from permanently dead to
+> working **with zero mobile commits** — the single clearest payoff this page
+> has recorded for the portal owning a contract instead of both surfaces
+> calling a third party. Neither denominator moves: no new shared module, no
+> new mobile surface, no domain gained or lost.
+>
+> But the row above moved from ✅ to 🟡, and the reason is worth stating
+> because it inverts this page's usual failure mode. The two surfaces did not
+> drift in *code* — `lib/portfolio.ts` is still byte-identical and neither
+> repo's copy changed. They drifted in **what the user is told**: the response
+> now carries `X-Portfolio-Health-Source: upstream|local`, web renders a
+> provenance line from it, and mobile silently ignores a header it does not
+> know exists. A locally-computed score therefore reads as a backend score on
+> mobile.
+>
+> **The lesson for the drift gate: byte-identity does not catch this class.**
+> Every drift this page has tracked was a shared `lib/shared/` file diverging,
+> which CI can see. Here the divergence is a *new response field one client
+> consumes and the other doesn't* — invisible to `shared-drift-check`,
+> invisible to both test suites, and introduced by a change that touched no
+> shared file. Adding a response header is a cross-surface contract change even
+> when no shared module moves. Tracked as item in [[concept-sync-requirements]];
+> the mobile fix is a three-line read in `usePortfolio.ts` plus a label in
+> `PortfolioScreen.tsx`.
+>
+> Not yet mirrored into `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`
+> — this session was portal-only and no PR has been opened. The mirror is due
+> when it is.
 
 ## See also
 

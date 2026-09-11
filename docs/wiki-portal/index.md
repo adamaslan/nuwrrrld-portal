@@ -91,13 +91,14 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner
 - [[decision-self-implemented-totp-over-clerk-pro]] — nulogdash's admin mutation gate self-implements TOTP instead of paying for Clerk's $25/mo Pro plan or migrating identity providers
 - [[decision-nulogdash-browser-trigger-handshake]] — the nulogdash pipeline-run buttons are a dry-only → live-only two-action handshake (server-minted single-use token + typed name + prod-DB guard + rate limit), never a client `dryRun` flag
+- [[decision-local-portfolio-scoring-over-upstream-wait]] — the portal scores portfolios from its own `ticker_cards` instead of waiting any longer on gcp3's never-deployed `/api/portfolio/health`; upstream demoted from dependency to preferred optimisation
 - [[decision-clerk-subdomain-without-satellite]] — financial.nuwrrrld.com uses `allowed_origins`, not Clerk's paid satellite-domain feature; `change_domain` silently no-ops if misused as an "add a subdomain" call
 
 ---
 
 ## Incidents
 
-- [[incident-2026-07-26-portfolio-health-endpoint-missing]] — both Portfolio Health panels dead on web *and* mobile; the gcp3 route they call was never implemented, and the two sides share no field names
+- [[incident-2026-07-26-portfolio-health-endpoint-missing]] — both Portfolio Health panels dead on web *and* mobile; the gcp3 route they call was never implemented, and the two sides share no field names. **Score panel resolved 2026-09-11 after 47 days** by scoring locally instead of waiting for the upstream deploy ([[decision-local-portfolio-scoring-over-upstream-wait]]); `health-ai` is still ungrounded
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — production checkout silently failing; a malformed `STRIPE_SECRET_KEY` + a Clerk dev-instance key on the production domain, both root-caused via Vercel telemetry
 - [[incident-2026-08-06-bugmerge1-command-file-loss]] — `/bugmerge1`'s own command file vanished mid-run during git checkouts/stash; now guarded by a self-integrity check + out-of-tree backup ([[concept-wiki-led-development]] feedback-loop instance)
 - [[incident-2026-08-16-stash-recovery-and-cross-repo-drift]] — a stale 5-commit stashed branch's rebase produced a silent `log.md` duplication (caught by full-file review) and exposed a cross-repo drift-gate merge-order dependency; resolved by squash-before-rebase and a companion mobile PR

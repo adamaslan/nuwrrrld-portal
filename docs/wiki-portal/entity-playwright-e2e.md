@@ -150,6 +150,38 @@ incident doc is accurate as written. `e2e/frontend/portfolio-health.spec.ts`'s
 case (header present) and is expected to pass; treat a failure there as a
 genuine regression, not confirmation of the old incident.
 
+## Portfolio health — what the specs assert after 2026-09-11
+
+`e2e/frontend/portfolio-health.spec.ts` was written to *reproduce* the
+portfolio outage deterministically, one test per layer. Two of its tests now
+describe history rather than behavior, which is worth marking rather than
+quietly rewriting:
+
+- The **"generic 502"** test is retained but relabelled **HISTORICAL**. The
+  route no longer emits 502 for a gcp3 404 — that degrades to the local scorer
+  — so the test now covers the narrower case of a 502 arriving from a proxy in
+  front of the route. Kept because the client must still degrade legibly there.
+- Two new **EXPOSE** tests cover the path that actually ships: a
+  locally-computed score renders as a normal result *and* carries its
+  provenance label (`.port-health-source`), and a 503 renders as "no signals
+  computed" rather than a generic outage. The second is the terminal honest
+  state from [[concept-graceful-degradation]], asserted at the UI.
+
+`e2e/frontend/portfolio-liveness.spec.ts` needed a correction, and finding it
+is the argument for doing wiki ingest at all — nothing in `tsc`, `eslint`, or
+the unit suite could have. Its health test threw a hand-written error on 503
+saying *"MCP_BACKEND_URL is set but the portal reports it as not configured"*.
+That string encoded the **old** status contract; after the fallback landed, 503
+means "no ticker has a computed card," a completely different fault pointing at
+the hydration pipeline. A liveness test whose failure message names the wrong
+subsystem is worse than no message — it is the same "identical strings defeat
+debugging" defect the suite exists to prevent, reintroduced inside the
+diagnostic itself. Now: 503 names the hydration pipeline, 204 names an unseeded
+watchlist, and the test asserts `X-Portfolio-Health-Source` is one of the two
+known values, logging loudly if gcp3 ever starts answering — so the day the
+upstream appears, the suite records the switch instead of silently changing
+what it measures.
+
 ## Known failures
 
 0. **`auth` job silently repointed at Clerk's production instance

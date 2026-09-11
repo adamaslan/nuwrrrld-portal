@@ -29,6 +29,13 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
 ## Where it appears
 
 - [[entity-holdfold-cache]] — the canonical two-policy pair (cache vs. watchlist).
+- [[entity-portfolio-intelligence]] — a **fourth** shape, new 2026-09-11: not a
+  cache at all, but a *substitute computation*. `/api/portfolio/health` prefers
+  an upstream and falls back to scoring the same question from local data. It
+  follows the cache policy's instinct (degrade, don't crash) while inverting
+  its economics — the "degraded" path is the reliable one and the preferred
+  path is the one that has never once worked. The honest-floor rule still
+  binds: zero coverage returns 503, not a zero.
 - [[entity-signal-data-plane]] — `signal-lookup` is now a full read-through L2
   (fresh `signal_cache` → live → *stale cache on outage* → null): it embodies
   the L1→L2→backend layering *and* the stale-serve fallback in one function.
@@ -56,6 +63,15 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
 - ⚠️ **Stale-serve has no visible age.** Now that `signal-lookup` serves stale
   `signal_cache` on outage, a user can see real-but-old data with no badge
   saying how old — the freshness-contract gap on [[entity-signal-data-plane]].
+  **Widened 2026-09-11.** Portfolio health now scores from `ticker_cards` when
+  gcp3 is absent ([[decision-local-portfolio-scoring-over-upstream-wait]]),
+  which makes a *whole derived number* subject to the same gap: the verified
+  run graded a portfolio on 2026-09-11 from a 2026-09-05 bar, and nothing in
+  the response degrades or flags on that. Worse than the per-ticker case,
+  because a score is an aggregate — its staleness is invisible even in
+  principle to a user comparing it against a price they can see. Given
+  [[incident-2026-09-03-nightly-hydration-dead-15-days]], a silently-frozen
+  `ticker_cards` is demonstrated, not theoretical.
 - ⚠️ **[[entity-disclaimer-system]] (2026-08-11) is a third policy, not a
   variant of the existing two.** `disclaimer_acks` reads fail *closed*
   (`hasAcknowledged` → `false` on error, re-showing the gate) while writes to
