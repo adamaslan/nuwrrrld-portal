@@ -1,5 +1,5 @@
 ---
-date: 2026-09-02
+date: 2026-09-11
 type: entity
 tags: [openrouter, llm, models, seats, fallback, free-tier]
 sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, ../../__tests__/openrouter-fallback.test.ts, ../../__tests__/live/openrouter-resilience.live.test.ts, PR#29, PR#30, PR#37, PR#97]
@@ -23,18 +23,25 @@ The single module that talks to OpenRouter. Owns the seat definitions, the seat�
 
 `SEAT_MODELS` spends the best free model on the one irreducibly hard job and the smallest on tasks reduced to pure classification ([[concept-small-model-prompting]] §10):
 
-Current as of **PR #115 (2026-09-07)**, which repointed T1 and RISK (failure #5 recurring, plus the T1 `$0` fix):
+Current as of **2026-09-11**, which repointed T1, T2 and MACRO after
+[[incident-2026-09-11-nulogdash-blind-sweep]] found that three of six seats could
+not actually be called — the first refresh to live-probe every seat rather than
+look it up in the catalog:
 
 | Seat | Primary model | Size | Vendor | Rationale |
 |---|---|---|---|---|
-| T1 | `thinkingmachines/inkling-small:free` | 12B active / 276B | thinkingmachines | structured 4-field output (was paid `cohere/command-r7b-12-2024` until PR #115 — see failure #5) |
-| T2 | `google/gemma-4-31b-it:free` | 31B | google | secular thesis reasoning |
+| T1 | `nex-agi/nex-n2.5-mini:free` | mini | nex-agi | tactical 1-60 day read → small, fast model. Was `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
+| T2 | `poolside/laguna-s-2.1:free` | s | poolside | secular thesis reasoning. Was `google/gemma-4-31b-it:free`, which **429s on every call including the retry** (failure #11) |
 | RISK | `inclusionai/ling-3.0-flash-fin:free` | 5.1B active / 124B | inclusionai | adversarial framing; finance-tuned (was dead `z-ai/glm-5.2:free` until PR #115) |
-| MACRO | `google/gemma-4-26b-a4b-it:free` | 26B | google | rotation/rates narrative |
+| MACRO | `dots-studio/dots-3-note-preview:free` | preview | dots-studio | rotation/rates narrative; 512k context suits macro grounding. Was `google/gemma-4-26b-a4b-it:free` — same 429 as T2 (failure #11) |
 | QUANT | `liquid/lfm-2.5-2.6b:free` | 2.6B | liquid | numbers-only → smallest model (updated PR #97, was `nvidia/nemotron-nano-9b-v2:free`) |
 | CHAIR | `nvidia/nemotron-3-ultra-550b-a55b:free` | 550B | nvidia | synthesis (hardest job) |
 
-The **Vendor** column is load-bearing, not decoration. `FREE_MODEL_CHAIN` is nvidia-heavy (failure #6), so if the seats were too, one account-tier outage would remove every primary *and* its entire fallback simultaneously. Five distinct vendors across six seats (thinkingmachines / google / inclusionai / liquid / nvidia — up from four, since z-ai leaving its `:free` tier and cohere having no capable `:free` instruct model retired both those seats) means such an outage degrades some seats to the chain rather than all of them at once.
+**Six seats, six distinct vendors** (nex-agi / poolside / inclusionai /
+dots-studio / liquid / nvidia) as of 2026-09-11 — up from five, two of which were
+unreachable, so real spread went from four working vendors to six.
+
+The **Vendor** column is load-bearing, not decoration. `FREE_MODEL_CHAIN` is nvidia-heavy (failure #6), so if the seats were too, one account-tier outage would remove every primary *and* its entire fallback simultaneously. Distinct vendors across every seat mean such an outage degrades some seats to the chain rather than all of them at once.
 
 **Every seat primary is now `:free`.** T1 was the last paid holdout; the `$0` claim on this page and [[decision-free-tier-model-chain]] is accurate again as of PR #115.
 
@@ -42,7 +49,23 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 
 ## `runSeat` — the fallback primitive
 
-`runSeat(seat, messages, apiKey, maxTokens, temperature, modelOverride?)` builds `[primaryModel, ...FREE_MODEL_CHAIN]` (deduped) and tries each in order, falling through on **402 / 429 / 5xx** with a **20 s per-model timeout**. As of PR #115 **all six seat primaries are `:free`** — a full ~11-call deliberation is back to **$0** (the WS2.6 intent). `maxTokens` defaults to **1200** (failure #9); callers should not pass less — `followed-tickers` (`500`) and `followed-tickers-judge` (`400`) did, and PR #115 dropped both overrides so they take the default.
+`runSeat(seat, messages, apiKey, maxTokens, temperature, modelOverride?)` builds `[primaryModel, ...FREE_MODEL_CHAIN]` (deduped) and tries each in order, falling through on **402 / 429 / 5xx**, and on the primary also **404 / 400 / 403**,
+with a **20 s per-model timeout** (`MODEL_ATTEMPT_TIMEOUT_MS`).
+
+`403` was added 2026-09-11: an id gated to "agentic harnesses" is unavailable *to
+this account*, which on a primary is the same situation as retirement — but it
+matched neither the transient branch nor the retired branch, so a 403 primary
+**threw instead of degrading** and took `GET /api/council/sample` down as a hard
+503. The predicate is now `isUnavailableToUsStatus` (404 / 400 / 403 on the
+primary only).
+
+Callers that wrap the walk in their own `AbortController` must size it from the
+exported **`MODEL_CHAIN_WALK_BUDGET_MS`** — `(FREE_MODEL_CHAIN.length + 1) ×
+MODEL_ATTEMPT_TIMEOUT_MS` — not a hand-picked number. `portfolio/health-ai` and
+`brief` both used a literal `25_000`, shorter than one full walk, so any request
+that fell through was aborted with healthy models untried and returned
+`503 "AI unavailable"`. Deriving it means lengthening the chain cannot silently
+invalidate every caller again. As of PR #115 **all six seat primaries are `:free`** — a full ~11-call deliberation is back to **$0** (the WS2.6 intent). `maxTokens` defaults to **1200** (failure #9); callers should not pass less — `followed-tickers` (`500`) and `followed-tickers-judge` (`400`) did, and PR #115 dropped both overrides so they take the default.
 
 **`seatPrimaryModel(seat)`** (exported, PR #115) returns `SEAT_MODELS[seat]` — used by [[entity-model-usage-log]] to tell a `runSeat` call that the primary served from one the chain had to rescue.
 
@@ -80,6 +103,29 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 
    Also observed live in the same test: when there is genuinely no DATA (GCP3's `/signals/MOO` was 503 at the time), T1 fabricated a quote and invented price levels rather than admitting no data — the `_GROUND` "never invent evidence" instruction has no fallback behavior defined for the *zero-DATA* case, only for the has-DATA case. Open item, not yet fixed.
 
+10. **A seat primary that 403s disabled its seat instead of degrading it
+    (fixed 2026-09-11).** `thinkingmachines/inkling-small:free` is `$0`, listed in
+    the catalog, and refuses every call from a non-"agentic harness" with a 403.
+    T1 therefore threw, and `GET /api/council/sample` (T1 + T2) returned a flat
+    503 while every chain model was healthy. Both the seat and the fall-through
+    predicate were fixed; either alone would have left the other latent.
+11. **Two seats answered entirely from the chain for an unknown period (fixed
+    2026-09-11).** T2 and MACRO both sat on `google/gemma-4-*:free`, which return
+    `429 "Provider returned error"` on every probe including the retry. This is
+    failure #6's invisible degradation recurring for the third time, and it
+    recurred because the weekly audit checks **existence and price, never
+    reachability** — the exact blind spot that also hid the paid T1 in failure #5.
+    The audit now live-probes each seat and counts an unreachable one as degraded.
+12. **The fallback chain could select a non-chat model (fixed 2026-09-11).** The
+    2026-09-11 refresh picked `cohere/north-mini-code:free` — a code model — into
+    the chain, because it is `$0` and answers a one-token ping. A seat falling
+    through to it would get a code completion where a trader's outlook belongs, and
+    `runSeat` only checks that an answer is *non-empty*, not that it is on-topic.
+    The catalog also carries a safety classifier that replies "User Safety: safe"
+    and audio-preview ids, both equally ping-clean.
+    `SPECIALIST_MODEL_PATTERNS` now excludes code / classifier / media ids from
+    chain candidacy.
+
 ## Open questions
 
 - ❓ `SEAT_MODELS` primary assignments predate the §10 residual-difficulty analysis. Should T1/T2/MACRO be re-tuned once Layer-B flag-rate telemetry exists? (mirrors an open question on [[entity-ai-council]])
@@ -90,6 +136,9 @@ The CHAIR *verdict* call (not synthesis) uses `SMALLEST_MODEL`, because a verdic
 - ❓ (PR #97, **recurred 2026-09-11**) Live-tested against the real catalog with the #9 fixes applied, `__tests__/live/model-chain.live.test.ts`'s 20s `SEAT_LATENCY_BUDGET_MS` failed 6/20 assertions (MACRO/QUANT/CHAIR each hit 20.7–23.8s at least once) — is 20s still the right SLA for an all-reasoning-model chain, or does the chain need at least one fast non-reasoning entry ahead of the slow ones? A second, unrelated full-suite run on 2026-09-11 hit CHAIR at 20.9s and **26.8s** — a new worst outlier, ~3s past PR #97's ceiling. See [[incident-2026-09-11-model-chain-latency-budget-flake]]. (This live suite is excluded from `npm test`/CI, so nothing broke either time — but the tension has now recurred once and the budget still hasn't been re-derived.)
 
 ## See also
+
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — the sweep run that surfaced failures #10-#12
+- [[decision-local-signal-chat-over-missing-gcp3-agent]] — a new caller of `runSeat`
 
 - [[entity-ai-council]] — the primary consumer
 - [[entity-model-usage-log]] — the per-run audit trail of which model `runSeat` actually served (PR #115)

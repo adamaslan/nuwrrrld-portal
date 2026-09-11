@@ -28,6 +28,19 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 - `lib/council-db.ts` — non-fatal persistence
 - `app/dashboard/HealthBanner.tsx` (PR #65) — the **UI-facing** end of the pattern: turns `/api/health`'s `down`/`degraded` verdict into a user-visible banner, the "and say so" clause made visible rather than logged. Asserted by [[entity-playwright-e2e]]'s health EXPOSE test.
 - `app/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx` (PR #82) — the **render-time** end of the pattern. `error.tsx` catches a thrown route segment; `global-error.tsx` catches the root layout itself (which `error.tsx` cannot see, since it does not wrap the layout above it in its own segment); `not-found.tsx` catches the typo'd dynamic segment, reachable on `/verdict/[ticker]` and `/dashboard/holdfold/[ticker]`, which accept arbitrary strings.
+- `app/api/signals/[ticker]/chat/route.ts` + `lib/signal-chat-local.ts` (2026-09-11)
+  — the newest rung, and a full walk of the ladder in one route: upstream agent →
+  shape-check → local grounded answer with `X-Signal-Chat-Source` → honest 503 when
+  grounding itself is unavailable. Notably it degrades *inside the prompt* too,
+  labelling `ai_degraded` timeframes as "rule-based fallback, not an AI read", so a
+  weak basis cannot be narrated as a considered one. See
+  [[decision-local-signal-chat-over-missing-gcp3-agent]].
+- **Two violations found 2026-09-11**, both of which degraded to an *error* where a
+  lesser answer was available: a 403 model primary that threw instead of falling
+  through, and two routes whose 25 s abort killed the model fallback walk partway.
+  Degrading correctly is not automatic — a budget or a status predicate that is
+  merely *wrong* converts the ladder into a cliff
+  ([[incident-2026-09-11-nulogdash-blind-sweep]]).
 - Contrast: **CHAIR synthesis is the one exception** — if it fails, `deliberate` returns a hard 503 `Council synthesis unavailable`, because there's no meaningful degraded output without a synthesizer.
 
 ## Contradictions / tensions
@@ -69,6 +82,8 @@ Three things this adds to the pattern:
 > ⚠️ And the new failure mode is quieter than the one it replaced. A stale `ticker_cards` degrades the score with no error and no age badge — the same visible-age gap [[concept-cache-then-degrade]] records for stale-serve. "Route missing" was loud; "cards are six days old" is not. Degradation that succeeds is harder to notice than degradation that fails, which is the standing cost of this whole pattern.
 
 ## See also
+
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — two ladder-to-cliff regressions, and a feature that returned 503 for its whole life
 
 - [[entity-grounding-tier-ladder]] — the miss/degraded mechanics
 - [[entity-ai-council]] — per-seat isolation and the 503 exception

@@ -29,7 +29,10 @@
     "stash:status": "node scripts/stash-status.mjs",
     "db:gen-sqlite-schema": "node scripts/gen-sqlite-schema.mjs",
     "db:check-sqlite-schema": "node scripts/gen-sqlite-schema.mjs --check",
-    "test:db-parity": "vitest run --project db-parity"
+    "test:db-parity": "vitest run --project db-parity",
+    "nulogdash:report": "node scripts/nulogdash-report.mjs",
+    "nulogdash:fixture": "node --env-file=.env.local scripts/nulogdash-fixture.mjs",
+    "nulogdash:fixture:check": "node --env-file=.env.local scripts/nulogdash-fixture.mjs --check"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.2",

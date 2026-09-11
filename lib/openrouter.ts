@@ -35,10 +35,11 @@ const OR_BASE = 'https://openrouter.ai/api/v1';
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
   'liquid/lfm-2.5-2.6b:free',
+  'dots-studio/dots-3-note-preview:free',
+  'inclusionai/ling-3.0-flash-fin:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
@@ -73,11 +74,33 @@ export const FREE_MODEL_CHAIN = [
 //     invariant this comment claims. Repointed at
 //     'thinkingmachines/inkling-small:free'. cohere's only :free model is a
 //     code model, unfit for a trader seat, so the cohere seat is retired.
+//
+// 2026-09-11 refresh (found by the /nulogdash sweep, not by the weekly audit —
+// see the audit gap noted in scripts/refresh-free-models.mjs). Every $0 id in
+// the catalog was live-probed, not merely looked up, which is what the previous
+// two refreshes could not do:
+//   - T1 was 'thinkingmachines/inkling-small:free', which 403s for this
+//     account: OpenRouter restricts both `thinkingmachines/inkling*` ids to
+//     "agentic harnesses". 403 was not a fall-through status, so T1 didn't
+//     degrade — it threw, and took GET /api/council/sample (T1 + T2) down with
+//     it as a flat 503. Repointed at nex-agi's n2.5-mini — a fast, small
+//     general model, which matches T1's tactical 1-60 day job.
+//   - T2 and MACRO were both on `google/gemma-4-*:free`, which return 429
+//     ("Provider returned error") on every probe, retry included. Both seats
+//     were therefore answering *entirely* from FREE_MODEL_CHAIN — the exact
+//     invisible-degradation failure the 2026-08-19 note describes, recurring
+//     because the audit checks existence and price but never reachability.
+//     Repointed at poolside/laguna-s-2.1 (T2, strategic) and
+//     dots-studio/dots-3-note-preview (MACRO, 512k context for macro
+//     grounding).
+//   - Net effect on constraint 2: the six seats now draw from six distinct
+//     vendors (nex-agi, poolside, inclusionai, dots-studio, liquid, nvidia),
+//     up from four, two of which were unreachable.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
-  T1: 'thinkingmachines/inkling-small:free',
-  T2: 'google/gemma-4-31b-it:free',
+  T1: 'nex-agi/nex-n2.5-mini:free',
+  T2: 'poolside/laguna-s-2.1:free',
   RISK: 'inclusionai/ling-3.0-flash-fin:free',
-  MACRO: 'google/gemma-4-26b-a4b-it:free',
+  MACRO: 'dots-studio/dots-3-note-preview:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
   // seat audit — see the moo-council-simulation-todo.md run that caught it).
@@ -93,6 +116,28 @@ const SEAT_MODELS: Record<CouncilSeat, string> = {
 // synthesis) and the smallest on tasks reduced to pure classification (CHAIR
 // verdict, run 3x). QUANT already carries the smallest model in the chain.
 export const SMALLEST_MODEL = SEAT_MODELS.QUANT;
+
+/** Per-attempt request budget inside the fallback walk. */
+export const MODEL_ATTEMPT_TIMEOUT_MS = 20_000;
+
+/**
+ * How long a *whole* fallback walk can legitimately take: the primary plus
+ * every chain entry, each with its own attempt budget.
+ *
+ * Callers that wrap `fetchWithModelFallback*` in an AbortController must size
+ * that controller from this, not from a hand-picked number. A caller whose
+ * budget is shorter than the walk aborts the chain partway and reports an
+ * outage while healthy models are still untried — which is what
+ * POST /api/portfolio/health-ai did with a literal 25_000: fine when the
+ * primary answered, a 503 whenever it had to fall through. Deepening
+ * FREE_MODEL_CHAIN from 4 to 5 (2026-09-11) made that latent bug materialise,
+ * since a longer chain means a longer worst-case walk.
+ *
+ * Deliberately derived, so changing the chain length cannot silently invalidate
+ * every caller's timeout again.
+ */
+export const MODEL_CHAIN_WALK_BUDGET_MS =
+  (FREE_MODEL_CHAIN.length + 1) * MODEL_ATTEMPT_TIMEOUT_MS;
 
 /**
  * The hand-maintained primary model for a seat — what `runSeat` tries first,
@@ -386,6 +431,25 @@ function isRetiredModelStatus(status: number): boolean {
 }
 
 /**
+ * Statuses that mean "this id is not usable by this account", which on a
+ * primary is the same situation as retirement: the seat should degrade through
+ * the chain, not fail.
+ *
+ * 403 is the addition (2026-09-11). OpenRouter gates some :free ids to
+ * "agentic harnesses" and answers every other caller with
+ * `403 … is only available on agentic harnesses`. That is not a malformed
+ * request and not transient, so neither of the existing branches advanced —
+ * a 403 primary broke the seat outright. `thinkingmachines/inkling-small:free`
+ * on T1 was in exactly that state, which is what turned
+ * GET /api/council/sample into a hard 503 while every chain model was healthy
+ * (found by the /nulogdash sweep). The seat is repointed below as well; this
+ * makes the *next* gated id degrade instead of break.
+ */
+function isUnavailableToUsStatus(status: number): boolean {
+  return isRetiredModelStatus(status) || status === 403;
+}
+
+/**
  * Whether a failed attempt should advance to the next model.
  *
  * 402 (free-tier quota) / 429 (rate limit) / 5xx are transient-or-per-model
@@ -410,7 +474,7 @@ function isRetiredModelStatus(status: number): boolean {
  */
 function isRetryableStatus(status: number, isPrimary: boolean): boolean {
   if (status === 402 || status === 429 || status >= 500) return true;
-  return isPrimary && isRetiredModelStatus(status);
+  return isPrimary && isUnavailableToUsStatus(status);
 }
 
 /**
@@ -441,7 +505,7 @@ export async function runSeat(
   for (const [index, model] of modelChain.entries()) {
     const isPrimary = index === 0;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20_000);
+    const timer = setTimeout(() => ctrl.abort(), MODEL_ATTEMPT_TIMEOUT_MS);
     try {
       const res = await fetch(`${OR_BASE}/chat/completions`, {
         method: 'POST',

@@ -686,3 +686,7 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-11] friction | portfolio-health fix sat gcp3-side and undeployed for 47 days across 4 confirmations; nothing distinguished "fixed" from "fixed in a repo we can't deploy" | cost: incident
 
 ## [2026-09-11] investigation | model-chain.live.test.ts CHAIR latency budget flake (20.9s/26.8s vs 20s) — recurrence of PR #97 open question — new [[incident-2026-09-11-model-chain-latency-budget-flake]] | pages touched: 4
+
+## [2026-09-11] ingest | nulogdash blind sweep — the feature sweep authenticates for the first time; 4 real bugs surfaced, live-Stripe guard added, 39/59 pass 0 fail | pages touched: 9
+
+## [2026-09-11] friction | a permanently-blocked status row is indistinguishable from a temporarily-blocked one, so 4 real bugs lived inside an honest "not our fault" state indefinitely | cost: incident

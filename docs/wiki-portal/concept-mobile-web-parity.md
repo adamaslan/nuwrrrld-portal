@@ -332,9 +332,40 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > — this session was portal-only and no PR has been opened. The mirror is due
 > when it is.
 
+> ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~66%, but a second
+> provenance header now exists and mobile reads neither.**
+> [[decision-local-signal-chat-over-missing-gcp3-agent]] makes the portal the owner
+> of per-ticker signal chat, exactly as PR-time portfolio health made it the owner
+> of the health score — and it emits `X-Signal-Chat-Source: upstream | local` on the
+> same pattern as `X-Portfolio-Health-Source`.
+>
+> **Parity effect is asymmetric and worth naming precisely.** If mobile calls the
+> portal's `/api/signals/{ticker}/chat`, its per-ticker chat went from permanently
+> broken to working with **no mobile change** — the same free fix portfolio health
+> delivered, and the recurring payoff of the portal owning a contract. What mobile
+> does *not* get is the label: it now ignores two provenance headers instead of one,
+> so a locally-answered reply is indistinguishable from a gcp3-agent one on that
+> surface.
+>
+> This is the same blind spot the portfolio-health entry above closes with: the
+> divergence is a *new response header one client consumes and the other doesn't*,
+> which `shared-drift-check` cannot see because no `lib/shared/` module moved.
+> **Two instances make it a pattern, not an incident** — the drift gate needs a
+> notion of response-contract parity, not just file identity. Tracked in
+> [[concept-sync-requirements]].
+>
+> Neither denominator moves: no `lib/shared/` module was touched, and
+> `lib/signal-chat-local.ts` is portal-only with no mobile counterpart (same
+> starting state `analyze-policy.ts` is still in).
+>
+> Not yet mirrored into `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`
+> — this session was portal-only. The mirror is due with the PR, alongside the
+> still-outstanding portfolio-health mirror noted above.
+
 ## See also
 
 - [[concept-sync-requirements]] — the checklist to raise the number
+- [[decision-local-signal-chat-over-missing-gcp3-agent]] — the second portal-owned contract, and the second unread provenance header
 - [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-billing]]
 - [[entity-ai-council]] — the divergent flagship
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — the PR #45 incident that introduced the `lib/subscription.ts` drift

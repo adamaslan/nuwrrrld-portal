@@ -40,7 +40,9 @@ const FEATURE_META = {
     label: "Nu AI chat",
     auth: true,
     dependencies: ["openrouter"],
-    body: { question: "What is RSI?" },
+    // /api/nuai is a chat endpoint: it reads `messages`, not `question`. The
+    // old { question } body 400'd on every run.
+    body: { messages: [{ role: "user", content: "What is RSI?" }] },
   },
   "GET /api/signals/digest": {
     slug: "signals-digest",
@@ -53,6 +55,17 @@ const FEATURE_META = {
     label: "Live signals feed",
     auth: true,
     dependencies: ["mcp"],
+    // Reads one ticker's last price from `live_prices`; without ?ticker it is a
+    // 400 by contract. `query` is kept separate from the META key because the
+    // key has to stay matchable against the route path discovered on disk.
+    query: "?ticker=NVDA",
+    // 404 { error: "no live price" } is the correct answer for a ticker with no
+    // row, and an empty `live_prices` is the normal state here: the only writer
+    // is the Finnhub WS worker posting to POST /api/signals/live, which this
+    // sweep excludes as an internal ingest endpoint. Verified 0 rows in the
+    // table at the time this was set — so the read path is what is under test,
+    // not the feed.
+    expectStatus: [200, 404],
   },
   "GET /api/signals/card": {
     slug: "signals-card",
@@ -97,21 +110,37 @@ const FEATURE_META = {
     label: "Watchlist — list",
     auth: true,
     dependencies: ["neon"],
+    order: -1,
   },
   "POST /api/portfolio/watchlist": {
     slug: "watchlist-add",
     label: "Watchlist — add",
     auth: true,
     dependencies: ["neon"],
-    body: { ticker: "NULOGDASH-TEST" },
+    // normalizeTicker() accepts 1-10 chars starting with a letter, so the old
+    // "NULOGDASH-TEST" (14 chars) was rejected as an invalid ticker before the
+    // route did anything. "NULOG" is valid-shaped and not a real listed symbol.
+    body: { ticker: "NULOG" },
     writesData: true,
+    // add -> list -> remove, so the synthetic ticker is always cleaned up and
+    // the sweep is idempotent. See the sort in buildInventory().
+    order: -2,
+    // 409 "already in watchlist" is the add path working: the row is present
+    // and the duplicate guard fired. It happens when a previous sweep was
+    // interrupted before reaching its `watchlist-remove` cleanup step, which a
+    // long AI-heavy run makes entirely possible. Treating it as a failure would
+    // mean one aborted run poisons every subsequent run's result for a reason
+    // that has nothing to do with the feature.
+    expectStatus: [409],
   },
-  "DELETE /api/portfolio/watchlist/NULOGDASH-TEST": {
+  "DELETE /api/portfolio/watchlist/NULOG": {
     slug: "watchlist-remove",
     label: "Watchlist — remove",
     auth: true,
     dependencies: ["neon"],
     writesData: true,
+    // Last of the trio: this is the cleanup step.
+    order: 1,
   },
   "GET /api/referral": {
     slug: "referral-get",
@@ -120,12 +149,22 @@ const FEATURE_META = {
     dependencies: ["neon"],
   },
   "POST /api/referral": {
-    slug: "referral-create",
-    label: "Referral — create link",
+    slug: "referral-redeem",
+    label: "Referral — redeem a code",
     auth: true,
     dependencies: ["neon"],
-    body: {},
-    writesData: true,
+    // Previously slugged "referral-create", which this route is not: POST
+    // *redeems* a code (GET issues one). An empty body 400'd forever.
+    //
+    // A real code is deliberately NOT sent. Redeeming one mutates *another*
+    // user's Clerk publicMetadata (`referrals_completed`) and stamps this user
+    // as `referral_redeemed` permanently — a sweep must not do that once, let
+    // alone nightly. A code that cannot exist exercises auth, body parsing and
+    // the whole user-scan lookup, and 404 is the route working correctly.
+    // 409 is also correct if the test user has already redeemed something.
+    body: { code: "NULOGDASH-NO-SUCH-CODE" },
+    expectStatus: [404, 409],
+    note: "sends a deliberately absent code; 404 (no such code) is the pass condition",
   },
   "GET /api/retention/streak": {
     slug: "retention-streak-get",
@@ -144,16 +183,24 @@ const FEATURE_META = {
   "POST /api/retention/trial-nudge": {
     slug: "retention-trial-nudge",
     label: "Retention — trial nudge",
-    auth: true,
-    dependencies: ["neon"],
-    body: {},
+    // Not a Clerk-session feature at all: the handler gates on a CRON_SECRET
+    // bearer (it 401'd every sweep, which read as a defect in the feature
+    // rather than a misclassification in this table), and on success it sends a
+    // real trial-reminder email through Resend to a real user. Same exclusion
+    // ground as retention-digest-email below.
+    excluded:
+      "server-to-server (Bearer CRON_SECRET); sends a real trial-nudge email via Resend — " +
+      "not safe to fire on a routine sweep",
   },
   "POST /api/push/register": {
     slug: "push-register",
     label: "Push notification registration",
     auth: true,
     dependencies: ["neon"],
-    body: { endpoint: "https://nulogdash.test/fake-endpoint", keys: { p256dh: "test", auth: "test" } },
+    // The handler reads a flat `token` string (it stores Clerk-side push
+    // tokens), not a Web Push subscription object. The old { endpoint, keys }
+    // body 400'd every run.
+    body: { token: "nulogdash-sweep-token", platform: "web" },
     writesData: true,
   },
   "POST /api/stripe/checkout": {
@@ -189,14 +236,29 @@ const FEATURE_META = {
     label: "Council — deliberate",
     auth: true,
     dependencies: ["openrouter"],
-    body: { ticker: "AAPL" },
+    // `prompt` is required; `ticker` alone 400'd. `seat` defaults to T1 in the
+    // handler but is stated here so the sweep pins one seat rather than
+    // silently following a default.
+    body: {
+      prompt: "nulogdash sweep: give your seat's take on AAPL in two sentences.",
+      seat: "T1",
+      ticker: "AAPL",
+    },
   },
   "POST /api/council/deliberate": {
     slug: "council-deliberate",
     label: "Council — deliberate (v2)",
     auth: true,
     dependencies: ["openrouter"],
-    body: { ticker: "AAPL" },
+    // v2 takes `question`, not `prompt` — the two council routes disagree on
+    // the field name, which is why one body could not serve both.
+    body: { question: "Is AAPL a hold or a fold right now?", ticker: "AAPL" },
+    // A full debate: five seats plus CHAIR synthesis plus the verdict pass —
+    // ~11 sequential model calls, each with a 20s per-call budget inside
+    // runSeat. The sweep-wide 25s timeout aborted it every run and reported a
+    // working deliberation as "This operation was aborted". This is the one
+    // feature whose honest latency exceeds the default.
+    timeoutMs: 240_000,
   },
   "POST /api/council/public": {
     slug: "council-public",
@@ -242,7 +304,14 @@ const FEATURE_META = {
     slug: "analyze",
     label: "Per-ticker live analysis",
     auth: true,
-    dependencies: ["mcp"],
+    // NOT `mcp`. This route is the one portal surface that calls the *second*
+    // backend — holdemfoldem-api via MCP_ANALYZE_URL — and never touches
+    // gcp3-backend (docs/wiki-portal/decision-second-analyze-backend.md).
+    // Declaring `mcp` meant a healthy gcp3-backend vouched for a dependency
+    // this route does not use, so an unset MCP_ANALYZE_URL surfaced as a hard
+    // `fail` (503 "Analysis backend not configured") when the honest state is
+    // `blocked` on an unmet dependency.
+    dependencies: ["analyzeBackend"],
     body: { symbol: "AAPL" },
   },
   "GET /api/disclaimer": {
@@ -366,6 +435,12 @@ const FEATURE_META = {
     label: "Signal refresh — status",
     auth: true,
     dependencies: ["mcp"],
+    // A cache-status probe. 404 { cached: false } is the documented
+    // "nothing cached yet" answer, not an error — and it is the *normal* state
+    // on a machine that has not run a local push, since the only way to
+    // populate the cache is POST /api/signals/refresh, which this sweep
+    // deliberately excludes (it triggers a real GCP refresh job).
+    expectStatus: [200, 404],
   },
   "POST /api/retention/digest-email": {
     slug: "retention-digest-email",
@@ -529,6 +604,19 @@ function buildInventory() {
       dependencies: meta.dependencies ?? [],
       tier: meta.excluded ? [] : ["api"],
       body: meta.body,
+      // Appended to `path` at request time. Kept out of the META key so the key
+      // still matches the route path discovered on disk.
+      query: meta.query ?? null,
+      // Per-feature override of the sweep-wide request budget, for the rare
+      // feature whose honest latency exceeds it (a full council debate).
+      timeoutMs: meta.timeoutMs ?? null,
+      // Run-order weight; see the sort below. Default 0 keeps discovery order.
+      order: meta.order ?? 0,
+      // Statuses that count as this feature working, when 2xx is not the
+      // correct answer (a documented empty-state 404, a lookup miss). Every
+      // entry that uses it must say why in a comment — it is the one field that
+      // can turn a real defect green.
+      expectStatus: meta.expectStatus ?? null,
       writesData: !!meta.writesData,
       note: meta.note ?? null,
       excluded: meta.excluded ?? null,
@@ -547,9 +635,24 @@ function buildInventory() {
     .filter((f) => f.excluded)
     .map((f) => ({ feature: f.slug, path: `${f.method} ${f.path}`, reason: f.excluded }));
 
+  // Stable sort by `order` (ties keep route-discovery order). This exists for
+  // one narrow but load-bearing reason: the sweep must leave the test user's
+  // state as it found it.
+  //
+  // Route discovery walks the filesystem, which put DELETE /watchlist/{t} before
+  // POST /watchlist — so the sweep removed the synthetic ticker and *then* added
+  // it, leaving "NULOG" in the test user's watchlist after every run. That is
+  // not cosmetic: the watchlist IS the portfolio
+  // (decision-local-portfolio-scoring-over-upstream-wait), so after one sweep
+  // the user's entire portfolio was a single ticker with no computed card, and
+  // GET /api/portfolio/health correctly answered 503 "no signals computed".
+  // A sweep that breaks a *different* feature by running its own steps out of
+  // order reports a defect it created itself.
+  const ordered = [...features].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
   return {
     generatedAt: new Date().toISOString(),
-    features: features.filter((f) => !f.excluded),
+    features: ordered.filter((f) => !f.excluded),
     excluded,
     driftWarnings,
   };

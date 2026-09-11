@@ -812,3 +812,45 @@ separate logins.
    decorative back into a gate.
 9. **LLM provider terms** (§6) — the biggest unexamined legal risk here.
 10. Everything else.
+
+---
+
+## Added 2026-09-11 — surfaced by the `/nulogdash` sweep
+
+These are the only two reasons any feature is still `blocked` after the sweep was
+fixed to authenticate (see
+`docs/wiki-portal/incident-2026-09-11-nulogdash-blind-sweep.md`). Neither can be
+resolved in code.
+
+### Set a **test-mode** Stripe secret key for local/sweep use
+
+- **From**: `/nulogdash` sweep, 2026-09-11
+- **Blocked on**: a `sk_test_...` key from the Stripe dashboard (test mode),
+  plus the matching test-mode `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`
+  price ids.
+- **Why it can't be code**: only the Stripe dashboard can issue the key and the
+  test-mode prices.
+- **Why it matters more than it looks**: `.env.local` currently holds a
+  **`sk_live_`** key, and the sweep `POST`s `/api/stripe/checkout` and
+  `/api/stripe/portal`. Those create a real Checkout Session and — via the
+  portal's lazy-provisioning path — a real **Customer**, on the live account,
+  on every run. The sweep now refuses to run billing features against a live
+  key at all (fail-closed `blocked`), so nothing is being created any more; the
+  key is what turns three features back on.
+- **Unblocks**: `stripe-checkout`, `stripe-portal`, `stripe-subscription` —
+  3 of the 4 remaining blocked features.
+- **Added**: 2026-09-11
+
+### Set `MCP_ANALYZE_URL` (or decide the route is retired)
+
+- **From**: `/nulogdash` sweep, 2026-09-11
+- **Blocked on**: the deployed Cloud Run URL for `holdemfoldem-api`, which is
+  not discoverable from this repo (the sibling repo's README carries only a
+  placeholder, and the active `gcloud` project does not host the service).
+- **Why it can't be code**: the value is an external deployment's hostname.
+  `docs/wiki-portal/decision-second-analyze-backend.md` also records that being
+  unset is *deliberate* in production — so the real decision may be "retire the
+  route", not "set the var".
+- **Unblocks**: `analyze` — the last remaining blocked feature. Until then it
+  correctly reports `blocked` on an unmet dependency rather than failing.
+- **Added**: 2026-09-11

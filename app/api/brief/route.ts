@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { fetchWithModelFallback } from "@/lib/openrouter";
+import { fetchWithModelFallback, MODEL_CHAIN_WALK_BUDGET_MS } from "@/lib/openrouter";
 import { mapSignalsToHoldFold } from "@/lib/shared/holdfold-map";
 import type { HoldFoldVerdict } from "@/lib/shared/holdfold-map";
 
@@ -139,7 +139,10 @@ export async function POST(req: NextRequest) {
   }
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25_000);
+  // Same fix as portfolio/health-ai: a literal 25s is shorter than one full
+  // walk of the model fallback chain, so a request that fell through was
+  // aborted with healthy models untried. See MODEL_CHAIN_WALK_BUDGET_MS.
+  const timer = setTimeout(() => ctrl.abort(), MODEL_CHAIN_WALK_BUDGET_MS);
 
   try {
     const prompt = buildBriefPrompt(tier, market, verdicts);

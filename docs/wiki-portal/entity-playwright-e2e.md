@@ -45,10 +45,23 @@ fail" distinction `scripts/nulogdash.mjs` already applies to feature results.
 > everything.** `preflight-billing` is deliberately excluded from the CI `e2e`
 > job until `docs/stripe-todo.md`'s unset values are real.
 
-**Auth handshake.** `e2e/auth.setup.ts` uses `@clerk/testing`'s `clerkSetup()`
-— rather than the "copy a `__session` cookie out of devtools" pattern
-`scripts/nulogdash.mjs`'s `NULOGDASH_SESSION_COOKIE` uses. Two credentials
-drive it: `E2E_CLERK_TEST_EMAIL` / `E2E_CLERK_TEST_PASSWORD`, for a dedicated
+**Auth handshake.** `e2e/auth.setup.ts` uses `@clerk/testing`'s `clerkSetup()`.
+It used to be the only tier that authenticated correctly: `scripts/nulogdash.mjs`
+hand-pasted a `__session` cookie into `NULOGDASH_SESSION_COOKIE`, which could
+never have worked — a Clerk session cookie is a ~1-minute refreshed JWT, and dev
+instances read a *suffixed* cookie name
+([[incident-2026-09-11-nulogdash-blind-sweep]]).
+
+As of 2026-09-11 the two tiers **share the credential but not the mechanism**, and
+that split is deliberate. A browser tier needs a real signed-in browser, so it
+keeps `clerkSetup()` + cached `storageState`. A script does not, so the sweep mints
+a session token straight from `CLERK_SECRET_KEY` for the *same*
+`E2E_CLERK_TEST_EMAIL` user and sends `Authorization: Bearer`
+(`scripts/lib/nulogdash-auth.mjs`). One test identity, two transports —
+so a change to the test user affects both tiers at once, which is the property
+worth having.
+
+Two credentials drive it: `E2E_CLERK_TEST_EMAIL` / `E2E_CLERK_TEST_PASSWORD`, for a dedicated
 test user only. The resulting session is cached on disk and reused for up to 6
 days (`STALE_AFTER_MS`, inside Clerk's 7-day default session lifetime) before
 re-authenticating automatically — "stay logged in for a week" without a
@@ -296,6 +309,8 @@ what it measures.
   rather than an assertion against a selector nothing produced.
 
 ## See also
+
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — why the sweep no longer imitates this tier's cookie handling
 
 - [[concept-test-strategy]] — the three vitest layers this suite sits above;
   shares the "cheap gate before expensive layer" and "skip loudly, never

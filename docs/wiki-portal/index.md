@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-10 (portal PR #118 — nulogdash entity page + admin e2e tier)_
+_Last updated: 2026-09-11 (nulogdash blind-sweep incident — the feature sweep authenticates for the first time)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -92,6 +92,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-self-implemented-totp-over-clerk-pro]] — nulogdash's admin mutation gate self-implements TOTP instead of paying for Clerk's $25/mo Pro plan or migrating identity providers
 - [[decision-nulogdash-browser-trigger-handshake]] — the nulogdash pipeline-run buttons are a dry-only → live-only two-action handshake (server-minted single-use token + typed name + prod-DB guard + rate limit), never a client `dryRun` flag
 - [[decision-local-portfolio-scoring-over-upstream-wait]] — the portal scores portfolios from its own `ticker_cards` instead of waiting any longer on gcp3's never-deployed `/api/portfolio/health`; upstream demoted from dependency to preferred optimisation
+- [[decision-local-signal-chat-over-missing-gcp3-agent]] — the same call made a second time: `/api/signals/{ticker}/chat` proxied to a gcp3 agent that was never registered and 503'd for its entire life, so the portal now grounds and answers it locally, upstream-first, with an `X-Signal-Chat-Source` header
 - [[decision-clerk-subdomain-without-satellite]] — financial.nuwrrrld.com uses `allowed_origins`, not Clerk's paid satellite-domain feature; `change_domain` silently no-ops if misused as an "add a subdomain" call
 
 ---
@@ -107,6 +108,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[incident-2026-08-31-signals-go-deeper-contract-drift]] — `/api/council` changed its response shape in the four-field migration and only one of two callers was updated; signal-card "Go Deeper" turned every success into "empty response" for ~6 weeks, billing a full model call each time, while the deterministic suite stayed green
 - [[incident-2026-08-31-bear-side-starved-at-universe-scale]] — monthly cohort selection took a signed `score DESC` top-200, which is the 200 most *bullish* cards; the bear side silently emptied as the universe grew toward 950 tickers, returning HTTP 200 with a half-empty benchmark
 - [[incident-2026-08-31-clerk-dev-handshake-redirect-loop]] — a signed-out browser hitting `/dashboard/*` on local `next dev` enters an unbounded 307 handshake cycle until Chromium aborts with `ERR_TOO_MANY_REDIRECTS`; surfaced by the first genuinely cold-context E2E project
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — the feature sweep's auth (`NULOGDASH_SESSION_COOKIE`, a hand-pasted Clerk cookie) **could never have worked** — a ~1-minute refreshed JWT, and dev instances read a suffixed cookie name — so 38 of 59 features sat permanently `blocked` in a state that read as a pending chore. Authenticating for the first time immediately exposed four real bugs it had been covering: a per-ticker chat dead since inception, a council seat 403-gated into throwing instead of degrading, two seats silently answering from the fallback chain, and two routes aborting their own model walk. Also: the sweep had been POSTing a **live** Stripe key
 - [[incident-2026-09-04-e2e-clerk-prod-key-in-ci]] — a Clerk prod-cutover doc's `gh secret set` step pointed E2E's own Clerk secrets at the live, domain-locked production instance, breaking the `auth` job for 6 consecutive runs; misdiagnosed as the known OTP flake until the actual `[WebServer]` log was read
 - [[incident-2026-09-04-precompute-ai-double-schedule]] — `precompute-ai.yml` (GHA) and `deploy/precompute-ai/modal_app.py` (Modal) both scheduled for the same cron minute; likely latent since Modal has never been deployed ([[incident-2026-08-18-modal-under-recommended]]), but **documented, not resolved** — still needs a live `modal app list` check and a manual stop/redeploy before it's actually safe from an OpenRouter-quota double-spend
 - [[incident-2026-09-11-sqlite-backup-dead-since-launch]] — `backup-to-sqlite.yml` failed 7/7 runs since launch on its own live-schema guard: `signal_digest_cache.created_at` existed in production but was never declared in `lib/db/schema.sql`, because the table predated its own `CREATE TABLE IF NOT EXISTS` declaration; fixed in PR #120, verified with a real backup against production and a manual CI dispatch
