@@ -15,7 +15,16 @@ CREATE TABLE IF NOT EXISTS signal_digest_cache (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   period_label text,
   payload      jsonb       NOT NULL,
-  generated_at timestamptz NOT NULL DEFAULT now()
+  generated_at timestamptz NOT NULL DEFAULT now(),
+  -- Present in the live database since before this file declared the table
+  -- (see docs/nuwrrrld-portal-import/portal-10x-council-db-local.md: "already
+  -- exists; keep as the global-cache table"). Because this block is a CREATE
+  -- TABLE IF NOT EXISTS, it never rewrote the pre-existing table, so the
+  -- declaration silently diverged from production. Nothing in this repo writes
+  -- created_at -- the DEFAULT populates it -- but it is NOT NULL and holds real
+  -- data, so it must be declared here or the SQLite mirror omits it and
+  -- scripts/backup-to-sqlite.mjs refuses to ship a lossy snapshot.
+  created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS signal_digest_cache_generated_at_idx
   ON signal_digest_cache (generated_at DESC);

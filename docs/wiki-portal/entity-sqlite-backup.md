@@ -38,8 +38,10 @@ native build step.
   `SELECT *` no longer needs a special case for the missing column.
 - **Never overwrites**: each run either targets a fresh timestamped path
   (`backups/nuwrrrld-<timestamp>.sqlite`) or refuses if `--out` already
-  exists. `backups/` is gitignored — the files can carry Clerk user IDs, IP
-  hashes, and consent records.
+  exists. `backups/` is gitignored (added by PR #120 —
+  [[incident-2026-09-11-sqlite-backup-dead-since-launch]] found it wasn't,
+  and a local run had already left one in the working tree) — the files can
+  carry Clerk user IDs, IP hashes, and consent records.
 - Load order is table-alphabetical, not dependency order (e.g. `ticker_cards`
   sorts before its own `ticker_universe` parent), so the import runs with
   `PRAGMA foreign_keys = OFF` and re-verifies with `PRAGMA foreign_key_check`
@@ -67,18 +69,29 @@ native build step.
 
 ## Known failures
 
-1. **The live database has tables this repo doesn't know about.** See
+1. **`schema.sql`'s declarations can silently diverge from the live
+   database, and only this script notices.** See
+   [[incident-2026-09-11-sqlite-backup-dead-since-launch]] — a
+   `CREATE TABLE IF NOT EXISTS` against a table that already existed in
+   production is a no-op, so the checked-in schema quietly stopped matching
+   reality (`signal_digest_cache.created_at`, undeclared since the table's
+   introduction). `npm run db:check-sqlite-schema` didn't catch it because it
+   only compares the two schema *files* to each other; this script is the
+   only thing in the repo that introspects the live database, and it failed
+   loudly — 7 consecutive backup failures — rather than ship a snapshot
+   silently missing a column.
+2. **The live database has tables this repo doesn't know about.** See
    [[incident-2026-09-03-unowned-tables-in-shared-neon-db]] — `comments`,
    `invoices`, `processed_webhook_events`, `rate_limit_counters` exist in
    the real Neon database but aren't declared in `lib/db/schema.sql` and
    aren't referenced anywhere in this repo's code. The exporter's default
    behavior (skip anything not present in `schema.sqlite.sql`, with a loud
    warning) is what caught this rather than silently including it.
-2. **`numeric` loses precision.** Postgres's arbitrary-precision `numeric`
+3. **`numeric` loses precision.** Postgres's arbitrary-precision `numeric`
    columns (`live_prices.price`, `followed_ticker_picks.entry_price`, Stripe
    money fields) become SQLite `REAL` (IEEE 754 double). Fine for inspecting
    a backup; wrong for re-deriving financial math from the exported file.
-3. **This is a one-way, read-only export.** There is no restore-into-Neon
+4. **This is a one-way, read-only export.** There is no restore-into-Neon
    path and no live SQLite-backed app mode — see "Open questions" below and
    `docs/local-sqlite-backup-and-offline-dev.md` §4 for why a live mode is a
    materially bigger change (26 files import `lib/db.ts`'s Neon-only HTTP
@@ -104,9 +117,17 @@ native build step.
   four undeclared tables ever be onboarded into `schema.sql`/`schema.sqlite.sql`,
   or does this Neon project need to be split so an unrelated app's data isn't
   reachable from this repo's connection string at all?
+- ❓ Per [[incident-2026-09-11-sqlite-backup-dead-since-launch]]: three more
+  `signal_digest_cache` columns (`id`, `period_label`, `generated_at`) are
+  drifted between `schema.sql` and production the same way `created_at` was,
+  just not in a way that breaks the backup. Worth a dedicated pass over
+  `information_schema` vs. every `schema.sql` table, not just this one.
 
 ## See also
 
+- [[incident-2026-09-11-sqlite-backup-dead-since-launch]] — the workflow's
+  own preflight guard catching a `schema.sql` declaration that had silently
+  stopped matching production
 - [[incident-2026-09-03-unowned-tables-in-shared-neon-db]] — the PII/shared-DB finding this tool surfaced
 - [[entity-db-parity-suite]] — the generator + contract-test pair PR #105 added on top of this entity
 - `../local-sqlite-backup-and-offline-dev.md` — full usage guide, workflow→table mapping, and the scoped-but-not-built live-SQLite-dev-server plan

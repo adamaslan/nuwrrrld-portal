@@ -63,3 +63,9 @@ __pycache__/
 # Generated from pipeline_run_log, which is the durable copy; committing them
 # would add two files to the tree on every dry run.
 /docs/pipeline-runs/
+
+# backup-to-sqlite — local snapshots of the live Neon database
+# (scripts/backup-to-sqlite.mjs, default --out). These are full copies of
+# production, including consent_records and user_attribution, so they must
+# never be committed. CI uploads its own copy as a workflow artifact instead.
+/backups/
