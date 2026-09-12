@@ -1,8 +1,8 @@
 ---
-date: 2026-07-20
+date: 2026-09-11
 type: decision
 tags: [cost, models, free-tier, fallback, openrouter]
-sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29, PR#30]
+sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29, PR#30, PR#115]
 ---
 
 # Decision: Every Council Call Runs on a Free-Tier Model Chain
@@ -29,7 +29,28 @@ The council is a per-user feature gated behind the `nu_ai` entitlement and a dai
 
 - Prompts must be written for the *worst* model in the chain, not the best → [[concept-small-model-prompting]].
 - The free roster changes, so `scripts/refresh-free-models.mjs` refreshes `FREE_MODEL_CHAIN` on a cron (Mondays 06:17 UTC); the grounding compile runs after it (06:23) so it uses the freshest list.
-- `runSeat` tries `[primary, ...FREE_MODEL_CHAIN]` with a 20 s per-model timeout — worst case ~80 s for one seat if the whole chain is failing.
+- `runSeat` tries `[primary, ...FREE_MODEL_CHAIN]` with a 20 s per-model timeout.
+  The chain is **5 deep as of 2026-09-11** (was 4), so the worst case for one
+  failing seat is ~120 s — and that number is now *exported* as
+  `MODEL_CHAIN_WALK_BUDGET_MS` rather than left for each caller to guess. Two
+  callers had guessed `25_000`, below one full walk, and returned
+  `503 "AI unavailable"` whenever the primary fell through
+  ([[incident-2026-09-11-nulogdash-blind-sweep]]). **Deepening the chain is not
+  free: it lengthens the worst case, so anything wrapping the walk must derive its
+  budget, never hardcode one.**
+- **Chain depth is only real if every rung can do the job (2026-09-11).** The
+  refresh selected a *code* model into the chain because it was `$0` and answered a
+  one-token ping. `runSeat` checks that an answer is non-empty, not that it is
+  on-topic, so a seat falling through would have returned a code completion as a
+  trader's outlook. `SPECIALIST_MODEL_PATTERNS` now excludes code models, safety
+  classifiers (one replies "User Safety: safe" to anything) and media ids from
+  candidacy — a nominal depth of 5 with a code model at rung 5 is a real depth of 4.
+- **`$0` and `listed` are not `callable` (2026-09-11).** Three separate seat
+  failures passed an audit that checked existence and price: a paid id, a `$0` id
+  gated to "agentic harnesses" (403 for this account), and two `$0` Google ids that
+  429 on every call including the retry. The audit now sends a real one-token
+  request per seat and counts an unreachable seat as degraded. A check on a remote
+  dependency that never calls the dependency is a check on our own description of it.
 - Model *quality* is the accepted risk: the entire verdict/critique/repair machinery ([[concept-verdict-repair-loop]], [[decision-four-field-verdict-scaffold]]) exists to make weak models produce reliable structured output.
 
 ## Validated by
@@ -39,6 +60,8 @@ The council is a per-user feature gated behind the `nu_ai` entitlement and a dai
 - ❌ **Refuted, 2026-07-30:** the previously-unvalidated concurrency risk below is real. OpenRouter free tier caps the **key**, not per-model, at 50 req/day (1000/day at ≥10 credits). One key shared across the whole app means council calls, `/api/brief`, and the refresh script's own probes all draw from the same 50 — any combination can exhaust it, at which point every model 429s at once and looks identical to "the whole free roster is dead." See [[entity-openrouter-client]] "Known failures" #3.
 
 ## See also
+
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — where the reachability gap and the hardcoded walk budgets were found
 
 - [[entity-openrouter-client]] — `SEAT_MODELS`, `FREE_MODEL_CHAIN`, `runSeat`
 - [[entity-model-usage-log]] — makes the `$0` invariant checkable after the fact (PR #115)

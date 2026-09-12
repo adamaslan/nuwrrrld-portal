@@ -11,6 +11,11 @@ interface SectorEntry {
   aiAction: string | null;
 }
 
+/** How many watchlist rows render before the list is opt-in. A seeded
+ *  full-universe watchlist is ~1000 entries; rendering every one on mount
+ *  costs more than it tells anyone. */
+const WATCHLIST_WINDOW = 50;
+
 interface Props {
   initialWatchlist: WatchlistItem[];
   gainers: SectorEntry[];
@@ -82,6 +87,18 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   const [scoreStatus, setScoreStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
   const [score, setScore] = useState<PortfolioHealth | null>(null);
   const [scoreError, setScoreError] = useState("");
+  // Which engine produced the score. gcp3's /api/portfolio/health has never
+  // been deployed, so in practice this is "local" — the portal's own
+  // ticker_cards engine. Shown rather than hidden: a score computed from a
+  // different engine than the user expects is exactly the kind of silent
+  // substitution that made the original outage invisible for 11 days.
+  const [scoreSource, setScoreSource] = useState<"upstream" | "local">("upstream");
+
+  // A seeded watchlist can be ~1000 rows; rendering all of them on mount makes
+  // the page unusable for the one thing it is for. Show a window, filter, and
+  // let the full list be opted into.
+  const [watchFilter, setWatchFilter] = useState("");
+  const [showAllWatch, setShowAllWatch] = useState(false);
 
   const runScoreCheck = useCallback(async () => {
     setScoreStatus("loading");
@@ -95,19 +112,23 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
         return;
       }
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         setScoreStatus("error");
-        setScoreError(data.error === "MCP_BACKEND_URL not configured"
-          ? "Health score backend not configured."
-          : "Health score unavailable — try again shortly.");
+        // Distinct strings per cause. Three different faults all rendering
+        // "Health score unavailable" is what defeated debugging last time.
+        setScoreError(
+          res.status === 503
+            ? "No signals computed for your watchlist yet — the nightly signal run will fill this in."
+            : "Health score unavailable — try again shortly.",
+        );
         return;
       }
       const data: unknown = await res.json();
       if (!isPortfolioHealth(data)) {
         setScoreStatus("error");
-        setScoreError("Health score unavailable — try again shortly.");
+        setScoreError("Health score came back in an unexpected shape — this is a bug, not a market condition.");
         return;
       }
+      setScoreSource(res.headers.get("X-Portfolio-Health-Source") === "local" ? "local" : "upstream");
       setScore(data);
       setScoreStatus("ok");
     } catch {
@@ -208,6 +229,14 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     }
   }
 
+  const filteredWatchlist = watchFilter
+    ? watchlist.filter(i => i.ticker.includes(watchFilter))
+    : watchlist;
+  const visibleWatchlist = showAllWatch
+    ? filteredWatchlist
+    : filteredWatchlist.slice(0, WATCHLIST_WINDOW);
+  const hiddenWatchCount = filteredWatchlist.length - visibleWatchlist.length;
+
   const allSectors = [
     ...gainers.map(s => ({ ...s, type: "gainer" as const })),
     ...losers.map(s => ({ ...s, type: "loser" as const })),
@@ -235,15 +264,35 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
         {watchlist.length === 0 ? (
           <p className="port-watch-empty">No tickers yet — add one above.</p>
         ) : (
-          <div className="port-watch-list">
-            {watchlist.map(item => (
-              <div key={item.ticker} className="port-watch-item">
-                <span className="port-watch-ticker">{item.ticker}</span>
-                <span className="port-watch-date">{new Date(item.addedAt).toLocaleDateString()}</span>
-                <button className="port-watch-remove" onClick={() => removeTicker(item.ticker)} aria-label={`Remove ${item.ticker} from watchlist`}>✕</button>
-              </div>
-            ))}
-          </div>
+          <>
+            {watchlist.length > WATCHLIST_WINDOW && (
+              <input
+                className="port-watch-input"
+                style={{ width: "100%", marginBottom: "8px" }}
+                placeholder={`Filter ${watchlist.length} tickers…`}
+                value={watchFilter}
+                onChange={e => setWatchFilter(e.target.value.toUpperCase())}
+                aria-label="Filter watchlist"
+              />
+            )}
+            <div className="port-watch-list">
+              {visibleWatchlist.map(item => (
+                <div key={item.ticker} className="port-watch-item">
+                  <span className="port-watch-ticker">{item.ticker}</span>
+                  <span className="port-watch-date">{new Date(item.addedAt).toLocaleDateString()}</span>
+                  <button className="port-watch-remove" onClick={() => removeTicker(item.ticker)} aria-label={`Remove ${item.ticker} from watchlist`}>✕</button>
+                </div>
+              ))}
+            </div>
+            {filteredWatchlist.length === 0 && (
+              <p className="port-watch-empty">No watchlist ticker matches “{watchFilter}”.</p>
+            )}
+            {hiddenWatchCount > 0 && (
+              <button className="port-health-regen" onClick={() => setShowAllWatch(true)}>
+                Show all {filteredWatchlist.length} ({hiddenWatchCount} more)
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -264,6 +313,11 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
               <span style={{ fontSize: "2rem", fontWeight: 900 }}>{score.score}</span>
               <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--cyan)" }}>Grade {score.grade}</span>
             </div>
+            {scoreSource === "local" && (
+              <p className="port-health-source">
+                Computed by the portal signal engine from your watchlist&rsquo;s latest cards.
+              </p>
+            )}
             {score.summary && <p className="port-health-text">{score.summary}</p>}
             {score.factors.length > 0 && (
               <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>

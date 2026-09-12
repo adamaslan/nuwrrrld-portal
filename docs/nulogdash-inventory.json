@@ -1,6 +1,51 @@
 {
-  "generatedAt": "2026-09-10T14:30:22.776Z",
+  "generatedAt": "2026-09-11T13:46:28.016Z",
   "features": [
+    {
+      "slug": "watchlist-add",
+      "label": "Watchlist — add",
+      "method": "POST",
+      "path": "/api/portfolio/watchlist",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "body": {
+        "ticker": "NULOG"
+      },
+      "query": null,
+      "timeoutMs": null,
+      "order": -2,
+      "expectStatus": [
+        409
+      ],
+      "writesData": true,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "watchlist-list",
+      "label": "Watchlist — list",
+      "method": "GET",
+      "path": "/api/portfolio/watchlist",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "query": null,
+      "timeoutMs": null,
+      "order": -1,
+      "expectStatus": null,
+      "writesData": false,
+      "note": null,
+      "excluded": null
+    },
     {
       "slug": "analyze",
       "label": "Per-ticker live analysis",
@@ -8,7 +53,7 @@
       "path": "/api/analyze",
       "auth": true,
       "dependencies": [
-        "mcp"
+        "analyzeBackend"
       ],
       "tier": [
         "api"
@@ -16,6 +61,10 @@
       "body": {
         "symbol": "AAPL"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -38,6 +87,10 @@
           "medium": "sweep"
         }
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -54,6 +107,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -72,6 +129,10 @@
         "api"
       ],
       "body": {},
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -88,6 +149,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -112,6 +177,10 @@
         },
         "source": "preferences"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -129,8 +198,13 @@
         "api"
       ],
       "body": {
+        "question": "Is AAPL a hold or a fold right now?",
         "ticker": "AAPL"
       },
+      "query": null,
+      "timeoutMs": 240000,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -150,6 +224,10 @@
       "body": {
         "ticker": "AAPL"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -167,8 +245,14 @@
         "api"
       ],
       "body": {
+        "prompt": "nulogdash sweep: give your seat's take on AAPL in two sentences.",
+        "seat": "T1",
         "ticker": "AAPL"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -185,6 +269,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -201,6 +289,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -220,6 +312,10 @@
       "body": {
         "surface": "nulogdash-sweep"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -239,6 +335,10 @@
       "body": {
         "message": "nulogdash automated sweep — ignore"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -255,6 +355,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -269,6 +373,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -285,6 +393,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -301,6 +413,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -320,6 +436,10 @@
       "body": {
         "surface": "web"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -337,8 +457,17 @@
         "api"
       ],
       "body": {
-        "question": "What is RSI?"
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is RSI?"
+          }
+        ]
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -356,6 +485,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -374,6 +507,10 @@
         "api"
       ],
       "body": {},
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -391,58 +528,11 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
-      "note": null,
-      "excluded": null
-    },
-    {
-      "slug": "watchlist-remove",
-      "label": "Watchlist — remove",
-      "method": "DELETE",
-      "path": "/api/portfolio/watchlist/NULOGDASH-TEST",
-      "auth": true,
-      "dependencies": [
-        "neon"
-      ],
-      "tier": [
-        "api"
-      ],
-      "writesData": true,
-      "note": null,
-      "excluded": null
-    },
-    {
-      "slug": "watchlist-list",
-      "label": "Watchlist — list",
-      "method": "GET",
-      "path": "/api/portfolio/watchlist",
-      "auth": true,
-      "dependencies": [
-        "neon"
-      ],
-      "tier": [
-        "api"
-      ],
-      "writesData": false,
-      "note": null,
-      "excluded": null
-    },
-    {
-      "slug": "watchlist-add",
-      "label": "Watchlist — add",
-      "method": "POST",
-      "path": "/api/portfolio/watchlist",
-      "auth": true,
-      "dependencies": [
-        "neon"
-      ],
-      "tier": [
-        "api"
-      ],
-      "body": {
-        "ticker": "NULOGDASH-TEST"
-      },
-      "writesData": true,
       "note": null,
       "excluded": null
     },
@@ -458,6 +548,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -474,6 +568,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -496,6 +594,10 @@
         "requested_value": "nulogdash sweep",
         "reason": "automated sweep — no-op rectification request"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -513,12 +615,13 @@
         "api"
       ],
       "body": {
-        "endpoint": "https://nulogdash.test/fake-endpoint",
-        "keys": {
-          "p256dh": "test",
-          "auth": "test"
-        }
+        "token": "nulogdash-sweep-token",
+        "platform": "web"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
       "note": null,
       "excluded": null
@@ -535,13 +638,17 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
     },
     {
-      "slug": "referral-create",
-      "label": "Referral — create link",
+      "slug": "referral-redeem",
+      "label": "Referral — redeem a code",
       "method": "POST",
       "path": "/api/referral",
       "auth": true,
@@ -551,9 +658,18 @@
       "tier": [
         "api"
       ],
-      "body": {},
-      "writesData": true,
-      "note": null,
+      "body": {
+        "code": "NULOGDASH-NO-SUCH-CODE"
+      },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": [
+        404,
+        409
+      ],
+      "writesData": false,
+      "note": "sends a deliberately absent code; 404 (no such code) is the pass condition",
       "excluded": null
     },
     {
@@ -568,6 +684,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -585,24 +705,11 @@
         "api"
       ],
       "body": {},
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": true,
-      "note": null,
-      "excluded": null
-    },
-    {
-      "slug": "retention-trial-nudge",
-      "label": "Retention — trial nudge",
-      "method": "POST",
-      "path": "/api/retention/trial-nudge",
-      "auth": true,
-      "dependencies": [
-        "neon"
-      ],
-      "tier": [
-        "api"
-      ],
-      "body": {},
-      "writesData": false,
       "note": null,
       "excluded": null
     },
@@ -621,6 +728,10 @@
       "body": {
         "question": "Why is this a hold?"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -637,6 +748,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -653,6 +768,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -669,6 +788,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -684,6 +807,13 @@
       ],
       "tier": [
         "api"
+      ],
+      "query": "?ticker=NVDA",
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": [
+        200,
+        404
       ],
       "writesData": false,
       "note": null,
@@ -701,6 +831,13 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": [
+        200,
+        404
+      ],
       "writesData": false,
       "note": null,
       "excluded": null
@@ -717,6 +854,10 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": null,
       "excluded": null
@@ -737,6 +878,10 @@
       "body": {
         "plan": "monthly"
       },
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": "creates a real Stripe test-mode Checkout Session; does not complete a purchase",
       "excluded": null
@@ -755,6 +900,10 @@
         "api"
       ],
       "body": {},
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
       "note": "requires the test user to already have a Stripe customer/subscription",
       "excluded": null
@@ -772,7 +921,31 @@
       "tier": [
         "api"
       ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 0,
+      "expectStatus": null,
       "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "watchlist-remove",
+      "label": "Watchlist — remove",
+      "method": "DELETE",
+      "path": "/api/portfolio/watchlist/NULOG",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "query": null,
+      "timeoutMs": null,
+      "order": 1,
+      "expectStatus": null,
+      "writesData": true,
       "note": null,
       "excluded": null
     }
@@ -827,6 +1000,11 @@
       "feature": "retention-digest-email",
       "path": "POST /api/retention/digest-email",
       "reason": "sends a real email to real users; not safe to fire on a routine sweep"
+    },
+    {
+      "feature": "retention-trial-nudge",
+      "path": "POST /api/retention/trial-nudge",
+      "reason": "server-to-server (Bearer CRON_SECRET); sends a real trial-nudge email via Resend — not safe to fire on a routine sweep"
     },
     {
       "feature": "signals-drain",

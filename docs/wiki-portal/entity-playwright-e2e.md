@@ -45,10 +45,23 @@ fail" distinction `scripts/nulogdash.mjs` already applies to feature results.
 > everything.** `preflight-billing` is deliberately excluded from the CI `e2e`
 > job until `docs/stripe-todo.md`'s unset values are real.
 
-**Auth handshake.** `e2e/auth.setup.ts` uses `@clerk/testing`'s `clerkSetup()`
-— rather than the "copy a `__session` cookie out of devtools" pattern
-`scripts/nulogdash.mjs`'s `NULOGDASH_SESSION_COOKIE` uses. Two credentials
-drive it: `E2E_CLERK_TEST_EMAIL` / `E2E_CLERK_TEST_PASSWORD`, for a dedicated
+**Auth handshake.** `e2e/auth.setup.ts` uses `@clerk/testing`'s `clerkSetup()`.
+It used to be the only tier that authenticated correctly: `scripts/nulogdash.mjs`
+hand-pasted a `__session` cookie into `NULOGDASH_SESSION_COOKIE`, which could
+never have worked — a Clerk session cookie is a ~1-minute refreshed JWT, and dev
+instances read a *suffixed* cookie name
+([[incident-2026-09-11-nulogdash-blind-sweep]]).
+
+As of 2026-09-11 the two tiers **share the credential but not the mechanism**, and
+that split is deliberate. A browser tier needs a real signed-in browser, so it
+keeps `clerkSetup()` + cached `storageState`. A script does not, so the sweep mints
+a session token straight from `CLERK_SECRET_KEY` for the *same*
+`E2E_CLERK_TEST_EMAIL` user and sends `Authorization: Bearer`
+(`scripts/lib/nulogdash-auth.mjs`). One test identity, two transports —
+so a change to the test user affects both tiers at once, which is the property
+worth having.
+
+Two credentials drive it: `E2E_CLERK_TEST_EMAIL` / `E2E_CLERK_TEST_PASSWORD`, for a dedicated
 test user only. The resulting session is cached on disk and reused for up to 6
 days (`STALE_AFTER_MS`, inside Clerk's 7-day default session lifetime) before
 re-authenticating automatically — "stay logged in for a week" without a
@@ -149,6 +162,38 @@ incident doc is accurate as written. `e2e/frontend/portfolio-health.spec.ts`'s
 "PortfolioClient sends no Accept header" test therefore asserts the *positive*
 case (header present) and is expected to pass; treat a failure there as a
 genuine regression, not confirmation of the old incident.
+
+## Portfolio health — what the specs assert after 2026-09-11
+
+`e2e/frontend/portfolio-health.spec.ts` was written to *reproduce* the
+portfolio outage deterministically, one test per layer. Two of its tests now
+describe history rather than behavior, which is worth marking rather than
+quietly rewriting:
+
+- The **"generic 502"** test is retained but relabelled **HISTORICAL**. The
+  route no longer emits 502 for a gcp3 404 — that degrades to the local scorer
+  — so the test now covers the narrower case of a 502 arriving from a proxy in
+  front of the route. Kept because the client must still degrade legibly there.
+- Two new **EXPOSE** tests cover the path that actually ships: a
+  locally-computed score renders as a normal result *and* carries its
+  provenance label (`.port-health-source`), and a 503 renders as "no signals
+  computed" rather than a generic outage. The second is the terminal honest
+  state from [[concept-graceful-degradation]], asserted at the UI.
+
+`e2e/frontend/portfolio-liveness.spec.ts` needed a correction, and finding it
+is the argument for doing wiki ingest at all — nothing in `tsc`, `eslint`, or
+the unit suite could have. Its health test threw a hand-written error on 503
+saying *"MCP_BACKEND_URL is set but the portal reports it as not configured"*.
+That string encoded the **old** status contract; after the fallback landed, 503
+means "no ticker has a computed card," a completely different fault pointing at
+the hydration pipeline. A liveness test whose failure message names the wrong
+subsystem is worse than no message — it is the same "identical strings defeat
+debugging" defect the suite exists to prevent, reintroduced inside the
+diagnostic itself. Now: 503 names the hydration pipeline, 204 names an unseeded
+watchlist, and the test asserts `X-Portfolio-Health-Source` is one of the two
+known values, logging loudly if gcp3 ever starts answering — so the day the
+upstream appears, the suite records the switch instead of silently changing
+what it measures.
 
 ## Known failures
 
@@ -264,6 +309,8 @@ genuine regression, not confirmation of the old incident.
   rather than an assertion against a selector nothing produced.
 
 ## See also
+
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — why the sweep no longer imitates this tier's cookie handling
 
 - [[concept-test-strategy]] — the three vitest layers this suite sits above;
   shares the "cheap gate before expensive layer" and "skip loudly, never

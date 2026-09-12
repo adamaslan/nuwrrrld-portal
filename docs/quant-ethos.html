@@ -1,0 +1,688 @@
+<title>NuWrrrld Quant Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap">
+
+<style>
+/* ── tokens ─────────────────────────────────────────────────────────────
+   Light palette on bare :root; dark redefines tokens only. Inherited from
+   the portal's own app/globals.css so this page and the product agree. */
+:root {
+  --ground:   #f2f5fa;
+  --panel:    #ffffff;
+  --panel-2:  #e7ecf5;
+  --ink:      #0b0e16;
+  --ink-dim:  #4d5876;
+  --ink-faint:#79839f;
+  --rule:     #ccd5e6;
+  --rule-soft:#dfe6f1;
+
+  --accent:      #0b6f8c;
+  --accent-soft: rgba(11, 111, 140, .10);
+  --accent-line: rgba(11, 111, 140, .34);
+
+  --bear: #b8253e;
+  --warn: #8a5a05;
+  --bull: #0b6f8c;
+
+  --shadow: 0 1px 2px rgba(11, 14, 22, .06), 0 8px 24px rgba(11, 14, 22, .05);
+
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+
+  --measure: 66ch;
+  --step--1: clamp(.76rem, .74rem + .1vw, .82rem);
+  --step-0:  clamp(1.02rem, 1rem + .16vw, 1.14rem);
+  --step-1:  clamp(1.24rem, 1.16rem + .4vw, 1.5rem);
+  --step-2:  clamp(1.5rem, 1.32rem + .9vw, 2.1rem);
+  --step-3:  clamp(2rem, 1.6rem + 2.2vw, 3.4rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:   #06070d;
+    --panel:    #0d1018;
+    --panel-2:  #141926;
+    --ink:      #e8ecf4;
+    --ink-dim:  #9aa4bd;
+    --ink-faint:#6b7591;
+    --rule:     #212a3d;
+    --rule-soft:#171d2b;
+
+    --accent:      #2fd8ff;
+    --accent-soft: rgba(47, 216, 255, .10);
+    --accent-line: rgba(47, 216, 255, .30);
+
+    --bear: #ff3b5c;
+    --warn: #f4b83f;
+    --bull: #2fd8ff;
+
+    --shadow: 0 1px 0 rgba(255, 255, 255, .03), 0 18px 40px rgba(0, 0, 0, .45);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:   #06070d;
+  --panel:    #0d1018;
+  --panel-2:  #141926;
+  --ink:      #e8ecf4;
+  --ink-dim:  #9aa4bd;
+  --ink-faint:#6b7591;
+  --rule:     #212a3d;
+  --rule-soft:#171d2b;
+
+  --accent:      #2fd8ff;
+  --accent-soft: rgba(47, 216, 255, .10);
+  --accent-line: rgba(47, 216, 255, .30);
+
+  --bear: #ff3b5c;
+  --warn: #f4b83f;
+  --bull: #2fd8ff;
+
+  --shadow: 0 1px 0 rgba(255, 255, 255, .03), 0 18px 40px rgba(0, 0, 0, .45);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--step-0);
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 78rem; margin: 0 auto; padding: 0 clamp(1.1rem, 4vw, 3.5rem); }
+
+/* ── masthead ───────────────────────────────────────────────────────── */
+.masthead { padding: clamp(3rem, 8vh, 6rem) 0 clamp(2rem, 5vh, 3.5rem); border-bottom: 1px solid var(--rule); }
+.eyebrow {
+  font-family: var(--mono); font-size: var(--step--1); font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+  margin: 0 0 1.4rem;
+  display: flex; flex-wrap: wrap; gap: .5rem 1.1rem; align-items: baseline;
+}
+.eyebrow .sep { color: var(--ink-faint); }
+h1 {
+  font-family: var(--mono); font-weight: 700; font-size: var(--step-3);
+  line-height: 1.02; letter-spacing: -.025em; margin: 0 0 1.2rem;
+  text-wrap: balance; max-width: 34ch;
+}
+.thesis {
+  font-size: var(--step-1); line-height: 1.45; color: var(--ink-dim);
+  max-width: 54ch; margin: 0;
+}
+.thesis strong { color: var(--ink); font-weight: 600; }
+
+/* ── status board ───────────────────────────────────────────────────── */
+.board {
+  display: grid; gap: 1px; background: var(--rule);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  border: 1px solid var(--rule); margin: 2.5rem 0 0;
+}
+.cell { background: var(--panel); padding: 1.1rem 1.2rem 1.2rem; }
+.cell dt {
+  font-family: var(--mono); font-size: var(--step--1); font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint);
+  margin: 0 0 .5rem;
+}
+.cell dd {
+  margin: 0; font-family: var(--mono); font-weight: 600;
+  font-size: 1.9rem; line-height: 1; letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+.cell dd small { font-size: .8rem; font-weight: 400; color: var(--ink-faint); letter-spacing: 0; }
+.cell .note { font-family: var(--serif); font-size: .86rem; color: var(--ink-dim); margin-top: .55rem; line-height: 1.4; }
+.ok   { color: var(--bull); }
+.warn { color: var(--warn); }
+.bad  { color: var(--bear); }
+
+/* ── section scaffolding: mono rail + prose spine ───────────────────── */
+section { padding: clamp(2.75rem, 7vh, 5rem) 0; border-bottom: 1px solid var(--rule-soft); }
+.rail { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: clamp(1.25rem, 4vw, 3.5rem); align-items: start; }
+@media (max-width: 62rem) { .rail { grid-template-columns: 1fr; gap: 1rem; } }
+.rail > h2 {
+  font-family: var(--mono); font-size: var(--step--1); font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--accent);
+  margin: .5rem 0 0; position: sticky; top: 1.5rem;
+}
+@media (max-width: 62rem) { .rail > h2 { position: static; } }
+.body > * + * { margin-top: 1.15rem; }
+.body p, .body ul, .body ol { max-width: var(--measure); }
+.body p { margin: 0; }
+h3 {
+  font-family: var(--mono); font-weight: 600; font-size: var(--step-1);
+  letter-spacing: -.015em; margin: 0; text-wrap: balance;
+}
+.lede { font-size: var(--step-1); line-height: 1.5; color: var(--ink-dim); max-width: 52ch; }
+.lede strong { color: var(--ink); font-weight: 600; }
+code, .m { font-family: var(--mono); font-size: .88em; }
+code { background: var(--accent-soft); padding: .1em .34em; border-radius: 2px; }
+
+/* ── layer stack ────────────────────────────────────────────────────── */
+.layers { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.layer { background: var(--panel); padding: 1.3rem clamp(1rem, 2.5vw, 1.7rem); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: 1.2rem; }
+@media (max-width: 44rem) { .layer { grid-template-columns: 1fr; gap: .55rem; } }
+.layer .tier {
+  font-family: var(--mono); font-size: var(--step--1); font-weight: 600;
+  letter-spacing: .08em; color: var(--accent); padding-top: .3rem;
+  border-right: 1px solid var(--accent-line);
+}
+@media (max-width: 44rem) { .layer .tier { border-right: 0; } }
+.layer h4 { font-family: var(--mono); font-size: 1.02rem; font-weight: 600; margin: 0 0 .4rem; letter-spacing: -.01em; }
+.layer p { margin: 0; color: var(--ink-dim); font-size: .96rem; max-width: 62ch; }
+.consts { font-family: var(--mono); font-size: .82rem; color: var(--ink-faint); margin-top: .6rem; font-variant-numeric: tabular-nums; }
+.consts b { color: var(--ink-dim); font-weight: 500; }
+
+/* ── formula plates ─────────────────────────────────────────────────── */
+.plate {
+  background: var(--panel-2); border: 1px solid var(--rule);
+  padding: 1.15rem clamp(1rem, 2.5vw, 1.5rem); overflow-x: auto;
+}
+.plate .f {
+  font-family: var(--mono); font-size: .95rem; line-height: 1.9;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.plate .f .op { color: var(--ink-faint); }
+.plate .f .w  { color: var(--accent); font-weight: 600; }
+.plate figcaption { font-size: .88rem; color: var(--ink-dim); margin-top: .8rem; white-space: normal; max-width: 60ch; }
+
+/* ── tables ─────────────────────────────────────────────────────────── */
+.scroll { overflow-x: auto; border: 1px solid var(--rule); background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 34rem; font-family: var(--mono); font-size: .87rem; }
+th, td { text-align: left; padding: .62rem .85rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th {
+  font-weight: 600; font-size: var(--step--1); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-faint); background: var(--panel-2);
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+td .sub { display: block; font-family: var(--serif); font-size: .88rem; color: var(--ink-dim); margin-top: .2rem; line-height: 1.45; }
+
+/* ── pills ──────────────────────────────────────────────────────────── */
+.pill {
+  display: inline-block; font-family: var(--mono); font-size: .72rem; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; padding: .17em .5em;
+  border: 1px solid currentColor; border-radius: 2px; white-space: nowrap;
+}
+.pill.p-ok { color: var(--bull); }
+.pill.p-warn { color: var(--warn); }
+.pill.p-bad { color: var(--bear); }
+.pill.p-off { color: var(--ink-faint); }
+
+/* ── rules list (the ethos) ─────────────────────────────────────────── */
+.rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.rules > li { background: var(--panel); padding: 1.25rem clamp(1rem, 2.5vw, 1.6rem); }
+.rules .r {
+  font-family: var(--mono); font-size: 1.01rem; font-weight: 600;
+  margin: 0 0 .5rem; letter-spacing: -.01em; color: var(--ink);
+}
+.rules p { margin: 0; color: var(--ink-dim); font-size: .96rem; max-width: 64ch; }
+.rules .cost {
+  display: block; margin-top: .7rem; font-family: var(--mono); font-size: .8rem;
+  color: var(--ink-faint); padding-left: .9rem; border-left: 2px solid var(--accent-line);
+}
+
+/* ── ladder (a real sequence, so it gets numbers) ───────────────────── */
+.ladder { list-style: none; counter-reset: rung; padding: 0; margin: 0; display: grid; gap: .7rem; }
+.ladder li {
+  counter-increment: rung; display: grid; grid-template-columns: 2rem minmax(0, 1fr);
+  gap: .9rem; align-items: baseline; max-width: var(--measure);
+}
+.ladder li::before {
+  content: counter(rung); font-family: var(--mono); font-size: .82rem; font-weight: 600;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--accent-line); padding-bottom: .1rem; text-align: right;
+}
+.ladder b { font-family: var(--mono); font-weight: 600; font-size: .95rem; }
+.ladder span { color: var(--ink-dim); }
+
+footer { padding: clamp(2.5rem, 6vh, 4rem) 0 clamp(3rem, 8vh, 5rem); }
+footer p { font-family: var(--mono); font-size: .82rem; color: var(--ink-faint); max-width: 68ch; margin: 0 0 .6rem; line-height: 1.65; }
+
+:where(a):focus-visible, :where(th, td):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">
+    <span>NuWrrrld Financial</span><span class="sep">/</span>
+    <span>Quant &amp; signal engine</span><span class="sep">/</span>
+    <span>sweep 4ac79a4</span>
+  </p>
+  <h1>Deterministic first. The model narrates.</h1>
+  <p class="thesis">
+    Every number on this desk is computed by rules before a language model sees it.
+    The model's job is to <strong>explain a number it was handed</strong> — never to
+    produce one. That single constraint is what the rest of the engine is built to
+    protect, and most of the machinery below exists because it was violated once
+    and something quietly lied.
+  </p>
+
+  <dl class="board">
+    <div class="cell">
+      <dt>Feature sweep</dt>
+      <dd class="ok">39<small> / 59</small></dd>
+      <p class="note">Exercised end-to-end against a live dev server. <b>0 failing.</b></p>
+    </div>
+    <div class="cell">
+      <dt>Scored universe</dt>
+      <dd>1,864</dd>
+      <p class="note">Ticker cards, each a reproducible score in [−100, 100] plus an action.</p>
+    </div>
+    <div class="cell">
+      <dt>Council seats</dt>
+      <dd>6<small> / 6 vendors</small></dd>
+      <p class="note">One model per seat, six distinct vendors, all reachability-probed.</p>
+    </div>
+    <div class="cell">
+      <dt>Fallback depth</dt>
+      <dd>5<small> deep</small></dd>
+      <p class="note">Chain behind every seat, spread across 4 vendors.</p>
+    </div>
+    <div class="cell">
+      <dt>Model spend</dt>
+      <dd class="ok">$0</dd>
+      <p class="note">Every seat and every fallback is a $0-priced tier. Enforced weekly.</p>
+    </div>
+  </dl>
+</header>
+
+<section>
+  <div class="rail">
+    <h2>The stack</h2>
+    <div class="body">
+      <p class="lede">
+        Six layers, bottom to top. <strong>The model only appears at layer five.</strong>
+        Everything under it is arithmetic you can recompute by hand from the same inputs
+        and get the same answer.
+      </p>
+
+      <div class="layers">
+        <div class="layer">
+          <div class="tier">L1</div>
+          <div>
+            <h4>Indicator math</h4>
+            <p>
+              EMA, Wilder smoothing, RSI, MACD crossover, ADX, and a rolling volatility
+              percentile — hand-ported from the Python job that also writes to this table,
+              and pinned numerically against captured reference values so the two hosts
+              cannot silently disagree.
+            </p>
+            <p class="consts"><b>RSI</b> 14 &nbsp;·&nbsp; <b>MACD</b> 12/26/9 &nbsp;·&nbsp; <b>ADX</b> 14 &nbsp;·&nbsp; <b>vol window</b> 20</p>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="tier">L2</div>
+          <div>
+            <h4>Confluence</h4>
+            <p>
+              Indicators vote −1 / 0 / +1; agreement is the absolute net over the vote
+              count. A trending tape makes agreement mean more, so a strong ADX scales it
+              up — capped, because a confidence above 100% is a bug, not a conviction.
+            </p>
+            <p class="consts"><b>ADX ≥ 25</b> → agreement × 1.25, clamped to 1.0</p>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="tier">L3</div>
+          <div>
+            <h4>Three-state signal</h4>
+            <p>
+              A direction per timeframe with its own confidence and cited evidence, plus
+              an alignment score across timeframes and a named divergence pattern. Three
+              states, not two: <em>neutral</em> is a real answer, and collapsing it into
+              buy-or-sell is how a flat tape becomes a fabricated conviction.
+            </p>
+            <p class="consts"><b>timeframes</b> 1D · 5D · 1M · 3M · 6M · 1Y</p>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="tier">L4</div>
+          <div>
+            <h4>Portfolio scoring</h4>
+            <p>
+              The watchlist is the portfolio. Cards are weighted into one score and grade,
+              with coverage reported beside it rather than folded into it — so
+              “we don't know yet” never renders as “this is bad.”
+            </p>
+            <p class="consts"><b>weights</b> signal .45 · direction .30 · diversification .25</p>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="tier">L5</div>
+          <div>
+            <h4>The council</h4>
+            <p>
+              Six seats argue one position: two horizons, a devil's advocate, a macro
+              seat, a quant classifier, and a chair that synthesises. Each answers in four
+              labelled fields, and a repair loop re-asks any seat that drifts out of
+              format rather than shipping prose that looks like a verdict.
+            </p>
+            <p class="consts"><b>seats</b> T1 · T2 · RISK · MACRO · QUANT · CHAIR</p>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="tier">L6</div>
+          <div>
+            <h4>The judge</h4>
+            <p>
+              A second model grades every verdict on five criteria, blind to the outcome —
+              no realised price, no resolved result, no date. A judge that can see the
+              answer grades hindsight. Its own scores are gated on a gold set before any
+              of them are allowed to publish.
+            </p>
+            <p class="consts"><b>criteria</b> grounding · falsifiability · consistency · specificity · calibration &nbsp;·&nbsp; <b>max</b> 10</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="rail">
+    <h2>The arithmetic</h2>
+    <div class="body">
+      <p class="lede">
+        Three numbers do most of the work. All three are stated here in full, because a
+        score whose formula you cannot read is a score you have to take on faith.
+      </p>
+
+      <figure class="plate" style="margin:0">
+        <div class="f">
+          health <span class="op">=</span>
+          <span class="w">0.45</span> <span class="op">·</span> signal
+          <span class="op">+</span> <span class="w">0.30</span> <span class="op">·</span> direction
+          <span class="op">+</span> <span class="w">0.25</span> <span class="op">·</span> diversification
+        </div>
+        <figcaption>
+          Reasoned, not fitted — and labelled as such. Shipping an unvalidated heuristic
+          was defensible only because the alternative on offer was no score at all;
+          that trade is recorded to be revisited, not inherited.
+        </figcaption>
+      </figure>
+
+      <figure class="plate" style="margin:0">
+        <div class="f">
+          agreement <span class="op">=</span> |Σ votes| <span class="op">/</span> n
+          <span class="op">,&nbsp; then ×</span> <span class="w">1.25</span> <span class="op">if ADX ≥ 25, min(</span>1.0<span class="op">)</span>
+        </div>
+        <figcaption>
+          Votes come only from indicators that actually computed. A missing indicator
+          abstains; it never contributes a zero, because a zero is a reading and an
+          absence is not.
+        </figcaption>
+      </figure>
+
+      <figure class="plate" style="margin:0">
+        <div class="f">
+          hit rate <span class="op">=</span> hits <span class="op">/</span> resolved
+          <span class="op">&nbsp;— suppressed while resolved &lt;</span> <span class="w">30</span>
+        </div>
+        <figcaption>
+          A rate over a handful of picks is the single easiest way to make a benchmark
+          lie, so under thirty resolved picks the harness reports counts and refuses to
+          divide.
+        </figcaption>
+      </figure>
+
+      <h3>Horizons</h3>
+      <p>
+        Every pick is scored at fixed trading-day offsets, counted in sessions rather than
+        calendar days — which is also why 24/7 crypto pairs are refused at registration
+        instead of quietly producing wrong holding periods.
+      </p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Horizon</th><th class="num">Trading days</th><th>Reads as</th></tr></thead>
+          <tbody>
+            <tr><td>d1</td><td class="num">1</td><td>next session</td></tr>
+            <tr><td>w1</td><td class="num">5</td><td>one week</td></tr>
+            <tr><td>m1</td><td class="num">21</td><td>one month</td></tr>
+            <tr><td>m3</td><td class="num">63</td><td>one quarter</td></tr>
+            <tr><td>m6</td><td class="num">126</td><td>half year</td></tr>
+            <tr><td>y1</td><td class="num">252</td><td>full year</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="rail">
+    <h2>Grading the grader</h2>
+    <div class="body">
+      <p class="lede">
+        An LLM judge is only worth having if it can be caught being wrong. So the judge is
+        run against a gold set of hand-scored verdicts every time, and
+        <strong>a run that disagrees with the gold set is discarded whole</strong> —
+        including its good scores.
+      </p>
+
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Gate</th><th class="num">Value</th><th>Why it exists</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Agreement threshold</td><td class="num">0.80</td>
+              <td>Below it, nothing publishes.<span class="sub">The only defence against silent judge drift when the free-tier chain swaps a model out from under the harness.</span></td>
+            </tr>
+            <tr>
+              <td>Score tolerance</td><td class="num">±1</td>
+              <td>How close counts as agreeing.<span class="sub">Out of a maximum of 10, across five criteria worth 2 each.</span></td>
+            </tr>
+            <tr>
+              <td>Empty gold set</td><td class="num">fail</td>
+              <td>No gold set is a hard fail, never a pass.<span class="sub">A judge with nothing to check it against is unfalsifiable, which is worse than one known to be poor.</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        The gate is not decorative. On this run the judge scored a deliberately mediocre
+        fixture <span class="m">10 / 10</span> against a gold score of
+        <span class="m">5</span> — agreement <span class="m">50%</span>, below the
+        threshold, so the entire run's scores were thrown away and nothing reached the
+        scorecard. That is the pipeline working. It is also a standing finding: with a
+        two-case gold set, one disagreement is 50%, so the set is too small to distinguish
+        a drifting judge from an unlucky one.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="rail">
+    <h2>Free-tier resilience</h2>
+    <div class="body">
+      <p class="lede">
+        The whole council runs on $0-priced models. That is a real engineering constraint,
+        not a cost footnote: free tiers are <strong>retired, gated, and throttled without
+        notice</strong>, and a seat pointed at a dead model still answers — through the
+        fallback chain — which makes the rot invisible.
+      </p>
+
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Seat</th><th>Job</th><th>Vendor</th><th>State</th></tr></thead>
+          <tbody>
+            <tr><td>T1</td><td>trader, 1–60 days<span class="sub">Fast and tactical, so a small fast model fits the job.</span></td><td>nex-agi</td><td><span class="pill p-ok">reachable</span></td></tr>
+            <tr><td>T2</td><td>investor, 2 mo–5 yr<span class="sub">Strategic horizon; was on a model that answered 429 to every call.</span></td><td>poolside</td><td><span class="pill p-ok">reachable</span></td></tr>
+            <tr><td>RISK</td><td>devil's advocate<span class="sub">Argues against the trade and sizes the downside. Finance-tuned.</span></td><td>inclusionai</td><td><span class="pill p-ok">reachable</span></td></tr>
+            <tr><td>MACRO</td><td>macro context<span class="sub">Large context window, for grounding on more of the tape at once.</span></td><td>dots-studio</td><td><span class="pill p-ok">reachable</span></td></tr>
+            <tr><td>QUANT</td><td>classifier<span class="sub">Reduced to classification, so it carries the smallest model deliberately.</span></td><td>liquid</td><td><span class="pill p-ok">reachable</span></td></tr>
+            <tr><td>CHAIR</td><td>synthesis<span class="sub">The one irreducibly hard job, so it gets the largest free model.</span></td><td>nvidia</td><td><span class="pill p-ok">reachable</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Two properties are held on purpose. <b class="m">Size follows the job</b> — largest
+        model on synthesis, smallest on classification. <b class="m">Vendors are spread</b> —
+        six seats across six vendors, so one account-tier outage degrades some seats
+        instead of every seat at once.
+      </p>
+
+      <h3>What “reachable” had to start meaning</h3>
+      <p>
+        The weekly audit used to check that a seat's model existed in the catalog and was
+        priced at zero. Three separate failures passed that check: a seat quietly running a
+        <em>paid</em> model, a seat on a $0 model that returns
+        <span class="m">403 — only available on agentic harnesses</span>, and two seats on
+        $0 models that answer <span class="m">429</span> to every request including the
+        retry. Existence and price are not reachability. The audit now sends a real
+        one-token call to every seat, and counts an unreachable seat as degraded.
+      </p>
+      <p>
+        The fallback chain behind the seats is five deep across four vendors, and it now
+        excludes specialist models by pattern — a code model, a safety classifier, and an
+        audio preview all answer a ping perfectly happily, and a seat that fell through to
+        one would get a code completion where a trader's outlook belongs. The chain's depth
+        is only real if every rung can do the job.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="rail">
+    <h2>Degradation ladder</h2>
+    <div class="body">
+      <p class="lede">
+        When something upstream is missing, the engine walks down this ladder in order.
+        <strong>It never skips to the bottom, and it never steps off the end into a
+        plausible-looking guess.</strong>
+      </p>
+      <ol class="ladder">
+        <li><b>Upstream, fresh</b><span>The preferred path answers the contract. It wins whenever it can.</span></li>
+        <li><b>Upstream, shape-checked</b><span>A 200 carrying the wrong shape is treated as a miss, not coerced. A drifted payload once became “score 0, Grade F” for every user — a wrong answer that looked like a real one.</span></li>
+        <li><b>Local computation</b><span>The portal computes the answer from data it already owns, and says so in a response header. An unlabelled substitute is a silent swap.</span></li>
+        <li><b>Cached, with its age</b><span>Stale is servable. Stale while pretending to be fresh is not.</span></li>
+        <li><b>Honest unavailable</b><span>A terminal, explicit “no answer” — never a narrative generated over an empty grounding block.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="rail">
+    <h2>The ethos</h2>
+    <div class="body">
+      <p class="lede">
+        Seven rules. Each one is here because breaking it cost something real, and each
+        carries the bill.
+      </p>
+      <ol class="rules">
+        <li>
+          <p class="r">Blocked is not failed.</p>
+          <p>
+            A feature whose dependency is unmet was <em>not exercised</em>; it did not
+            fail. Collapsing the two produces a wall of red that nobody reads, and hides
+            the one row that is genuinely broken. A rate-limited call is blocked. A
+            missing backend URL is blocked. A wrong answer is a failure.
+          </p>
+          <span class="cost">Cost when broken: 53 of 59 features reported as one indistinguishable state.</span>
+        </li>
+        <li>
+          <p class="r">Degrade to a lesser state, never to a fabrication.</p>
+          <p>
+            Every fallback must be a smaller claim than the thing it replaces. A model
+            handed no grounding must refuse, not improvise — the failure mode of a
+            confident sentence with nothing behind it is indistinguishable from the real
+            thing, which is exactly what makes it the worst available outcome.
+          </p>
+          <span class="cost">Cost when broken: a per-ticker chat that 503'd for every user, for as long as the feature existed.</span>
+        </li>
+        <li>
+          <p class="r">Say which path answered.</p>
+          <p>
+            Upstream, local, cached, precomputed — the response carries its own
+            provenance. Three distinct faults once rendered one identical string, and
+            that is what let an outage run for 47 days while looking like a slow day.
+          </p>
+          <span class="cost">Cost when broken: 47 days.</span>
+        </li>
+        <li>
+          <p class="r">Report coverage; never fold it into the score.</p>
+          <p>
+            A portfolio with 3 of 20 tickers covered must not score low for it. “We don't
+            know” rendering as “this is bad” is the same trap as a fabricated answer, one
+            layer up, and it is the more tempting of the two because it looks rigorous.
+          </p>
+          <span class="cost">Cost when broken: Grade F for every user, from missing data.</span>
+        </li>
+        <li>
+          <p class="r">A metric that cannot be wrong is not a metric.</p>
+          <p>
+            The judge is gated on a gold set; hit rates are suppressed under thirty
+            resolved picks; an empty gold set fails closed. Anything unfalsifiable is
+            removed rather than reported, because a number nobody can challenge gets
+            trusted exactly as much as one that earned it.
+          </p>
+          <span class="cost">Cost when broken: a scorecard that only ever agrees with itself.</span>
+        </li>
+        <li>
+          <p class="r">Own the contract rather than wait for it.</p>
+          <p>
+            When an upstream route does not exist, the portal implements it locally and
+            keeps calling upstream first, so a later deploy takes over with no code
+            change. Waiting for a fix that is “ready” is a decision being made by nobody.
+          </p>
+          <span class="cost">Cost when broken: two features dead for weeks while a fix sat undeployed.</span>
+        </li>
+        <li>
+          <p class="r">A test fixture must leave no trace.</p>
+          <p>
+            The sweep writes a synthetic ticker and removes it in the same run. It
+            previously removed before adding — filesystem order, not intent — so it left
+            its own test data behind and then reported the feature that data broke.
+          </p>
+          <span class="cost">Cost when broken: a sweep failing a feature it had sabotaged itself.</span>
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="rail">
+    <h2>Honest state</h2>
+    <div class="body">
+      <p class="lede">
+        What this desk does <strong>not</strong> currently prove. Listing it is the point:
+        a status board with nothing outstanding on it has stopped being measured.
+      </p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Surface</th><th>State</th><th>Blocked on</th></tr></thead>
+          <tbody>
+            <tr><td>Billing — checkout, portal, subscription</td><td><span class="pill p-warn">blocked</span></td><td>A test-mode payment key.<span class="sub">The sweep creates real payment objects, so it refuses to run against a live account at all. Fail-closed, deliberately.</span></td></tr>
+            <tr><td>Per-ticker live analysis</td><td><span class="pill p-warn">blocked</span></td><td>A second analysis backend's URL, unset here and in production by design.</td></tr>
+            <tr><td>Benchmark cohort tracking</td><td><span class="pill p-off">empty</span></td><td>No cohort has ever been frozen, so there is nothing to track yet. The pipeline runs, logs, and correctly reports zero.</td></tr>
+            <tr><td>Judge scorecard</td><td><span class="pill p-warn">withheld</span></td><td>Gold-set agreement below threshold. Scores computed, then discarded.</td></tr>
+            <tr><td>Live price feed</td><td><span class="pill p-off">empty</span></td><td>The websocket ingest worker has never run here; the read path answers “no live price,” which is correct.</td></tr>
+            <tr><td>Scoring weights</td><td><span class="pill p-warn">unvalidated</span></td><td>Reasoned, not fitted. Recorded as a debt to revisit.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>
+    NuWrrrld Financial — quant &amp; signal engine. Every figure on this page was read
+    from the running system or from the constants that govern it; none are illustrative.
+  </p>
+  <p>
+    Informational analysis only. Not personalised financial advice.
+  </p>
+</footer>
+
+</div>

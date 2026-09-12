@@ -211,7 +211,7 @@ between the two denominators.
 | **Auth (Clerk)** | `@clerk/clerk-expo` | `@clerk/nextjs` | — (SDK differs by design) | ✅ Aligned — same provider + entitlement key |
 | **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **byte-identical (mobile PR #29)** | ✅ Synced — re-synced after PR #45 drift |
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
-| **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical** | ✅ Synced ([[entity-portfolio-intelligence]]) |
+| **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical**; the *score itself* is now portal-computed and served to both | 🟡 Partial — both surfaces work again (2026-09-11), but only web reads `X-Portfolio-Health-Source` ([[entity-portfolio-intelligence]] failure 5) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
 | **Signals / Digest** | `digest.ts`, `signalCard.ts`, `DigestScreen` | `digest.ts`, `signalCard.ts`, `/api/signals`, `dashboard/signals` | `digest.ts`, `signalCard.ts` **byte-identical (mobile PR #30 + portal PR #51)** | ✅ Synced — was 🟡 Partial (open-issue #6, resolved); portal-only signal data plane depth is a separate axis ([[entity-signal-data-plane]]) |
 | **Signal cache / queue** | `signal-policy.ts` present, unconsumed | `signal-queue.ts`, `signal-policy.ts`, `signal_cache`, `/api/signals/drain` ([[decision-pending-signals-queue]]) | `signal-policy.ts` **byte-identical (mobile PR #32)** | 🟡 Partial — module shared, feature still portal-only |
@@ -297,9 +297,76 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - The `nuwrrrld-fullstack` skill exists specifically to single-source cross-surface
   business logic and keep Clerk parity — the mechanism this page measures.
 
+> ✅ **Portal portfolio-health local fallback (2026-09-11) assessed — headline
+> unchanged at ~62%, and it is the most interesting *unchanged* number on this
+> page.** The portal stopped waiting on gcp3's never-deployed
+> `/api/portfolio/health` and now scores watchlists from `ticker_cards`
+> ([[decision-local-portfolio-scoring-over-upstream-wait]]). Because
+> `gcp3-mobile`'s `lib/usePortfolio.ts` calls the **portal's** route rather
+> than gcp3 directly, mobile's Portfolio tab went from permanently dead to
+> working **with zero mobile commits** — the single clearest payoff this page
+> has recorded for the portal owning a contract instead of both surfaces
+> calling a third party. Neither denominator moves: no new shared module, no
+> new mobile surface, no domain gained or lost.
+>
+> But the row above moved from ✅ to 🟡, and the reason is worth stating
+> because it inverts this page's usual failure mode. The two surfaces did not
+> drift in *code* — `lib/portfolio.ts` is still byte-identical and neither
+> repo's copy changed. They drifted in **what the user is told**: the response
+> now carries `X-Portfolio-Health-Source: upstream|local`, web renders a
+> provenance line from it, and mobile silently ignores a header it does not
+> know exists. A locally-computed score therefore reads as a backend score on
+> mobile.
+>
+> **The lesson for the drift gate: byte-identity does not catch this class.**
+> Every drift this page has tracked was a shared `lib/shared/` file diverging,
+> which CI can see. Here the divergence is a *new response field one client
+> consumes and the other doesn't* — invisible to `shared-drift-check`,
+> invisible to both test suites, and introduced by a change that touched no
+> shared file. Adding a response header is a cross-surface contract change even
+> when no shared module moves. Tracked as item in [[concept-sync-requirements]];
+> the mobile fix is a three-line read in `usePortfolio.ts` plus a label in
+> `PortfolioScreen.tsx`.
+>
+> Mirrored 2026-09-11 into `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`
+> and `concept-sync-requirements.md` (mobile PR #45) — `usePortfolio.ts`
+> already calls the portal's health route, so it gets the fix for free; a new
+> "response-contract parity" gap class was filed there for the unread headers.
+
+> ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~66%, but a second
+> provenance header now exists and mobile reads neither.**
+> [[decision-local-signal-chat-over-missing-gcp3-agent]] makes the portal the owner
+> of per-ticker signal chat, exactly as PR-time portfolio health made it the owner
+> of the health score — and it emits `X-Signal-Chat-Source: upstream | local` on the
+> same pattern as `X-Portfolio-Health-Source`.
+>
+> **Parity effect is asymmetric and worth naming precisely.** If mobile calls the
+> portal's `/api/signals/{ticker}/chat`, its per-ticker chat went from permanently
+> broken to working with **no mobile change** — the same free fix portfolio health
+> delivered, and the recurring payoff of the portal owning a contract. What mobile
+> does *not* get is the label: it now ignores two provenance headers instead of one,
+> so a locally-answered reply is indistinguishable from a gcp3-agent one on that
+> surface.
+>
+> This is the same blind spot the portfolio-health entry above closes with: the
+> divergence is a *new response header one client consumes and the other doesn't*,
+> which `shared-drift-check` cannot see because no `lib/shared/` module moved.
+> **Two instances make it a pattern, not an incident** — the drift gate needs a
+> notion of response-contract parity, not just file identity. Tracked in
+> [[concept-sync-requirements]].
+>
+> Neither denominator moves: no `lib/shared/` module was touched, and
+> `lib/signal-chat-local.ts` is portal-only with no mobile counterpart (same
+> starting state `analyze-policy.ts` is still in).
+>
+> Mirrored 2026-09-11 alongside the portfolio-health entry above (same mobile PR).
+> No mobile caller of `/api/signals/{ticker}/chat` exists yet, so this one has no
+> free-fix effect — only the same unread-header gap, folded into the one entry.
+
 ## See also
 
 - [[concept-sync-requirements]] — the checklist to raise the number
+- [[decision-local-signal-chat-over-missing-gcp3-agent]] — the second portal-owned contract, and the second unread provenance header
 - [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-billing]]
 - [[entity-ai-council]] — the divergent flagship
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — the PR #45 incident that introduced the `lib/subscription.ts` drift

@@ -11,6 +11,14 @@
  *      route — is dropped, not trusted.
  *   3. Rewrites the FREE_MODEL_CHAIN array in lib/openrouter.ts with the top N
  *      that pass, in preference order.
+ *   4. Audits SEAT_MODELS — reports, never rewrites. As of 2026-09-11 the audit
+ *      live-probes each seat instead of only looking it up in the catalog.
+ *      Existence and price were never sufficient: T1 sat on a *paid* id that
+ *      passed the existence check (2026-09-07), then on a $0 id that 403s
+ *      because OpenRouter gates it to "agentic harnesses", while T2 and MACRO
+ *      sat on $0 Google ids that 429 on every call. All four passed the old
+ *      audit. A seat that cannot be called still answers via FREE_MODEL_CHAIN,
+ *      so nothing downstream reports it — only a probe does.
  *
  * Portable by design: plain Node ESM, no dependencies, native fetch. Runs the
  * same on GitHub Actions, GCP Cloud Scheduler, Modal, or a Zo automation —
@@ -18,7 +26,7 @@
  *
  * Env / flags:
  *   OPENROUTER_API_KEY   required (used for probing)
- *   MODEL_CHAIN_SIZE     how many models to keep (default 4)
+ *   MODEL_CHAIN_SIZE     how many models to keep (default 5)
  *   TARGET_FILE          file to rewrite (default lib/openrouter.ts)
  *   --dry-run            print the result, do not write the file
  *   --no-probe           skip live probing, trust the $0 pricing only
@@ -38,12 +46,42 @@ import { dirname, resolve } from 'node:path';
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 const envChainSize = Number(process.env.MODEL_CHAIN_SIZE);
-const CHAIN_SIZE = Number.isNaN(envChainSize) ? 4 : envChainSize;
+// 5, not 4 (2026-09-11): one more fall-through slot is ~25% more depth, and
+// because SPECIALIST_MODEL_PATTERNS below now removes the non-chat ids that
+// used to occupy a slot, the added depth is a real general-purpose model rather
+// than a nominal one. Both halves matter — a 5-deep chain whose 5th entry is a
+// code model is still 4 deep for a council seat.
+const CHAIN_SIZE = Number.isNaN(envChainSize) ? 5 : envChainSize;
 const MIN_WORKING = 1; // never write a chain that would strand the app with zero models
 const PROBE_TIMEOUT_MS = 15_000;
 const RETRY_429_DELAY_MS = 2_000; // pause before the single 429 retry (P4)
 const MAX_PER_VENDOR = 2; // cap chain entries per vendor prefix — an all-one-vendor
 // chain has nominal depth N and real depth 1 against an account-tier outage (P4)
+
+/**
+ * Ids whose job is not open-ended chat, and which therefore must never occupy a
+ * council fall-through slot however cheap and reachable they are.
+ *
+ * This is not hypothetical tidiness: the 2026-09-11 run selected
+ * `cohere/north-mini-code:free` into the chain — a code model — purely because
+ * it was $0 and answered a 1-token ping. A seat that fell through to it would
+ * get a code completion where a trader's outlook belongs, and `runSeat` cannot
+ * tell the difference: it checks that the answer is non-empty, not that it is
+ * on-topic. The catalog also carries a safety classifier
+ * (`nvidia/nemotron-3.5-content-safety:free`, which replies "User Safety:
+ * safe") and audio-preview ids, both of which pass a ping just as happily.
+ */
+const SPECIALIST_MODEL_PATTERNS = [
+  /-code(?:[-:]|$)/, // code-completion models
+  /content-safety|guard|moderation/, // classifiers that answer with a verdict label
+  /lyria|audio|tts|whisper|music|clip/, // media models
+  /embed|rerank/, // not chat endpoints at all
+];
+
+/** Whether `id` is a specialist model per SPECIALIST_MODEL_PATTERNS. */
+function isSpecialistModel(id) {
+  return SPECIALIST_MODEL_PATTERNS.some((re) => re.test(id));
+}
 const EXIT_DEGRADED_SEATS = 3; // chain OK, but a SEAT_MODELS id is retired (P1)
 const DRY_RUN = process.argv.includes('--dry-run');
 const PROBE = !process.argv.includes('--no-probe');
@@ -109,10 +147,22 @@ async function fetchFreeModels() {
   if (!body || !Array.isArray(body.data)) {
     throw new Error('OpenRouter /models response is missing the "data" array');
   }
-  return body.data
-    .filter((m) => m && isFree(m.pricing) && typeof m.id === 'string' && m.id.endsWith(':free'))
-    .map((m) => m.id)
-    .sort(rank);
+  const all = body.data.filter(
+    (m) => m && isFree(m.pricing) && typeof m.id === 'string' && m.id.endsWith(':free'),
+  );
+  const chatCapable = all.filter((m) => !isSpecialistModel(m.id));
+  const dropped = all.length - chatCapable.length;
+  if (dropped > 0) {
+    console.log(
+      `Excluding ${dropped} specialist $0 model(s) from chain candidacy ` +
+        `(code / classifier / media — see SPECIALIST_MODEL_PATTERNS): ` +
+        all
+          .filter((m) => isSpecialistModel(m.id))
+          .map((m) => m.id)
+          .join(', '),
+    );
+  }
+  return chatCapable.map((m) => m.id).sort(rank);
 }
 
 /**
@@ -277,7 +327,7 @@ async function fetchAllModels() {
  * falls through to the chain, and still answers — so the rot is invisible from
  * the outside and only a catalog check finds it.
  */
-async function auditSeatModels(catalog) {
+async function auditSeatModels(catalog, apiKey) {
   const src = await readFile(TARGET_FILE, 'utf8');
   const block = /const SEAT_MODELS: Record<CouncilSeat, string> = \{([\s\S]*?)\};/.exec(src);
   // A missing block means the audit cannot run — which is not the same as an
@@ -312,9 +362,33 @@ async function auditSeatModels(catalog) {
   const dead = seats.filter((s) => !catalog.has(s.model));
   const paid = seats.filter((s) => catalog.get(s.model)?.free === false);
 
+  // Existence and price are not reachability. Probe each seat the same way
+  // chain candidates are probed — see the header note on why.
+  const probes = new Map();
+  if (apiKey) {
+    for (const { model } of seats) {
+      if (probes.has(model)) continue;
+      probes.set(model, await probe(apiKey, model));
+    }
+  }
+
+  const unreachable = seats.filter((s) => probes.get(s.model)?.ok === false);
+
   console.log(`\nSeat audit — ${seats.length} seat(s) against the live catalog:`);
   for (const { seat, model } of seats) {
-    console.log(`  ${status(model)} ${seat.padEnd(6)} ${model}`);
+    const p = probes.get(model);
+    const reach = p ? (p.ok ? 'reachable' : `UNREACHABLE [${p.status}]`) : 'not probed';
+    console.log(`  ${status(model)} ${seat.padEnd(6)} ${model.padEnd(50)} ${reach}`);
+  }
+
+  if (unreachable.length > 0) {
+    console.log(
+      `\n${unreachable.length} seat model(s) exist and are $0 but cannot actually be called: ` +
+        `${unreachable.map((s) => `${s.seat}=${s.model} [${probes.get(s.model).status}]`).join(', ')}. ` +
+        'Such a seat answers entirely from FREE_MODEL_CHAIN, which looks identical to a working ' +
+        'seat from the outside — repoint it in ' +
+        `${TARGET_FILE}, keeping the size and vendor-spread intent documented there.`,
+    );
   }
 
   if (dead.length > 0) {
@@ -336,7 +410,10 @@ async function auditSeatModels(catalog) {
         'If that is intentional, note it above the SEAT_MODELS block; otherwise repoint at a :free id.',
     );
   }
-  return dead.length;
+  // Unreachable counts as degraded for the exit code: a 403-gated or
+  // permanently-429 seat costs the same guaranteed failed round trip per call
+  // that a retired one does, and hides the same way.
+  return dead.length + unreachable.length;
 }
 
 /**
@@ -367,7 +444,7 @@ async function main() {
   // The FULL catalog, not `free`: checking against the free-only list would
   // report a perfectly live paid model as dead. The audit distinguishes the
   // three states itself (ok / PAID / DEAD).
-  const deadSeats = await auditSeatModels(await fetchAllModels());
+  const deadSeats = await auditSeatModels(await fetchAllModels(), apiKey);
 
   console.log(PROBE ? '\nLive-probing in preference order…' : '\nSkipping probe (--no-probe).');
   const working = await selectWorking(apiKey, free);

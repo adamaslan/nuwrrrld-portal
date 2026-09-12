@@ -77,6 +77,7 @@
 .port-health-text { font-size: .88rem; color: var(--ink); line-height: 1.65; white-space: pre-wrap; }
 .port-health-loading { font-size: .85rem; color: var(--muted); font-style: italic; }
 .port-health-error { font-size: .83rem; color: var(--red); margin-top: .5rem; }
+.port-health-source { font-size: .74rem; color: var(--muted); margin: 0 0 .5rem; letter-spacing: .01em; }
 .port-health-regen { margin-top: .75rem; background: transparent; border: 1px solid var(--line); color: var(--dim); border-radius: 6px; padding: .3rem .7rem; font-size: .78rem; cursor: pointer; }
 .port-health-regen:hover { border-color: var(--cyan); color: var(--cyan); }
 

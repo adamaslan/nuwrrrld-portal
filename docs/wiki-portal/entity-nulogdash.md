@@ -1,8 +1,8 @@
 ---
-date: 2026-09-10
+date: 2026-09-11
 type: entity
 tags: [nulogdash, admin, testing, coverage, clerk, mfa, inventory, sweep]
-sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, PR#118]
+sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118]
 ---
 
 # Entity — nulogdash (admin console + feature sweep)
@@ -90,13 +90,19 @@ what sits behind the second gate.
    value. Every probe failed with `Failed to parse URL from /api/health`, reporting
    53 false `blocked`. Now `?.trim() || …`. The same trap bit
    `playwright.config.ts`, which carries its own comment about it.
-3. **The sweep has never exercised any authenticated feature.**
-   `NULOGDASH_SESSION_COOKIE` is a hand-pasted Clerk `__session` value that nobody
-   refreshes, so 38 of 59 features sit permanently `blocked` — including every
-   AI surface (`nuai`, `council`, `brief`, `holdfold`, `portfolio-*`,
-   `signals-*`). [[entity-playwright-e2e]] solved this same problem properly with
-   `@clerk/testing`'s `clerkSetup()` and a cached `storageState`; the sweep runner
-   has not adopted it.
+3. **~~The sweep has never exercised any authenticated feature.~~ RESOLVED
+   2026-09-11** — and it was worse than recorded here. `NULOGDASH_SESSION_COOKIE`
+   could not have worked *even if someone had pasted a value*: a Clerk session
+   cookie is a ~1-minute JWT that `clerk-js` refreshes in the browser, and on a
+   development instance Clerk reads a **suffixed** cookie (`__session_<suffix>`),
+   not the bare `__session` the runner sent. Verified both ways against the live
+   dev instance — cookie form `401`, bearer form reaches the handler. The 38
+   `blocked` rows were not "pending a manual step"; they were unreachable by
+   design, in a state comfortable enough that nobody was obliged to look.
+   `scripts/lib/nulogdash-auth.mjs` now mints a token per run from
+   `CLERK_SECRET_KEY` + `E2E_CLERK_TEST_EMAIL` and sends it as a bearer. Four real
+   bugs were behind those rows — full account in
+   [[incident-2026-09-11-nulogdash-blind-sweep]].
 4. **Two routes had to be *removed* from the sweep on safety grounds, not
    added.** `POST /api/privacy/delete` irreversibly deletes the test user's Clerk
    account (`clerkClient.users.deleteUser`) and every row they own across
@@ -105,6 +111,26 @@ what sits behind the second gate.
    `LAUNCH_REMIND_SECRET` bearer and has no user-facing form. Both were previously
    `undocumented-*` rows the runner *did* attempt. That the delete route was only
    ever saved by returning 404 to an unauthenticated probe is uncomfortably thin.
+
+5. **The sweep created state and then failed a feature for having it
+   (fixed 2026-09-11).** Route discovery walks the filesystem, which ordered the
+   watchlist steps `remove` → `list` → `add` — so the synthetic ticker was added
+   and never cleaned up. The watchlist *is* the portfolio
+   ([[decision-local-portfolio-scoring-over-upstream-wait]]), so after one sweep
+   the test user's whole portfolio was one ticker with no computed card, and
+   `portfolio-health` correctly answered `503 no signals computed`. The sweep
+   reported a failure it had manufactured. Fixed with an explicit `order` field
+   (add → list → remove) and `scripts/nulogdash-fixture.mjs`.
+6. **The sweep POSTed billing routes against a LIVE Stripe key (fixed
+   2026-09-11).** `.env.local` carries `sk_live_`, and `/api/stripe/checkout` plus
+   `/api/stripe/portal` create a real Checkout Session and — via the portal's lazy
+   provisioning — a real **Customer**, on every run. Billing features are now
+   fail-closed `blocked` unless the key is `sk_test_`. The only finding in this
+   set that was actively harmful rather than merely blind.
+7. **A rate-limited feature reported as failing (fixed 2026-09-11).**
+   `GET /api/privacy/export` allows roughly one call per user per hour, so
+   iterating the sweep exhausted it. `429` is now `blocked` with the retry window
+   surfaced: a refused call means the feature was not exercised.
 
 ## Open questions
 
@@ -117,10 +143,19 @@ what sits behind the second gate.
   systems stay distinct in purpose (console access vs. feature tier) but no
   longer leave admins locked out of the features they need to exercise.
 
-- ❓ Should the sweep runner adopt [[entity-playwright-e2e]]'s `storageState`
-  instead of `NULOGDASH_SESSION_COOKIE`? The e2e suite already signs a dedicated
-  test user in and caches the session for 6 days; the sweep re-solves the same
-  problem worse, and known failure 3 is the cost. Nothing blocks this but the work.
+- ✅ **Answered 2026-09-11, differently than asked.** The sweep does not need
+  `storageState` — a browser session is the wrong shape for a script. It mints a
+  session token directly from `CLERK_SECRET_KEY` for the *same* test user the e2e
+  suite signs in as, and sends it as `Authorization: Bearer`, which Clerk's request
+  authenticator accepts with no cookie-suffix or handshake machinery. The two tiers
+  now share the credential without sharing the mechanism.
+- ❓ Should a `blocked` row carry a **first-seen date**? This is the mechanism
+  [[incident-2026-09-11-nulogdash-blind-sweep]] argues for and does not build:
+  "blocked for 40 days" and "blocked today" render identically, and the first is
+  how four real bugs stayed hidden inside an honest status.
+- ❓ `expectStatus` lets an entry declare a non-2xx as passing (a documented
+  empty-state 404, a lookup miss). Every use is commented, but it is the one field
+  that can turn a real defect green — worth a lint that requires the comment.
 - ❓ Should `undocumented-*` rows default to `not_run` rather than being probed
   at all? Probing an undescribed route is how the runner nearly fired
   `POST /api/privacy/delete`. The counter-argument is that silence hides new
@@ -131,6 +166,9 @@ what sits behind the second gate.
   cannot show *who* else is an admin.
 
 ## See also
+
+- [[incident-2026-09-11-nulogdash-blind-sweep]] — the run that made this harness honest, and the four bugs it had been covering
+- [[decision-local-signal-chat-over-missing-gcp3-agent]] — one of those four
 
 - [[decision-nulogdash-browser-trigger-handshake]] — the two-action dry→live
   handshake behind `canPerformAdminAction`

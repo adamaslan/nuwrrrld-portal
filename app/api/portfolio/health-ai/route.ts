@@ -6,7 +6,7 @@ import type { SubscriptionStatus } from "@/lib/subscription";
 import { getWatchlist } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
-import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS } from "@/lib/openrouter";
 import { getPrecomputed, subjectFromTickers } from "@/lib/precomputed-ai-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
@@ -131,7 +131,11 @@ export async function POST(req: NextRequest) {
   const grounded = health !== null;
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25_000);
+  // Sized from the fallback chain, not hand-picked. A literal 25_000 here was
+  // shorter than one full walk of primary + chain, so any request that had to
+  // fall through was aborted mid-chain and returned 503 "AI unavailable" with
+  // healthy models still untried. See MODEL_CHAIN_WALK_BUDGET_MS.
+  const timer = setTimeout(() => ctrl.abort(), MODEL_CHAIN_WALK_BUDGET_MS);
 
   try {
     // Reasoning-capable models (nemotron-3-*) spend part of max_tokens on
