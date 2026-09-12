@@ -61,6 +61,14 @@ const DROP_STATEMENT_PATTERNS = [
   /ALTER TABLE pending_signals ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0;/i,
   /ALTER TABLE pending_signals ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz NOT NULL DEFAULT now\(\);/i,
   /ALTER TABLE pending_signals ADD COLUMN IF NOT EXISTS claimed_at timestamptz;/i,
+  // paper_orders' watchlist-membership guard: SQLite triggers use different
+  // syntax (no PL/pgSQL, no RAISE EXCEPTION with this form) and the read-only
+  // backup mirror never receives live INSERTs that need validating, so the
+  // function + DROP TRIGGER IF EXISTS + CREATE TRIGGER block is dropped
+  // entirely rather than translated. See docs/council-paper-portfolios.md §5.
+  /CREATE OR REPLACE FUNCTION paper_orders_watchlist_guard\(\)[\s\S]*?\$\$ LANGUAGE plpgsql;/i,
+  /DROP TRIGGER IF EXISTS paper_orders_watchlist_guard_trg ON paper_orders;/i,
+  /CREATE TRIGGER paper_orders_watchlist_guard_trg[\s\S]*?EXECUTE FUNCTION paper_orders_watchlist_guard\(\);/i,
 ];
 
 /**
