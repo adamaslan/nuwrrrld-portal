@@ -24,6 +24,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { createSqliteSql, loadSchema } from "../../test/db-parity/sqlite-sql-tag";
+import type { PaperAccount } from "@/lib/shared/paper-policy";
 
 const hasNeon = !!process.env.DATABASE_URL;
 
@@ -53,6 +54,12 @@ const NEON_PARITY_TABLES = [
   "privacy_requests",
   "precomputed_ai",
   "watchlist_items",
+  "paper_accounts",
+  "paper_runs",
+  "paper_watchlists",
+  "paper_positions",
+  "paper_orders",
+  "paper_nav",
 ] as const;
 
 /** Truncates every table this suite touches on the real Neon branch, before
@@ -248,6 +255,164 @@ describe("privacy-requests-db", () => {
 
   it("round-trips against SQLite", () => run(loadWithSqlite));
   it.skipIf(!hasNeon)("round-trips against Neon", () => run(loadWithNeon));
+});
+
+/**
+ * docs/council-paper-portfolios.md §5. Unlike the other blocks in this file,
+ * this one seeds its own fixture rows (a ticker_universe row and one
+ * paper_accounts row) directly through the mocked/real sql handle, since
+ * lib/paper-db.ts deliberately has no account- or universe-creation
+ * functions of its own — seeding is scripts/seed-paper-portfolios.mjs's job
+ * (Phase 2), not this module's.
+ *
+ * The watchlist-guard trigger (paper_orders_watchlist_guard_trg) is
+ * Postgres-only — dropped for SQLite by gen-sqlite-schema.mjs — so the
+ * "rejects a buy off-watchlist" assertion runs only against Neon.
+ */
+describe("paper-db", () => {
+  const TICKER = "PAPTEST";
+  const ACCOUNT: PaperAccount = "quant";
+
+  const run = async (mode: "sqlite" | "neon") => {
+    vi.resetModules();
+    // Matches either the SQLite-tag stand-in or the real Neon tag; both
+    // support the two call shapes lib/paper-db.ts uses (`` sql`...` `` and
+    // `sql.query`).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let seedSql: any;
+    if (mode === "sqlite") {
+      const db = new DatabaseSync(":memory:");
+      loadSchema(db);
+      seedSql = createSqliteSql(db);
+    } else {
+      const { neon } = await import("@neondatabase/serverless");
+      seedSql = neon(process.env.DATABASE_URL!);
+    }
+    vi.doMock("@/lib/db", () => ({ default: seedSql }));
+    const mod = await import("@/lib/paper-db");
+
+    await seedSql`
+      INSERT INTO ticker_universe (ticker, universe, name, active)
+      VALUES (${TICKER}, 'stock', 'Paper Test Co', true)
+      ON CONFLICT (ticker) DO NOTHING
+    `;
+    await seedSql`
+      INSERT INTO paper_accounts (account, seat, label, policy_version, starting_cash, cash, seeded_on)
+      VALUES (${ACCOUNT}, 'QUANT', 'Quant', 'v1', 10000, 10000, '2026-01-01')
+      ON CONFLICT (account) DO NOTHING
+    `;
+
+    expect(await mod.getAccount(ACCOUNT)).toMatchObject({ account: ACCOUNT, cash: 10000 });
+    expect(await mod.listAccounts()).toHaveLength(1);
+
+    expect(await mod.isOnActiveWatchlist(ACCOUNT, TICKER)).toBe(false);
+    await seedSql`
+      INSERT INTO paper_watchlists (account, ticker, watchlist_version, in_seed_book, active)
+      VALUES (${ACCOUNT}, ${TICKER}, 1, true, true)
+      ON CONFLICT (account, ticker, watchlist_version) DO NOTHING
+    `;
+    expect(await mod.isOnActiveWatchlist(ACCOUNT, TICKER)).toBe(true);
+    expect(await mod.listActiveWatchlist(ACCOUNT)).toHaveLength(1);
+
+    const runId = await mod.insertRun({
+      account: ACCOUNT,
+      tradeDate: "2026-01-05",
+      slot: "preopen",
+      status: "ok",
+      policyVersion: "v1",
+    });
+    expect(runId).toBeTruthy();
+    // Idempotent on (account, trade_date, slot) — §4.4: a duplicate insert for
+    // an already-run slot is absorbed (ON CONFLICT DO NOTHING), not a second row.
+    const dupe = await mod.insertRun({
+      account: ACCOUNT,
+      tradeDate: "2026-01-05",
+      slot: "preopen",
+      status: "ok",
+      policyVersion: "v1",
+    });
+    expect(dupe).toBeNull();
+    expect(await mod.getRun(ACCOUNT, "2026-01-05", "preopen")).toMatchObject({ id: runId });
+
+    await mod.updateRunDetail(runId!, { orders: 3 });
+    expect((await mod.getRun(ACCOUNT, "2026-01-05", "preopen"))?.detail).toMatchObject({ orders: 3 });
+
+    if (mode === "neon") {
+      // paper_orders_watchlist_guard_trg — a buy off the active watchlist is a
+      // bug, not a decision (§2.1), and is rejected at the DB level.
+      await expect(
+        mod.insertOrder({
+          runId: runId!,
+          account: ACCOUNT,
+          ticker: "NOTLISTED",
+          side: "buy",
+          quantity: 1,
+          refPrice: 100,
+          fillPrice: 100.05,
+          slippageBps: 5,
+          notional: 100.05,
+          realizedPnl: null,
+          reason: "score_entry",
+          decidedBy: "rule",
+          model: null,
+          cardScore: 80,
+        }),
+      ).rejects.toThrow();
+    }
+
+    const orderId = await mod.insertOrder({
+      runId: runId!,
+      account: ACCOUNT,
+      ticker: TICKER,
+      side: "buy",
+      quantity: 2,
+      refPrice: 100,
+      fillPrice: 100.05,
+      slippageBps: 5,
+      notional: 200.1,
+      realizedPnl: null,
+      reason: "score_entry",
+      decidedBy: "rule",
+      model: null,
+      cardScore: 80,
+    });
+    expect(orderId).toBeTruthy();
+    expect(await mod.listOrders(ACCOUNT)).toHaveLength(1);
+
+    await mod.upsertPosition({
+      account: ACCOUNT,
+      ticker: TICKER,
+      quantity: 2,
+      avgCost: 100.05,
+      openedAt: "2026-01-05T14:30:00.000Z",
+      lastTradeAt: "2026-01-05T14:30:00.000Z",
+      runsHeld: 1,
+      highWater: 100.05,
+      thesis: null,
+      invalidation: null,
+    });
+    expect(await mod.getPositions(ACCOUNT)).toHaveLength(1);
+
+    await mod.insertNav({
+      account: ACCOUNT,
+      tradeDate: "2026-01-05",
+      slot: "preopen",
+      cash: 9799.9,
+      positionsMv: 200.1,
+      nav: 10000,
+      dayReturn: 0,
+      totalReturn: 0,
+      positionsN: 1,
+      turnover: 0.02,
+    });
+    expect(await mod.getNavSeries(ACCOUNT)).toHaveLength(1);
+
+    await mod.deletePosition(ACCOUNT, TICKER);
+    expect(await mod.getPositions(ACCOUNT)).toHaveLength(0);
+  };
+
+  it("round-trips against SQLite", () => run("sqlite"));
+  it.skipIf(!hasNeon)("round-trips against Neon", () => run("neon"));
 });
 
 describe("precomputed-ai-db (read/write, excluding listWatchlistSubjects)", () => {

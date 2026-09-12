@@ -47,16 +47,27 @@ if (!url) {
 const schemaPath = join(process.cwd(), "lib", "db", "schema.sql");
 const schema = readFileSync(schemaPath, "utf8");
 
-// Split SQL on `;` while ignoring semicolons inside single-quoted string literals
-// and `--` line comments. Handles the common DDL subset used by this schema.
+// Split SQL on `;` while ignoring semicolons inside single-quoted string
+// literals, `--` line comments, and `$tag$ ... $tag$` dollar-quoted bodies
+// (Postgres function/trigger definitions, e.g. `CREATE FUNCTION ... AS $$
+// BEGIN ... END; $$ LANGUAGE plpgsql;` — the `;`s inside the body are not
+// statement terminators). Handles the common DDL subset used by this schema.
 function splitSql(src) {
   const stmts = [];
   let buf = "";
   let inSingle = false;
+  let dollarTag = null; // e.g. "$$" or "$tag$" while inside a dollar-quoted body
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
-    if (inSingle) {
+    if (dollarTag) {
+      buf += ch;
+      if (ch === "$" && src.startsWith(dollarTag, i)) {
+        buf += src.slice(i + 1, i + dollarTag.length);
+        i += dollarTag.length - 1;
+        dollarTag = null;
+      }
+    } else if (inSingle) {
       buf += ch;
       if (ch === "'" && src[i + 1] === "'") { buf += src[++i]; } // escaped ''
       else if (ch === "'") { inSingle = false; }
@@ -67,6 +78,18 @@ function splitSql(src) {
       // skip to end of line
       while (i < src.length && src[i] !== "\n") i++;
       continue;
+    } else if (ch === "$") {
+      // Match a dollar-quote opener: $ followed by an optional identifier tag
+      // followed by $ (e.g. $$, $tag$). Not a valid opener (e.g. a bare `$`
+      // or `$1` positional param) just falls through as a literal character.
+      const m = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(src.slice(i));
+      if (m) {
+        dollarTag = m[0];
+        buf += dollarTag;
+        i += dollarTag.length - 1;
+      } else {
+        buf += ch;
+      }
     } else if (ch === ";") {
       const s = buf.trim();
       if (s) stmts.push(s);

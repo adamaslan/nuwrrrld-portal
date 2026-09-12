@@ -589,3 +589,131 @@ CREATE INDEX IF NOT EXISTS pipeline_run_log_at_idx
   ON pipeline_run_log (run_at DESC);
 CREATE INDEX IF NOT EXISTS pipeline_run_log_pipeline_idx
   ON pipeline_run_log (pipeline, run_at DESC);
+
+-- ── Council paper portfolios (docs/council-paper-portfolios.md) ─────────────
+-- Eight simulated $10,000 accounts — one per council seat (T1/T2/RISK/MACRO/
+-- QUANT/CHAIR) plus two baselines (equal-weight `equal`, buy-and-hold `spy`,
+-- which actually holds IVV — see the doc's §2.1). No real money, no broker,
+-- ever; every rendered surface carries lib/disclaimer.ts's disclaimer.
+-- `paper_runs` is declared before `paper_orders` because the latter's
+-- `run_id` references it.
+
+-- One row per simulated account. Eight rows, ever.
+CREATE TABLE IF NOT EXISTS paper_accounts (
+  account        text        PRIMARY KEY,       -- t1|t2|risk|macro|quant|chair|equal|spy
+  seat           text,                          -- CouncilSeat, null for the two controls
+  label          text        NOT NULL,
+  policy_version text        NOT NULL,          -- PAPER_POLICY_VERSION at seed
+  starting_cash  numeric     NOT NULL,
+  cash           numeric     NOT NULL,
+  seeded_on      TEXT        NOT NULL,
+  active         INTEGER     NOT NULL DEFAULT true,
+  updated_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- One row per run attempt, per account. The idempotency key on
+-- (account, trade_date, slot) is the single most important correctness
+-- property of the whole system — a retried cron, a double-fired schedule, or
+-- a manual rerun of a slot that already ran must return the existing row,
+-- never produce a second set of fills.
+CREATE TABLE IF NOT EXISTS paper_runs (
+  id             TEXT PRIMARY KEY,
+  account        text        NOT NULL REFERENCES paper_accounts (account) ON DELETE CASCADE,
+  trade_date     TEXT        NOT NULL,
+  slot           text        NOT NULL CHECK (slot IN ('preopen', 'midday', 'preclose', 'settle')),
+  status         text        NOT NULL CHECK (status IN ('ok', 'skipped', 'degraded', 'failed')),
+  skip_reason    text,
+  candidates_n   int,
+  orders_n       int,
+  model_calls    int         NOT NULL DEFAULT 0,
+  policy_version text        NOT NULL,
+  detail         TEXT       NOT NULL DEFAULT '{}',
+  started_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at    TEXT,
+  UNIQUE (account, trade_date, slot)
+);
+
+-- The chosen candidate pool, seeded from the design doc's §2.1 and never
+-- derived at runtime. 75 rows per seat, 50 for `equal`, 1 for `spy` -> 526
+-- rows at v1. Versioned, never edited in place: a change writes new rows with
+-- a bumped watchlist_version and leaves the old rows active = false, so a NAV
+-- series can always be read against the pool that produced it.
+CREATE TABLE IF NOT EXISTS paper_watchlists (
+  account           text        NOT NULL REFERENCES paper_accounts (account) ON DELETE CASCADE,
+  ticker            text        NOT NULL REFERENCES ticker_universe (ticker),
+  watchlist_version int         NOT NULL,
+  in_seed_book      INTEGER     NOT NULL DEFAULT false,  -- true for the Core 50
+  active            INTEGER     NOT NULL DEFAULT true,   -- false = no new buys
+  deactivated_at    TEXT,
+  drop_reason       text,                                -- delisted|universe_drop|policy
+  added_at          TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (account, ticker, watchlist_version)
+);
+CREATE INDEX IF NOT EXISTS paper_watchlists_active_idx
+  ON paper_watchlists (account, ticker) WHERE active;
+
+-- Current book. One row per (account, ticker). Deleted on full exit.
+CREATE TABLE IF NOT EXISTS paper_positions (
+  account       text        NOT NULL REFERENCES paper_accounts (account) ON DELETE CASCADE,
+  ticker        text        NOT NULL,
+  quantity      numeric     NOT NULL CHECK (quantity > 0),
+  avg_cost      numeric     NOT NULL,
+  opened_at     TEXT NOT NULL,
+  last_trade_at TEXT NOT NULL,
+  runs_held     int         NOT NULL DEFAULT 0,   -- enforces min holding period
+  high_water    numeric     NOT NULL,              -- enforces trailing stops
+  thesis        text,                              -- the seat's own words, <=200 chars
+  invalidation  text,                              -- carried from the council verdict
+  PRIMARY KEY (account, ticker)
+);
+
+-- Append-only. The audit trail. Never updated, never deleted; a correction is
+-- a new compensating row.
+CREATE TABLE IF NOT EXISTS paper_orders (
+  id           TEXT PRIMARY KEY,
+  run_id       TEXT        NOT NULL REFERENCES paper_runs (id) ON DELETE CASCADE,
+  account      text        NOT NULL REFERENCES paper_accounts (account) ON DELETE CASCADE,
+  ticker       text        NOT NULL,
+  side         text        NOT NULL CHECK (side IN ('buy', 'sell')),
+  quantity     numeric     NOT NULL CHECK (quantity > 0),
+  ref_price    numeric     NOT NULL,
+  fill_price   numeric     NOT NULL,              -- ref +/- slippage
+  slippage_bps real        NOT NULL,
+  notional     numeric     NOT NULL,
+  realized_pnl numeric,                            -- sells only
+  reason       text        NOT NULL,               -- score_entry|score_exit|stop|
+                                                    -- invalidation|rebalance|seat_veto|
+                                                    -- seat_downsize|cap_clip|void
+  decided_by   text        NOT NULL CHECK (decided_by IN ('rule', 'model')),
+  model        text,                                -- when decided_by='model'
+  card_score   real,
+  created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS paper_orders_account_idx
+  ON paper_orders (account, created_at DESC);
+
+-- A buy against a ticker outside the account's own watchlist is a bug, not a
+-- policy decision (docs/council-paper-portfolios.md §2.1). A CHECK cannot
+-- reach another table, so the guard is this trigger: BEFORE INSERT, a 'buy'
+-- whose (account, ticker) has no active paper_watchlists row raises. Sells are
+-- always permitted — a forced exit on a deactivated name is exactly the case
+-- that must still get through.
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+
+-- Mark-to-market, one row per (account, TEXT, slot). The performance series.
+CREATE TABLE IF NOT EXISTS paper_nav (
+  account      text    NOT NULL REFERENCES paper_accounts (account) ON DELETE CASCADE,
+  trade_date   TEXT    NOT NULL,
+  slot         text    NOT NULL CHECK (slot IN ('preopen', 'midday', 'preclose', 'settle')),
+  cash         numeric NOT NULL,
+  positions_mv numeric NOT NULL,
+  nav          numeric NOT NULL,
+  day_return   real,
+  total_return real,
+  positions_n  int     NOT NULL,
+  turnover     numeric NOT NULL DEFAULT 0,
+  PRIMARY KEY (account, trade_date, slot)
+);
