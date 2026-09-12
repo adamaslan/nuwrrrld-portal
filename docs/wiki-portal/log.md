@@ -690,3 +690,36 @@ shared-identity product is non-compliant until mobile adopts the module.
 ## [2026-09-11] ingest | nulogdash blind sweep — the feature sweep authenticates for the first time; 4 real bugs surfaced, live-Stripe guard added, 39/59 pass 0 fail | pages touched: 9
 
 ## [2026-09-11] friction | a permanently-blocked status row is indistinguishable from a temporarily-blocked one, so 4 real bugs lived inside an honest "not our fault" state indefinitely | cost: incident
+
+## [2026-09-12] ingest | PR #124 feat(paper-portfolios): schema + policy vectors (Phase 1) | pages touched: 3
+
+Phase 1 of the 8-phase `docs/council-paper-portfolios.md` build: 6 new tables
+(`paper_accounts`, `paper_runs`, `paper_watchlists`, `paper_positions`,
+`paper_orders`, `paper_nav`) plus this schema's first `BEFORE INSERT` trigger
+(`paper_orders_watchlist_guard_trg` — a buy off an account's active watchlist
+is rejected at the DB level, since a `CHECK` can't reach another table),
+`lib/shared/paper-policy.ts` (the §3 preference vectors, pure/DB-free), and
+`lib/paper-db.ts` (narrow data-access layer, no business logic).
+
+Two gaps found in the design doc during implementation, not by review: (1) it
+claimed `scripts/gen-sqlite-schema.mjs` needs no changes for the new tables —
+true for the six plain tables, false for the new trigger, which had no
+existing `DROP_STATEMENT_PATTERNS` match and would have produced invalid
+SQLite DDL; fixed with a new pattern entry. (2) the account-id type was
+ambiguous between the schema's lowercase `paper_accounts.account` values and
+[[entity-openrouter-client]]'s uppercase `CouncilSeat` — caught by `tsc`
+(`Type '"quant"' is not assignable to type 'PaperAccount'`), not by review;
+`PaperAccount` is now explicitly the schema's own lowercase values, with a new
+`ACCOUNT_SEAT` map for the Phase 5 arbitration step that will need
+`CouncilSeat`.
+
+**Pages created (1):** `entity-paper-portfolios.md` — the feature hub, with a
+build-status table tracked against the design doc's 8 phases (Phase 1 shipped,
+7 to go).
+
+**Pages updated (2):** `index.md` (new entity link under AI Council; header
+refreshed), `log.md` (this entry).
+
+Not yet built: seed script, deterministic engine, cron workflow, model
+arbitration, Firestore mirror, API routes, dashboard. Each ships as its own
+PR, one branch per phase, rather than one large change.

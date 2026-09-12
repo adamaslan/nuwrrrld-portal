@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-11 (nulogdash blind-sweep incident — the feature sweep authenticates for the first time)_
+_Last updated: 2026-09-12 (portal PR #124 — paper-portfolios entity page, Phase 1 of the 8-phase build)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -24,6 +24,7 @@ One page per named component. These are the hubs — everything links to entitie
 **AI Council**
 - [[entity-ai-council]] — the six-seat deliberation system; `app/api/council/*` + `lib/openrouter.ts`
 - [[entity-openrouter-client]] — `lib/openrouter.ts`; seats, model map, `FREE_MODEL_CHAIN`, `runSeat` fallback
+- [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` (Phase 1 shipped, PR #124)
 
 **Grounding**
 - [[entity-grounding-tier-ladder]] — `lib/grounding/*` + `lib/council-grounding.ts`; the four-tier deterministic brief resolver
