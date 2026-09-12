@@ -785,6 +785,45 @@ other than `.env.local` / the Vercel dashboard.
 
 ---
 
+- [ ] **The shared Clerk e2e test account's watchlist has accumulated stale
+      rows across CI runs, and `e2e/frontend/portfolio-liveness.spec.ts`'s
+      `beforeEach` doesn't account for it.**
+      - **From**: `/wait-merge1` run on PR #123 — `[frontend]` shard failed with
+        `locator('.port-watch-item') resolved to 2 elements` (then 3 on retry)
+        when the test tries to add AAPL and assert exactly one watch item is
+        visible; MSFT and NVDA were already present from earlier runs
+      - **Blocked on**: this is a code fix, not a login/secret — flagged here
+        rather than fixed inline because it's pre-existing test-isolation debt
+        entirely untouched by PR #123's own diff (confirmed: the PR's only
+        hunk in this file is inside the test body at line 37+, not the
+        `beforeEach` at lines 27–35), so fixing it doesn't belong to that PR's
+        scope. Either scope the locator to the specific ticker just added
+        (`getByText(/AAPL/)`) instead of the generic class selector, or clear
+        the test account's watchlist in `beforeEach`/`afterEach`.
+      - **Why it can't be code (right now)**: it *is* code — this line exists
+        to route the finding somewhere durable rather than let it evaporate
+        after the run that found it, per this file's own convention for any
+        finding that isn't the current task's job to fix
+      - **Unblocks**: `portfolio-liveness.spec.ts`'s first test becoming
+        reliably green instead of intermittently red depending on how much
+        prior-run state has accumulated in the shared account
+      - **Added**: 2026-09-12
+- [ ] **`e2e/frontend/signal-timing.spec.ts` throws instead of skipping when
+      `/api/signals/digest` returns an HTML error page.**
+      - **From**: `/wait-merge1` run on PR #123 — same `[frontend]` shard,
+        second failure: `SyntaxError: Unexpected token '<', "<!DOCTYPE "...
+        is not valid JSON` at line 46, calling `.json()` on a response the
+        preceding line's `test.skip(!digestRes || !digestRes.ok(), …)` should
+        have already routed around
+      - **Blocked on**: unrelated to PR #123 (file not in its diff) and to
+        portfolio work generally — a test-robustness gap where `.ok()` isn't
+        sufficient to guarantee a JSON body (e.g. a 200 that's actually an
+        HTML error page, or a redirect Playwright's `.ok()` follows)
+      - **Why it can't be code (right now)**: same reasoning as the item above
+      - **Unblocks**: `signal-timing.spec.ts` degrading to a clean skip instead
+        of a hard failure when the digest endpoint is unhealthy
+      - **Added**: 2026-09-12
+
 ## Suggested order
 
 **One Stripe dashboard session covers three items** — the webhook secret, the
