@@ -814,3 +814,5 @@ mirror (Phase 6), API routes + dashboard (Phase 7), metrics + first written
 finding (Phase 8). A real end-to-end exercise of Phase 3 additionally needs two
 manual steps tracked in `docs/manual-setup-todo.md` (2026-09-13 entry): running
 the seed script for real, and provisioning `PAPER_CRON_SECRET`.
+
+## [2026-09-13] ingest | beta-tester Pro allowlist — built-in + BETA_TESTER_EMAILS resolve to pro in resolveTier(); entitlement asymmetry vs mobile recorded | pages touched: 4
