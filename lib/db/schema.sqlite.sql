@@ -634,8 +634,10 @@ CREATE TABLE IF NOT EXISTS paper_runs (
 );
 
 -- The chosen candidate pool, seeded from the design doc's §2.1 and never
--- derived at runtime. 75 rows per seat, 50 for `equal`, 1 for `spy` -> 526
--- rows at v1. Versioned, never edited in place: a change writes new rows with
+-- derived at runtime. 75 rows per seat (x6), 50 for `equal`, 1 for `spy` ->
+-- 501 rows at v1 (the design doc's own "526" arithmetic doesn't sum;
+-- verified against scripts/seed-paper-portfolios.mjs's actual output).
+-- Versioned, never edited in place: a change writes new rows with
 -- a bumped watchlist_version and leaves the old rows active = false, so a NAV
 -- series can always be read against the pool that produced it.
 CREATE TABLE IF NOT EXISTS paper_watchlists (
