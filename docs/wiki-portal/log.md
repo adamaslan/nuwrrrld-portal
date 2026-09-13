@@ -781,3 +781,36 @@ recorded inline in the script: it's `lib/pipeline-db-guard.ts`'s own
 documented, intentional design, matched exactly by an existing inline mirror
 in `scripts/local-trigger.mjs` — tightening this one caller would be
 inconsistent, not safer.
+
+## [2026-09-13] ingest | PR paper-portfolios Phase 3 — deterministic engine + run route | pages touched: 3
+
+Phase 3 of the 8-phase paper-portfolio build (docs/council-paper-portfolios.md
+§10): `lib/paper-engine.ts` (LOAD/MARK/SCREEN/PERSIST orchestrator, one
+`sql.transaction([...])` per account per run, idempotency via a client-
+generated run id whose FK on `paper_orders.run_id` aborts the transaction on a
+race loss), `lib/shared/paper-engine-core.ts` (pure RANK/PROPOSE/CLIP/FILL,
+unit-tested with no DB), `lib/shared/paper-sectors.ts` (best-effort ticker→
+sector map for sector-cap enforcement — not a verbatim transcription, since
+§2.1 only states aggregate sector-mix counts per account's extras), and
+`app/api/pipeline/paper-portfolios/route.ts` (bearer-authed on a new
+`PAPER_CRON_SECRET`, `?slot=` required, `?account=` optional). Step 6
+(ARBITRATE) doesn't exist yet — every order this phase writes is
+`decided_by='rule'`. Branch cut from `origin/main`, independent of Phase 2's
+PR #127 (merged first — see the ingest entry immediately above), per this
+repo's one-branch-per-phase convention.
+
+Two stated simplifications carried into `docs/paper-portfolios-remaining-todo.md`
+and `entity-paper-portfolios.md`'s "Known gaps": the per-seat tilt functions
+(momentum/inverse-vol/rotation-bonus/persistence) are deferred — `ticker_cards`
+has no historical series to compute them from — and a sell is always a full
+exit, never a partial trim.
+
+**Pages updated (3):** `entity-paper-portfolios.md` (build-status table, "Where
+used", "Known failures", "Known gaps"), `index.md` (header + entity summary
+line), `log.md` (this entry).
+
+Not yet built: cron workflow (Phase 4), model arbitration (Phase 5), Firestore
+mirror (Phase 6), API routes + dashboard (Phase 7), metrics + first written
+finding (Phase 8). A real end-to-end exercise of Phase 3 additionally needs two
+manual steps tracked in `docs/manual-setup-todo.md` (2026-09-13 entry): running
+the seed script for real, and provisioning `PAPER_CRON_SECRET`.

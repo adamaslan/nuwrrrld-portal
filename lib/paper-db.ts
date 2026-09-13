@@ -17,6 +17,7 @@
 import { randomUUID } from "node:crypto";
 import sql from "@/lib/db";
 import type { PaperAccount } from "@/lib/shared/paper-policy";
+import type { Horizon } from "@/lib/grounding/taxonomy";
 
 export type Slot = "preopen" | "midday" | "preclose" | "settle";
 export type RunStatus = "ok" | "skipped" | "degraded" | "failed";
@@ -461,4 +462,54 @@ export async function updateRunDetail(
   const current = (rows[0]?.detail as Record<string, unknown>) ?? {};
   const merged = { ...current, ...patch };
   await sql`UPDATE paper_runs SET detail = ${JSON.stringify(merged)} WHERE id = ${runId}`;
+}
+
+// ── Screening (SCREEN, §4.2 step 3) ─────────────────────────────────────────
+
+export interface ScreenRow {
+  ticker: string;
+  horizon: Horizon;
+  score: number;
+  dataQuality: number;
+  barDate: string;
+}
+
+/**
+ * `ticker_cards` for one account's active watchlist, restricted to the
+ * horizon(s) its policy reads and the fresh `bar_date` the caller already
+ * resolved via `latestCardBarDate()`. The `data_quality` gate is the caller's
+ * `policyFor(account).dataQualityGate` — applied here, in SQL, rather than
+ * filtering in application code, so a low-quality card never even reaches the
+ * ranking step.
+ *
+ * `horizon: 'both'` (quant/chair) returns both rows per ticker; the caller
+ * reduces them to one score (this module has no opinion on how — that's
+ * RANK's job in lib/shared/paper-engine-core.ts's caller).
+ */
+export async function getScreenCandidates(
+  account: PaperAccount,
+  horizons: Horizon[],
+  dataQualityGate: number,
+  barDate: string,
+): Promise<ScreenRow[]> {
+  try {
+    const rows = await sql`
+      SELECT c.ticker, c.horizon, c.score, c.data_quality, c.bar_date
+      FROM ticker_cards c
+      JOIN paper_watchlists w
+        ON w.account = ${account} AND w.ticker = c.ticker AND w.active
+      WHERE c.horizon = ANY(${horizons}::text[])
+        AND c.data_quality >= ${dataQualityGate}
+        AND c.bar_date = ${barDate}
+    `;
+    return rows.map((r) => ({
+      ticker: r.ticker as string,
+      horizon: r.horizon as Horizon,
+      score: Number(r.score),
+      dataQuality: Number(r.data_quality),
+      barDate: String(r.bar_date),
+    }));
+  } catch {
+    return [];
+  }
 }

@@ -1,8 +1,8 @@
 ---
 date: 2026-09-13
 type: entity
-tags: [council, paper-trading, simulation, schema, policy, seed]
-sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, PR#124, PR#127]
+tags: [council, paper-trading, simulation, schema, policy, seed, engine]
+sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, ../../lib/paper-engine.ts, ../../lib/shared/paper-engine-core.ts, ../../lib/shared/paper-sectors.ts, PR#124, PR#127]
 ---
 
 # Entity: Council Paper Portfolios
@@ -47,7 +47,7 @@ tracks what's actually built against that 8-phase plan.
 |---|---|---|
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
-| 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | Not started |
+| 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — this PR (`feat/paper-portfolios-phase-3-engine`, cut from `origin/main`, independent of #127) |
 | 4 | GitHub Actions cron (4 slots × 2 DST crons) | Not started |
 | 5 | Arbitration layer (model veto/downsize/confirm) | Not started |
 | 6 | Firestore mirror + reconciliation | Not started |
@@ -71,13 +71,24 @@ tracks what's actually built against that 8-phase plan.
   contract as `scripts/seed-watchlist-universe.mjs`). Guarded behind `main()`
   (same idiom as `scripts/seed-signals-universe.mjs`) so its constants are
   unit-testable without the seeder running as a side effect.
+- `lib/paper-engine.ts` (Phase 3) — the run-loop orchestrator: LOAD/MARK/
+  SCREEN/PERSIST, one `sql.transaction([...])` per account per run.
+- `lib/shared/paper-engine-core.ts` (Phase 3) — pure RANK/PROPOSE/CLIP/FILL,
+  no I/O, unit-tested directly (`__tests__/paper-engine-core.test.ts`).
+- `lib/shared/paper-sectors.ts` (Phase 3) — ticker→sector map the CLIP step's
+  sector cap reads, plus the mega/large-cap set the FILL step's slippage tier
+  reads. Best-effort, not verbatim — see its module doc.
+- `app/api/pipeline/paper-portfolios/route.ts` (Phase 3) — the cron entry
+  point, bearer-authed on its own `PAPER_CRON_SECRET`.
 
 ## Known failures
 
-None yet observed — Phase 1 ships only a schema and a pure policy module,
-neither of which runs against live data. The first real failure surface opens
-with Phase 3 (the deterministic engine) and Phase 4 (the cron workflow); this
-section will track what actually breaks once runs start happening.
+None yet observed against live data — the deterministic engine (Phase 3) has
+only run against unit tests of its pure core, never a real Neon branch with
+seeded accounts (Phase 2's seed script hasn't actually been run for real; see
+`docs/manual-setup-todo.md`'s 2026-09-13 entry). The first real failure
+surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
+4's cron starts firing.
 
 ## Known gaps found during implementation (not in the design doc)
 
@@ -98,6 +109,18 @@ section will track what actually breaks once runs start happening.
   total rows (§5, §6), but 6 seats × 75 names + `equal`'s 50 + `spy`'s 1 =
   **501**. Caught by the seed script's dry-run output, not by review — fixed
   in the doc and in Phase 1's `schema.sql` comment, PR #127.
+- **Phase 3:** `ticker_cards.numerics` — which §4.3's fill model implies would
+  carry a reference close price — is always written as an empty `{}` by
+  `upsertCards` (`lib/ticker-cards-db.ts`). The engine uses `live_prices` as
+  the reference price instead (already the freshest live quote in this repo);
+  a ticker with no `live_prices` row simply cannot be traded that slot rather
+  than falling back to a stale or fabricated price.
+- **Phase 3:** the design doc's per-seat tilt functions (momentum, inverse-vol,
+  sector-rotation bonus, state persistence) need historical data
+  `ticker_cards` doesn't store (one row per ticker+horizon, not a series).
+  Deferred rather than invented — RANK is raw `score DESC` for every account
+  in this phase; see `docs/paper-portfolios-remaining-todo.md`'s Phase 3
+  section for the full list of stated simplifications.
 
 ## Open questions
 
