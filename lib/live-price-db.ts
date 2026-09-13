@@ -66,3 +66,22 @@ export async function getLivePrice(ticker: string): Promise<LivePriceRecord | nu
     return null;
   }
 }
+
+/**
+ * Reference prices for a batch of tickers, one round-trip. Used by the paper
+ * portfolio MARK/FILL steps (docs/council-paper-portfolios.md §4.2/§4.3), which
+ * need every held-plus-candidate ticker's price at once rather than one at a
+ * time. A ticker with no `live_prices` row is simply absent from the map —
+ * callers must treat that as "no reference price this slot", not a zero.
+ */
+export async function getLivePrices(tickers: string[]): Promise<Map<string, number>> {
+  if (tickers.length === 0) return new Map();
+  try {
+    const rows = await sql`
+      SELECT ticker, price FROM live_prices WHERE ticker = ANY(${tickers}::text[])
+    `;
+    return new Map(rows.map((r) => [r.ticker as string, Number(r.price)]));
+  } catch {
+    return new Map();
+  }
+}
