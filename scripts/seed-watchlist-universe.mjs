@@ -171,6 +171,12 @@ if (DRY_RUN) {
 
 // ── insert ───────────────────────────────────────────────────────────────────
 let inserted = 0;
+// Recorded from each batch's own `RETURNING ticker`, not from `toAdd` — a
+// concurrent watchlist write can make `ON CONFLICT DO NOTHING` skip a ticker
+// that was already added by something else in the meantime, and the manifest
+// must reverse only what *this* run actually created, or --undo would delete
+// a row this run never inserted.
+const insertedTickers = [];
 for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
   const chunk = toAdd.slice(i, i + BATCH_SIZE);
   const rows = await sql`
@@ -180,6 +186,7 @@ for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
     RETURNING ticker
   `;
   inserted += rows.length;
+  insertedTickers.push(...rows.map((r) => r.ticker));
   process.stdout.write(`  inserted ${inserted}/${toAdd.length}\r`);
 }
 console.log(`\n✓ Inserted ${inserted} watchlist rows.`);
@@ -190,7 +197,7 @@ const manifestPath = join(MANIFEST_DIR, `${userId}-${stamp}.json`);
 mkdirSync(dirname(manifestPath), { recursive: true });
 writeFileSync(
   manifestPath,
-  `${JSON.stringify({ userId, seededAt: new Date().toISOString(), only: only ?? "all", tickers: toAdd }, null, 2)}\n`,
+  `${JSON.stringify({ userId, seededAt: new Date().toISOString(), only: only ?? "all", tickers: insertedTickers }, null, 2)}\n`,
 );
 console.log(`✓ Manifest: ${manifestPath}`);
 console.log(`  Undo with: node --env-file=.env.local scripts/seed-watchlist-universe.mjs --undo=${manifestPath}`);

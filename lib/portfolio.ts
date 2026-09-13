@@ -20,7 +20,7 @@ export interface PortfolioHealth {
   generatedAt: string; // ISO
 }
 
-function isHealthFactor(value: unknown): value is HealthFactor {
+export function isHealthFactor(value: unknown): value is HealthFactor {
   if (!value || typeof value !== 'object') return false;
   const f = value as Record<string, unknown>;
   return (

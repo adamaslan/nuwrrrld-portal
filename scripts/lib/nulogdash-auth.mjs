@@ -27,12 +27,20 @@ const TOKEN_REFRESH_MARGIN_S = 300;
 
 /** A bearer JWT minted from an explicit cookie value can't be derived, so an
  *  operator-supplied NULOGDASH_SESSION_COOKIE is still honoured as a cookie —
- *  it just isn't the path anyone should need any more. */
+ *  it just isn't the path anyone should need any more.
+ *
+ *  The documented format is value-only (bare `__session` gets the value
+ *  appended), but a *development* Clerk instance's cookie name is suffixed
+ *  (`__session_<suffix>`), which bare `__session=<value>` doesn't reproduce.
+ *  If the operator already pasted a complete `name=value` pair, pass it
+ *  through unchanged instead of nesting it under a name Clerk dev instances
+ *  don't read. */
 function explicitCookieAuth(cookie) {
+  const cookieHeader = cookie.includes("=") ? cookie : `__session=${cookie}`;
   return {
     ok: true,
     mode: "cookie (NULOGDASH_SESSION_COOKIE)",
-    headersFor: () => ({ cookie: `__session=${cookie}` }),
+    headersFor: () => ({ cookie: cookieHeader }),
   };
 }
 

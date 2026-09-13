@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T13:46:28.016Z",
+  "generatedAt": "2026-09-13T20:20:16.242Z",
   "features": [
     {
       "slug": "watchlist-add",
@@ -18,7 +18,7 @@
       },
       "query": null,
       "timeoutMs": null,
-      "order": -2,
+      "order": -3,
       "expectStatus": [
         409
       ],
@@ -40,9 +40,29 @@
       ],
       "query": null,
       "timeoutMs": null,
-      "order": -1,
+      "order": -2,
       "expectStatus": null,
       "writesData": false,
+      "note": null,
+      "excluded": null
+    },
+    {
+      "slug": "watchlist-remove",
+      "label": "Watchlist — remove",
+      "method": "DELETE",
+      "path": "/api/portfolio/watchlist/NULOG",
+      "auth": true,
+      "dependencies": [
+        "neon"
+      ],
+      "tier": [
+        "api"
+      ],
+      "query": null,
+      "timeoutMs": null,
+      "order": -1,
+      "expectStatus": null,
+      "writesData": true,
       "note": null,
       "excluded": null
     },
@@ -926,26 +946,6 @@
       "order": 0,
       "expectStatus": null,
       "writesData": false,
-      "note": null,
-      "excluded": null
-    },
-    {
-      "slug": "watchlist-remove",
-      "label": "Watchlist — remove",
-      "method": "DELETE",
-      "path": "/api/portfolio/watchlist/NULOG",
-      "auth": true,
-      "dependencies": [
-        "neon"
-      ],
-      "tier": [
-        "api"
-      ],
-      "query": null,
-      "timeoutMs": null,
-      "order": 1,
-      "expectStatus": null,
-      "writesData": true,
       "note": null,
       "excluded": null
     }

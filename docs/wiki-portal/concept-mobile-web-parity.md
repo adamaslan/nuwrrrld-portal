@@ -333,7 +333,7 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > already calls the portal's health route, so it gets the fix for free; a new
 > "response-contract parity" gap class was filed there for the unread headers.
 
-> ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~66%, but a second
+> ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~62%, but a second
 > provenance header now exists and mobile reads neither.**
 > [[decision-local-signal-chat-over-missing-gcp3-agent]] makes the portal the owner
 > of per-ticker signal chat, exactly as PR-time portfolio health made it the owner
