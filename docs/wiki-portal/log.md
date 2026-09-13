@@ -723,3 +723,61 @@ refreshed), `log.md` (this entry).
 Not yet built: seed script, deterministic engine, cron workflow, model
 arbitration, Firestore mirror, API routes, dashboard. Each ships as its own
 PR, one branch per phase, rather than one large change.
+
+## [2026-09-13] ingest | PR #127 feat(paper-portfolios): seed script for 8 accounts + watchlists (Phase 2) | pages touched: 3
+
+Phase 2: `scripts/seed-paper-portfolios.mjs` seeds the 8 fixed accounts and
+their watchlists from `docs/council-paper-portfolios.md` §2.1's Core 50 +
+per-account 25 extras, transcribed verbatim and validated against
+`ticker_universe` before anything writes. Refuses to reseed silently
+(`--force-reseed` archives `paper_accounts`/`paper_watchlists` then deletes
+them — and refuses outright if any named account has run history, since the
+`paper_accounts` cascade would otherwise take real `paper_orders`/`positions`/
+`nav`/`runs` rows with it), `--undo=<manifest>` reverses a run exactly under
+the same history check — same reversibility contract as
+`scripts/seed-watchlist-universe.mjs`. Also committed the design doc itself,
+which had sat untracked in the repo since it was written despite three PRs
+now referencing it.
+
+**Found and fixed a real bug in the design doc**, caught by the seed script's
+own dry-run output rather than by review: the doc claimed 526 total watchlist
+rows (§5, §6); the actual sum is 6×75 + 50 + 1 = **501**. Fixed in the doc and
+in [[entity-paper-portfolios]]'s "Known gaps" section, and in Phase 1's
+`schema.sql` comment (a one-line comment fix carried on this branch since it
+was wrong from the moment PR #124 merged).
+
+Refactored the script mid-implementation to guard its executable logic behind
+`main()` — the same idiom `scripts/seed-signals-universe.mjs` already uses —
+so the pure ticker-list constants could be unit-tested (10 new cases: ticker
+counts, no Core-50/extras overlap, `spy` holds `IVV` not `SPY`, cross-check
+against `lib/shared/paper-policy.ts`'s `PAPER_POLICY_VERSION`) without the
+seeder itself running as a side effect of the import.
+
+**Pages updated (3):** `entity-paper-portfolios.md` (Phase 2 row marked
+shipped, seed script added to "Where used", the 526→501 finding added to
+"Known gaps"), `index.md` (entity line + header refreshed), `log.md` (this
+entry).
+
+**Known overlap:** this PR and open PR #126 (`feat/beta-tester-pro-allowlist`)
+both touch `docs/watchlist-seeds/README.md` — noted in the PR description for
+whichever merges second to rebase onto, not resolved here since #126 isn't
+part of this work.
+
+**CodeRabbit review addendum (same PR, /wait-merge1 pass):** the review found
+3 real correctness gaps in the seeder, all now fixed. (1) `--force-reseed` and
+`--undo` both now refuse outright if any named account has run history in
+`paper_runs`/`positions`/`orders`/`nav` — the prior version's archive step
+covered only `paper_accounts`/`paper_watchlists`, so the `ON DELETE CASCADE`
+would have silently destroyed real order history the moment an account had
+actually traded. (2) The whole write (delete + account inserts + watchlist
+inserts) now runs in one `sql.transaction([...])`, matching
+`app/api/privacy/delete/route.ts`'s pattern, and the manifest is written to a
+durable temp path *before* the transaction and renamed into place only after
+it commits — a failed transaction previously left a partial DB state with no
+manifest to undo it by. (3) The remaining stale "526" reference (§5.1's
+Firestore write-cost note) is now 501 too. One finding (the production-DB
+guard's fail-open-when-unset behavior) was triaged as a skip, with the reason
+recorded inline in the script: it's `lib/pipeline-db-guard.ts`'s own
+documented, intentional design, matched exactly by an existing inline mirror
+in `scripts/local-trigger.mjs` — tightening this one caller would be
+inconsistent, not safer.

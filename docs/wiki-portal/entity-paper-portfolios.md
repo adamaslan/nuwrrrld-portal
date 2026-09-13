@@ -1,8 +1,8 @@
 ---
-date: 2026-09-12
+date: 2026-09-13
 type: entity
-tags: [council, paper-trading, simulation, schema, policy]
-sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, PR#124]
+tags: [council, paper-trading, simulation, schema, policy, seed]
+sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, PR#124, PR#127]
 ---
 
 # Entity: Council Paper Portfolios
@@ -46,7 +46,7 @@ tracks what's actually built against that 8-phase plan.
 | Phase | What | Status |
 |---|---|---|
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
-| 2 | `scripts/seed-paper-portfolios.mjs` | Not started |
+| 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
 | 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | Not started |
 | 4 | GitHub Actions cron (4 slots × 2 DST crons) | Not started |
 | 5 | Arbitration layer (model veto/downsize/confirm) | Not started |
@@ -65,6 +65,12 @@ tracks what's actually built against that 8-phase plan.
 - `__tests__/db-parity/lib-db-modules.test.ts` — `paper-db` block, covered by
   [[entity-db-parity-suite]] (no `unnest()`/`ANY()` idioms, so it's fully
   covered rather than joining that suite's excluded-modules list).
+- `scripts/seed-paper-portfolios.mjs` — seeds the 8 accounts and 501 watchlist
+  rows from §2.1's Core 50 + per-account extras, transcribed verbatim; writes
+  a manifest per run under `docs/watchlist-seeds/paper/` (same reversibility
+  contract as `scripts/seed-watchlist-universe.mjs`). Guarded behind `main()`
+  (same idiom as `scripts/seed-signals-universe.mjs`) so its constants are
+  unit-testable without the seeder running as a side effect.
 
 ## Known failures
 
@@ -88,6 +94,10 @@ section will track what actually breaks once runs start happening.
   lowercase `account` column and `CouncilSeat`'s uppercase values; caught by
   `tsc`, not by review — `PaperAccount` is now explicitly the lowercase
   schema values, with `ACCOUNT_SEAT` as the explicit mapping.
+- The design doc's own watchlist-row arithmetic didn't sum: it claimed 526
+  total rows (§5, §6), but 6 seats × 75 names + `equal`'s 50 + `spy`'s 1 =
+  **501**. Caught by the seed script's dry-run output, not by review — fixed
+  in the doc and in Phase 1's `schema.sql` comment, PR #127.
 
 ## Open questions
 
