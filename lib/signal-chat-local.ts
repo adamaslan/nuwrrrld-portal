@@ -27,9 +27,13 @@ import { runSeat } from "@/lib/openrouter";
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const GROUNDING_TIMEOUT_MS = 8_000;
 
-/** Answer budget. Signal chat is a single question, not a deliberation — the
- *  council's 1200 is sized for four labeled fields, which this does not emit. */
-const ANSWER_MAX_TOKENS = 700;
+/** Answer budget. `runSeat`'s own 1200 is the smallest budget that
+ *  consistently leaves room for content once a reasoning model's hidden
+ *  chain-of-thought is subtracted (lib/openrouter.ts's `runSeat` doc) — 700
+ *  reintroduces exactly the empty-completion failure that number was raised
+ *  to fix, so this stays at the same floor rather than trying to save tokens
+ *  on a single-question answer. */
+const ANSWER_MAX_TOKENS = 1200;
 
 /** The shape the route returns, matching what the upstream proxy documented so
  *  existing callers keep working. `fallback_used` was already part of that
@@ -105,7 +109,7 @@ export function buildGroundingBlock(sig: UpstreamSignal): string {
   for (const [tf, s] of Object.entries(sig.signals ?? {})) {
     const conf = typeof s.confidence === "number" ? `${Math.round(s.confidence * 100)}%` : "n/a";
     const evidence = (s.evidence?.items ?? [])
-      .map((i) => i.summary)
+      .map((i) => (i.summary ? `${i.is_counter ? "[counter-evidence] " : ""}${i.summary}` : undefined))
       .filter(Boolean)
       .join("; ");
     const degraded = s.ai_degraded ? " [rule-based fallback, not an AI read]" : "";

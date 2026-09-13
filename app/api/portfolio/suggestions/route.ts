@@ -22,6 +22,13 @@ function pruneCache() {
   for (const [key, val] of cache) {
     if (val.expiresAt < now) cache.delete(key);
   }
+  // Expired-only cleanup doesn't bound the Map when every entry is still
+  // fresh (a 15-minute TTL limits age, not count) — evict the oldest fresh
+  // entry too so a new insert can never push the cache past MAX_CACHE_SIZE.
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) cache.delete(oldestKey);
+  }
 }
 
 /** Ask gcp3. `null` (not `[]`) on every failure, so "upstream is down" and
@@ -79,8 +86,17 @@ export async function GET() {
   // information about *this* watchlist.
   let suggestions = upstream ?? [];
   if (suggestions.length === 0) {
-    const tickers = (await getWatchlist(userId).catch(() => [])).map((w) => w.ticker);
-    suggestions = await localPortfolioSuggestions(tickers);
+    // A Neon read failure here is not "this user has no watchlist" — letting
+    // the catch collapse to [] previously produced a false empty-suggestions
+    // result that then got cached for 15 minutes, masking a retriable
+    // dependency failure as "nothing to suggest."
+    let watchlist;
+    try {
+      watchlist = await getWatchlist(userId);
+    } catch {
+      return NextResponse.json({ error: "watchlist_unavailable" }, { status: 503 });
+    }
+    suggestions = await localPortfolioSuggestions(watchlist.map((w) => w.ticker));
   }
 
   pruneCache();

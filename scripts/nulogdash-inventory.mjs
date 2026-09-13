@@ -110,7 +110,7 @@ const FEATURE_META = {
     label: "Watchlist — list",
     auth: true,
     dependencies: ["neon"],
-    order: -1,
+    order: -2,
   },
   "POST /api/portfolio/watchlist": {
     slug: "watchlist-add",
@@ -124,7 +124,7 @@ const FEATURE_META = {
     writesData: true,
     // add -> list -> remove, so the synthetic ticker is always cleaned up and
     // the sweep is idempotent. See the sort in buildInventory().
-    order: -2,
+    order: -3,
     // 409 "already in watchlist" is the add path working: the row is present
     // and the duplicate guard fired. It happens when a previous sweep was
     // interrupted before reaching its `watchlist-remove` cleanup step, which a
@@ -139,8 +139,13 @@ const FEATURE_META = {
     auth: true,
     dependencies: ["neon"],
     writesData: true,
-    // Last of the trio: this is the cleanup step.
-    order: 1,
+    // Last of the trio, but still ahead of every order-0 (default) feature —
+    // buildLocalHealth includes every watchlist ticker in coverage and health
+    // AI forwards the full watchlist, so NULOG must be gone before any
+    // portfolio feature at the default order runs, not just before the sweep
+    // ends. Previously +1, which ran the synthetic ticker's removal AFTER
+    // those order-0 features instead of before.
+    order: -1,
   },
   "GET /api/referral": {
     slug: "referral-get",

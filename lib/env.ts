@@ -34,6 +34,15 @@ const envSchema = z.object({
   DISCORD_FEEDBACK_WEBHOOK_URL: z.string().url().optional(),
   SIGNALS_ENGINE_URL: z.string().url().optional(),
   NULOGDASH_ADMIN_EMAILS: z.string().optional(),
+  // Comma-separated Clerk primary, VERIFIED addresses granted the full Pro
+  // feature set for free (lib/beta-testers.ts). Entitlements only — it grants
+  // no admin-console access; that is NULOGDASH_ADMIN_EMAILS above, and the two
+  // lists stay separate so widening beta access can't widen admin access.
+  // Unlike that one, empty/unset is NOT a lockout: lib/beta-testers.ts carries
+  // a built-in allowlist, so the founding testers keep Pro locally and on every
+  // deploy without this var being set anywhere. Set it only to add testers
+  // without a code change.
+  BETA_TESTER_EMAILS: z.string().optional(),
   // Production Neon branch host. When set, lib/pipeline-db-guard.ts and
   // scripts/local-trigger.mjs refuse a live (--no-dry-run / dashboard) pipeline
   // run whose DATABASE_URL resolves to this host. Unset ⇒ guard inert.

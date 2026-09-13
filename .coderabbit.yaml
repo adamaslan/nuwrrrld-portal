@@ -51,11 +51,19 @@ reviews:
 
     - path: "lib/shared/**"
       instructions: >-
-        This directory mirrors canonical code from `gcp3-mobile/lib/`. Flag
-        any change here that isn't limited to the declared base-URL seam —
-        the mirror is supposed to be byte-identical to its mobile counterpart
-        outside that seam, and drift here is a cross-repo bug, not a style
-        choice.
+        This directory holds two distinct classes of file, tracked in
+        docs/wiki-portal/concept-mobile-web-parity.md: (1) files actually
+        mirrored byte-identical with `gcp3-mobile/lib/` (e.g. signal-policy.ts,
+        live-price.ts) — flag ANY change to one of these that isn't the
+        declared base-URL seam, since drift there is a cross-repo bug. (2)
+        portal-only pure modules with no mobile counterpart (e.g.
+        paper-policy.ts, followed-tickers-policy.ts, universe-policy.ts,
+        card-policy.ts, portfolio-health-policy.ts) — these are a deliberate,
+        long-standing pattern (the wiki tracks ~19 such modules vs. mobile's
+        5) and are NOT a bug; do not suggest moving one out of lib/shared/
+        just because it lacks a mobile counterpart today. When unsure which
+        class a file is in, check whether an identical file exists under
+        `gcp3-mobile/lib/` before flagging drift.
 
   auto_review:
     enabled: true

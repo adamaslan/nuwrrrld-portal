@@ -8,6 +8,7 @@
  * inside the shared one.
  */
 
+import { isBetaTester } from './beta-testers';
 import { isNulogdashAdmin } from './nulogdash';
 import {
   parseSubscriptionMetadata,
@@ -34,8 +35,10 @@ export interface TierAdminIdentity {
 
 /**
  * Effective tier for feature gating: an allowlisted nulogdash admin
- * (NULOGDASH_ADMIN_EMAILS) always resolves to 'pro', independent of Stripe
- * status — lets admins exercise Pro features without a real subscription.
+ * (NULOGDASH_ADMIN_EMAILS) or beta tester (lib/beta-testers.ts) always
+ * resolves to 'pro', independent of Stripe status — lets admins exercise Pro
+ * features without a real subscription, and gives beta testers the full
+ * feature set for free in every environment.
  * Real billing pages (dashboard/billing, dashboard/upgrade) intentionally
  * bypass this and read tierFromStatus() directly, since they display actual
  * Stripe state and a fabricated "Pro" plan there would be misleading.
@@ -45,6 +48,7 @@ export function resolveTier(
   adminIdentity: TierAdminIdentity | null | undefined,
 ): SubscriptionTier {
   if (isNulogdashAdmin(adminIdentity)) return 'pro';
+  if (isBetaTester(adminIdentity)) return 'pro';
   return tierFromStatus(status);
 }
 

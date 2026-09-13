@@ -209,7 +209,7 @@ between the two denominators.
 | Domain | Mobile | Portal | Shared module | Status |
 |--------|--------|--------|---------------|--------|
 | **Auth (Clerk)** | `@clerk/clerk-expo` | `@clerk/nextjs` | — (SDK differs by design) | ✅ Aligned — same provider + entitlement key |
-| **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **byte-identical (mobile PR #29)** | ✅ Synced — re-synced after PR #45 drift |
+| **Subscription/billing** | `subscription.ts`, `PaywallScreen`, `useSubscription` | `subscription.ts`, `stripe.ts`, `dashboard/billing`, `upgrade` ([[entity-billing]]) | `lib/subscription.ts` **byte-identical (mobile PR #29)**; portal-only tier overrides in `lib/subscription-admin.ts` + `lib/beta-testers.ts` | 🟡 Code synced, **effective tier diverges** — admins and beta testers are Pro on web, Free on mobile (2026-09-13) |
 | **Retention** | `retention.ts`, `useStreak`, `TrialExpiryBanner` | `retention.ts`, `/api/retention` | `lib/retention.ts` **identical** | ✅ Synced |
 | **Portfolio** | `portfolio.ts`, `PortfolioScreen`, `usePortfolio` | `portfolio.ts`, `/api/portfolio`, `dashboard/portfolio` | `lib/portfolio.ts` **identical**; the *score itself* is now portal-computed and served to both | 🟡 Partial — both surfaces work again (2026-09-11), but only web reads `X-Portfolio-Health-Source` ([[entity-portfolio-intelligence]] failure 5) |
 | **SSE transport** | `shared/sse.ts` | `shared/sse.ts` | **identical** | ✅ Synced |
@@ -333,7 +333,7 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > already calls the portal's health route, so it gets the fix for free; a new
 > "response-contract parity" gap class was filed there for the unread headers.
 
-> ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~66%, but a second
+> ℹ️ **Portal, 2026-09-11 assessed — headline unchanged at ~62%, but a second
 > provenance header now exists and mobile reads neither.**
 > [[decision-local-signal-chat-over-missing-gcp3-agent]] makes the portal the owner
 > of per-ticker signal chat, exactly as PR-time portfolio health made it the owner
@@ -362,6 +362,38 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > Mirrored 2026-09-11 alongside the portfolio-health entry above (same mobile PR).
 > No mobile caller of `/api/signals/{ticker}/chat` exists yet, so this one has no
 > free-fix effect — only the same unread-header gap, folded into the one entry.
+
+> ⚠️ **Portal beta-tester Pro allowlist (2026-09-13) assessed — headline
+> unchanged at ~62%, and the third instance of the blind spot the two entries
+> above name.** `lib/beta-testers.ts` resolves an allowlisted Clerk
+> primary-verified address to `pro` inside `resolveTier()`, so beta testers
+> exercise every Pro feature without a Stripe subscription
+> ([[entity-billing]]). Neither denominator moves: no `lib/shared/` module was
+> touched, none was added, and `lib/subscription.ts` is still byte-identical
+> across repos — the override deliberately lives in portal-only
+> `lib/subscription-admin.ts`, the same placement `shared-drift-check` forced
+> on PR #119's admin override.
+>
+> **The matrix row still moved ✅ → 🟡, and the reason is the pattern this page
+> has now recorded three times.** The surfaces did not drift in code; they
+> drifted in *outcome*. Mobile computes its own tier from
+> `lib/subscription.ts` + Clerk metadata and knows nothing about either
+> override list, so the same signed-in beta tester is **Pro on web and Free on
+> mobile** — an entitlement asymmetry no file-identity check can see, because
+> the divergence is in a portal-only file that is *supposed* to be portal-only.
+> Structurally identical to the unread `X-Portfolio-Health-Source` and
+> `X-Signal-Chat-Source` headers above: a portal-side contract extension mobile
+> does not consume. Note that PR #119 introduced this asymmetry for admins and
+> was never ingested here — this entry backfills that row too.
+>
+> **Not a free fix, unlike portfolio health.** Where mobile calls a portal
+> *route*, portal-owned logic reaches mobile for free; tier resolution is not a
+> route, so mobile gets nothing until it either ports an override module or
+> calls a portal endpoint for its effective tier. `GET /api/stripe/subscription`
+> already returns `parseSubscriptionMetadataWithAdmin()`'s output — the
+> override-aware tier — which makes "mobile reads the portal's tier instead of
+> deriving its own" the cheaper of the two paths. Tracked in
+> [[concept-sync-requirements]].
 
 ## See also
 

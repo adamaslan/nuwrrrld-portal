@@ -43,6 +43,28 @@ describe("buildGroundingBlock", () => {
     expect(buildGroundingBlock(base)).toContain("change_pct=3.27%");
   });
 
+  it("labels counter-evidence explicitly so the model can't read it as support", () => {
+    // Dropping `is_counter` would make a bearish item read as unlabeled
+    // supporting evidence for a bullish call, or vice versa.
+    const out = buildGroundingBlock({
+      signals: {
+        "1D": {
+          direction: "buy",
+          confidence: 0.7,
+          evidence: {
+            items: [
+              { summary: "RSI oversold bounce" },
+              { summary: "MACD bearish crossover", is_counter: true },
+            ],
+          },
+        },
+      },
+    });
+    expect(out).toContain("RSI oversold bounce");
+    expect(out).toContain("[counter-evidence] MACD bearish crossover");
+    expect(out).not.toContain("[counter-evidence] RSI oversold bounce");
+  });
+
   it("includes alignment and divergence context when present", () => {
     const out = buildGroundingBlock({
       ...base,

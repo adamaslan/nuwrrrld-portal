@@ -52,7 +52,10 @@ const results = [...run.results].sort(
 );
 const counts = results.reduce((acc, r) => { acc[r.status] = (acc[r.status] ?? 0) + 1; return acc; }, {});
 const total = results.length;
-const exercised = counts.pass ?? 0;
+// A failed feature still ran — it's distinct from blocked/not_run, which
+// never got the chance to. Excluding fail understated coverage whenever any
+// feature legitimately failed.
+const exercised = (counts.pass ?? 0) + (counts.fail ?? 0);
 const notExercised = (counts.blocked ?? 0) + (counts.not_run ?? 0);
 const coverage = total ? Math.round((exercised / total) * 100) : 0;
 

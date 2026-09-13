@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { gradeFromScore, type PortfolioHealth } from "@/lib/portfolio";
+import { gradeFromScore, isHealthFactor, type PortfolioHealth } from "@/lib/portfolio";
 import { getWatchlist } from "@/lib/watchlist-store";
 import { localPortfolioHealth } from "@/lib/portfolio-health-local";
 
@@ -73,15 +73,29 @@ async function fetchUpstreamHealth(tickers: string[]): Promise<PortfolioHealth |
     }
     const raw: unknown = await res.json();
     const data = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    if (typeof data.score !== "number" || !Number.isFinite(data.score)) {
-      console.warn("[portfolio-health] upstream_contract_drift: no numeric `score` in 200 response");
+    if (
+      typeof data.score !== "number" ||
+      !Number.isFinite(data.score) ||
+      data.score < 0 ||
+      data.score > 100
+    ) {
+      console.warn("[portfolio-health] upstream_contract_drift: score missing or out of 0-100 range");
+      return null;
+    }
+    // Every factor must match the documented contract — an entry like `{}`
+    // would otherwise pass the type assertion below and PortfolioClient.tsx's
+    // own isPortfolioHealth() check would then reject the cached payload,
+    // turning a recoverable upstream drift into a user-visible error instead
+    // of falling through to localPortfolioHealth.
+    if (!Array.isArray(data.factors) || !data.factors.every(isHealthFactor)) {
+      console.warn("[portfolio-health] upstream_contract_drift: invalid factor entry in `factors`");
       return null;
     }
     const score = Math.round(data.score);
     return {
       score,
       grade: gradeFromScore(score),
-      factors: Array.isArray(data.factors) ? (data.factors as PortfolioHealth["factors"]) : [],
+      factors: data.factors as PortfolioHealth["factors"],
       summary: typeof data.summary === "string" ? data.summary : "",
       generatedAt:
         typeof data.generated_at === "string" ? data.generated_at : new Date().toISOString(),
@@ -100,7 +114,17 @@ export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const tickers = (await getWatchlist(userId).catch(() => [])).map((w) => w.ticker);
+  let watchlist;
+  try {
+    watchlist = await getWatchlist(userId);
+  } catch {
+    // A Neon read failure is not the same fact as "this user has no
+    // watchlist" — collapsing it to [] previously produced a 204 ("nothing to
+    // score") for a retriable service failure, indistinguishable from a user
+    // who genuinely has no tickers.
+    return NextResponse.json({ error: "watchlist_unavailable" }, { status: 503 });
+  }
+  const tickers = watchlist.map((w) => w.ticker);
 
   // Empty watchlist: never let gcp3's hardcoded DEFAULT_PORTFOLIO fallback be
   // presented as this user's score. 204 is an unambiguous "nothing to score"

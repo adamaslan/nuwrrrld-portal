@@ -2,7 +2,7 @@
 date: 2026-09-10
 type: entity
 tags: [billing, subscription, stripe, clerk, auth]
-sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
+sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/beta-testers.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
 ---
 
 # entity: Billing / Auth (Clerk + Stripe)
@@ -42,6 +42,16 @@ gate features via `lib/subscription.ts`'s `hasEntitlement()`.
   timestamps, replacing untyped `as` casts at 3 call sites
   (`app/api/stripe/subscription/route.ts`, `app/api/nuai/route.ts`,
   `app/dashboard/page.tsx`).
+- **Overrides to the Stripe-derived tier** live in the portal-only
+  `lib/subscription-admin.ts`, never in the shared `lib/subscription.ts`.
+  `resolveTier(status, identity)` returns `pro` for two populations before
+  falling through to `tierFromStatus()`: nulogdash admins
+  (`NULOGDASH_ADMIN_EMAILS`, [[entity-nulogdash]]) and **beta testers**
+  (`lib/beta-testers.ts`). Both check the Clerk **primary, verified** address
+  only — an unverified or secondary match is refused, so signing up with an
+  allowlisted address doesn't grant the tier. Beta status grants entitlements
+  *only*; it is a separate list from the admin one precisely so widening beta
+  access can never widen admin access.
 
 Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
 `docs/clerk-stripe-auth.md`.
@@ -85,7 +95,36 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
 
 ## Known issues
 
-- ✅ **Fixed (PR #119, 2026-09-10): admin sign-in did not grant Pro tier.**
+- ℹ️ **Beta testers get Pro free, and the allowlist is in source on purpose
+  (2026-09-13).** `lib/beta-testers.ts` carries a built-in list of addresses
+  that always resolve to `pro`, merged with an optional `BETA_TESTER_EMAILS`
+  env var for additions without a deploy. That built-in list is the direct
+  lesson of the PR #119 entry below: an entitlement whose only input is an env
+  var grants nothing wherever the var was never set, and it fails *silently* —
+  `isNulogdashAdmin()` failing closed on an empty allowlist is what left the
+  admin account reading **Free** in production for two days after the fix
+  "shipped". A tester reads that as a broken app, not as missing config.
+  Allowlisted tester emails are not secrets, so the env var is the extension
+  point rather than the only mechanism. Billing pages still show real Stripe
+  state — a tester sees "Free" on `/dashboard/billing` and Pro features
+  everywhere else, matching the admin-override precedent.
+
+- ✅ **Fixed in code PR #119 (2026-09-10); fixed in production 2026-09-12.
+  Admin sign-in did not grant Pro tier.**
+
+  The gap between those two dates is the part worth keeping. PR #119 shipped
+  and deployed, this page recorded it as fixed, and `/dashboard` on
+  `financial.nuwrrrld.com` still showed **Free** for the admin account while
+  showing Pro locally — because `NULOGDASH_ADMIN_EMAILS` was never set in
+  Vercel. `isNulogdashAdmin()` fails closed on an empty allowlist, so
+  `resolveTier()` fell straight through to `tierFromStatus()` → `free`, with no
+  error anywhere. **An entitlement fix whose input is an env var is not fixed
+  when it merges; it is fixed when the variable exists in the deployed
+  environment.** Closing note in `docs/manual-setup-todo.md` §"Added
+  2026-09-12". The same audit found `CRON_SECRET` and `IP_HASH_SECRET` missing
+  from Vercel production for the same reason — see [[entity-nulogdash]].
+
+  The original code-side defect:
   `hasEntitlement()` read only Clerk `publicMetadata.subscription_tier`,
   written exclusively by the Stripe webhook — being on the unrelated
   `NULOGDASH_ADMIN_EMAILS` allowlist ([[entity-nulogdash]]) never touched that

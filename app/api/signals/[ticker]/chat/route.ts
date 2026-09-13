@@ -48,11 +48,22 @@ async function fetchUpstreamChat(ticker: string, question: string): Promise<Sign
     if (!raw || typeof raw !== "object") return null;
     const data = raw as Partial<SignalChatAnswer>;
     if (typeof data.answer !== "string" || data.answer.trim() === "") return null;
+    // Every *present* field must match the contract's type, or this is drift
+    // to fall through on — not a value to coerce. `!!data.fallback_used`
+    // previously turned the string "false" into `true`; a non-string
+    // `created_at`/`model`, or a `tool_calls` entry that isn't a string,
+    // would likewise have passed through unchecked.
+    if (data.tool_calls !== undefined && (!Array.isArray(data.tool_calls) || !data.tool_calls.every((t) => typeof t === "string"))) {
+      return null;
+    }
+    if (data.fallback_used !== undefined && typeof data.fallback_used !== "boolean") return null;
+    if (data.created_at !== undefined && typeof data.created_at !== "string") return null;
+    if (data.model !== undefined && typeof data.model !== "string") return null;
     return {
       ticker,
       answer: data.answer,
-      tool_calls: Array.isArray(data.tool_calls) ? data.tool_calls : [],
-      fallback_used: !!data.fallback_used,
+      tool_calls: data.tool_calls ?? [],
+      fallback_used: data.fallback_used ?? false,
       created_at: data.created_at ?? new Date().toISOString(),
       model: data.model,
     };
