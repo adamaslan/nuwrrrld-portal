@@ -723,3 +723,39 @@ refreshed), `log.md` (this entry).
 Not yet built: seed script, deterministic engine, cron workflow, model
 arbitration, Firestore mirror, API routes, dashboard. Each ships as its own
 PR, one branch per phase, rather than one large change.
+
+## [2026-09-13] ingest | PR #127 feat(paper-portfolios): seed script for 8 accounts + watchlists (Phase 2) | pages touched: 3
+
+Phase 2: `scripts/seed-paper-portfolios.mjs` seeds the 8 fixed accounts and
+their watchlists from `docs/council-paper-portfolios.md` §2.1's Core 50 +
+per-account 25 extras, transcribed verbatim and validated against
+`ticker_universe` before anything writes. Refuses to reseed silently
+(`--force-reseed` archives first, never deletes), `--undo=<manifest>` reverses
+a run exactly — same reversibility contract as
+`scripts/seed-watchlist-universe.mjs`. Also committed the design doc itself,
+which had sat untracked in the repo since it was written despite three PRs
+now referencing it.
+
+**Found and fixed a real bug in the design doc**, caught by the seed script's
+own dry-run output rather than by review: the doc claimed 526 total watchlist
+rows (§5, §6); the actual sum is 6×75 + 50 + 1 = **501**. Fixed in the doc and
+in [[entity-paper-portfolios]]'s "Known gaps" section, and in Phase 1's
+`schema.sql` comment (a one-line comment fix carried on this branch since it
+was wrong from the moment PR #124 merged).
+
+Refactored the script mid-implementation to guard its executable logic behind
+`main()` — the same idiom `scripts/seed-signals-universe.mjs` already uses —
+so the pure ticker-list constants could be unit-tested (10 new cases: ticker
+counts, no Core-50/extras overlap, `spy` holds `IVV` not `SPY`, cross-check
+against `lib/shared/paper-policy.ts`'s `PAPER_POLICY_VERSION`) without the
+seeder itself running as a side effect of the import.
+
+**Pages updated (3):** `entity-paper-portfolios.md` (Phase 2 row marked
+shipped, seed script added to "Where used", the 526→501 finding added to
+"Known gaps"), `index.md` (entity line + header refreshed), `log.md` (this
+entry).
+
+**Known overlap:** this PR and open PR #126 (`feat/beta-tester-pro-allowlist`)
+both touch `docs/watchlist-seeds/README.md` — noted in the PR description for
+whichever merges second to rebase onto, not resolved here since #126 isn't
+part of this work.
