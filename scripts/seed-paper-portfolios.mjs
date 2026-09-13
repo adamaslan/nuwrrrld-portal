@@ -15,8 +15,10 @@
  *   • every symbol is checked against ticker_universe before anything is
  *     written; an unresolved symbol fails the whole run, loudly
  *   • refuses to run against a DB that already has paper_accounts rows
- *     unless --force-reseed is passed, which archives the existing rows
- *     first (never deletes)
+ *     unless --force-reseed is passed, which archives paper_accounts/
+ *     paper_watchlists then deletes them — and refuses outright if any of
+ *     those accounts have run history (paper_runs/positions/orders/nav),
+ *     since paper_orders' append-only guarantee (§8.6) forbids destroying it
  *   • writes a manifest per run under docs/watchlist-seeds/paper/, and
  *     --undo=<manifest> reverses exactly that run
  *
@@ -26,10 +28,32 @@
  *   node --env-file=.env.local scripts/seed-paper-portfolios.mjs --force-reseed
  *   node --env-file=.env.local scripts/seed-paper-portfolios.mjs --undo=docs/watchlist-seeds/paper/<file>.json
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { neon } from "@neondatabase/serverless";
+
+/** Tables that only ever gain rows once an account has actually run
+ *  (docs/council-paper-portfolios.md §8.6: paper_orders is append-only and
+ *  never deleted). A pristine, never-run seed has none of these; the moment
+ *  it does, that history is real and --force-reseed / --undo must refuse to
+ *  touch the account rather than let the paper_accounts cascade take it out
+ *  silently. CodeRabbit review, PR #127. */
+const HISTORY_TABLES = ["paper_runs", "paper_positions", "paper_orders", "paper_nav"];
+
+/** Which of `ids` have any row in any HISTORY_TABLES table — i.e. which
+ *  accounts are no longer safe to delete-and-reseed or undo. */
+async function accountsWithHistory(sql, ids) {
+  const found = new Set();
+  for (const table of HISTORY_TABLES) {
+    const rows = await sql.query(
+      `SELECT DISTINCT account FROM ${table} WHERE account = ANY($1::text[])`,
+      [ids],
+    );
+    for (const r of rows) found.add(r.account);
+  }
+  return [...found];
+}
 
 const MANIFEST_DIR = "docs/watchlist-seeds/paper";
 /** Rows per batched INSERT — same Neon HTTP statement-size ceiling as the
@@ -164,6 +188,16 @@ async function main() {
   // Structural guard (lib/pipeline-db-guard.ts) — kept inline because this
   // .mjs cannot import TS. Opt-in: only bites when PRODUCTION_DB_HOST is set.
   // A dry-run never writes, so it is exempt.
+  //
+  // CodeRabbit (PR #127) flagged this as fail-open when PRODUCTION_DB_HOST is
+  // unset and suggested refusing to run at all in that case. Skipped: this is
+  // lib/pipeline-db-guard.ts's own documented, intentional design — "opt-in:
+  // with PRODUCTION_DB_HOST unset it allows everything... so it can land
+  // before the value is known" — and scripts/local-trigger.mjs's existing
+  // inline mirror (which this block is itself modeled on) has the identical
+  // behavior. Making this one script uniquely stricter would be inconsistent
+  // with every other caller of the same guard, not safer; the real fix, if
+  // wanted, is tightening the shared guard itself, not one of its callers.
   if (!DRY_RUN) {
     const prodHost = (process.env.PRODUCTION_DB_HOST || "").trim().toLowerCase();
     let dbHost = null;
@@ -194,20 +228,31 @@ async function main() {
     }
 
     console.log(`↩ Undo: removing ${accounts.length} accounts (watchlist_version=${watchlistVersion})`);
+    const ids = accounts.map((a) => a.account);
+
+    // paper_accounts cascades to paper_watchlists/positions/orders/nav/runs —
+    // safe ONLY when none of those accounts have actually run since this
+    // seed. An account that has is real trading history, not seed leftovers,
+    // and undo must refuse rather than let the cascade take it out silently.
+    const withHistory = await accountsWithHistory(sql, ids);
+    if (withHistory.length > 0) {
+      die(
+        `${withHistory.length} account(s) named in this manifest have run history ` +
+          `(${withHistory.join(", ")}) — undoing this seed would cascade-delete real ` +
+          "paper_runs/positions/orders/nav rows, which paper_orders' append-only " +
+          "guarantee (design doc §8.6) forbids. This manifest can no longer be undone.",
+      );
+    }
+
     if (DRY_RUN) {
       console.log("  --dry-run: nothing written.");
       return;
     }
-    const ids = accounts.map((a) => a.account);
     const wlRows = await sql`
       DELETE FROM paper_watchlists
       WHERE account = ANY(${ids}::text[]) AND watchlist_version = ${watchlistVersion}
       RETURNING account
     `;
-    // ON DELETE CASCADE on paper_accounts takes paper_runs/positions/orders/nav
-    // with it — safe here because undo only ever targets a seed that has not
-    // yet run (the seeder refuses to reseed an account with existing rows
-    // without --force-reseed, and a run always happens after a seed).
     const acctRows = await sql`
       DELETE FROM paper_accounts WHERE account = ANY(${ids}::text[]) RETURNING account
     `;
@@ -223,6 +268,25 @@ async function main() {
         `(${existingAccounts.map((r) => r.account).join(", ")}). ` +
         "Pass --force-reseed to archive them and reseed, or --undo=<manifest> to reverse a prior seed.",
     );
+  }
+  // --force-reseed's archive-then-delete only ever touches paper_accounts and
+  // paper_watchlists (see the archive step below); the paper_accounts cascade
+  // would ALSO take out paper_runs/positions/orders/nav, none of which get
+  // archived. That's fine for a pristine seed with no run history — it is not
+  // fine for an account that has actually traded, so refuse outright rather
+  // than silently destroy real orders. CodeRabbit review, PR #127.
+  if (existingAccounts.length > 0 && FORCE_RESEED) {
+    const existingIds = existingAccounts.map((r) => r.account);
+    const withHistory = await accountsWithHistory(sql, existingIds);
+    if (withHistory.length > 0) {
+      die(
+        `${withHistory.length} existing account(s) have run history ` +
+          `(${withHistory.join(", ")}) — --force-reseed would cascade-delete real ` +
+          "paper_runs/positions/orders/nav rows, which paper_orders' append-only " +
+          "guarantee (design doc §8.6) forbids. Reseeding a trading account is not " +
+          "supported by this script; that needs a deliberate decision, not a flag.",
+      );
+    }
   }
 
   // ── validate every symbol against ticker_universe ─────────────────────────
@@ -263,10 +327,12 @@ async function main() {
     return;
   }
 
-  // ── archive existing rows on --force-reseed (never delete outright) ──────
+  // ── archive existing rows on --force-reseed (read-only snapshot; the actual
+  //    delete happens inside the transaction below, alongside the insert) ──
+  let archiveManifestPath = null;
   if (existingAccounts.length > 0) {
     const archiveStamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const archiveManifestPath = join(MANIFEST_DIR, `archived-before-reseed-${archiveStamp}.json`);
+    archiveManifestPath = join(MANIFEST_DIR, `archived-before-reseed-${archiveStamp}.json`);
     const existingWatchlists = await sql`SELECT * FROM paper_watchlists`;
     const existingAccountRows = await sql`SELECT * FROM paper_accounts`;
     mkdirSync(dirname(archiveManifestPath), { recursive: true });
@@ -275,29 +341,15 @@ async function main() {
       `${JSON.stringify({ archivedAt: new Date().toISOString(), accounts: existingAccountRows, watchlists: existingWatchlists }, null, 2)}\n`,
     );
     console.log(`✓ Archived ${existingAccountRows.length} existing accounts to ${archiveManifestPath}`);
-    // paper_accounts cascades to watchlists/positions/orders/nav/runs.
-    await sql`DELETE FROM paper_accounts WHERE account = ANY(${ACCOUNT_IDS}::text[])`;
   }
 
-  // ── insert accounts ────────────────────────────────────────────────────────
-  for (let i = 0; i < ACCOUNT_IDS.length; i += BATCH_SIZE) {
-    const chunk = ACCOUNT_IDS.slice(i, i + BATCH_SIZE);
-    await sql`
-      INSERT INTO paper_accounts (account, seat, label, policy_version, starting_cash, cash, seeded_on)
-      SELECT * FROM unnest(
-        ${chunk}::text[],
-        ${chunk.map((id) => ACCOUNTS[id].seat)}::text[],
-        ${chunk.map((id) => ACCOUNTS[id].label)}::text[],
-        ${chunk.map(() => PAPER_POLICY_VERSION)}::text[],
-        ${chunk.map(() => STARTING_CASH)}::numeric[],
-        ${chunk.map(() => STARTING_CASH)}::numeric[],
-        ${chunk.map(() => seededOn)}::date[]
-      ) AS t(account, seat, label, policy_version, starting_cash, cash, seeded_on)
-    `;
-  }
-  console.log(`✓ Inserted ${ACCOUNT_IDS.length} paper_accounts rows.`);
-
-  // ── insert watchlists ──────────────────────────────────────────────────────
+  // ── build every mutation query up front, run them in one transaction ─────
+  // A prior version issued the delete, each account batch, and each watchlist
+  // batch as separate round trips and wrote the manifest only after all of
+  // them succeeded — a failure partway through left the DB in a partial state
+  // with no manifest to undo it by. sql.transaction() (the same primitive
+  // app/api/privacy/delete/route.ts uses) makes the whole write atomic.
+  // CodeRabbit review, PR #127.
   const wlRows = [];
   for (const id of ACCOUNT_IDS) {
     const core = new Set(CORE_50);
@@ -305,32 +357,61 @@ async function main() {
       wlRows.push({ account: id, ticker, inSeedBook: core.has(ticker) || id === "spy" });
     }
   }
-  let wlInserted = 0;
+
+  const queries = [];
+  if (existingAccounts.length > 0) {
+    queries.push(sql.query(`DELETE FROM paper_accounts WHERE account = ANY($1::text[])`, [ACCOUNT_IDS]));
+  }
+  for (let i = 0; i < ACCOUNT_IDS.length; i += BATCH_SIZE) {
+    const chunk = ACCOUNT_IDS.slice(i, i + BATCH_SIZE);
+    queries.push(
+      sql.query(
+        `INSERT INTO paper_accounts (account, seat, label, policy_version, starting_cash, cash, seeded_on)
+         SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::numeric[], $6::numeric[], $7::date[])
+           AS t(account, seat, label, policy_version, starting_cash, cash, seeded_on)`,
+        [
+          chunk,
+          chunk.map((id) => ACCOUNTS[id].seat),
+          chunk.map((id) => ACCOUNTS[id].label),
+          chunk.map(() => PAPER_POLICY_VERSION),
+          chunk.map(() => STARTING_CASH),
+          chunk.map(() => STARTING_CASH),
+          chunk.map(() => seededOn),
+        ],
+      ),
+    );
+  }
   for (let i = 0; i < wlRows.length; i += BATCH_SIZE) {
     const chunk = wlRows.slice(i, i + BATCH_SIZE);
-    const rows = await sql`
-      INSERT INTO paper_watchlists (account, ticker, watchlist_version, in_seed_book, active)
-      SELECT * FROM unnest(
-        ${chunk.map((r) => r.account)}::text[],
-        ${chunk.map((r) => r.ticker)}::text[],
-        ${chunk.map(() => watchlistVersion)}::int[],
-        ${chunk.map((r) => r.inSeedBook)}::boolean[],
-        ${chunk.map(() => true)}::boolean[]
-      ) AS t(account, ticker, watchlist_version, in_seed_book, active)
-      ON CONFLICT (account, ticker, watchlist_version) DO NOTHING
-      RETURNING account
-    `;
-    wlInserted += rows.length;
-    process.stdout.write(`  inserted ${wlInserted}/${wlRows.length}\r`);
+    queries.push(
+      sql.query(
+        `INSERT INTO paper_watchlists (account, ticker, watchlist_version, in_seed_book, active)
+         SELECT * FROM unnest($1::text[], $2::text[], $3::int[], $4::boolean[], $5::boolean[])
+           AS t(account, ticker, watchlist_version, in_seed_book, active)
+         ON CONFLICT (account, ticker, watchlist_version) DO NOTHING
+         RETURNING account`,
+        [
+          chunk.map((r) => r.account),
+          chunk.map((r) => r.ticker),
+          chunk.map(() => watchlistVersion),
+          chunk.map((r) => r.inSeedBook),
+          chunk.map(() => true),
+        ],
+      ),
+    );
   }
-  console.log(`\n✓ Inserted ${wlInserted} paper_watchlists rows.`);
 
-  // ── manifest (makes the run reversible) ───────────────────────────────────
+  // Manifest content is fully known up front (ACCOUNTS is a static constant,
+  // not derived from any DB response) — write it to a durable temp path
+  // BEFORE the transaction runs, and only rename it into place once the
+  // transaction has actually committed. A failed transaction leaves the temp
+  // file behind, named in the error, instead of losing the undo record.
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const manifestPath = join(MANIFEST_DIR, `seed-${stamp}.json`);
+  const tempManifestPath = `${manifestPath}.tmp`;
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(
-    manifestPath,
+    tempManifestPath,
     `${JSON.stringify(
       {
         seededAt: new Date().toISOString(),
@@ -347,6 +428,23 @@ async function main() {
       2,
     )}\n`,
   );
+
+  let results;
+  try {
+    results = await sql.transaction(queries);
+  } catch (err) {
+    console.error(
+      `\n✖ Transaction failed — no changes committed (all-or-nothing). ` +
+        `Manifest of what would have been seeded is preserved at ${tempManifestPath} for reference.\n` +
+        `  ${err.message}`,
+    );
+    throw err;
+  }
+
+  renameSync(tempManifestPath, manifestPath);
+  const watchlistResults = results.slice(existingAccounts.length > 0 ? 1 : 0).slice(Math.ceil(ACCOUNT_IDS.length / BATCH_SIZE));
+  const wlInserted = watchlistResults.reduce((n, r) => n + r.length, 0);
+  console.log(`✓ Inserted ${ACCOUNT_IDS.length} paper_accounts rows and ${wlInserted} paper_watchlists rows.`);
   console.log(`✓ Manifest: ${manifestPath}`);
   console.log(`  Undo with: node --env-file=.env.local scripts/seed-paper-portfolios.mjs --undo=${manifestPath}`);
 }

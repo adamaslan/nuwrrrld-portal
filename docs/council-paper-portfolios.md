@@ -492,7 +492,7 @@ paper/{account}/runs/{date}_{slot}  -> status, skip_reason, orders_n, model_call
   (Neon and the SQLite snapshots keep everything). Firestore is a read mirror,
   not an archive, and a phone has never needed a fill from fourteen months ago.
 - **Watchlists mirror on seed and on version bump**, not every run — they change
-  a few times a year, and re-writing 526 docs four times a day to say nothing
+  a few times a year, and re-writing 501 docs four times a day to say nothing
   would be the single largest write cost in the design.
 - **A mirror failure is logged to `paper_runs.detail.mirror_error` and the run
   still succeeds.** The mirror is reconstructable from Neon at any time; the

@@ -730,8 +730,11 @@ Phase 2: `scripts/seed-paper-portfolios.mjs` seeds the 8 fixed accounts and
 their watchlists from `docs/council-paper-portfolios.md` §2.1's Core 50 +
 per-account 25 extras, transcribed verbatim and validated against
 `ticker_universe` before anything writes. Refuses to reseed silently
-(`--force-reseed` archives first, never deletes), `--undo=<manifest>` reverses
-a run exactly — same reversibility contract as
+(`--force-reseed` archives `paper_accounts`/`paper_watchlists` then deletes
+them — and refuses outright if any named account has run history, since the
+`paper_accounts` cascade would otherwise take real `paper_orders`/`positions`/
+`nav`/`runs` rows with it), `--undo=<manifest>` reverses a run exactly under
+the same history check — same reversibility contract as
 `scripts/seed-watchlist-universe.mjs`. Also committed the design doc itself,
 which had sat untracked in the repo since it was written despite three PRs
 now referencing it.
@@ -759,3 +762,22 @@ entry).
 both touch `docs/watchlist-seeds/README.md` — noted in the PR description for
 whichever merges second to rebase onto, not resolved here since #126 isn't
 part of this work.
+
+**CodeRabbit review addendum (same PR, /wait-merge1 pass):** the review found
+3 real correctness gaps in the seeder, all now fixed. (1) `--force-reseed` and
+`--undo` both now refuse outright if any named account has run history in
+`paper_runs`/`positions`/`orders`/`nav` — the prior version's archive step
+covered only `paper_accounts`/`paper_watchlists`, so the `ON DELETE CASCADE`
+would have silently destroyed real order history the moment an account had
+actually traded. (2) The whole write (delete + account inserts + watchlist
+inserts) now runs in one `sql.transaction([...])`, matching
+`app/api/privacy/delete/route.ts`'s pattern, and the manifest is written to a
+durable temp path *before* the transaction and renamed into place only after
+it commits — a failed transaction previously left a partial DB state with no
+manifest to undo it by. (3) The remaining stale "526" reference (§5.1's
+Firestore write-cost note) is now 501 too. One finding (the production-DB
+guard's fail-open-when-unset behavior) was triaged as a skip, with the reason
+recorded inline in the script: it's `lib/pipeline-db-guard.ts`'s own
+documented, intentional design, matched exactly by an existing inline mirror
+in `scripts/local-trigger.mjs` — tightening this one caller would be
+inconsistent, not safer.
