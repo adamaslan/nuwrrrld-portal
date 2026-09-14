@@ -95,7 +95,7 @@ async function fetchSignalGrounding(ticker: string): Promise<UpstreamSignal | nu
     // it — one malformed timeframe discarding a signal that was otherwise fine.
     const validSignals: Record<string, TimeframeSignal> = {};
     for (const [tf, s] of Object.entries(sig.signals)) {
-      if (s && typeof s === "object") validSignals[tf] = s;
+      if (s && typeof s === "object" && !Array.isArray(s)) validSignals[tf] = s;
     }
     if (Object.keys(validSignals).length === 0) return null;
 

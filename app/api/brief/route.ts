@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { fetchWithModelFallback, MODEL_CHAIN_WALK_BUDGET_MS } from "@/lib/openrouter";
+import { fetchWithModelFallback, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWithIdleTimeout } from "@/lib/openrouter";
 import { mapSignalsToHoldFold } from "@/lib/shared/holdfold-map";
 import type { HoldFoldVerdict } from "@/lib/shared/holdfold-map";
 
@@ -191,7 +191,11 @@ export async function POST(req: NextRequest) {
       let sseBuffer = "";
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          // See readChunkWithIdleTimeout's header: the chain-selection timer
+          // above bounds *finding* a model, not the stream that follows — a
+          // provider that primes one token and stalls would otherwise hang
+          // this request indefinitely, since nothing else is watching by now.
+          const { done, value } = await readChunkWithIdleTimeout(reader);
           if (done) {
             sseBuffer += decoder.decode();
             if (sseBuffer) drainSSELines(sseBuffer + "\n", d => { fullText += d; });
@@ -214,12 +218,17 @@ export async function POST(req: NextRequest) {
       async start(ctrl2) {
         try {
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await readChunkWithIdleTimeout(reader);
             if (done) break;
             ctrl2.enqueue(enc.encode(decoder.decode(value, { stream: true })));
           }
-        } finally {
           ctrl2.close();
+        } catch (err) {
+          // A stalled stream must error the response, not close it silently
+          // — a close reads to the client as "done", an SSE consumer has no
+          // way to distinguish a clean finish from a truncated one otherwise.
+          ctrl2.error(err);
+        } finally {
           clearTimeout(timer);
         }
       },

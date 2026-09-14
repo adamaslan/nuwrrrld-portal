@@ -139,6 +139,43 @@ export const MODEL_ATTEMPT_TIMEOUT_MS = 20_000;
 export const MODEL_CHAIN_WALK_BUDGET_MS =
   (FREE_MODEL_CHAIN.length + 1) * MODEL_ATTEMPT_TIMEOUT_MS;
 
+/** How long a streaming reader may go with no chunk before it's considered
+ *  stalled, not just slow. See `readChunkWithIdleTimeout`. */
+export const STREAM_IDLE_TIMEOUT_MS = 30_000;
+
+/**
+ * `reader.read()` with a per-call idle bound, for the SSE re-streaming loops
+ * in `/api/brief` and `/api/portfolio/health-ai`.
+ *
+ * Those routes clear their model-selection AbortController's timer as soon as
+ * a model is chosen (`MODEL_CHAIN_WALK_BUDGET_MS` bounds selection, not the
+ * whole request) — correct, since a slow-but-healthy stream shouldn't be
+ * killed mid-read by a budget meant for finding a working model. But nothing
+ * then bounds the stream itself: a provider that sends one token and stops
+ * would hang the request indefinitely, since no timer is watching by that
+ * point. This is that timer, scoped to one read call and reset by the caller
+ * on every chunk (a healthy stream keeps resetting it; a stalled one doesn't).
+ *
+ * Throws (not resolves) on timeout, matching `reader.read()`'s own reject
+ * shape — callers should let it propagate to their existing catch/finally.
+ */
+export async function readChunkWithIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  idleMs = STREAM_IDLE_TIMEOUT_MS,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout>;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`stream idle for ${idleMs}ms`)), idleMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 /**
  * The hand-maintained primary model for a seat — what `runSeat` tries first,
  * before walking FREE_MODEL_CHAIN. Exported so pipeline run-logging can tell a

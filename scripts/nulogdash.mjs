@@ -114,6 +114,11 @@ function redact(text) {
 // that needs it `blocked`, not `fail` — see docs/nulogdash-dashboard-plan.md
 // on why that distinction matters.
 // ---------------------------------------------------------------------------
+// Unique sentinel so readBodyWithTimeout can tell "the timeout won the race"
+// apart from "res.text() resolved to a real empty string" — both look like
+// `""` otherwise, and only one of them needs the body cancelled.
+const TIMED_OUT = Symbol("nulogdash-body-read-timed-out");
+
 async function withTimeout(fn, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -133,10 +138,28 @@ async function withTimeout(fn, timeoutMs = REQUEST_TIMEOUT_MS) {
  * sweep, since nothing is still watching by that point.
  */
 async function readBodyWithTimeout(res, timeoutMs = REQUEST_TIMEOUT_MS) {
-  return Promise.race([
-    res.text().catch(() => ""),
-    new Promise((resolve) => setTimeout(() => resolve(""), timeoutMs)),
-  ]);
+  let timer;
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(TIMED_OUT), timeoutMs);
+  });
+  try {
+    const result = await Promise.race([res.text().catch(() => ""), timeoutPromise]);
+    if (result === TIMED_OUT) {
+      // The race stops *awaiting* res.text() on timeout, but the underlying
+      // body read keeps running unless told to stop — a stalled 429/fail body
+      // would otherwise hold its connection open indefinitely while the
+      // sequential sweep moves on, one more thing quietly alive in the
+      // background for the rest of the run.
+      await res.body?.cancel().catch(() => {});
+      return "";
+    }
+    return result;
+  } finally {
+    // Clear the loser too — when res.text() wins the race, this timer would
+    // otherwise sit armed for up to `timeoutMs` more, which on an AI feature
+    // is up to 120s of a Node process kept alive by nothing but a stale timer.
+    clearTimeout(timer);
+  }
 }
 
 async function checkDependencies(sessionAuth) {
