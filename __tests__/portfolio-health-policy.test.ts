@@ -3,7 +3,7 @@ import {
   buildLocalHealth,
   buildLocalSuggestions,
   type HealthCardInput,
-} from "@/lib/shared/portfolio-health-policy";
+} from "@/lib/portfolio-health-policy";
 
 const card = (over: Partial<HealthCardInput> = {}): HealthCardInput => ({
   ticker: "AAPL",

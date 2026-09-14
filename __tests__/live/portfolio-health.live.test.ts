@@ -27,15 +27,18 @@ const describeDb = HAS_DB ? describe : describe.skip;
 const DEV_USER_ID = "user_devlocal000000000000000";
 
 describeDb("local portfolio health (live Neon)", () => {
-  it("scores a real watchlist without touching gcp3", async () => {
+  it("scores a real watchlist without touching gcp3", async (ctx) => {
     const { getWatchlist } = await import("@/lib/watchlist-store");
     const { localPortfolioHealth } = await import("@/lib/portfolio-health-local");
 
     const tickers = (await getWatchlist(DEV_USER_ID)).map((w) => w.ticker);
     if (tickers.length === 0) {
       // Not a failure — the dev user simply isn't seeded in this database.
-      // "blocked is not fail" (docs/e2e.md §4).
-      console.warn(`[live] ${DEV_USER_ID} has an empty watchlist — nothing to score.`);
+      // "blocked is not fail" (docs/e2e.md §4). A plain `return` here made the
+      // test *pass* without ever calling localPortfolioHealth — a missing
+      // fixture and a working assertion were indistinguishable in CI.
+      // ctx.skip() reports this run honestly as skipped, not green.
+      ctx.skip(`${DEV_USER_ID} has an empty watchlist in this DB — run scripts/hydrate-dev.mjs + scripts/seed-watchlist-universe.mjs --dev first`);
       return;
     }
 

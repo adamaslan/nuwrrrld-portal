@@ -90,7 +90,13 @@ const FEATURE_META = {
     slug: "portfolio-health",
     label: "Portfolio health score",
     auth: true,
-    dependencies: ["neon", "mcp"],
+    // NOT `mcp`. This route tries gcp3 first but degrades to its own
+    // ticker_cards-backed scorer whenever MCP is down or absent — that local
+    // path is the whole point of PR #123's fix. Declaring `mcp` made
+    // runFeature() block the feature on the exact dependency the fallback
+    // exists to route around, so the fallback path could never be exercised
+    // by a sweep run without a healthy MCP backend.
+    dependencies: ["neon"],
   },
   "POST /api/portfolio/health-ai": {
     slug: "portfolio-health-ai",
@@ -103,7 +109,9 @@ const FEATURE_META = {
     slug: "portfolio-suggestions",
     label: "Portfolio suggestions",
     auth: true,
-    dependencies: ["neon", "mcp"],
+    // Same reasoning as portfolio-health above — `mcp` would block the exact
+    // local-fallback path this feature is meant to exercise.
+    dependencies: ["neon"],
   },
   "GET /api/portfolio/watchlist": {
     slug: "watchlist-list",

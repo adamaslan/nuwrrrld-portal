@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-13T20:20:16.242Z",
+  "generatedAt": "2026-09-14T14:20:40.921Z",
   "features": [
     {
       "slug": "watchlist-add",
@@ -493,14 +493,24 @@
       "excluded": null
     },
     {
+      "slug": "undocumented-post--api-pipeline-paper-portfolios",
+      "label": "POST /api/pipeline/paper-portfolios (undocumented)",
+      "method": "POST",
+      "path": "/api/pipeline/paper-portfolios",
+      "auth": null,
+      "dependencies": [],
+      "tier": [],
+      "status": "not_run",
+      "reason": "not in inventory — add a FEATURE_META entry in scripts/nulogdash-inventory.mjs"
+    },
+    {
       "slug": "portfolio-health",
       "label": "Portfolio health score",
       "method": "GET",
       "path": "/api/portfolio/health",
       "auth": true,
       "dependencies": [
-        "neon",
-        "mcp"
+        "neon"
       ],
       "tier": [
         "api"
@@ -542,8 +552,7 @@
       "path": "/api/portfolio/suggestions",
       "auth": true,
       "dependencies": [
-        "neon",
-        "mcp"
+        "neon"
       ],
       "tier": [
         "api"
@@ -1032,5 +1041,7 @@
       "reason": "requires a Stripe-signed payload from `stripe listen`; not a plain fetch target"
     }
   ],
-  "driftWarnings": []
+  "driftWarnings": [
+    "POST /api/pipeline/paper-portfolios (app/api/pipeline/paper-portfolios/route.ts) has no FEATURE_META entry"
+  ]
 }

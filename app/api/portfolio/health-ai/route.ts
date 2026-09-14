@@ -6,7 +6,7 @@ import type { SubscriptionStatus } from "@/lib/subscription";
 import { getWatchlist } from "@/lib/watchlist-store";
 import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
-import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWithIdleTimeout } from "@/lib/openrouter";
 import { getPrecomputed, subjectFromTickers } from "@/lib/precomputed-ai-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
@@ -147,6 +147,11 @@ export async function POST(req: NextRequest) {
       "NuWrrrld Financial Portfolio Health Check",
       ctrl.signal,
     );
+    // Clear immediately: this timer bounds chain selection only. Left running
+    // on the same AbortController, it stayed armed while the SSE body below
+    // is read line by line — a slow-but-healthy model streaming past
+    // MODEL_CHAIN_WALK_BUDGET_MS got aborted mid-read instead of finishing.
+    clearTimeout(timer);
     console.info(`[health-ai] served model=${model} grounded=${grounded} tickers=${watchlist.length}`);
 
     const wantsStream = (req.headers.get("Accept") ?? "").includes("text/event-stream");
@@ -177,7 +182,11 @@ export async function POST(req: NextRequest) {
       let sseBuffer = "";
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          // See readChunkWithIdleTimeout's header: the chain-selection timer
+          // above bounds *finding* a model, not the stream that follows — a
+          // provider that primes one token and stalls would otherwise hang
+          // this request indefinitely, since nothing else is watching by now.
+          const { done, value } = await readChunkWithIdleTimeout(reader);
           if (done) {
             sseBuffer += decoder.decode();
             if (sseBuffer) drainSSELines(sseBuffer + "\n", d => { fullText += d; });
@@ -223,7 +232,7 @@ export async function POST(req: NextRequest) {
       async start(ctrl2) {
         try {
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await readChunkWithIdleTimeout(reader);
             if (done) {
               sseBuffer2 += decoder.decode();
               if (sseBuffer2) ctrl2.enqueue(enc.encode(rewriteSSELine(sseBuffer2)));

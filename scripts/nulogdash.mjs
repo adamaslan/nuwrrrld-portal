@@ -33,6 +33,29 @@ const LATEST_FILE = join(ROOT, ".nulogdash", "latest.json");
 // otherwise pass straight through and every probe would fail with
 // "Failed to parse URL from /api/health". Trim and treat blank as unset.
 const BASE_URL = process.env.NULOGDASH_BASE_URL?.trim() || "http://localhost:3000";
+
+// Every auth-required feature sends a real Clerk bearer token to BASE_URL
+// (scripts/lib/nulogdash-auth.mjs). NULOGDASH_BASE_URL is operator-controlled
+// config, not attacker input, so this is a defense-in-depth check rather than
+// the primary guard — but a typo'd or copy-pasted URL should fail loudly
+// before it silently sends a live session token somewhere unintended, over
+// plaintext HTTP or to a host nobody approved.
+function assertSafeBaseUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`NULOGDASH_BASE_URL is not a valid URL: ${url}`);
+  }
+  const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  if (parsed.protocol !== "https:" && !isLoopback) {
+    throw new Error(
+      `NULOGDASH_BASE_URL must be https:// (or a loopback http:// target for local dev), got: ${url}`,
+    );
+  }
+}
+assertSafeBaseUrl(BASE_URL);
+
 // 25s, not 10s. Nine features failed the 2026-09-11 sweep purely as "This
 // operation was aborted", and every one of them was a first-request `next dev`
 // route compile rather than a slow handler — GET /api/disclaimer aborted at 10s
@@ -91,12 +114,50 @@ function redact(text) {
 // that needs it `blocked`, not `fail` — see docs/nulogdash-dashboard-plan.md
 // on why that distinction matters.
 // ---------------------------------------------------------------------------
+// Unique sentinel so readBodyWithTimeout can tell "the timeout won the race"
+// apart from "res.text() resolved to a real empty string" — both look like
+// `""` otherwise, and only one of them needs the body cancelled.
+const TIMED_OUT = Symbol("nulogdash-body-read-timed-out");
+
 async function withTimeout(fn, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fn(controller.signal);
   } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * `res.text()` with its own bound, for the two call sites (429, fail) that
+ * read a body *after* the request's own AbortController has already been
+ * cleared by `withTimeout`'s `finally`. Without this, a response whose
+ * headers arrived but whose body never finishes — a 429 held open by a slow
+ * proxy, say — hangs indefinitely and blocks the rest of the sequential
+ * sweep, since nothing is still watching by that point.
+ */
+async function readBodyWithTimeout(res, timeoutMs = REQUEST_TIMEOUT_MS) {
+  let timer;
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(TIMED_OUT), timeoutMs);
+  });
+  try {
+    const result = await Promise.race([res.text().catch(() => ""), timeoutPromise]);
+    if (result === TIMED_OUT) {
+      // The race stops *awaiting* res.text() on timeout, but the underlying
+      // body read keeps running unless told to stop — a stalled 429/fail body
+      // would otherwise hold its connection open indefinitely while the
+      // sequential sweep moves on, one more thing quietly alive in the
+      // background for the rest of the run.
+      await res.body?.cancel().catch(() => {});
+      return "";
+    }
+    return result;
+  } finally {
+    // Clear the loser too — when res.text() wins the race, this timer would
+    // otherwise sit armed for up to `timeoutMs` more, which on an AI feature
+    // is up to 120s of a Node process kept alive by nothing but a stale timer.
     clearTimeout(timer);
   }
 }
@@ -130,7 +191,7 @@ async function checkDependencies(sessionAuth) {
   const priceAnnual = process.env.STRIPE_PRICE_ANNUAL ?? "";
   if (!stripeKey) {
     deps.stripe = { ok: false, reason: "STRIPE_SECRET_KEY not set" };
-  } else if (stripeKey.startsWith("sk_live_")) {
+  } else if (!/^(sk|rk)_test_/.test(stripeKey)) {
     // Refuse to transact against a live payment account, full stop. The sweep
     // POSTs /api/stripe/checkout and /api/stripe/portal, which create real
     // Stripe objects — a live Checkout Session and, on the portal's lazy
@@ -140,12 +201,18 @@ async function checkDependencies(sessionAuth) {
     //
     // This is fail-closed on purpose: `blocked` on a live key is the correct
     // outcome, and the fix is a test-mode key, not a louder warning.
+    //
+    // Allow-lists sk_test_/rk_test_ rather than deny-listing sk_live_ — the
+    // original deny-list let a live *restricted* key (rk_live_) straight
+    // through. A restricted key with write permission on Checkout/Customers
+    // creates the exact same real objects an unrestricted sk_live_ does; only
+    // checking for one of the two live prefixes defeated the guard entirely.
     deps.stripe = {
       ok: false,
       reason:
-        "STRIPE_SECRET_KEY is a LIVE key (sk_live_) — the sweep creates real Stripe objects " +
-        "(Checkout Sessions, and a Customer via the portal's lazy provisioning), so billing " +
-        "features are blocked until a test-mode key (sk_test_) is configured",
+        "STRIPE_SECRET_KEY is not a test-mode key (sk_test_/rk_test_) — the sweep creates real " +
+        "Stripe objects (Checkout Sessions, and a Customer via the portal's lazy provisioning), " +
+        "so billing features are blocked until a test-mode key is configured",
     };
   } else if (!priceMonthly || priceMonthly.includes("placeholder") || !priceAnnual || priceAnnual.includes("placeholder")) {
     deps.stripe = { ok: false, reason: "STRIPE_PRICE_MONTHLY/ANNUAL unset or placeholder" };
@@ -248,7 +315,7 @@ async function runFeature(feature, deps, sessionAuth) {
     // subsequent run showed a passing feature as failing. A feature may still
     // opt into 429 via expectStatus if 429 is genuinely its contract.
     if (res.status === 429 && !(accepted && accepted.includes(429))) {
-      const body429 = await res.text().catch(() => "");
+      const body429 = await readBodyWithTimeout(res, timeoutFor(feature));
       let retryHint = "";
       try {
         const parsed = JSON.parse(body429);
@@ -274,7 +341,7 @@ async function runFeature(feature, deps, sessionAuth) {
           : null;
       return { ...base, status: "pass", latencyMs, reason };
     }
-    const bodyText = await res.text().catch(() => "");
+    const bodyText = await readBodyWithTimeout(res, timeoutFor(feature));
     return { ...base, status: "fail", latencyMs, reason: redact(`HTTP ${res.status}: ${bodyText}`) };
   } catch (err) {
     return {

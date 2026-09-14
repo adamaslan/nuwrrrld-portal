@@ -58,8 +58,15 @@ async function main() {
   const sql = neon(requireEnv("DATABASE_URL"));
   const userId = await resolveTestUserId();
 
+  // `ticker_cards` carries independent rows per horizon, and the local
+  // portfolio-health adapter (lib/portfolio-health-local.ts) reads only `t1`.
+  // Without this filter a ticker with a `t2`-only card would pass this check
+  // while still leaving portfolio health with no usable signal for it.
   const covered = await sql`
-    SELECT DISTINCT ticker FROM ticker_cards WHERE ticker = ANY(${FIXTURE_TICKERS})
+    SELECT DISTINCT ticker
+    FROM ticker_cards
+    WHERE horizon = 't1'
+      AND ticker = ANY(${FIXTURE_TICKERS})
   `;
   const coveredSet = new Set(covered.map((r) => r.ticker));
   const usable = FIXTURE_TICKERS.filter((t) => coveredSet.has(t));
