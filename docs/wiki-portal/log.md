@@ -816,3 +816,26 @@ manual steps tracked in `docs/manual-setup-todo.md` (2026-09-13 entry): running
 the seed script for real, and provisioning `PAPER_CRON_SECRET`.
 
 ## [2026-09-13] ingest | beta-tester Pro allowlist — built-in + BETA_TESTER_EMAILS resolve to pro in resolveTier(); entitlement asymmetry vs mobile recorded | pages touched: 4
+
+## [2026-09-14] ingest | PR #132 fix(review): 12 of PR #123's 18 deferred CodeRabbit findings, plus a follow-up self-review's 5 | pages touched: 1
+
+PR #123 merged (as `fix/portfolio-health-local-fallback`) before its own
+CodeRabbit review was triaged. #132 worked all 18 findings against current
+`main`: 5 were already fixed by #126's squash-merge, 2 verified already
+correct or correctly-scoped (a disclaimer-wording finding; a watchlist-manifest
+PII finding that turned out to be the repo owner's own admin account, Clerk
+lookup + `nulogdash` allowlist confirmed), 12 fixed directly (timer/stream
+cleanup, `DISTINCT ON` for `ticker_cards` reads, a 500-char cap on signal-chat
+questions, malformed-entry rejection instead of whole-response coercion,
+`lib/shared/portfolio-health-policy.ts` moved out of the mirrored directory
+since it's portal-only, several `nulogdash.mjs`/`nulogdash-inventory.mjs`
+hardening fixes). A follow-up push-triggered review on the fix commits
+themselves found 5 more (SSE idle-timeout gap, an array-valued timeframe entry
+slipping the batch-3 validator) — fixed in the same PR before merge.
+
+**Pages updated (1):** `entity-portfolio-intelligence.md` (Known failures #10
+— the SSE idle-timeout closure). The `portfolio-health-policy.ts` move and the
+`nulogdash`/signal-chat hardening are recorded in the PR body but not yet given
+their own wiki treatment — see this session's `/cave` entry
+(`docs/caveats/2026-09-14-entitlement-gates-pr123-triage.md`) for the fuller
+list of what PR #132 touched and what wiki candidates it suggests.
