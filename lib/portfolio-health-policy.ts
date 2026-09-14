@@ -22,13 +22,13 @@
  * reason `card-policy.ts` is split from `ticker-cards-db.ts`: `@/lib/db`
  * throws at import time without DATABASE_URL, and nothing here does I/O.
  */
-import { gradeFromScore, PORTFOLIO_DISCLAIMER } from "../portfolio";
+import { gradeFromScore, PORTFOLIO_DISCLAIMER } from "./portfolio";
 import type {
   HealthFactor,
   OptimizerSuggestion,
   PortfolioHealth,
-} from "../portfolio";
-import type { CardAction, CardUniverse } from "./card-policy";
+} from "./portfolio";
+import type { CardAction, CardUniverse } from "./shared/card-policy";
 
 /** Bump when the weights or factor set below change, so a cached score from an
  *  older shape is never presented beside a new one as though comparable. */
