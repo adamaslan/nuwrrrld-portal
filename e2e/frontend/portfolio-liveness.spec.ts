@@ -28,10 +28,15 @@ test.describe("Portfolio panels — live backend liveness", () => {
     test.skip(!process.env.MCP_BACKEND_URL, "MCP_BACKEND_URL not configured — all three panels are backend-dependent");
     // All three panels read the user's watchlist; an empty one collapses
     // every panel to its "empty" state before ever reaching the backend.
+    // The test user's watchlist is not guaranteed to be empty going in (the
+    // paper-portfolio seed script gives every seeded account a starting
+    // watchlist), so assert on the AAPL item this test just added rather
+    // than on ".port-watch-item" generically — that locator strict-mode
+    // violates the moment a second pre-existing item is present.
     await page.goto("/dashboard/portfolio");
     await page.getByPlaceholder(/ticker/i).fill("AAPL");
     await page.getByRole("button", { name: "+ Add" }).click();
-    await expect(page.locator(".port-watch-item")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".port-watch-item", { hasText: "AAPL" })).toBeVisible({ timeout: 10_000 });
   });
 
   test("PORTFOLIO HEALTH SCORE — /api/portfolio/health returns a real, well-formed score", async ({ page }) => {
