@@ -30,10 +30,14 @@ const HEALTH_HORIZON = "t1";
  * Uncovered tickers are simply absent from the result; the caller compares
  * against the requested list to compute coverage, so a missing card is visible
  * as missing rather than silently reducing the portfolio.
+ *
+ * Each card carries its own `barDate` rather than the read returning one
+ * aggregate date — `buildLocalHealth`'s freshness factor and bar-date
+ * distribution both need the per-card value, not just the newest one. See
+ * docs/portfolio-health-todo.md §0: reporting only `max(bar_date)` is what let
+ * a single fresh card make a portfolio of month-old cards read as current.
  */
-async function readCards(
-  tickers: string[],
-): Promise<{ cards: HealthCardInput[]; barDate: string | null }> {
+async function readCards(tickers: string[]): Promise<{ cards: HealthCardInput[] }> {
   // DISTINCT ON, not a plain filter: `ticker_cards` can retain more than one
   // row per (ticker, horizon) if nightly history isn't pruned, and without
   // this a ticker contributes multiple times to scoring and can push
@@ -53,12 +57,9 @@ async function readCards(
     score: Number(r.score),
     action: r.action as HealthCardInput["action"],
     dataQuality: Number(r.data_quality),
+    barDate: r.bar_date ? new Date(r.bar_date as string).toISOString().slice(0, 10) : undefined,
   }));
-  const barDates = rows
-    .map((r) => (r.bar_date ? new Date(r.bar_date as string).toISOString().slice(0, 10) : null))
-    .filter((d): d is string => d !== null)
-    .sort();
-  return { cards, barDate: barDates.length ? barDates[barDates.length - 1] : null };
+  return { cards };
 }
 
 /**
@@ -74,8 +75,8 @@ export async function localPortfolioHealth(
 ): Promise<PortfolioHealth | null> {
   if (tickers.length === 0) return null;
   try {
-    const { cards, barDate } = await readCards(tickers);
-    return buildLocalHealth(tickers, cards, barDate);
+    const { cards } = await readCards(tickers);
+    return buildLocalHealth(tickers, cards);
   } catch (err) {
     console.error(
       `[portfolio-health] local_read_failed tickers=${tickers.length} err=${err instanceof Error ? err.message : String(err)}`,

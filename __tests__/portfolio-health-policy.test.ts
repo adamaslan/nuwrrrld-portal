@@ -85,6 +85,71 @@ describe("buildLocalHealth", () => {
       expect(f.score, f.name).toBeLessThanOrEqual(100);
     }
   });
+
+  describe("freshness (docs/portfolio-health-todo.md §0)", () => {
+    const now = new Date("2026-09-14T00:00:00Z");
+
+    it("scores a fresh, dated book above an otherwise-identical stale one", () => {
+      const fresh = buildLocalHealth(
+        ["AAPL"],
+        [card({ ticker: "AAPL", score: 40, barDate: "2026-09-13" })],
+        now,
+      )!;
+      const stale = buildLocalHealth(
+        ["AAPL"],
+        [card({ ticker: "AAPL", score: 40, barDate: "2026-08-19" })],
+        now,
+      )!;
+      expect(stale.score).toBeLessThan(fresh.score);
+      const staleFreshnessFactor = stale.factors.find(f => f.name === "Signal freshness")!;
+      const freshFreshnessFactor = fresh.factors.find(f => f.name === "Signal freshness")!;
+      expect(staleFreshnessFactor.score).toBeLessThan(freshFreshnessFactor.score);
+    });
+
+    it("never drops a stale card — coverage is unaffected by staleness", () => {
+      const health = buildLocalHealth(
+        ["AAPL", "MSFT"],
+        [
+          card({ ticker: "AAPL", barDate: "2026-09-13" }),
+          card({ ticker: "MSFT", barDate: "2026-06-01" }), // ~3 months stale
+        ],
+        now,
+      )!;
+      expect(health.factors.find(f => f.name === "Signal coverage")!.score).toBe(100);
+    });
+
+    it("floors rather than zeroes an extremely stale card's weight", () => {
+      const health = buildLocalHealth(
+        ["AAPL"],
+        [card({ ticker: "AAPL", score: 80, barDate: "2020-01-01" })],
+        now,
+      )!;
+      // Still produces a real, non-degenerate score — the card contributes a
+      // small but nonzero weight, it is never treated as absent.
+      expect(health.score).toBeGreaterThan(0);
+      expect(health.factors.find(f => f.name === "Signal freshness")!.score).toBeGreaterThanOrEqual(0);
+    });
+
+    it("reports 'unavailable' freshness, not a false positive, when no card has a bar date", () => {
+      const health = buildLocalHealth(["AAPL"], [card({ ticker: "AAPL" })], now)!;
+      const freshness = health.factors.find(f => f.name === "Signal freshness")!;
+      expect(freshness.description).toContain("unavailable");
+    });
+
+    it("summarizes the bar-date distribution instead of a single latest date", () => {
+      const health = buildLocalHealth(
+        ["A", "B", "C"],
+        [
+          card({ ticker: "A", barDate: "2026-09-13" }),
+          card({ ticker: "B", barDate: "2026-08-19" }),
+          card({ ticker: "C", barDate: "2026-08-19" }),
+        ],
+        now,
+      )!;
+      expect(health.summary).toContain("2 from 2026-08-19");
+      expect(health.summary).toContain("1 from 2026-09-13");
+    });
+  });
 });
 
 describe("buildLocalSuggestions", () => {
