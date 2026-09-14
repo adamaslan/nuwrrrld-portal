@@ -147,6 +147,11 @@ export async function POST(req: NextRequest) {
       "NuWrrrld Financial Portfolio Health Check",
       ctrl.signal,
     );
+    // Clear immediately: this timer bounds chain selection only. Left running
+    // on the same AbortController, it stayed armed while the SSE body below
+    // is read line by line — a slow-but-healthy model streaming past
+    // MODEL_CHAIN_WALK_BUDGET_MS got aborted mid-read instead of finishing.
+    clearTimeout(timer);
     console.info(`[health-ai] served model=${model} grounded=${grounded} tickers=${watchlist.length}`);
 
     const wantsStream = (req.headers.get("Accept") ?? "").includes("text/event-stream");

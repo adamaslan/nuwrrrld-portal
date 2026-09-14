@@ -152,6 +152,14 @@ export async function POST(req: NextRequest) {
       "NuWrrrld Financial Daily Brief",
       ctrl.signal,
     );
+    // Clear immediately: this timer bounds the chain-selection phase only.
+    // Left running, it stayed armed on the same AbortController while the SSE
+    // body below was read line by line — a slow-but-healthy model streaming
+    // past MODEL_CHAIN_WALK_BUDGET_MS got its response aborted mid-read
+    // instead of finishing, which is a worse outcome than the timeout this
+    // budget exists to prevent. The later `clearTimeout(timer)` calls around
+    // the read loops are now no-ops kept as defense in depth.
+    clearTimeout(timer);
 
     // Content-negotiate: stream SSE to clients that ask for it, return
     // buffered JSON to legacy clients that don't (mirrors /api/nuai —

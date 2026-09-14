@@ -5,6 +5,12 @@ import { localSignalChat, type SignalChatAnswer } from "@/lib/signal-chat-local"
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 20_000; // agent tool-call loop budget on the backend is ~15s
 
+// A single question about one ticker, not a document. Without a cap an
+// authenticated client can submit an oversized body that gets forwarded
+// unbounded to both the upstream agent and the local OpenRouter fallback —
+// spending model-token budget on every such call (CWE-400).
+const MAX_QUESTION_LENGTH = 500;
+
 type ChatSource = "upstream" | "local";
 
 /**
@@ -88,6 +94,9 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const question = typeof body?.question === "string" ? body.question.trim() : "";
   if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
+  if (question.length > MAX_QUESTION_LENGTH) {
+    return NextResponse.json({ error: `question must be ${MAX_QUESTION_LENGTH} characters or fewer` }, { status: 400 });
+  }
 
   const upstream = await fetchUpstreamChat(ticker, question);
   if (upstream) return respond(upstream, "upstream");
