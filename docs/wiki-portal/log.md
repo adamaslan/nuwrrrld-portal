@@ -855,3 +855,32 @@ list of what PR #132 touched and what wiki candidates it suggests.
 Docs-only `/cave` entry, no code/behavior change. No page edit — the
 substance (Phases 4-6 build status) is already covered by
 `entity-paper-portfolios.md`'s ingest for PR #138 in this same session.
+
+## [2026-09-14] ingest | PR #135 fix(portfolio): re-derive signal freshness at read time, health-ai local fallback, meter health-ai | pages touched: 1
+
+Implements §0/§1/§7 of `docs/portfolio-health-todo.md`, written the same day
+from live measurement against production: a 936-ticker watchlist scored Grade
+C reporting "Latest bar 2026-09-13" while 882 of 932 covered cards were 26
+days stale, because `localPortfolioHealth` reported `max(bar_date)` as the
+portfolio's one date and `data_quality`-weighting doesn't discount staleness
+(it's frozen at hydration time). Fixed: per-card `barDate` drives a
+re-derived-at-read-time freshness weight and a new scored "Signal freshness"
+factor (cards never dropped, weights rebalanced 0.45/0.30/0.25 →
+0.36/0.24/0.20 + 0.20 freshness); `health-ai`'s `fetchHealth()` now falls
+through to the same local scorer `health/route.ts` already used, closing a
+gap left open deliberately during PR #123's review scope and never revisited;
+`health-ai` gained `/api/nuai`'s rate limit + daily token budget, sharing the
+same `nuai_usage` pool.
+
+**Pages updated (1):** `entity-portfolio-intelligence.md` — closed known
+failures #2 (`health-ai` fallback) and #7 (unmetered), partially closed #6
+(freshness now honestly reported and scored, hydration pipeline reliability
+itself still open per the todo doc's §2), corrected the `sources:` path that
+still pointed at the pre-PR#132 `lib/shared/` location, updated the weight
+figures in Open questions.
+
+**Not ingested from the same todo doc** (not this PR's scope — see the PR
+body): §2 (hydration workflow reliability, an ops item, not this PR's code
+change), §3 (resolved for free by §0, no separate wiki note needed), §4
+(mobile repo — `gcp3-mobile/docs/wiki-mobile/` is where that lands, not here),
+§5/§6/§8 (research/decision items with no code change yet).

@@ -2,7 +2,7 @@
 date: 2026-07-24
 type: entity
 tags: [portfolio, watchlist, health-score, optimizer, disclaimer, shared-types]
-sources: [../../lib/portfolio.ts, ../../lib/shared/portfolio-health-policy.ts, ../../lib/portfolio-health-local.ts, ../../lib/watchlist-store.ts, ../../app/api/portfolio, ../../app/dashboard/portfolio]
+sources: [../../lib/portfolio.ts, ../../lib/portfolio-health-policy.ts, ../../lib/portfolio-health-local.ts, ../../lib/watchlist-store.ts, ../../app/api/portfolio, ../../app/dashboard/portfolio]
 ---
 
 # Entity — Portfolio Intelligence
@@ -20,10 +20,12 @@ Routes under `app/api/portfolio/`:
 
 - `health` / `health-ai` — deterministic score vs. an LLM-narrated variant.
   Since 2026-09-11 `health` prefers gcp3 and falls back to
-  `lib/shared/portfolio-health-policy.ts`, a pure scorer over `ticker_cards`
-  (signal strength · directional risk · diversification, plus an unscored
-  coverage factor). `lib/portfolio-health-local.ts` is the Neon read beside it.
-  In practice the local path is the only one that ever runs.
+  `lib/portfolio-health-policy.ts`, a pure scorer over `ticker_cards` (signal
+  strength · directional risk · diversification · **signal freshness**, plus
+  an unscored coverage factor). `lib/portfolio-health-local.ts` is the Neon
+  read beside it. In practice the local path is the only one that ever runs.
+  Since PR #135 (2026-09-14), `health-ai` shares this same fallback — see
+  known failure 2 and [[decision-local-portfolio-scoring-over-upstream-wait]].
 - `suggestions` — optimizer suggestions (priority-ranked, each carrying its own
   disclaimer). Same upstream-then-local shape as `health`.
 - `watchlist` — CRUD over [[entity-holdfold-cache]]'s `watchlist-store`.
@@ -53,6 +55,14 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
    it surfaces *"Health check returned empty — try again."* And the score it
    would fall back **to** is itself broken (below). See
    [[incident-2026-07-26-portfolio-health-endpoint-missing]].
+   **Closed PR #135 (2026-09-14).** `fetchHealth()` in `health-ai/route.ts`
+   now falls through to `localPortfolioHealth` on an upstream miss, exactly
+   the fallback `health/route.ts` gained on 2026-09-11 (PR #123). Left out of
+   #123 deliberately to keep that PR reviewable alone
+   (docs/portfolio-health-todo.md §1); the gap sat open for three days after
+   the fallback it needed already existed. The AI narrative's `grounded` flag
+   is now `true` whenever a local score is used — see failure 6 for why that
+   alone is not the whole honesty story.
 3. ~~**The upstream health endpoint has never existed.**~~ **Worked around
    2026-09-11** — the upstream is still missing and now no longer matters.
    Both `health` and `suggestions` compute from `ticker_cards`
@@ -115,8 +125,26 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
    [[incident-2026-09-03-nightly-hydration-dead-15-days]] is exactly this
    pipeline going dark for 15 days. `barDate` reaches the summary text; nothing
    gates or flags on it.
-7. **`health-ai` is unmetered.** Unlike `/api/nuai` it has no rate limit and no
-   token accounting, so it bypasses `NU_AI_DAILY_TOKEN_BUDGET` entirely.
+   **Partially closed PR #135 (2026-09-14).** Live measurement against
+   production (docs/portfolio-health-todo.md §0) found this worse than filed:
+   a 936-ticker watchlist scored Grade C while reporting *"Latest bar
+   2026-09-13"* — true of 50 cards, and false of the 882 that were 26 days
+   stale, because `localPortfolioHealth` reported `max(bar_date)` as the
+   portfolio's one date. Quality-weighting didn't help either: `data_quality`
+   is frozen at hydration time, so a clean-when-built card still scored `1.0`
+   after going stale. Fixed: each card's own `barDate` now drives a
+   re-derived-at-read-time freshness weight (quality × freshness, cards never
+   dropped) and a new scored "Signal freshness" factor; the summary reports
+   the bar-date distribution instead of one max date. **Still open:** the
+   hydration pipeline's own reliability (nightly runs failing 6 of the last 7
+   days per the todo doc §2) is unchanged — freshness is now honestly
+   *reported and scored*, not *fixed at the source*.
+7. ~~**`health-ai` is unmetered.** Unlike `/api/nuai` it has no rate limit and
+   no token accounting, so it bypasses `NU_AI_DAILY_TOKEN_BUDGET` entirely.~~
+   **Closed PR #135 (2026-09-14).** Ported `/api/nuai`'s per-minute rate limit
+   and daily budget check verbatim, sharing the same `nuai_usage` table/pool —
+   a health check and a chat turn are metered as the same underlying cost (one
+   model call), not two separate budgets.
 8. ~~**`.port-watch-empty` reused across three co-rendered empty-states.**~~ —
    **fixed 2026-08-18**, see [[entity-playwright-e2e]] known-failure #5 for
    the full writeup; split into `port-watch-empty` / `port-score-empty` /
@@ -150,11 +178,15 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
 - ❓ What actually calls `POST /api/signals/drain` on a schedule? Deferred to a
   Modal or Zo cron in `homebase/` (a separate repo) — see
   [[decision-pending-signals-queue]].
-- ❓ **The score's weights are unvalidated.** 0.45 signal / 0.30 direction /
-  0.25 diversification, and a ten-name diversification target, are reasoned
+- ❓ **The score's weights are unvalidated.** 0.36 signal / 0.24 direction /
+  0.20 diversification / 0.20 freshness (rebalanced from 0.45/0.30/0.25 by
+  PR #135 to make room for the new freshness factor, preserving the original
+  three's relative balance) and a ten-name diversification target are reasoned
   rather than fitted. Nothing checks whether a Grade-B watchlist subsequently
   behaves differently from a Grade-D one — [[entity-backtest-engine]] is where
-  that would be measured and is not wired to it.
+  that would be measured and is not wired to it. docs/portfolio-health-todo.md
+  §5 notes the ~8 seeded paper portfolios (PRs #124/#127/#128) now make this
+  answerable and it still isn't wired.
 - ❓ **Diversification does not measure sector.** `ticker_universe` records only
   `etf`/`stock`, so thirty semiconductor names read as well-diversified. The
   factor's own description says so rather than pretending otherwise, which is a
