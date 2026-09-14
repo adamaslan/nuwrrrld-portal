@@ -839,3 +839,5 @@ slipping the batch-3 validator) — fixed in the same PR before merge.
 their own wiki treatment — see this session's `/cave` entry
 (`docs/caveats/2026-09-14-entitlement-gates-pr123-triage.md`) for the fuller
 list of what PR #132 touched and what wiki candidates it suggests.
+
+## [2026-09-14] ingest | PR #134 fix(e2e): scope portfolio-liveness watchlist assertion to added ticker | pages touched: 2
