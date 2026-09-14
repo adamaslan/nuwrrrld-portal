@@ -86,7 +86,20 @@ async function fetchSignalGrounding(ticker: string): Promise<UpstreamSignal | nu
     // there is nothing to ground an answer in, and a chat reply built on an
     // empty object would be pure speculation wearing a data-backed voice.
     if (!sig.signals || Object.keys(sig.signals).length === 0) return null;
-    return sig;
+
+    // Drop, don't trust, any timeframe whose value isn't itself an object.
+    // buildGroundingBlock reads `s.confidence`/`s.direction` etc. unguarded
+    // against `s` being null/non-object (its per-field checks only guard the
+    // field types), so a single `signals: { "1D": null }` entry from upstream
+    // would throw there and turn every *valid* timeframe into a 503 along with
+    // it — one malformed timeframe discarding a signal that was otherwise fine.
+    const validSignals: Record<string, TimeframeSignal> = {};
+    for (const [tf, s] of Object.entries(sig.signals)) {
+      if (s && typeof s === "object") validSignals[tf] = s;
+    }
+    if (Object.keys(validSignals).length === 0) return null;
+
+    return { ...sig, signals: validSignals };
   } catch {
     return null;
   } finally {
