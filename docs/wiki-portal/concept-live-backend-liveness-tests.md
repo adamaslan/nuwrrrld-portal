@@ -132,6 +132,20 @@ still emits any particular shape, or is reachable at all.
 > If a run crashes between the two, the ticker leaks into the test user's
 > real watchlist. No cleanup-on-crash guard exists yet (would need a
 > `beforeAll`/`afterAll` reconciliation step, not per-test `afterEach`).
+>
+> **This tension went live (2026-09-14, PR #134):** CI run
+> [34878668461](https://github.com/adamaslan/nuwrrrld-portal/actions/runs/34878668461)
+> (PR #129, unrelated) hit the E2E test user's watchlist already holding
+> `MSFT`/`NVDA` when `beforeEach` ran — most likely exactly this leak, since
+> nothing else in this suite writes those tickers. The `beforeEach`'s own
+> assertion (`expect(page.locator(".port-watch-item")).toBeVisible()`) had
+> assumed AAPL would be the only match, so a pre-existing item didn't just
+> pollute state, it strict-mode-violated the locator and failed the test
+> outright before the body ran. Fixed by scoping the assertion to
+> `hasText: "AAPL"` — makes `beforeEach` robust to *any* pre-existing
+> watchlist content, whatever its source, but does not touch the underlying
+> crash-leak gap this paragraph already named. The `beforeAll`/`afterAll`
+> reconciliation step is still open.
 
 ## Open questions
 
