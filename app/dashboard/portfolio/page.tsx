@@ -2,8 +2,9 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
+import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
+import { resolveTier } from "@/lib/subscription-admin";
 import { getWatchlist } from "@/lib/watchlist-store";
 import { PortfolioClient } from "./PortfolioClient";
 import "./portfolio.css";
@@ -58,7 +59,7 @@ export default async function PortfolioPage() {
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = tierFromStatus(status);
+  const tier = resolveTier(status, user);
 
   if (!hasEntitlement("nu_ai", tier)) {
     redirect("/pricing?source=portfolio");
