@@ -2,8 +2,9 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { hasEntitlement, tierFromStatus } from "@/lib/subscription";
+import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
+import { resolveTier } from "@/lib/subscription-admin";
 import { getViewData } from "@/lib/followed-tickers-db";
 import { buildFollowedTickersView } from "@/lib/shared/followed-tickers-view";
 import { FollowedTickersClient } from "./FollowedTickersClient";
@@ -21,7 +22,7 @@ export default async function FollowedTickersPage() {
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = tierFromStatus(status);
+  const tier = resolveTier(status, user);
 
   if (!hasEntitlement("pro_signals", tier)) {
     redirect("/pricing?source=followed-tickers");
