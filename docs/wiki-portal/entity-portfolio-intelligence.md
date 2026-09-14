@@ -130,6 +130,20 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
    `FREE_MODEL_CHAIN`). See [[entity-openrouter-client]] for the chain and its
    known quota-exhaustion failure mode; this is that failure mode observed
    from the portfolio surface specifically, not a portfolio-side bug.
+10. ~~**A stalled-but-connected SSE stream had nothing watching it.**~~
+    **Closed PR #132 (2026-09-14).** `brief` and `health-ai` both cleared the
+    model-chain-*selection* timer once a model was chosen, then read the
+    resulting stream with nothing bounding it — a provider that primed one
+    token then stalled mid-stream would hang the request indefinitely instead
+    of failing over. `lib/openrouter.ts`'s new `readChunkWithIdleTimeout()`
+    (30s, resets per chunk) is now wired into both read loops; `brief`'s
+    non-streaming path was also silently closing on error instead of calling
+    `ctrl2.error()` like `health-ai`'s already did, fixed to match. Same PR
+    also moved `lib/shared/portfolio-health-policy.ts` →
+    `lib/portfolio-health-policy.ts` — it's portal-only and was never actually
+    mirrored with mobile, so it didn't belong under `lib/shared/`'s drift
+    contract; see [[entity-openrouter-client]] for the shared timeout
+    primitive.
 
 ## Open questions
 
