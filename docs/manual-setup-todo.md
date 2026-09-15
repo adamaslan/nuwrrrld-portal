@@ -329,8 +329,12 @@ Alpaca dashboard (🖱 https://app.alpaca.markets/paper/dashboard/overview →
 gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA' || echo "none of the three are set"
 ```
 
-Expect (today): `none of the three are set`. If some already appear, the sync
-below is still safe — it overwrites with the `.env.local` value.
+Expect (today): `none of the three are set`. **If any already appear, stop
+here** — `sync-hydration-secrets.sh` overwrites unconditionally with whatever
+is in `.env.local`, with no comparison against the existing value and no
+confirmation prompt. Before proceeding, confirm the local value is the one
+you actually intend to push (e.g. after a deliberate rotation), not a stale
+copy that would silently replace a currently-correct deployed secret.
 
 ---
 
@@ -690,8 +694,12 @@ gh run watch "$(gh run list --workflow=integration-tests.yml --limit 1 --json da
 ### Paste-ready: `CRON_SECRET` (present in `.env.local` + GHA since 2026-09-13 — this block only backfills Vercel; steps 1–2 self-skip if already done)
 
 It must be the **same value** in all three, and it is **not** interchangeable
-with `PORTAL_PUSH_SECRET`. Steps 1 and 2 check first and skip if the value is
-already there; step 3 (Vercel) is the one still unverified. The value is
+with `PORTAL_PUSH_SECRET`. Step 1 checks first and skips if a value is
+already in `.env.local`; step 3 (Vercel) is the one still unverified. **Step 2
+re-pushes to GHA unconditionally** — `gh secret set` has no comparison or
+confirmation of its own — so only run it if `.env.local`'s value is the one
+you intend GHA to have; if GHA was already confirmed correct (per §-1) and
+you only need to backfill Vercel, skip straight to step 3. The value is
 never echoed to your screen.
 
 ```bash
@@ -702,7 +710,8 @@ grep -q '^CRON_SECRET=' .env.local \
   && echo "CRON_SECRET already in .env.local — skip to step 2" \
   || { printf 'CRON_SECRET=%s\n' "$(openssl rand -hex 32)" >> .env.local && echo "✓ generated + written to .env.local"; }
 
-# 2. push the same value to GitHub Actions
+# 2. push the same value to GitHub Actions — SKIP if GHA is already confirmed
+#    correct (§-1) and you only need step 3 (Vercel); this always overwrites.
 awk -F= '/^CRON_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local \
   | tr -d '\n' | gh secret set CRON_SECRET
 
@@ -869,13 +878,15 @@ this app cannot currently take a paying customer end-to-end. Full reasoning and
 retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
 [docs/ship-to-clients-top-25.md](ship-to-clients-top-25.md) items 1–6.
 
-- [ ] **`STRIPE_WEBHOOK_SECRET` — a real `whsec_…` for the production endpoint.**
-      Currently a `whsec_placeholder_*` value. Until it's real,
-      `app/api/webhooks/stripe/route.ts` logs a `CONFIG_ERROR` and **rejects
-      every event Stripe sends**. Concretely: a customer completes checkout,
-      Stripe charges their card, the portal never learns about it, and they stay
-      on the free tier. They paid and got nothing, with no error visible to
-      them. This is the single most expensive open item in the repo.
+- [x] ~~**`STRIPE_WEBHOOK_SECRET` — a real `whsec_…` for the production endpoint.**~~
+      — **Resolved**: a real `whsec_` value was pushed to GHA 2026-09-14 (see
+      §-1); `.env.local` no longer holds `whsec_placeholder_*`. Kept below for
+      the rotation procedure, still relevant if this value is ever rotated.
+      Previously: until it was real, `app/api/webhooks/stripe/route.ts` logged
+      a `CONFIG_ERROR` and **rejected every event Stripe sends** — a customer
+      would complete checkout, Stripe would charge their card, the portal
+      would never learn about it, and they'd stay on the free tier, paid and
+      got nothing, with no error visible to them.
       Stripe reveals the endpoint signing secret in **Workbench → Webhooks**
       (view it any time, not only at creation). Rotation offers two expiry
       modes: **expire immediately** (old secret invalid at once) or **keep the
@@ -885,26 +896,19 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       every deployed copy holds the new value before the old one expires.
       `app/api/health` surfaces the current state; check it rather than trusting
       the env file.
-- [ ] **`STRIPE_PRICE_ANNUAL` — create the price, then set it.** Unset today, so
-      `lib/stripe.ts`'s `PRICES.annual` resolves to `''`. The pricing page
-      advertises the annual plan ("Best value — save 34%"), and selecting it
-      sends an empty price ID to Checkout, which errors. **You are advertising a
-      plan you cannot sell.**
-      Decide the amount *before* creating it: Stripe price objects are
-      immutable, so changing it later means archive-and-recreate, and archiving
-      only affects new subscriptions — you would be grandfathering the wrong
-      number. Also confirm `STRIPE_PRICE_MONTHLY` is a **live-mode** ID.
-      Note the state of each value before pushing (§2): a **configured** live ID,
-      an **empty** string, a **placeholder** literal, or **absent** entirely —
-      only the first is safe to `gh secret set`, and §2's list must not push the
-      others as if they were real.
-      Setting this ID alone does not re-enable billing on its own —
-      `STRIPE_WEBHOOK_SECRET` is now a real `whsec_` value (pushed to GHA
-      2026-09-14, see §-1), so that particular blocker is closed, but
-      `STRIPE_PRICE_MONTHLY`/`STRIPE_PRICE_ANNUAL` still need the live-mode
-      confirmation above. Re-enable the `preflight-billing` Playwright tier
-      only after *all* required live Stripe values are configured and
-      `/api/health` reports Stripe healthy.
+- [ ] **`STRIPE_PRICE_ANNUAL` — confirm it's a live-mode price, not create it.**
+      A real `price_` id is now in `.env.local` and GHA (pushed 2026-09-14, see
+      §-1) — `lib/stripe.ts`'s `PRICES.annual` no longer resolves to `''`.
+      What's still open: confirming the id is **live-mode**, not test-mode —
+      also confirm `STRIPE_PRICE_MONTHLY` is live-mode while you're there. If
+      either turns out to be test-mode, decide the amount before creating a
+      replacement: Stripe price objects are immutable, so changing one later
+      means archive-and-recreate, and archiving only affects new
+      subscriptions — you would be grandfathering the wrong number.
+      This blocker is closed alongside `STRIPE_WEBHOOK_SECRET` (also real
+      as of 2026-09-14, see §-1) — the remaining live-mode confirmation above
+      is what still gates re-enabling the `preflight-billing` Playwright tier;
+      do that only after `/api/health` reports Stripe healthy.
 - [ ] **Rotate `STRIPE_SECRET_KEY` — before §2 pushes secrets, or re-push
       after.** Recorded as already exposed in
       [docs/env-rotation.md](env-rotation.md), separate from the unset values
@@ -1184,17 +1188,20 @@ someone runs Modal against the real account:
       - **Unblocks**: `council-sample`, `council-public`, and the landing-page
         council demo
       - **Added**: 2026-09-10
-- [ ] **Bring `gcp3-backend` back up** (`MCP_BACKEND_URL` returns a real `503`).
+- [x] ~~**Bring `gcp3-backend` back up** (`MCP_BACKEND_URL` returns a real `503`).~~
+      — **Resolved**, see §-1: `/api/health` reports all five dependencies
+      `ok` (mcp, neon, stripe, openrouter, clerk) as of the 2026-09-14
+      verification pass. Kept below for history.
       - **From**: PR #118 — `preflight` red, blocking the whole e2e browser chain
-      - **Blocked on**: whoever owns the Cloud Run deployment
-      - **Why it can't be code**: the service itself is not serving; a direct
-        probe of `{gcp3-backend-url}/health` returns
+      - **Blocked on**: ~~whoever owns the Cloud Run deployment~~ — resolved
+      - **Why it wasn't code**: the service itself was not serving; a direct
+        probe of `{gcp3-backend-url}/health` returned
         `503 "The service you requested is not available yet"`
-      - **Unblocks**: `health`, `auth-setup` and `frontend` Playwright projects —
-        currently **no browser test can run in CI at all**, including specs that
-        never touch this backend. Consider also splitting `MCP_BACKEND_URL` out
-        of `preflight` into its own gate, the same way `preflight-billing` was
-        carved out, so a third-party outage stops blocking the auth chain.
+      - **Unblocked**: `health`, `auth-setup` and `frontend` Playwright projects
+      - **Still worth doing regardless**: split `MCP_BACKEND_URL` out of
+        `preflight` into its own gate, the same way `preflight-billing` was
+        carved out, so a *future* third-party outage doesn't block the whole
+        auth chain again.
       - **Added**: 2026-09-10
 - [ ] **Decide whether the operator email already published to `main` matters.**
       - **From**: PR #118 — CodeRabbit "Sensitive Data Exposure" (CWE-359)
