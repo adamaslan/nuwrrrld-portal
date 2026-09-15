@@ -939,3 +939,24 @@ resolved in code.
   scheduled run fails at the secret-check step before ever calling the
   route, and files a `pipeline-failure` issue.
 - **Added**: 2026-09-14
+
+## Added 2026-09-15 — `e2e-resiliency.yml`'s `signals-liveness` shard has been red on `main` since 2026-09-13
+
+- **From**: `/wait-merge1` triage of PR #137's `e2e (4)` failure —
+  `e2e/frontend/signals-liveness.spec.ts:53`'s `POST /api/signals/{ticker}/chat`
+  liveness check times out (`TimeoutError: apiRequestContext.post: Timeout
+  25000ms exceeded`) against several tickers.
+- **Blocked on**: whichever upstream this route's proxy calls through
+  (gcp3-backend and/or the OpenRouter chain) — `gh run list --branch main
+  --workflow e2e-resiliency.yml --limit 5` shows **failure on all 5 of the
+  last 5 runs on `main` itself**, going back to 2026-09-13, before PR #137
+  existed. Not this PR's regression.
+- **Why it can't be code (right now)**: nobody has yet identified which
+  upstream call times out or why — this entry only confirms the failure
+  predates and is independent of the PRs it's currently blocking, so the
+  next session doesn't re-diagnose "is this my PR's fault" from scratch. The
+  actual root cause is still open work.
+- **Unblocks**: knowing to merge past this specific `e2e (4)` failure on any
+  PR that doesn't touch `/api/signals/*` or its proxy chain, without
+  re-verifying it's pre-existing each time.
+- **Added**: 2026-09-15
