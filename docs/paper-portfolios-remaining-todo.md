@@ -5,11 +5,8 @@
 > (§10 "Build phases"); this doc tracks only what's **done vs. left**, and any
 > open decisions a phase surfaced that the design doc didn't anticipate.
 
-**Status as of 2026-09-15:** Phases 1–4 merged (#124, #127, #128, #137).
-Phase 5–6 (arbitration + Firestore mirror/reconcile, PR #138) and Phase 8
-(metrics, this branch, stacked on 5-6's tip) are code-complete, not yet
-merged. Phase 7 (API + dashboard, PR #139) is code-complete, drafted
-independently, cut from `origin/main`.
+**Status as of 2026-09-15:** Phases 1–6 and 8 merged (#124, #127, #128, #137,
+#138, #140). Phase 7 (API + dashboard) lands with this branch.
 
 ---
 
@@ -178,6 +175,40 @@ independently, cut from `origin/main`.
 - **`cardHorizon: 'both'` (quant, chair) takes the higher of the t1/t2
   score** per ticker, not a blend — §3 doesn't specify how to combine them.
 
+- [x] **Phase 7 — API routes + dashboard.** Branch
+      `feat/paper-portfolios-phase-7-api-dashboard`, cut from `origin/main`
+      independently (no engine changes, so nothing to stack on).
+  - `app/api/paper/accounts`, `app/api/paper/[account]`,
+    `app/api/paper/[account]/nav`, `.../orders`, `.../watchlist` — GET,
+    public, in-memory TTL cache (same pattern as
+    `app/api/council/sample/route.ts`).
+  - `lib/shared/paper-view.ts` — pure builder shared between the server page
+    and every route (`buildLeaderboardView`, `buildAccountDetailView`,
+    `buildNavSeriesView`, `buildWatchlistView`).
+  - `app/dashboard/council/portfolios/page.tsx` + `PaperPortfoliosClient.tsx`
+    — Clerk-gated leaderboard + per-account drilldown (click a row), CSS-grid
+    `role="table"`, a hand-rolled inline SVG NAV sparkline.
+  - **Decision made, not left ambiguous:** the page gates on the
+    `pro_signals` entitlement, matching `followed-tickers`' own choice for a
+    comparable "app's own track record" surface — the design doc's §6 didn't
+    name one.
+  - Added `"paper"` to `components/DisclaimerFooter.tsx` and
+    `DisclaimerModal.tsx`'s `surface` union; the dashboard page renders
+    `<DisclaimerFooter surface="paper" />`. No server-side enum to update —
+    `app/api/disclaimer/route.ts` stores `surface` as free text.
+  - **Known simplification:** `AccountMetrics` in `lib/shared/paper-view.ts`
+    is a locally-owned structural duck-type of `paper_runs.detail.metrics`,
+    deliberately not imported from `lib/shared/paper-metrics-core.ts` (Phase
+    8) — this branch has no hard dependency on Phase 8's code existing, so
+    the two can merge in either order. A run with no metrics (pre-Phase-8, or
+    a failed computation) simply renders every metric field as "—".
+  - **Not verified in a browser:** no `.env.local` (Clerk keys, `DATABASE_URL`)
+    exists in this session's worktree, and the DB has zero seeded accounts
+    regardless (Phase 3's own blocker) — `tsc --noEmit` and `eslint` are
+    clean, and every route degrades to an empty/404 response on a DB miss by
+    the same try/catch convention as the rest of `lib/paper-db.ts`, but the
+    actual rendered page has not been clicked through.
+
 ---
 
 ## Left
@@ -234,23 +265,7 @@ call would find zero `paper_accounts` rows.
       also touches `package-lock.json`-adjacent files not at all, so no
       conflict expected there specifically).
 
-### Phase 7 — API routes + dashboard
-
-- [ ] `app/api/paper/accounts`, `app/api/paper/[account]`,
-      `app/api/paper/[account]/nav`, `.../orders`, `.../watchlist` — GET,
-      public, in-memory TTL cache (matching `app/api/council/sample/route.ts`'s
-      pattern, not the IP-hash quota machinery).
-- [ ] `lib/shared/paper-view.ts` — pure builder shared between the server
-      page and the API routes (matching `lib/shared/followed-tickers-view.ts`).
-- [ ] `app/dashboard/council/portfolios/page.tsx` + `PaperPortfoliosClient.tsx`
-      — Clerk-gated leaderboard, CSS-grid `role="table"` (no charting library
-      in this repo — plan is a hand-rolled inline SVG NAV sparkline).
-- [ ] **Open decision, not yet confirmed:** which entitlement tier gates this
-      page. The design doc doesn't say; `followed-tickers` uses
-      `pro_signals` and this is the natural default, but worth a one-line
-      confirm before shipping rather than assuming.
-- [ ] Add `"paper"` to `components/DisclaimerFooter.tsx`'s `surface` union;
-      render it on the new dashboard page.
+### Phase 7 — API routes + dashboard — done, see "Done" above
 
 ### Phase 8 — first written finding — done, see "Done" above for the metrics code
 

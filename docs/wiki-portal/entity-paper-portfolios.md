@@ -49,10 +49,10 @@ tracks what's actually built against that 8-phase plan.
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
 | 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
 | 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 |
-| 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — this branch (`feat/paper-portfolios-phase-5-6-arbitration-firestore`) |
-| 6 | Firestore mirror + reconciliation | **Shipped** — this branch |
-| 7 | `/api/paper/*` + `/dashboard/council/portfolios` | Drafted on `feat/paper-portfolios-phase-7-api-dashboard`, not yet merged |
-| 8 | Metrics | **Shipped** — this branch (`feat/paper-portfolios-phase-8-metrics`, stacked on Phases 5-6's tip). The written-finding half of Phase 8 is unstarted by design — it needs weeks of real run data. |
+| 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — PR #138 |
+| 6 | Firestore mirror + reconciliation | **Shipped** — PR #138 |
+| 7 | `/api/paper/*` + `/dashboard/council/portfolios` | **Shipped** — this PR (`feat/paper-portfolios-phase-7-api-dashboard`, cut independently from `origin/main`) |
+| 8 | Metrics | **Shipped** — PR #140. The written-finding half is unstarted by design — it needs weeks of real run data. |
 
 ## Where used
 
@@ -107,6 +107,16 @@ tracks what's actually built against that 8-phase plan.
   scoring: CAGR/vol/Sharpe match `docs/moo-council-run/sim_moo.py`'s `lump()`
   exactly. `lib/paper-engine.ts` calls it at `settle`, writing
   `paper_runs.detail.metrics`, non-fatal.
+- `app/api/paper/{accounts,[account],[account]/nav,[account]/orders,[account]/watchlist}`
+  (Phase 7) — public GETs, in-memory TTL cache (5-30 min depending on how
+  often the underlying data changes), no Clerk gate — read-only aggregate
+  data about simulated accounts, not user data (§6).
+- `lib/shared/paper-view.ts` (Phase 7) — pure view-model builders shared
+  between the API routes and `app/dashboard/council/portfolios/page.tsx`'s
+  server render, matching `lib/shared/followed-tickers-view.ts`'s split.
+- `app/dashboard/council/portfolios/` (Phase 7) — Clerk-gated (`pro_signals`)
+  leaderboard + per-account drilldown, a hand-rolled inline SVG NAV
+  sparkline, `<DisclaimerFooter surface="paper" />`.
 
 ## Known failures
 
@@ -172,6 +182,20 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
   metrics would otherwise block on rows that don't exist yet within the same
   route call. One run's staleness on a comparison-only figure, judged
   acceptable against reordering the whole loop.
+- **Phase 7:** which entitlement tier gates `/dashboard/council/portfolios`
+  was undefined by the design doc (§6 lists the route but not its gate).
+  Resolved as `pro_signals`, matching `followed-tickers`' own choice for a
+  comparable surface — a decision made and recorded, not left ambiguous.
+- **Phase 7:** `lib/shared/paper-view.ts`'s `AccountMetrics` type is a
+  locally-owned duck-type of Phase 8's `paper_runs.detail.metrics` shape,
+  not imported from `lib/shared/paper-metrics-core.ts` — this phase's branch
+  was written with no hard dependency on Phase 8's code existing, so the two
+  branches can merge in either order without one blocking the other.
+- **Two stale status headers found and fixed while touching this doc**, not
+  introduced by Phase 7: `docs/paper-portfolios-remaining-todo.md`'s and
+  `docs/council-paper-portfolios.md`'s own status lines still said Phase 3
+  was "done on this branch" / "in progress" after PR #128 had already merged
+  it — the merge didn't update either header. Both now reflect actual state.
 
 ## Open questions
 
