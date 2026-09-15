@@ -21,3 +21,4 @@ the file that holds it instead.
 |---|---|---|---|
 | 2026-09-14 | [council-paper-portfolios-db-safety](2026-09-14-council-paper-portfolios-db-safety.md) | nuwrrrld-portal | Investigated paper-portfolio state; stopped before seeding because DB safety (prod vs. dev) couldn't be confirmed |
 | 2026-09-15 | [paper-portfolios-phase4-5-6](2026-09-15-paper-portfolios-phase4-5-6.md) | nuwrrrld-portal | Implemented Phases 4-6 (cron workflow, model arbitration, Firestore mirror/reconcile) on two unmerged branches; zero live verification against Neon/OpenRouter/Firestore |
+| 2026-09-15 | [portfolio-liveness-watchlist-fix](2026-09-15-portfolio-liveness-watchlist-fix.md) | nuwrrrld-portal | Fixed a strict-mode-violating e2e assertion and merged PR #134 past two pre-existing, already-tracked CI secret failures |
