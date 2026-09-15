@@ -846,4 +846,4 @@ list of what PR #132 touched and what wiki candidates it suggests.
 
 ## [2026-09-15] ingest | PR #138 feat(paper-portfolios): arbitration + Firestore mirror (Phases 5-6) | pages touched: 2
 
-## [2026-09-15] ingest | PR #139 chore(handoff): close the git checkout guard hole, evidence-backed pr-nwf verification | pages touched: 3
+## [2026-09-15] ingest | PR #142 chore(handoff): close the git checkout guard hole, evidence-backed pr-nwf verification | pages touched: 3
