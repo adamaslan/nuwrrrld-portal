@@ -1,12 +1,13 @@
 # Council Paper Portfolios — Design Doc
 
-**Status:** Phases 1–3 shipped (schema + policy vectors — PR #124; seed script
-— PR #127; deterministic engine + run route — PR #128). Phase 4 (cron
-workflow) on this branch. Phases 5–8 (model arbitration, Firestore mirror,
-API/dashboard, metrics) not started — see [[entity-paper-portfolios]] in
-`docs/wiki-portal/` for current build status. Three manual steps still block
-a real end-to-end run: seed the DB for real, provision `PAPER_CRON_SECRET`,
-and (Phase 4's own addition) push that same secret to GitHub Actions — see
+**Status:** Phases 1–4 shipped (schema + policy vectors — PR #124; seed script
+— PR #127; deterministic engine + run route — PR #128; cron workflow — PR
+#137). Phases 5–6 (model arbitration, Firestore mirror + reconciliation) done
+on `feat/paper-portfolios-phase-5-6-arbitration-firestore`. Phases 7–8
+(API/dashboard, metrics) not started — see [[entity-paper-portfolios]] in
+`docs/wiki-portal/` for current build status. Manual steps still block a real
+end-to-end run: seed the DB for real, provision + push `PAPER_CRON_SECRET`,
+and (new as of Phase 6) provision `FIRESTORE_SERVICE_ACCOUNT_JSON` — see
 `docs/paper-portfolios-remaining-todo.md`.
 The **watchlists in §2.1 are final input, not a placeholder** — they are
 validated against the registered universe and are what the seed script reads.

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { PAPER_POLICY } from "@/lib/shared/paper-policy";
 import {
+  applyArbitrationResults,
   fillOrders,
   planRun,
+  selectArbitrationCandidates,
+  type ArbitrationResult,
   type EngineCandidate,
   type EnginePosition,
+  type ProposedOrder,
   type RunPlanInput,
 } from "@/lib/shared/paper-engine-core";
 
@@ -215,5 +219,116 @@ describe("fillOrders", () => {
     // fillPrice = 150 * (1 - 5bps) = 149.925; pnl = 2 * (149.925 - 100)
     expect(filled[0].realizedPnl).toBeCloseTo(2 * (149.925 - 100), 3);
     expect(filled[1].realizedPnl).toBeNull();
+  });
+});
+
+describe("selectArbitrationCandidates", () => {
+  const T1 = PAPER_POLICY.t1; // buyThreshold 70, stopRule fixed 8%
+
+  it("flags a buy whose score is within the tie band above the threshold", () => {
+    const orders: ProposedOrder[] = [
+      { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 200, reason: "score_entry" },
+    ];
+    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 72]]), {}, 5);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].flagReason).toBe("score_tie");
+  });
+
+  it("does not flag a buy whose score is well clear of the threshold", () => {
+    const orders: ProposedOrder[] = [
+      { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 200, reason: "score_entry" },
+    ];
+    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 95]]), {}, 5);
+    expect(flagged).toHaveLength(0);
+  });
+
+  it("flags a score_exit sell trading close to its stop", () => {
+    const position: EnginePosition = { ticker: "AAPL", quantity: 2, avgCost: 200, runsHeld: 5, highWater: 200 };
+    const orders: ProposedOrder[] = [
+      { ticker: "AAPL", side: "sell", quantity: 2, refPrice: 190, reason: "score_exit" },
+    ];
+    // stop is 8% below avgCost (fixed) = 184. Price 190 has closed
+    // (200-190)/(200-184) = 62.5% of the distance — below the 80% flag line.
+    const notNear = selectArbitrationCandidates(orders, T1, new Map([["AAPL", position]]), new Map(), { AAPL: 190 }, 5);
+    expect(notNear).toHaveLength(0);
+
+    // Price 185.5 has closed (200-185.5)/16 = 90.6% — flagged.
+    const near = selectArbitrationCandidates(orders, T1, new Map([["AAPL", position]]), new Map(), { AAPL: 185.5 }, 5);
+    expect(near).toHaveLength(1);
+    expect(near[0].flagReason).toBe("near_stop");
+  });
+
+  it("never flags a forced ('stop' or 'void') sell — only score_exit is discretionary", () => {
+    const position: EnginePosition = { ticker: "AAPL", quantity: 2, avgCost: 200, runsHeld: 5, highWater: 200 };
+    const orders: ProposedOrder[] = [
+      { ticker: "AAPL", side: "sell", quantity: 2, refPrice: 180, reason: "stop" },
+    ];
+    const flagged = selectArbitrationCandidates(orders, T1, new Map([["AAPL", position]]), new Map(), { AAPL: 180 }, 5);
+    expect(flagged).toHaveLength(0);
+  });
+
+  it("caps the result at maxCandidates, closest-to-the-boundary first", () => {
+    const orders: ProposedOrder[] = [
+      { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 100, reason: "score_entry" },
+      { ticker: "MSFT", side: "buy", quantity: 1, refPrice: 100, reason: "score_entry" },
+    ];
+    const scores = new Map([
+      ["AAPL", 74], // margin 4
+      ["MSFT", 71], // margin 1 — closer to the boundary
+    ]);
+    const flagged = selectArbitrationCandidates(orders, T1, new Map(), scores, {}, 1);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].order.ticker).toBe("MSFT");
+  });
+
+  it("returns nothing when maxCandidates is 0 (QUANT's zero-budget case)", () => {
+    const orders: ProposedOrder[] = [
+      { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 100, reason: "score_entry" },
+    ];
+    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 71]]), {}, 0);
+    expect(flagged).toHaveLength(0);
+  });
+});
+
+describe("applyArbitrationResults", () => {
+  const baseOrder: ProposedOrder = { ticker: "AAPL", side: "buy", quantity: 10, refPrice: 100, reason: "score_entry" };
+
+  it("leaves an order untouched when there's no decision for it (CONFIRM-none)", () => {
+    const out = applyArbitrationResults([baseOrder], new Map());
+    expect(out).toEqual([baseOrder]);
+  });
+
+  it("leaves an order untouched on an explicit confirm", () => {
+    const results = new Map<string, ArbitrationResult>([
+      ["AAPL", { ticker: "AAPL", action: "confirm", model: "test-model" }],
+    ]);
+    const out = applyArbitrationResults([baseOrder], results);
+    expect(out).toEqual([baseOrder]);
+  });
+
+  it("drops an order on veto", () => {
+    const results = new Map<string, ArbitrationResult>([
+      ["AAPL", { ticker: "AAPL", action: "veto", model: "test-model" }],
+    ]);
+    const out = applyArbitrationResults([baseOrder], results);
+    expect(out).toHaveLength(0);
+  });
+
+  it("shrinks quantity and relabels the reason on downsize", () => {
+    const results = new Map<string, ArbitrationResult>([
+      ["AAPL", { ticker: "AAPL", action: "downsize", downsizePct: 0.4, model: "test-model" }],
+    ]);
+    const out = applyArbitrationResults([baseOrder], results);
+    expect(out).toHaveLength(1);
+    expect(out[0].quantity).toBeCloseTo(6, 6); // 10 * (1 - 0.4)
+    expect(out[0].reason).toBe("seat_downsize");
+  });
+
+  it("treats a downsize with no usable pct as a veto rather than a no-op", () => {
+    const results = new Map<string, ArbitrationResult>([
+      ["AAPL", { ticker: "AAPL", action: "downsize", model: "test-model" }],
+    ]);
+    const out = applyArbitrationResults([baseOrder], results);
+    expect(out).toHaveLength(0);
   });
 });
