@@ -82,13 +82,33 @@ them.
       - **Unblocks**: §9 entirely, and makes the Phase 3 paper-portfolio seed
         (below) safe to run.
       - **Added**: 2026-09-14
-      - Create the branch, then repoint `.env.local`:
+      - **Step 1 — capture the production host first**, while `DATABASE_URL`
+        still points at it (this must happen *before* Step 2 repoints
+        `DATABASE_URL` at the new dev branch). Extracts the hostname the same
+        way `resolveDbHost()` does, writes only that hostname to
+        `PRODUCTION_DB_HOST`, and never prints the connection string itself:
+        ```bash
+        grep -c '^DATABASE_URL=' .env.local   # confirm it's set — prints a count, never the value
+        node -e "
+        const fs = require('fs');
+        const content = fs.readFileSync('.env.local', 'utf8');
+        const line = content.split('\n').find(l => l.startsWith('DATABASE_URL='));
+        if (!line) { console.error('DATABASE_URL not found'); process.exit(1); }
+        const host = new URL(line.slice('DATABASE_URL='.length).replace(/^\"|\"\$/g, '')).hostname.toLowerCase();
+        const updated = /^PRODUCTION_DB_HOST=/m.test(content)
+          ? content.replace(/^PRODUCTION_DB_HOST=.*/m, 'PRODUCTION_DB_HOST=' + host)
+          : content.trimEnd() + '\nPRODUCTION_DB_HOST=' + host + '\n';
+        fs.writeFileSync('.env.local', updated);
+        console.log('PRODUCTION_DB_HOST written (value not shown)');
+        "
+        grep -c '^PRODUCTION_DB_HOST=' .env.local   # expect 1
+        ```
+      - **Step 2 — create the dev branch, then repoint `DATABASE_URL` at it:**
         ```bash
         # 🖱 Dashboard: https://console.neon.tech → project neon1 → Branches → New branch (from main)
-        # then copy its pooled connection string into .env.local's DATABASE_URL,
-        # and set PRODUCTION_DB_HOST to main's host (host only, no credentials):
-        grep -n '^DATABASE_URL=' .env.local     # confirm which one is in place (name only)
-        grep -q '^PRODUCTION_DB_HOST=' .env.local || echo 'PRODUCTION_DB_HOST=' >> .env.local
+        # then copy its pooled connection string into .env.local's DATABASE_URL
+        # (replace the existing line — do not append a second one):
+        grep -c '^DATABASE_URL=' .env.local   # confirm exactly one row before and after editing
         ```
       - Verify the guard actually refuses:
         ```bash
@@ -196,7 +216,24 @@ Cause: **`PORTAL_PUSH_SECRET`, `ALPACA_API_KEY` and `ALPACA_API_SECRET` do not
 exist as repository secrets.** Seventeen others do (§2). All three exist in
 `.env.local` — this is purely the §2 sync that was never run.
 
-> ## ⚠️ Status update 2026-09-14 — secrets fixed, **universe still 93% stale**
+> ## ✅ RESOLVED 2026-09-15 — the outage is over, no action left in §0a
+>
+> The scheduled run at **`2026-09-15T00:47:52Z`** (run `34914657199`) was the
+> first full hydration since the secrets landed, and it completed cleanly:
+>
+> ```
+> [hydrate] run=… stock=762 etf=171 chunk=35
+> … 22 chunks, written=70 each, failed=0 …
+> [done] written=1866 calc-errors=0 post-failures=0 total=933
+> ```
+>
+> `ticker_cards` now holds **1,866 rows, all at `bar_date=2026-09-15`** — the
+> 1,734-row `2026-08-19` bucket is gone. Steps 1–8 below are **all satisfied**;
+> nothing in this section needs a human any more. Kept for the incident record
+> and because **§0a-bis (the freshness guard's blind spot) is still open** — it
+> was luck, not the alarm, that surfaced the partial state.
+>
+> <details><summary>Prior status (2026-09-14) — secrets fixed, universe still 93% stale</summary>
 >
 > **Steps 1–6 below are DONE** (verified 2026-09-14):
 > - All three secrets were pushed **2026-09-13 ~02:01–02:03Z** — `gh secret list`
@@ -223,9 +260,12 @@ exist as repository secrets.** Seventeen others do (§2). All three exist in
 > the dashboard lie in the reassuring direction.
 >
 > **Remaining action: one full (unlimited) hydration run — step 6b below.**
-> Next scheduled run is Mon 2026-09-15 22:30 UTC (cron is `30 22 * * 1-5`,
-> weekdays only — the absence of runs on 09-13/09-14 is the weekend, not a
-> fault).
+>
+> </details>
+>
+> *(That remaining action was carried out by the next scheduled run on its own —
+> see the RESOLVED banner above. Step 6b is retained below only as the manual
+> recipe for forcing a full run.)*
 
 The full paste-by-paste fix is in **"Still blocking"** below — steps 1–8, run
 them in order from the repo root. **Steps 1–5 are already satisfied**; start at
@@ -350,10 +390,12 @@ gh run view "$(gh run list --workflow=hydrate-universe.yml --limit 1 --json data
 
 ---
 
-**Step 6b — ⚠️ THE ACTUAL REMAINING ACTION: full universe hydration.**
+**Step 6b — full universe hydration.** ✅ *Done automatically by the
+2026-09-15T00:47Z scheduled run — kept here as the recipe for forcing a full
+run on demand.*
 
-The smoke test only wrote 50 symbols. Run it with **no limit** to re-hydrate
-the ~1,734 rows still stuck at 2026-08-19. This takes minutes, not seconds.
+A limited run (`-f limit=N`) only writes N symbols per lane. Omit the limit to
+hydrate everything (~933 symbols → ~1,866 rows). Takes ~30s of runner time.
 
 ```bash
 cd ~/code/nuwrrrld-portal
@@ -362,8 +404,10 @@ sleep 5
 gh run watch "$(gh run list --workflow=hydrate-universe.yml --limit 1 --json databaseId -q '.[0].databaseId')"
 ```
 
-Expect `[done] written=<~1900> calc-errors=0 post-failures=0`. Confirm the
-per-lane chunk lines show `pages=` and the full symbol count, not 25.
+Expect the header to name the full lane sizes (`stock=762 etf=171 chunk=35`),
+22 chunks, and `[done] written=1866 calc-errors=0 post-failures=0 total=933` —
+**not** a 50-symbol smoke-test shape. A run that finishes in <40s with
+`total=50` was limited and did not cover the universe.
 
 If it fails partway, read the guard message — it names the specific cause:
 
@@ -393,20 +437,31 @@ node scripts/check-card-freshness.mjs
 Exit 0 = fresh. Exit 1 = stale past `MAX_STALE_TRADING_DAYS` (default 3).
 Exit 2 = config/HTTP problem.
 
-Raw endpoint, if you want the JSON:
+Raw endpoint, if you want the JSON. Uses `curl --config -` so the secret is
+read over stdin rather than passed as a process argument another local user
+could read via `ps`:
 
 ```bash
-curl -s -H "Authorization: Bearer $(awk -F= '/^PORTAL_PUSH_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
-  "https://financial.nuwrrrld.com/api/pipeline/hydrate-universe?meta=freshness" | jq
+PORTAL_PUSH_SECRET="$(awk -F= '/^PORTAL_PUSH_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
+curl -s --config - "https://financial.nuwrrrld.com/api/pipeline/hydrate-universe?meta=freshness" <<EOF | jq
+header = "Authorization: Bearer ${PORTAL_PUSH_SECRET}"
+EOF
 ```
 
 Expect `latestBarDate` = the last trading day, and a small `staleTradingDays`.
 
-**The real check — per-date row counts** (a single `max()` hides a partial run):
+**The real check — per-date row counts** (a single `max()` hides a partial run).
+Uses `PGSERVICEFILE`/`PGSERVICE` so the connection string never appears as a
+`psql` argument:
 
 ```bash
-psql "$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
-  -c "SELECT bar_date, count(*) AS rows FROM ticker_cards GROUP BY bar_date ORDER BY bar_date DESC LIMIT 6;"
+mkdir -p ~/.config/nuwrrrld && chmod 700 ~/.config/nuwrrrld
+awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local \
+  | node -e "const u=new URL(require('fs').readFileSync(0,'utf8').trim());console.log(\`[nuwrrrld]\nhost=\${u.hostname}\nport=\${u.port||5432}\ndbname=\${u.pathname.slice(1)}\nuser=\${decodeURIComponent(u.username)}\npassword=\${decodeURIComponent(u.password)}\nsslmode=require\`)" \
+  > ~/.config/nuwrrrld/pg_service.conf
+chmod 600 ~/.config/nuwrrrld/pg_service.conf
+PGSERVICEFILE=~/.config/nuwrrrld/pg_service.conf PGSERVICE=nuwrrrld \
+  psql -c "SELECT bar_date, count(*) AS rows FROM ticker_cards GROUP BY bar_date ORDER BY bar_date DESC LIMIT 6;"
 ```
 
 Expect **one dominant recent row count** (~1,800+ on the last trading day) and
@@ -482,19 +537,29 @@ an independent reader precisely so a writer bug couldn't hide — but the reader
 was given a metric that a partial write satisfies.
 
 - [ ] **Make the freshness check coverage-aware, not max-aware.** The check
-      should compare *how many* active symbols have a card on the latest
-      trading day against `ticker_universe`'s active count, and go red below a
-      ratio (~0.9), independently of `max(bar_date)`. Sketch:
+      should compare *how many distinct active symbols* have a card on the
+      latest trading day against `ticker_universe`'s active count, and go red
+      below a ratio (~0.9), independently of `max(bar_date)`. **Must be
+      computed per lane (`stock`/`etf`), not as one aggregate ratio** —
+      `ticker_cards` holds one row per `(ticker, horizon)`, two horizons per
+      ticker, so a naive `count(*)` isn't a symbol count, and an aggregate
+      ratio across both lanes can pass at ≥0.9 while one lane is fully stale
+      and the other is fresh. Sketch:
       ```sql
       SELECT
-        (SELECT count(*) FROM ticker_universe WHERE active) AS expected,
-        count(*) FILTER (WHERE bar_date = (SELECT max(bar_date) FROM ticker_cards)) AS fresh
-      FROM ticker_cards;
+        u.universe,
+        count(DISTINCT u.ticker) AS expected,
+        count(DISTINCT c.ticker) FILTER (WHERE c.bar_date = (SELECT max(bar_date) FROM ticker_cards)) AS fresh
+      FROM ticker_universe u
+      LEFT JOIN ticker_cards c ON c.ticker = u.ticker
+      WHERE u.active
+      GROUP BY u.universe;
       ```
-      Have `check-card-freshness.mjs` exit 1 when `fresh / expected` is below
-      the threshold, and surface both numbers in the `?meta=freshness` payload
-      (`expectedSymbols`, `freshSymbols`) so the endpoint can't report a
-      reassuring scalar that hides a bad ratio.
+      Have `check-card-freshness.mjs` exit 1 when **either** lane's
+      `fresh / expected` is below the threshold, and surface all four numbers
+      in the `?meta=freshness` payload (`stock: {expected, fresh}`,
+      `etf: {expected, fresh}`) so the endpoint can't report a reassuring
+      aggregate that hides one stale lane.
 - [ ] **Test it the way the existing threshold is tested** — by forcing the
       condition, not by waiting:
       ```bash
@@ -609,7 +674,7 @@ generated or retrieved from a dashboard.
 | `NEON_API_KEY` | Neon console → Account settings → API keys → Generate | `integration-tests.yml` | ✅ **set 2026-08-30** |
 | `NEON_PROJECT_ID` | Neon console → Project settings → General. Looks like `wispy-forest-12345678` | `integration-tests.yml` | ✅ **set 2026-08-30** |
 | `PORTAL_URL` | Just the deployed origin, e.g. `https://financial.nuwrrrld.com`. Also add to `.env.local` — `scripts/local-trigger.mjs` Path C reads it there. | `afternoon-pipeline.yml` + the other scheduled callers | ✅ set — but as a *secret*, see §0a |
-| ~~`CRON_SECRET`~~ ✅ **set 2026-09-13** (`.env.local` + GHA; Vercel still unverified) | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. Not in `.env.local` today — only `PORTAL_PUSH_SECRET` is, and it is **not** interchangeable. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` | ❌ absent |
+| ~~`CRON_SECRET`~~ ✅ **set 2026-09-13** (`.env.local` + GHA; Vercel still unverified) | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. It is **not** interchangeable with `PORTAL_PUSH_SECRET`. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` | ✅ **present in `.env.local` + GHA** (2026-09-13) — ⚠️ Vercel unverified |
 | ~~`GCP_WIF_PROVIDER`~~ | — | ~~`e2e-resiliency.yml`~~ | 🗑 **obsolete 2026-09-14** — the GCP auth step was deliberately removed; see §-1 |
 | ~~`GCP_SERVICE_ACCOUNT`~~ | — | ~~`e2e-resiliency.yml`~~ | 🗑 **obsolete 2026-09-14** — same |
 
@@ -622,11 +687,12 @@ sleep 5
 gh run watch "$(gh run list --workflow=integration-tests.yml --limit 1 --json databaseId -q '.[0].databaseId')"
 ```
 
-### Paste-ready: `CRON_SECRET` (absent — do all three places in one sitting)
+### Paste-ready: `CRON_SECRET` (present in `.env.local` + GHA since 2026-09-13 — this block only backfills Vercel; steps 1–2 self-skip if already done)
 
 It must be the **same value** in all three, and it is **not** interchangeable
-with `PORTAL_PUSH_SECRET`. Generate once, write it to `.env.local`, then push
-that same value onward — the value is never echoed to your screen.
+with `PORTAL_PUSH_SECRET`. Steps 1 and 2 check first and skip if the value is
+already there; step 3 (Vercel) is the one still unverified. The value is
+never echoed to your screen.
 
 ```bash
 cd ~/code/nuwrrrld-portal
@@ -832,11 +898,13 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       an **empty** string, a **placeholder** literal, or **absent** entirely —
       only the first is safe to `gh secret set`, and §2's list must not push the
       others as if they were real.
-      Setting this ID alone does **not** re-enable billing while
-      `STRIPE_WEBHOOK_SECRET` is still a placeholder (the webhook route rejects
-      every event). Re-enable the `preflight-billing` Playwright tier only after
-      *all* required live Stripe values are configured and `/api/health` reports
-      Stripe healthy.
+      Setting this ID alone does not re-enable billing on its own —
+      `STRIPE_WEBHOOK_SECRET` is now a real `whsec_` value (pushed to GHA
+      2026-09-14, see §-1), so that particular blocker is closed, but
+      `STRIPE_PRICE_MONTHLY`/`STRIPE_PRICE_ANNUAL` still need the live-mode
+      confirmation above. Re-enable the `preflight-billing` Playwright tier
+      only after *all* required live Stripe values are configured and
+      `/api/health` reports Stripe healthy.
 - [ ] **Rotate `STRIPE_SECRET_KEY` — before §2 pushes secrets, or re-push
       after.** Recorded as already exposed in
       [docs/env-rotation.md](env-rotation.md), separate from the unset values
