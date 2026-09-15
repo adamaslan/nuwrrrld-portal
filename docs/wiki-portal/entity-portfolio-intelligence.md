@@ -70,9 +70,9 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
    practice is always. A 936-ticker watchlist scores live; a watchlist with no
    computed cards returns 503 with its own copy instead of a generic error.
    See [[decision-local-portfolio-scoring-over-upstream-wait]]. **`health-ai`
-   is NOT fixed** — it still calls gcp3 directly and still narrates ungrounded
-   (failure 2 remains open, and is now open *despite* a real score being
-   available to it). Original text, for the record:
+   is now also fixed, by PR #135 (see item 2 above)** — it no longer calls
+   gcp3 without a fallback, and its narrative is grounded whenever a local
+   score is available. Original text, for the record:
 
    **The upstream health endpoint has never existed.** Both `health` and
    `health-ai` call `{MCP_BACKEND_URL}/api/portfolio/health`, which is not
@@ -217,7 +217,7 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
 - [[entity-signal-data-plane]] — `signal_cache`/`saveTickerEntry` is the drain write path
 - [[decision-pending-signals-queue]] — why enqueue-then-drain instead of a synchronous call
 - [[entity-backtest-engine]] — the track record a saved ticker could accrue
-- [[concept-graceful-degradation]] — the health-ai fallback obligation (unmet; see failure 2)
+- [[concept-graceful-degradation]] — the health-ai fallback obligation (met by PR #135; see failure 2)
 - [[incident-2026-07-26-portfolio-health-endpoint-missing]] — the missing gcp3 route behind failures 2–4
 - [[entity-playwright-e2e]] — `e2e/frontend/portfolio-health.spec.ts` reproduces
   failures 2–4 deterministically via route mocking (contract-drift payload,

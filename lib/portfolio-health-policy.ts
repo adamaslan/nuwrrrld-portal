@@ -154,17 +154,32 @@ function buildSignalFactor(cards: HealthCardInput[], now: Date): HealthFactor {
  * different from no signals: they are actively worse to rely on than an
  * honest gap.
  */
-function buildFreshnessFactor(cards: HealthCardInput[], now: Date): HealthFactor {
+/**
+ * `available: false` means every card omitted `barDate` — the caller must
+ * exclude this factor from the weighted score and renormalize the rest
+ * rather than average in `score`, which exists only to give the *displayed*
+ * factor list something neutral-looking to show (§0's undated-card case).
+ * Scoring it into the weighted average would credit the portfolio for
+ * freshness data it doesn't have — the exact "no data" vs "bad data"
+ * conflation this file's own module doc says it exists to avoid.
+ */
+function buildFreshnessFactor(
+  cards: HealthCardInput[],
+  now: Date,
+): { factor: HealthFactor; available: boolean } {
   const dated = cards
     .map((c) => (c.barDate ? cardAgeDays(c.barDate, now) : null))
     .filter((d): d is number => d !== null);
 
   if (dated.length === 0) {
     return {
-      name: "Signal freshness",
-      score: 100,
-      impact: "neutral",
-      description: "Bar dates unavailable for this read — freshness could not be assessed.",
+      available: false,
+      factor: {
+        name: "Signal freshness",
+        score: 100,
+        impact: "neutral",
+        description: "Bar dates unavailable for this read — freshness could not be assessed.",
+      },
     };
   }
 
@@ -174,14 +189,17 @@ function buildFreshnessFactor(cards: HealthCardInput[], now: Date): HealthFactor
   const oldest = Math.max(...dated);
 
   return {
-    name: "Signal freshness",
-    score,
-    impact: impactFor(score),
-    description:
-      staleCount === 0
-        ? `All ${dated.length} dated holdings carry a signal ${FRESHNESS_FULL_WEIGHT_DAYS} day(s) old or newer.`
-        : `${staleCount} of ${dated.length} dated holdings carry a signal older than ` +
-          `${FRESHNESS_FULL_WEIGHT_DAYS} days; oldest is ${oldest} day${oldest === 1 ? "" : "s"} stale.`,
+    available: true,
+    factor: {
+      name: "Signal freshness",
+      score,
+      impact: impactFor(score),
+      description:
+        staleCount === 0
+          ? `All ${dated.length} dated holdings carry a signal ${FRESHNESS_FULL_WEIGHT_DAYS} day(s) old or newer.`
+          : `${staleCount} of ${dated.length} dated holdings carry a signal older than ` +
+            `${FRESHNESS_FULL_WEIGHT_DAYS} days; oldest is ${oldest} day${oldest === 1 ? "" : "s"} stale.`,
+    },
   };
 }
 
@@ -330,15 +348,28 @@ export function buildLocalHealth(
   const signal = buildSignalFactor(cards, now);
   const direction = buildDirectionFactor(cards);
   const diversification = buildDiversificationFactor(cards);
-  const freshness = buildFreshnessFactor(cards, now);
+  const { factor: freshness, available: freshnessAvailable } = buildFreshnessFactor(cards, now);
   const coverage = buildCoverageFactor(cards.length, requestedTickers.length);
 
-  const score = Math.round(
-    signal.score * WEIGHTS.signal +
-      direction.score * WEIGHTS.direction +
-      diversification.score * WEIGHTS.diversification +
-      freshness.score * WEIGHTS.freshness,
-  );
+  // Freshness is excluded from the weighted score (not scored as 100) when no
+  // card carries a valid bar date — the remaining three weights renormalize by
+  // dividing out (1 - WEIGHTS.freshness), which restores the pre-freshness
+  // 0.45/0.30/0.25 balance exactly (see WEIGHTS's own doc comment). The factor
+  // still renders in `factors` either way — this only changes what feeds the
+  // headline score.
+  const score = freshnessAvailable
+    ? Math.round(
+        signal.score * WEIGHTS.signal +
+          direction.score * WEIGHTS.direction +
+          diversification.score * WEIGHTS.diversification +
+          freshness.score * WEIGHTS.freshness,
+      )
+    : Math.round(
+        (signal.score * WEIGHTS.signal +
+          direction.score * WEIGHTS.direction +
+          diversification.score * WEIGHTS.diversification) /
+          (1 - WEIGHTS.freshness),
+      );
 
   return {
     score,

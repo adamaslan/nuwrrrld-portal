@@ -10,6 +10,12 @@ branch and the live gcp3 backend — not from reading the code. Every number
 below was observed today; the commands that produced them are inline so they
 can be re-run rather than trusted.
 
+**Updated 2026-09-15** — this is a pre-PR-#135 record, not a current-state
+one. §1 (`health-ai` fallback), §3 (a real scored freshness factor), and §7
+(`health-ai` rate limiting + budget accounting) are closed by that PR. §0's
+"decide the floor" item (an explicit staleness cutoff) is still open — see
+its own note below.
+
 The headline: **the score works, and it is currently lying about its own
 freshness.** §0 is the whole reason this file exists.
 
@@ -78,7 +84,13 @@ because the freshness signal is not merely absent but actively wrong.
    rather than conflating.
 4. **Decide the floor.** At what age does a card stop counting? If 95% of a
    portfolio is a month stale, arguably there is no score — the same terminal
-   honest state §0's own design already returns for zero coverage.
+   honest state §0's own design already returns for zero coverage. **Still
+   open** as of PR #135 — that PR ships items 1–3 (bar-date distribution,
+   read-time re-derivation, a real scored freshness factor) and separately
+   fixes a related-but-distinct bug (freshness scored as a false-positive 100,
+   and folded into the weighted average, whenever *every* card lacks a
+   `barDate` at all — different from *this* item's question, which is about
+   dated-but-old cards, not undated ones). No age-cutoff policy exists yet.
 
 **Do not fix this by hiding stale cards.** Dropping them silently shrinks the
 scored portfolio, which is the exact substitution
@@ -87,7 +99,7 @@ warns about. Count them, weight them down, and say so.
 
 ---
 
-## 1. 🔴 `health-ai` still doesn't consume the score that now exists
+## 1. ✅ `health-ai` still doesn't consume the score that now exists — closed PR #135
 
 `app/api/portfolio/health-ai/route.ts:18` still has its own `fetchHealth()`
 calling `{MCP_BACKEND_URL}/api/portfolio/health` directly. That URL has never
@@ -145,7 +157,7 @@ success to anything that reads it as coverage.
 
 ---
 
-## 3. 🟠 "Signal coverage: 100" is technically true and practically false
+## 3. ✅ "Signal coverage: 100" is technically true and practically false — resolution path shipped, PR #135
 
 The coverage factor reports *932 of 936 tickers had a computed signal* →
 `score: 100, impact: neutral`. Correct by its own definition, and it renders
@@ -161,6 +173,12 @@ Keep `impact: neutral` and keep it out of the score, for the reason already
 documented in the policy module: a thinly-covered portfolio must not be
 arithmetically indistinguishable from an unhealthy one. That rationale is
 correct and unchanged by this item.
+
+**Closed PR #135.** The separate freshness factor from §0's item 3 shipped —
+coverage answers "did we have a card" and now stays `impact: neutral` and out
+of the score exactly as this item asked; freshness answers "is the card worth
+using" and is scored (§0's item 3). Coverage's own resolution here is
+otherwise unchanged.
 
 ---
 
@@ -231,7 +249,7 @@ another month of default.
 
 ---
 
-## 7. 🟢 `health-ai` is unmetered
+## 7. ✅ `health-ai` is unmetered — closed PR #135
 
 No rate limit, no token accounting — unlike `/api/nuai`'s `checkRateLimit` +
 `getRemainingBudget` + `recordUsage`. It bypasses `NU_AI_DAILY_TOKEN_BUDGET`
@@ -239,6 +257,14 @@ entirely. An unmetered model-call path on a Pro-gated button.
 
 Pre-dates all of the above; carried forward from the incident's Open items so
 it does not get lost now that its neighbours are closing.
+
+**Closed PR #135.** `health-ai/route.ts` now shares `/api/nuai`'s
+`checkRateLimit`/`getRemainingBudget`/`recordUsage` pattern against the same
+`NU_AI_DAILY_TOKEN_BUDGET` pool. A separate concurrent-request race in the
+budget check (the balance is read, not reserved, so parallel requests can
+each pass the check before either records usage) is filed independently — see
+this repo's `/wait-merge1` review of PR #135, which routed it to a
+confirmation gate as a rate-limit-surface change rather than fixing it inline.
 
 ---
 

@@ -136,6 +136,37 @@ describe("buildLocalHealth", () => {
       expect(freshness.description).toContain("unavailable");
     });
 
+    it("excludes freshness from the weighted score (not scored as 100) when no card has a bar date", () => {
+      // Undated freshness still renders as `score: 100` in the *displayed*
+      // factor (the previous test), but must not feed the headline score —
+      // that would credit the portfolio for freshness data it doesn't have.
+      const cards = [card({ ticker: "AAPL", score: 40 }), card({ ticker: "MSFT", score: -20, action: "SELL" })];
+      const health = buildLocalHealth(["AAPL", "MSFT"], cards, now)!;
+      const signal = health.factors.find(f => f.name === "Signal strength")!;
+      const direction = health.factors.find(f => f.name === "Directional risk")!;
+      const diversification = health.factors.find(f => f.name === "Diversification")!;
+      const freshness = health.factors.find(f => f.name === "Signal freshness")!;
+
+      // The displayed freshness factor is still the neutral 100 the previous
+      // test asserts on — confirming this test's premise hasn't drifted.
+      expect(freshness.score).toBe(100);
+
+      // Renormalized: the three available factors' weights (0.36/0.24/0.20)
+      // divided by (1 - 0.20) restore their pre-freshness 0.45/0.30/0.25
+      // balance, per WEIGHTS's own doc comment.
+      const expected = Math.round(
+        (signal.score * 0.36 + direction.score * 0.24 + diversification.score * 0.2) / 0.8,
+      );
+      expect(health.score).toBe(expected);
+
+      // The bug this guards: naively weighting freshness.score (100) in at
+      // 0.20 would produce a different, inflated number.
+      const inflated = Math.round(
+        signal.score * 0.36 + direction.score * 0.24 + diversification.score * 0.2 + 100 * 0.2,
+      );
+      expect(health.score).not.toBe(inflated);
+    });
+
     it("summarizes the bar-date distribution instead of a single latest date", () => {
       const health = buildLocalHealth(
         ["A", "B", "C"],
