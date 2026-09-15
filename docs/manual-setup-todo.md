@@ -21,9 +21,145 @@ re-run successfully and its output is recorded in §2.
 
 Ordered by what unblocks the most.
 
+**Updated 2026-09-14** — a full verification pass ran every check in this file
+against live state (`gh secret list`, `gh run list`, the production
+`/api/health` and `?meta=freshness` endpoints, and the Neon database directly).
+Large parts of this file were **already done and never marked**. The
+authoritative current state is §-1 below; sections further down retain their
+original reasoning but their status lines may be stale where §-1 contradicts
+them.
+
 ---
 
-## 0a. 🔴 The nightly universe hydration has been dead since 2026-08-19
+## -1. Verified state as of 2026-09-14
+
+### ✅ Closed — verified, not assumed
+
+| Item | Evidence |
+|---|---|
+| §0a the 15-day hydration outage | **Over.** All three secrets present in GHA (set 2026-09-13). `ticker_cards` newest `bar_date` = **2026-09-13**, 1,864 rows, `staleTradingDays: 0`. `Signal freshness check` green 2026-09-14. |
+| §0a repo labels | `hydration-failure`, `stale-signals`, `pipeline-failure` all exist. |
+| §1 `CRON_SECRET` | Present in `.env.local` **and** GHA (2026-09-13). |
+| §1 `NEON_API_KEY` / `NEON_PROJECT_ID` / `PORTAL_URL` | Present. |
+| §2 absent-secret list | **Drained this session** — `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ANNUAL` are now real values locally (no longer placeholder/empty) and were pushed to GHA 2026-09-14. |
+| §2 `OPENROUTER_API_KEY` staleness in CI | **Fixed.** The local key was validated live (`GET /api/v1/key` → 200) and re-pushed to GHA 2026-09-14, replacing the 2026-08-18 copy. This is the cause of the `OpenRouter 401: council T1 — all models failed` seen in the e2e `[frontend]` shard. |
+| §5 the four GDPR tables | All present: `consent_records`, `legal_consent_events`, `privacy_requests`, `user_attribution`. |
+| §5b `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` | Set 2026-09-11; the `auth` job passes on PR #135. |
+| §5b `shared-drift-check` | **Passing** on PR #135. |
+| §5b Cloudflare Pages | The `Cloudflare Pages` check no longer appears on PR #135's check list at all. Confirm once in the dashboard, then delete the item. |
+| §5c `/api/health` | All five dependencies `ok` (mcp, neon, stripe, openrouter, clerk) — the `MCP_BACKEND_URL` 503 recorded 2026-09-10 is resolved. |
+| §5d `afternoon-pipeline` notify noise | The last four runs are **green**. It is no longer filing `pipeline-failure` issues. |
+| §0b Phase 2.4 crypto rows | Already done — `SELECT count(*) FROM ticker_universe WHERE ticker ~ '-USD$' AND active` = **0**. |
+| §8 PRs #97 / #101 | Both **merged** 2026-09-04. Section 8's first two items are historical. |
+
+### 🗑 Obsolete — do NOT do these
+
+- [x] ~~`GCP_WIF_PROVIDER` / `GCP_SERVICE_ACCOUNT` (§1 and §5b)~~ — **the
+      requirement was deliberately removed.**
+      `.github/workflows/e2e-resiliency.yml:210–222` now carries an explicit
+      comment: the GCP auth step "never had a consumer … nothing downstream
+      runs gcloud/gsutil, the app pulls in no `@google-cloud` client library,
+      and … gcp3-backend … answers unauthenticated." Provisioning the pool now
+      would create IAM nobody consumes. Re-add it only alongside a step that
+      actually needs it.
+
+### 🔴 Newly found 2026-09-14
+
+- [ ] **`.env.local`'s `DATABASE_URL` points at production, and §9's
+      `PRODUCTION_DB_HOST` guard cannot be armed until that changes.**
+      - **From**: the 2026-09-14 verification pass
+      - **Evidence**: the Neon project has exactly **one** live branch —
+        `main`, flagged `primary: true, default: true`. Every other branch
+        (`preview/*`) is `archived`. So there is no dev branch for
+        `DATABASE_URL` to point at, and §9's first checkbox ("confirm it
+        points at a dev branch") is currently **false**.
+      - **Why it can't be code**: creating a dev branch and repointing local
+        config is an owner decision about where local `--no-dry-run` runs and
+        the paper-portfolio seed are allowed to write.
+      - **Why it matters**: setting `PRODUCTION_DB_HOST` today would refuse
+        *every* local live run, because local and production are the same
+        host. The guard shipped (`lib/pipeline-db-guard.ts`) and is inert.
+      - **Unblocks**: §9 entirely, and makes the Phase 3 paper-portfolio seed
+        (below) safe to run.
+      - **Added**: 2026-09-14
+      - Create the branch, then repoint `.env.local`:
+        ```bash
+        # 🖱 Dashboard: https://console.neon.tech → project neon1 → Branches → New branch (from main)
+        # then copy its pooled connection string into .env.local's DATABASE_URL,
+        # and set PRODUCTION_DB_HOST to main's host (host only, no credentials):
+        grep -n '^DATABASE_URL=' .env.local     # confirm which one is in place (name only)
+        grep -q '^PRODUCTION_DB_HOST=' .env.local || echo 'PRODUCTION_DB_HOST=' >> .env.local
+        ```
+      - Verify the guard actually refuses:
+        ```bash
+        node scripts/local-trigger.mjs C track-followed-tickers --local --no-dry-run --yes
+        ```
+        Expect a non-zero exit and "refused", with no request sent, when
+        `PRODUCTION_DB_HOST` matches the `DATABASE_URL` host.
+
+- [ ] **The paper-portfolio seed still has not run** — `paper_accounts` and
+      `paper_watchlists` both hold **0 rows** (verified 2026-09-14). The
+      Phase 3 item at the bottom of this file is unchanged and now has a
+      measured confirmation. Do it **after** the dev-branch item above, not
+      before.
+
+- [ ] **The stale-watchlist e2e failure is still live**, unchanged since it
+      was filed 2026-09-12. PR #135's `e2e (4)` shard failed today with
+      `locator('.port-watch-item') resolved to 2 elements` (then 3 on retry),
+      on all three `portfolio-liveness.spec.ts` tests. The shared Clerk e2e
+      account's watchlist keeps growing. A one-off DB cleanup of that account's
+      `watchlist_items` rows would green it today; the durable fix is the
+      locator/`beforeEach` change already described below.
+
+- [ ] **`signals-app`'s `OPENROUTER_API_KEY` could not be pushed from here.**
+      That repo has **no `.env.local`**, and a cross-repo `gh secret set` was
+      declined by this session's permission policy. The portal's key is valid
+      (verified 200 today), so the value to use is the portal's:
+      ```bash
+      cd ~/code/nuwrrrld-portal
+      awk -F= '/^OPENROUTER_API_KEY=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local \
+        | tr -d '\n' | gh secret set OPENROUTER_API_KEY --repo adamaslan/signals-app
+      gh secret list --repo adamaslan/signals-app | grep OPENROUTER_API_KEY
+      ```
+      Expect one row. (`.github/workflows/signals-scan.yml` is the consumer.)
+
+- [ ] **`modal` CLI is not installed on this machine**, so §5e's "confirm
+      whether `nuwrrrld-precompute-ai` is deployed" is unanswerable here.
+      ```bash
+      pipx install modal || pip install modal
+      modal app list
+      ```
+      Expect either no `nuwrrrld-precompute-ai` row (§5e is moot) or one row
+      (then `modal deploy deploy/precompute-ai/modal_app.py` once).
+
+### Still blocking, unchanged
+
+`STRIPE_SECRET_KEY` rotation (§4 — the value is live `sk_live_` and recorded as
+exposed), a **test-mode** Stripe key for the sweep, the Clerk Production
+instance (§3), admin MFA, `MCP_ANALYZE_URL`, `NULOGDASH_SESSION_COOKIE`,
+`SIGNALS_ENGINE_URL` (empty in `.env.local`), `PAPER_CRON_SECRET`, the four
+missing `afternoon-pipeline` routes (still absent from `app/api/pipeline/`,
+though the workflow is green), the §6 legal/DPA items, and the §6b
+explain-quality decision. Nothing in the 2026-09-14 pass moved any of those.
+
+
+
+**Format:** every actionable item is either a ```bash copy-paste block
+(runnable as written, no placeholders to hand-edit) or an explicit
+🖱 **Dashboard:** line with a direct URL when no CLI equivalent exists. See
+`~/.claude/rules/terminal-ready-todos.md`.
+
+---
+
+## 0a. ✅ RESOLVED 2026-09-13 — the nightly universe hydration outage
+
+> **Closed.** The three secrets were pushed 2026-09-13 and a manual dispatch
+> went green the same day. Verified 2026-09-14: newest `bar_date` = 2026-09-13,
+> `staleTradingDays: 0`, `Signal freshness check` green. Everything below is the
+> historical record of the outage and the runbook that fixed it — steps 1–8 are
+> done, and remain here because they are the correct procedure if it recurs.
+
+### (historical) The nightly universe hydration had been dead since 2026-08-19
 
 **Verified 2026-09-03**, and this outranks everything else in this file:
 `ticker_cards` holds 1,864 rows whose newest `bar_date` is **2026-08-19**.
@@ -46,10 +182,40 @@ Cause: **`PORTAL_PUSH_SECRET`, `ALPACA_API_KEY` and `ALPACA_API_SECRET` do not
 exist as repository secrets.** Seventeen others do (§2). All three exist in
 `.env.local` — this is purely the §2 sync that was never run.
 
-- [ ] `scripts/sync-hydration-secrets.sh`, then
-      `gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA'` → expect 3 rows
-- [ ] Smoke test: `gh workflow run hydrate-universe.yml -f limit=25`
-- [ ] Confirm `max(bar_date) FROM ticker_cards` advances to the last trading day
+> ## ⚠️ Status update 2026-09-14 — secrets fixed, **universe still 93% stale**
+>
+> **Steps 1–6 below are DONE** (verified 2026-09-14):
+> - All three secrets were pushed **2026-09-13 ~02:01–02:03Z** — `gh secret list`
+>   shows all three present.
+> - The smoke test ran green the same minute (run `34732129131`,
+>   `workflow_dispatch`, `limit=25`): `written=100 calc-errors=0
+>   post-failures=0 total=50`.
+>
+> **But the universe was never fully re-hydrated.** Actual row counts:
+>
+> | `bar_date` | rows | |
+> |---|---|---|
+> | 2026-09-13 | **100** | the smoke test's 50 symbols × 2 lanes |
+> | 2026-09-05 | 2 | |
+> | **2026-08-19** | **1,734** | ← the original outage, still unfixed |
+> | 2026-08-18 | 28 | |
+>
+> **And `scripts/check-card-freshness.mjs` reports green anyway** —
+> `latest bar_date=2026-09-13 staleTradingDays=0`. It reads **`max(bar_date)`**,
+> which those 100 smoke-test rows fully satisfy. The independent guard built in
+> Phase 1 specifically to catch this outage **cannot distinguish "all 1,864 rows
+> fresh" from "100 fresh, 1,734 rotting."** See the new §0a-bis below — that
+> blind spot is now the more dangerous of the two problems, because it makes
+> the dashboard lie in the reassuring direction.
+>
+> **Remaining action: one full (unlimited) hydration run — step 6b below.**
+> Next scheduled run is Mon 2026-09-15 22:30 UTC (cron is `30 22 * * 1-5`,
+> weekdays only — the absence of runs on 09-13/09-14 is the weekend, not a
+> fault).
+
+The full paste-by-paste fix is in **"Still blocking"** below — steps 1–8, run
+them in order from the repo root. **Steps 1–5 are already satisfied**; start at
+step 6b.
 
 **The workflow's own guard worked perfectly** — it named the missing secret and
 failed red rather than writing zero cards and reporting green. What is missing
@@ -79,22 +245,251 @@ configurable and is not.
 
 ### Still blocking — only a human can do these (unchanged by the code PR)
 
-- [ ] **Push the three secrets** — `scripts/sync-hydration-secrets.sh`, then
-      `gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA'` → expect 3 rows.
-      Nothing in `feat/signal-engine-phases-1-3` can do this; the whole pipeline
-      stays dead until it runs.
-- [ ] **Smoke test** (Phase 1.2): `gh workflow run hydrate-universe.yml -f limit=25`,
-      then `gh run watch`. Expect green, `written=50`, `calc-errors=0`.
-- [ ] **First full scheduled run green**, then confirm `max(bar_date)` is the
-      last trading day and the new freshness workflow passes.
-- [ ] **Add repo labels** `hydration-failure` and `stale-signals` (or let the
-      first failing run create them — `github-script` will 422 without
-      pre-existing labels on some repo configs; safest to create them once).
+Run these in order, from the repo root (`cd ~/code/nuwrrrld-portal`). Paste one
+block at a time and read its output before moving on. Nothing here passes a
+secret value through your screen — every value goes `.env.local` → stdin →
+`gh secret set`.
+
+---
+
+**Step 1 — preflight: confirm you're authenticated and the values are present.**
+
+```bash
+cd ~/code/nuwrrrld-portal
+gh auth status
+test -f .env.local && echo "✓ .env.local present" || echo "✗ .env.local MISSING — stop here"
+grep -cE '^(ALPACA_API_KEY|ALPACA_API_SECRET|PORTAL_PUSH_SECRET)=.+' .env.local
+```
+
+Expect: `gh` logged in, `✓ .env.local present`, and `3` from the last line.
+If that count is less than 3, one of the values is missing or empty locally —
+see `scripts/gen-portal-push-secret.sh` for `PORTAL_PUSH_SECRET`, and the
+Alpaca dashboard (🖱 https://app.alpaca.markets/paper/dashboard/overview →
+**API Keys**) for the pair.
+
+---
+
+**Step 2 — confirm what's actually missing from GitHub right now.**
+
+```bash
+gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA' || echo "none of the three are set"
+```
+
+Expect (today): `none of the three are set`. If some already appear, the sync
+below is still safe — it overwrites with the `.env.local` value.
+
+---
+
+**Step 3 — dry run the sync (prints names only, pushes nothing).**
+
+```bash
+bash scripts/sync-hydration-secrets.sh --dry-run
+```
+
+Expect three names listed: `ALPACA_API_KEY`, `ALPACA_API_SECRET`,
+`PORTAL_PUSH_SECRET`. No values are printed.
+
+---
+
+**Step 4 — push the three secrets for real.**
+
+```bash
+bash scripts/sync-hydration-secrets.sh
+```
+
+> **If step 3 or 4 errors with `Missing ~/.claude/scripts/sync-secrets.sh`**,
+> use this equivalent — same effect, no wrapper, still never prints a value:
+>
+> ```bash
+> for k in ALPACA_API_KEY ALPACA_API_SECRET PORTAL_PUSH_SECRET; do
+>   awk -F= -v k="$k" '$1==k{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local \
+>     | tr -d '\n' | gh secret set "$k" && echo "set $k"
+> done
+> ```
+
+---
+
+**Step 5 — verify all three landed.**
+
+```bash
+gh secret list | grep -E 'PORTAL_PUSH_SECRET|ALPACA'
+```
+
+Expect **3 rows**. This is the check that closes the outage's root cause.
+
+---
+
+**Step 6 — smoke test the workflow** (Phase 1.2).
+
+```bash
+gh workflow run hydrate-universe.yml -f limit=25
+sleep 5
+gh run watch "$(gh run list --workflow=hydrate-universe.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+```
+
+Expect: green, `written=50`, `calc-errors=0` in the log. If it still fails in
+~25 seconds, re-read the guard message — it names the specific missing value:
+
+```bash
+gh run view "$(gh run list --workflow=hydrate-universe.yml --limit 1 --json databaseId -q '.[0].databaseId')" --log-failed
+```
+
+---
+
+**Step 6b — ⚠️ THE ACTUAL REMAINING ACTION: full universe hydration.**
+
+The smoke test only wrote 50 symbols. Run it with **no limit** to re-hydrate
+the ~1,734 rows still stuck at 2026-08-19. This takes minutes, not seconds.
+
+```bash
+cd ~/code/nuwrrrld-portal
+gh workflow run hydrate-universe.yml          # no -f limit → all lanes, all symbols
+sleep 5
+gh run watch "$(gh run list --workflow=hydrate-universe.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+```
+
+Expect `[done] written=<~1900> calc-errors=0 post-failures=0`. Confirm the
+per-lane chunk lines show `pages=` and the full symbol count, not 25.
+
+If it fails partway, read the guard message — it names the specific cause:
+
+```bash
+gh run view "$(gh run list --workflow=hydrate-universe.yml --limit 1 --json databaseId -q '.[0].databaseId')" --log-failed
+```
+
+---
+
+**Step 7 — confirm the data actually advanced.**
+
+> **Do not trust `check-card-freshness.mjs` alone for this step** — it reads
+> `max(bar_date)`, so a *partial* hydration makes it report green (this is
+> exactly what happened on 2026-09-13). Use the per-date row counts below as
+> the real check; see §0a-bis.
+
+Easiest — run the freshness checker itself (it reads the endpoint with the
+right bearer token; the value is pulled from `.env.local` into the child
+process, never printed):
+
+```bash
+PORTAL_URL="https://financial.nuwrrrld.com" \
+PORTAL_PUSH_SECRET="$(awk -F= '/^PORTAL_PUSH_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
+node scripts/check-card-freshness.mjs
+```
+
+Exit 0 = fresh. Exit 1 = stale past `MAX_STALE_TRADING_DAYS` (default 3).
+Exit 2 = config/HTTP problem.
+
+Raw endpoint, if you want the JSON:
+
+```bash
+curl -s -H "Authorization: Bearer $(awk -F= '/^PORTAL_PUSH_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
+  "https://financial.nuwrrrld.com/api/pipeline/hydrate-universe?meta=freshness" | jq
+```
+
+Expect `latestBarDate` = the last trading day, and a small `staleTradingDays`.
+
+**The real check — per-date row counts** (a single `max()` hides a partial run):
+
+```bash
+psql "$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
+  -c "SELECT bar_date, count(*) AS rows FROM ticker_cards GROUP BY bar_date ORDER BY bar_date DESC LIMIT 6;"
+```
+
+Expect **one dominant recent row count** (~1,800+ on the last trading day) and
+no large cluster on an old date. A tall old bucket (e.g. `2026-08-19 | 1734`)
+means the hydration was partial — re-run step 6b without a limit.
+
+> **`psql` not installed?** (`command not found: psql` — confirmed on this Mac
+> 2026-09-14.) Install it, or use the Neon SQL editor:
+> ```bash
+> brew install libpq && brew link --force libpq
+> ```
+> 🖱 Or run the same query in the Neon console → **SQL Editor**:
+> https://console.neon.tech
+
+Expect `newest` = the last trading day (not 2026-08-19), and the
+`signal-freshness-check` workflow green on its next weekday 13:00 UTC run.
+
+---
+
+**Step 8 — create the two repo labels** the failure-notification jobs
+reference (`github-script` 422s without pre-existing labels on some repo
+configs; safest to create them once).
+
+```bash
+gh label create hydration-failure --color B60205 --description "Nightly universe hydration failed" 2>/dev/null || echo "hydration-failure already exists"
+gh label create stale-signals     --color D93F0B --description "Signal cards are stale past the freshness threshold" 2>/dev/null || echo "stale-signals already exists"
+gh label list | grep -E 'hydration-failure|stale-signals'
+```
+
+Expect both rows listed.
+
+---
+
 - [ ] **(signals-app, Phase 1.6)** `OPENROUTER_API_KEY` is missing from that
       repo's secrets and blocks its production run — structurally identical to
-      this outage. Do it in the same session.
+      this outage. Do it in the same session:
+      ```bash
+      cd ~/code/signals-app
+      gh secret list | grep OPENROUTER_API_KEY || echo "absent — push it"
+      awk -F= '/^OPENROUTER_API_KEY=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local \
+        | tr -d '\n' | gh secret set OPENROUTER_API_KEY
+      gh secret list | grep OPENROUTER_API_KEY
+      cd ~/code/nuwrrrld-portal
+      ```
 
 Full analysis: [docs/signal-engine-parity-across-hosts.md](signal-engine-parity-across-hosts.md) §0.1.
+
+---
+
+## 0a-bis. 🔴 The freshness guard reports green on a partially-hydrated universe
+
+**Found 2026-09-14**, while verifying §0a's fix. This is a code bug, filed here
+because it silently invalidates the one alarm §0a installed.
+
+`scripts/check-card-freshness.mjs` (and the `?meta=freshness` endpoint it
+reads) answer with **`max(bar_date)`** and a `staleTradingDays` derived from
+it. On 2026-09-14 the real table was:
+
+| `bar_date` | rows |
+|---|---|
+| 2026-09-13 | 100 |
+| 2026-08-19 | **1,734** |
+
+and the checker printed `ranked universe is fresh — latest bar_date=2026-09-13
+staleTradingDays=0`, exit 0. **100 fresh rows out of 1,864 is indistinguishable
+from full coverage**, because a maximum cannot see the distribution underneath
+it. Any smoke test — or any partial run that dies after one chunk — re-arms the
+green light for `MAX_STALE_TRADING_DAYS` more days while the universe rots.
+
+This is the same failure shape as the original outage: the *writer* failed
+loudly, and the thing that was supposed to notice stayed quiet. Phase 1 added
+an independent reader precisely so a writer bug couldn't hide — but the reader
+was given a metric that a partial write satisfies.
+
+- [ ] **Make the freshness check coverage-aware, not max-aware.** The check
+      should compare *how many* active symbols have a card on the latest
+      trading day against `ticker_universe`'s active count, and go red below a
+      ratio (~0.9), independently of `max(bar_date)`. Sketch:
+      ```sql
+      SELECT
+        (SELECT count(*) FROM ticker_universe WHERE active) AS expected,
+        count(*) FILTER (WHERE bar_date = (SELECT max(bar_date) FROM ticker_cards)) AS fresh
+      FROM ticker_cards;
+      ```
+      Have `check-card-freshness.mjs` exit 1 when `fresh / expected` is below
+      the threshold, and surface both numbers in the `?meta=freshness` payload
+      (`expectedSymbols`, `freshSymbols`) so the endpoint can't report a
+      reassuring scalar that hides a bad ratio.
+- [ ] **Test it the way the existing threshold is tested** — by forcing the
+      condition, not by waiting:
+      ```bash
+      PORTAL_URL="https://financial.nuwrrrld.com" \
+      MIN_FRESH_COVERAGE_RATIO=0.99 \
+      PORTAL_PUSH_SECRET="$(awk -F= '/^PORTAL_PUSH_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)" \
+      node scripts/check-card-freshness.mjs
+      ```
+      Expect exit 1 while coverage is partial, exit 0 after step 6b's full run.
 
 ---
 
@@ -200,16 +595,85 @@ generated or retrieved from a dashboard.
 | `NEON_API_KEY` | Neon console → Account settings → API keys → Generate | `integration-tests.yml` | ✅ **set 2026-08-30** |
 | `NEON_PROJECT_ID` | Neon console → Project settings → General. Looks like `wispy-forest-12345678` | `integration-tests.yml` | ✅ **set 2026-08-30** |
 | `PORTAL_URL` | Just the deployed origin, e.g. `https://financial.nuwrrrld.com`. Also add to `.env.local` — `scripts/local-trigger.mjs` Path C reads it there. | `afternoon-pipeline.yml` + the other scheduled callers | ✅ set — but as a *secret*, see §0a |
-| `CRON_SECRET` | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. Not in `.env.local` today — only `PORTAL_PUSH_SECRET` is, and it is **not** interchangeable. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` | ❌ absent |
-| `GCP_WIF_PROVIDER` | GCP → IAM → Workload Identity Federation. Full resource path. | `e2e-resiliency.yml` | ❌ absent |
-| `GCP_SERVICE_ACCOUNT` | GCP → IAM → Service accounts. The `...@....iam.gserviceaccount.com` address. | `e2e-resiliency.yml` | ❌ absent |
+| ~~`CRON_SECRET`~~ ✅ **set 2026-09-13** (`.env.local` + GHA; Vercel still unverified) | Generate one: `openssl rand -hex 32`. Must match what the cron caller sends. Set it in **three** places: `.env.local` (for local `curl` / `scripts/local-trigger.mjs`), Vercel project env, and `gh secret set`. Not in `.env.local` today — only `PORTAL_PUSH_SECRET` is, and it is **not** interchangeable. | `afternoon-pipeline.yml`, `track/select/judge-followed-tickers.yml`, `precompute-ai.yml`, `hydrate-universe.yml`, `/api/retention/*` | ❌ absent |
+| ~~`GCP_WIF_PROVIDER`~~ | — | ~~`e2e-resiliency.yml`~~ | 🗑 **obsolete 2026-09-14** — the GCP auth step was deliberately removed; see §-1 |
+| ~~`GCP_SERVICE_ACCOUNT`~~ | — | ~~`e2e-resiliency.yml`~~ | 🗑 **obsolete 2026-09-14** — same |
 
 Three of the six are now done. **If the `integration` job is still red, its
-cause has changed** — re-run it and read the current log rather than acting on
-§0's recorded diagnosis.
+cause has changed** — re-run it and read the current log:
 
-The `secrets-sync` skill can provision the two GCP ones (keyless WIF, no JSON key
-file) if you'd rather not click through it.
+```bash
+gh workflow run integration-tests.yml
+sleep 5
+gh run watch "$(gh run list --workflow=integration-tests.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+```
+
+### Paste-ready: `CRON_SECRET` (absent — do all three places in one sitting)
+
+It must be the **same value** in all three, and it is **not** interchangeable
+with `PORTAL_PUSH_SECRET`. Generate once, write it to `.env.local`, then push
+that same value onward — the value is never echoed to your screen.
+
+```bash
+cd ~/code/nuwrrrld-portal
+
+# 1. generate and append to .env.local (aborts if one is already there)
+grep -q '^CRON_SECRET=' .env.local \
+  && echo "CRON_SECRET already in .env.local — skip to step 2" \
+  || { printf 'CRON_SECRET=%s\n' "$(openssl rand -hex 32)" >> .env.local && echo "✓ generated + written to .env.local"; }
+
+# 2. push the same value to GitHub Actions
+awk -F= '/^CRON_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local \
+  | tr -d '\n' | gh secret set CRON_SECRET
+
+# 3. push the same value to Vercel (paste it when prompted — pbcopy first)
+awk -F= '/^CRON_SECRET=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local | tr -d '\n' | pbcopy
+echo "value copied to clipboard — paste at the Vercel prompt"
+vercel env add CRON_SECRET production
+
+# 4. verify (names only, no values)
+gh secret list | grep CRON_SECRET
+vercel env ls production | grep CRON_SECRET
+```
+
+Then clear the clipboard: `pbcopy </dev/null`
+
+### Paste-ready: the two GCP values (keyless WIF — no JSON key file)
+
+Requires `gcloud` authenticated with IAM permissions on the target project.
+
+```bash
+cd ~/code/nuwrrrld-portal
+gcloud auth list                       # confirm the right account is active
+bash scripts/sync-e2e-secrets.sh --provision-wif
+```
+
+That prints a service-account address. Grant it **only** `roles/run.invoker`
+on `gcp3-backend` — resist broader roles to make it work faster; a CI service
+account with excess IAM is a finding on any client security review:
+
+```bash
+# find the service and its region (don't guess the region — it isn't pinned anywhere in this repo)
+gcloud run services list --format='table(metadata.name, metadata.labels."cloud.googleapis.com/location")'
+```
+
+```bash
+# the ONE value you must paste by hand — the address the --provision-wif step printed
+SA="paste-the-service-account@project.iam.gserviceaccount.com"
+REGION="paste-the-region-from-the-list-above"
+
+gcloud run services add-iam-policy-binding gcp3-backend \
+  --member="serviceAccount:${SA}" --role="roles/run.invoker" --region="${REGION}"
+```
+
+Verify both secrets landed:
+
+```bash
+gh secret list | grep -E 'GCP_WIF_PROVIDER|GCP_SERVICE_ACCOUNT'
+```
+
+Expect 2 rows. (The `secrets-sync` skill wraps this same flow if you'd rather
+not run it by hand.)
 
 ---
 
@@ -226,8 +690,8 @@ column.
 | `PORTAL_PUSH_SECRET` | 🔴 **nightly hydration dead 15 days** (§0a) |
 | `ALPACA_API_KEY` | 🔴 same job, second guard |
 | `ALPACA_API_SECRET` | 🔴 same job, third guard |
-| `STRIPE_WEBHOOK_SECRET` | every Stripe event rejected (§4) |
-| `STRIPE_PRICE_ANNUAL` | annual plan advertised, unsellable (§4) |
+| ~~`STRIPE_WEBHOOK_SECRET`~~ | ✅ **pushed to GHA 2026-09-14** — a real `whsec_` value is now in `.env.local` and in GitHub Actions |
+| ~~`STRIPE_PRICE_ANNUAL`~~ | ✅ **pushed to GHA 2026-09-14** — a real `price_` id is now in `.env.local` and in GitHub Actions |
 
 The last two are **not** simple pushes — both are placeholder/empty locally, so
 §4 must create real values first. Only the three Alpaca/portal secrets are a
@@ -280,22 +744,41 @@ push production `DATABASE_URL` as the CI secret if the workflow can mint its own
 Currently running a **Development** instance (`pk_test_…`). Dev mode locally is
 correct; dev mode in production is the bug.
 
-- [ ] Create/activate the **Production** instance (needs a verified domain + DNS
-      for `clerk.financial.nuwrrrld.com`).
-- [ ] Put `pk_live_…` / `sk_live_…` in **Vercel project env vars only**. Keep
-      `pk_test_…` in local `.env.local` deliberately.
-- [ ] Verify: production build shows no Clerk dev badge, and `__session` is
-      issued from the production domain rather than `*.accounts.dev`.
-- [ ] Confirm the dev-instance shared JWT signing key is **not** trusted by any
-      production API route.
-- [ ] Set an explicit session lifetime + inactivity timeout. This is a financial
-      product; the default multi-day session is too long.
-- [ ] Audit the served session cookie attributes in production: `Secure`,
-      `HttpOnly`, `SameSite=Lax`, and `Domain` scoped to the apex only if
-      subdomain sharing with mobile is genuinely needed.
-- [ ] Decide and write down whether `gcp3-mobile` shares this Clerk instance. If
-      it does, a session revocation on one surface must revoke on the other —
-      **test it, don't assume it.**
+- [ ] 🖱 **Dashboard:** create/activate the **Production** instance (needs a
+      verified domain + DNS for `clerk.financial.nuwrrrld.com` first) —
+      https://dashboard.clerk.com/apps → your app → **Instances** →
+      **Production**
+- [ ] Once you have the live keys, push them to Vercel (keep `pk_test_…` in
+      local `.env.local` deliberately — do not overwrite it):
+      ```bash
+      vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production
+      vercel env add CLERK_SECRET_KEY production
+      ```
+- [ ] Verify the production build:
+      ```bash
+      curl -sI https://financial.nuwrrrld.com | grep -i set-cookie
+      # __session should come from the production domain, not *.accounts.dev
+      # and the page should render with no Clerk dev badge
+      ```
+- [ ] 🖱 **Dashboard:** confirm the dev-instance shared JWT signing key is
+      **not** trusted by any production API route —
+      https://dashboard.clerk.com/apps → your app → **Production instance** →
+      **API keys** → **JWT templates**
+- [ ] 🖱 **Dashboard:** set an explicit session lifetime + inactivity timeout
+      (this is a financial product; the default multi-day session is too
+      long) — https://dashboard.clerk.com/apps → your app → **Production
+      instance** → **Sessions**
+- [ ] Audit the served session cookie attributes in production:
+      ```bash
+      curl -sI https://financial.nuwrrrld.com/api/health | grep -i set-cookie
+      # expect: Secure; HttpOnly; SameSite=Lax; Domain scoped to the apex
+      # only if subdomain sharing with mobile is genuinely needed
+      ```
+- [ ] Decide and write down whether `gcp3-mobile` shares this Clerk instance.
+      If it does, a session revocation on one surface must revoke on the
+      other — **test it, don't assume it**: revoke a session from one
+      surface's UI, then confirm the other surface's next authenticated
+      request 401s.
 
 ---
 
@@ -392,8 +875,8 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
 
 ## 5. Neon
 
-- [ ] Generate the API key + project ID from §1 — that alone fixes CI.
-- [ ] Confirm the migration you ran applied all four new tables:
+- [x] ~~Generate the API key + project ID from §1~~ — done 2026-08-30.
+- [x] **Verified 2026-09-14 — all four tables exist.** Query kept for re-checking:
       ```sql
       SELECT table_name FROM information_schema.tables
       WHERE table_name IN ('consent_records','legal_consent_events',
@@ -412,7 +895,7 @@ These keep a 34-test Playwright suite and two CI checks permanently red. A suite
 that always fails for an environmental reason is worse than no suite: people
 learn to ignore it, which also masks the real failures underneath.
 
-- [ ] **Set `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` GitHub
+- [x] ~~**Set `E2E_CLERK_PUBLISHABLE_KEY` / `E2E_CLERK_SECRET_KEY` GitHub
       secrets to the Clerk dev instance's values.** Root cause of 4
       consecutive `auth`-job failures (PRs #106–#110, 2026-09-04) — see
       `docs/known-bugs.md` item 16 and `docs/clerk-dev-to-prod.md` §5/§6 for
@@ -433,27 +916,35 @@ learn to ignore it, which also masks the real failures underneath.
       ```
       A preflight test (`e2e/preflight/credentials.spec.ts`) now fails fast
       and legibly if these are ever pointed at production again.
-- [ ] **Provision the GCP Workload Identity Federation pool.** All four `e2e`
+- [x] 🗑 **OBSOLETE 2026-09-14 — do not provision. See §-1.** ~~Provision the GCP Workload Identity Federation pool.~~ All four `e2e`
       shards fail immediately at "Authenticate to GCP (keyless)" because
       `GCP_WIF_PROVIDER` is empty (§1 above).
-      → `bash scripts/sync-e2e-secrets.sh --provision-wif`, then grant the
-      printed service account **only** `roles/run.invoker` on `gcp3-backend`.
-      Resist broader roles to make it work faster — a CI service account with
-      excess IAM is a finding on any client security review.
-      Needs `gcloud` auth with IAM permissions on the target project.
+      **Full paste-ready sequence is in §1 above** ("Paste-ready: the two GCP
+      values"). Short form:
+      ```bash
+      cd ~/code/nuwrrrld-portal
+      gcloud auth list                                    # right account active?
+      bash scripts/sync-e2e-secrets.sh --provision-wif
+      gh secret list | grep -E 'GCP_WIF_PROVIDER|GCP_SERVICE_ACCOUNT'   # expect 2 rows
+      ```
+      Then grant the printed service account **only** `roles/run.invoker` on
+      `gcp3-backend` (§1 has the exact binding command). Resist broader roles
+      to make it work faster — a CI service account with excess IAM is a
+      finding on any client security review. Needs `gcloud` auth with IAM
+      permissions on the target project.
 - [ ] **Re-run the `frontend` Playwright tier and confirm two known bugs are
       actually closed.** The E2E user's Pro entitlement was patched
       (`known-bugs.md` item 1) but the tier was **never re-run to verify**. Item
       3 (portfolio-suggestions failure) is explicitly suspected to be the same
       redirect-to-`/pricing` cause. You may be one command from closing both,
       and right now you don't know which recorded failures are still real.
-- [ ] **Resolve `shared-drift-check`.** `lib/subscription.ts` has drifted from
+- [x] ~~**Resolve `shared-drift-check`.**~~ — **passing** on PR #135 as of 2026-09-14. `lib/subscription.ts` has drifted from
       its `gcp3-mobile` counterpart. This is a genuine cross-repo decision —
       which repo owns the canonical tier logic — not a lint failure to suppress.
       Note it guards exactly the file whose `subscription_status` semantics the
       §4 trap lives in: drift here means the two surfaces can disagree about who
       is a paying customer.
-- [ ] **Disable the Cloudflare Pages integration.** One API call; see
+- [x] **Likely already done** — the `Cloudflare Pages` check no longer appears on PR #135 (2026-09-14). No Cloudflare token exists locally to confirm via API; verify once in the dashboard. Original instructions: 
       [docs/cloudflare-pages-assessment.md](cloudflare-pages-assessment.md).
 
 ---
@@ -469,15 +960,31 @@ account and a decision, so they belong on a human's list.
       `next.config.ts`, and `middleware.ts` carry no monitoring integration.
       Today the detection mechanism for a broken paid feature is a customer
       emailing you, so mean-time-to-detect equals customer patience.
-      Sentry's Next.js SDK is the shortest path. The bar is low — *any* alerting
-      beats none. Wire it, trigger one deliberate error, confirm it lands.
-      (Note this pairs with the analytics DPA decision in §6: if PostHog is
-      chosen there, it can cover part of this.)
+      Sentry's Next.js SDK is the shortest path:
+      ```bash
+      npx @sentry/wizard@latest -i nextjs
+      ```
+      Then set the DSN as a secret and confirm delivery:
+      ```bash
+      awk -F= '/^SENTRY_DSN=/{print $2}' .env.local | gh secret set SENTRY_DSN
+      vercel env add SENTRY_DSN production
+      curl -s https://financial.nuwrrrld.com/api/debug-sentry  # or trigger one deliberate error
+      ```
+      Confirm the event lands: 🖱 https://sentry.io → your project → **Issues**.
+      (Pairs with the analytics DPA decision in §6: if PostHog is chosen there,
+      it can cover part of this.)
 - [ ] **Point an external uptime monitor at `/api/health`.** The route already
       exists and reports per-dependency status — it is what surfaces the Stripe
-      misconfiguration in §4. Nothing is watching it. This is the cheapest item
-      in this file and covers the half that Sentry cannot: out-of-process death,
-      as opposed to in-process exceptions.
+      misconfiguration in §4. This is the cheapest item in this file and covers
+      the half Sentry cannot: out-of-process death, not in-process exceptions.
+      Verify the route responds correctly first:
+      ```bash
+      curl -s https://financial.nuwrrrld.com/api/health | jq
+      ```
+      Then wire a monitor — 🖱 e.g. Better Uptime, UptimeRobot, or Vercel's own
+      Checks (https://vercel.com/dashboard → project → **Monitoring**) — at
+      `https://financial.nuwrrrld.com/api/health`, alerting on non-200 or a
+      `"status": "unhealthy"` body field.
 
 ---
 
@@ -495,10 +1002,7 @@ Full table + reasoning: [docs/pipeline-route-status-issues.md](pipeline-route-st
 - [ ] **Or disable the workflow** meanwhile:
       `gh workflow disable afternoon-pipeline.yml` — it currently files a
       `pipeline-failure` issue on every gate-clearing run.
-- [ ] **Create the `pipeline-failure` label** —
-      `gh label create pipeline-failure --color B60205 --description "Scheduled pipeline run failed"`.
-      Every scheduled workflow's `notify` job references it; it doesn't exist, so
-      the notify job itself errors (`'pipeline-failure' not found`).
+- [x] ~~**Create the `pipeline-failure` label**~~ — **exists** (verified 2026-09-14), along with `hydration-failure` and `stale-signals`.
 - [ ] **Investigate the `followed-tickers*` 503s** — `followed-tickers`,
       `followed-tickers-select`, `followed-tickers-judge` are deployed but return
       503 to an unauthenticated request (before the 401 the auth layer should
@@ -529,14 +1033,14 @@ someone runs Modal against the real account:
 
 ## 5f. nulogdash sweep — local env + remaining inventory drift
 
-- [ ] **Set `NULOGDASH_BASE_URL` and `NULOGDASH_SESSION_COOKIE` in `.env.local`.**
+- [ ] **`NULOGDASH_BASE_URL` set to `http://localhost:3000` 2026-09-14; `NULOGDASH_SESSION_COOKIE` still empty and still blocking 28 auth features.** Original note:
       Both currently ship as empty `KEY=` lines. `NULOGDASH_BASE_URL=` empty no
       longer breaks the sweep (the `??` → trim-and-`||` fix in
       `scripts/nulogdash.mjs`), but it still needs a real value —
       `http://localhost:3000` — to point anywhere. `NULOGDASH_SESSION_COOKIE`
       needs a live `__session` cookie for a dedicated test user or 28 auth
       features stay `blocked`.
-- [ ] **Set a local `CRON_SECRET`** (currently commented out) if you want to
+- [x] ~~**Set a local `CRON_SECRET`**~~ — present in `.env.local` as of 2026-09-13. if you want to
       exercise the `followed-tickers*` pipeline routes locally — any random
       value, matched by the `Authorization: Bearer` header you pass.
 - [x] ~~**13 inventory drift warnings remain** after this PR (was 21): the
@@ -640,8 +1144,7 @@ someone runs Modal against the real account:
       - **Unblocks**: `e2e/frontend/portfolio-liveness.spec.ts`'s two portfolio
         health checks (score + AI explain)
       - **Added**: 2026-09-11
-- [ ] **CI's own `OPENROUTER_API_KEY` (GitHub Actions secret) may also be
-      stale, separately from the Vercel one above.**
+- [x] ~~**CI's own `OPENROUTER_API_KEY` (GitHub Actions secret) may also be stale.**~~ — **resolved 2026-09-14**: it was stale (dated 2026-08-18). The local key was validated live and re-pushed. Original entry:
       - **From**: `/wait-merge1` run on PRs #119/#120 — `e2e/frontend/portfolio-liveness.spec.ts`'s
         AI-explain check fails with `OpenRouter 401: all models in chain
         failed` (`lib/openrouter.ts:372`, `app/api/portfolio/health-ai/route.ts:139`)
@@ -663,31 +1166,46 @@ someone runs Modal against the real account:
 
 These need a signature or a qualified review, not a login.
 
-- [ ] **Pick an analytics vendor and sign a DPA.** PostHog EU cloud is the
-      recommendation in the plan. `lib/analytics.ts` is built and validating
-      already — wiring a vendor is filling in one function body (`deliver()`).
-- [ ] **Confirm the LLM providers' terms in writing.** `app/api/council/*` and
-      `app/api/nuai/*` send user prompt text and watchlist context to OpenRouter
-      and its upstreams. Nobody has verified zero-retention or no-training terms,
-      and the free-model chain changes on its own, which can change the answer
-      silently. This is the largest outbound flow of user-authored content in the
-      system and the most under-examined item in this file.
-- [ ] **Confirm DPAs exist** for Clerk, Neon, Vercel, Stripe, Resend. See
-      [docs/privacy-register.md](privacy-register.md) §2 — every row marked
-      `*verify*` is an assumption, not a fact.
-- [ ] **Qualified pre-launch review of the privacy policy.** Plan §7 requires it,
-      and `docs/privacy-register.md` is written to be the input. Do not publish
-      the retention table until the enforcement job exists (§7 below).
-- [ ] If any ad platform is used later: Meta and Google both restrict
-      financial-services advertising and may require account verification before
-      spend.
+- [ ] 🖱 **Dashboard/decision:** pick an analytics vendor and sign a DPA.
+      PostHog EU cloud is the recommendation in the plan —
+      https://app.posthog.com/signup → org settings → **Data Pipeline** →
+      DPA. `lib/analytics.ts` is built and validating already — wiring a
+      vendor is filling in one function body (`deliver()`). Once you have the
+      key:
+      ```bash
+      awk -F= '/^POSTHOG_API_KEY=/{print $2}' .env.local | gh secret set POSTHOG_API_KEY
+      vercel env add NEXT_PUBLIC_POSTHOG_KEY production
+      ```
+- [ ] 🖱 **Decision, in writing:** confirm the LLM providers' terms.
+      `app/api/council/*` and `app/api/nuai/*` send user prompt text and
+      watchlist context to OpenRouter and its upstreams. Nobody has verified
+      zero-retention or no-training terms, and the free-model chain changes
+      on its own, which can change the answer silently. This is the largest
+      outbound flow of user-authored content in the system and the most
+      under-examined item in this file. Review at
+      https://openrouter.ai/docs/features/privacy-and-logging and record the
+      answer in `docs/privacy-register.md`.
+- [ ] 🖱 **Dashboard:** confirm DPAs exist for Clerk, Neon, Vercel, Stripe,
+      Resend. See [docs/privacy-register.md](privacy-register.md) §2 — every
+      row marked `*verify*` is an assumption, not a fact. Each vendor's DPA
+      lives under its own dashboard's **Legal/Compliance/Trust** settings.
+- [ ] 🖱 **Decision:** qualified pre-launch review of the privacy policy by
+      counsel. Plan §7 requires it, and `docs/privacy-register.md` is written
+      to be the input. Do not publish the retention table until the
+      enforcement job exists (§7 below).
+- [ ] 🖱 **Decision, only if an ad platform is used later:** Meta and Google
+      both restrict financial-services advertising and may require account
+      verification before spend — check
+      https://www.facebook.com/business/help and
+      https://support.google.com/adspolicy before buying.
 
 ---
 
 ## 6b. The one product decision only you can make
 
-- [ ] **Decide how to close the explain-quality gate — before selling the AI
-      tier, not after.** This is the largest open item in the whole project and
+- [ ] 🖱 **Decision only — no CLI/dashboard action, a product call.** Decide
+      how to close the explain-quality gate — before selling the AI
+      tier, not after. This is the largest open item in the whole project and
       the least visible from outside.
       The live pipeline run in
       [docs/pipeline-todo-blockers.md](pipeline-todo-blockers.md) proved the
@@ -738,7 +1256,7 @@ A `/bugmerge1` run on 2026-09-04 drained the review-clean half of the queue:
 conflict-free). Two PRs could not be finished automatically and need a human to
 nudge the review bot, then re-run `/bugmerge1` (or `/bugz`) on them:
 
-- [ ] **PR #97** (`feat/moo-council-simulation`) — CodeRabbit has **never
+- [x] ~~**PR #97** (`feat/moo-council-simulation`)~~ — **merged 2026-09-04.** — CodeRabbit has **never
       completed a review**: the initial pass hit "Review limit reached" and a
       manual `@coderabbitai review` on 2026-09-04 01:43 UTC came back
       *"Review rate limited."* Wait out the CodeRabbit capacity window (check
@@ -746,11 +1264,11 @@ nudge the review bot, then re-run `/bugmerge1` (or `/bugz`) on them:
       `@coderabbitai review`, then triage/fix/merge. Touches real code
       (`lib/openrouter.ts`, `app/api/council/*`, `app/page.tsx`) so it should
       not be merged without a review.
-- [ ] **PR #101** (`feat/signal-engine-phases-1-3`) — same situation
+- [x] ~~**PR #101** (`feat/signal-engine-phases-1-3`)~~ — **merged 2026-09-04.** — same situation
       (rate-limited 2026-09-04 01:43 UTC, no review ever completed). Also shows
       `mergeable: CONFLICTING` against `main` — it will need a `/reb` rebase
       before it can merge. Touches `lib/shared/*.ts`, pipeline route, tests.
-- [ ] **`gh label create pipeline-failure`** — every scheduled pipeline
+- [x] ~~**`gh label create pipeline-failure`**~~ — exists (2026-09-14). ~~every scheduled pipeline
       workflow's `notify` job does `gh issue create --label pipeline-failure`
       against a label that doesn't exist, so the notify job itself fails. One
       command: `gh label create pipeline-failure --color B60205 --description
@@ -830,8 +1348,8 @@ other than `.env.local` / the Vercel dashboard.
 annual price, and the key rotation (§4). Do them together rather than three
 separate logins.
 
-0. **Push the three hydration secrets** (§0a) — **5 minutes, no dashboard, no
-   decision.** It is the cheapest item in this file and the only one where the
+0. ~~**Push the three hydration secrets** (§0a)~~ — **done 2026-09-13, verified
+   green 2026-09-14.** ~~5 minutes, no dashboard, no decision.~~ It is the cheapest item in this file and the only one where the
    product is currently producing nothing at all. Every signal the app shows is
    15 days stale until this runs.
 1. **Stripe: webhook secret + annual price** (§4) — until these are set you
@@ -841,13 +1359,14 @@ separate logins.
    integration job and read the current failure, if any.
 3. **Rotate `STRIPE_SECRET_KEY`** (§4) — do this *before* step 4 so the synced
    value is the rotated one; same dashboard session as step 1.
-4. **Push the remaining existing secrets** (§2) — unblocks the e2e workflows.
+4. ~~**Push the remaining existing secrets** (§2)~~ — **done 2026-09-14**; the
+   absent list is empty apart from the two obsolete GCP values.
 5. **Clerk Production** (§3) — the live production bug.
 6. **Decide the explain-quality path** (§6b) — the AI tier currently produces
    nothing; this gates whether the paid feature exists at all.
 7. **Error monitoring + uptime check** (§5c) — cheap, and until then an outage
    is detected by customer email.
-8. **GCP WIF + re-run the frontend tier** (§5b) — turns the e2e suite from
+8. ~~**GCP WIF**~~ (obsolete, §-1) **+ re-run the frontend tier** (§5b) — turns the e2e suite from
    decorative back into a gate.
 9. **LLM provider terms** (§6) — the biggest unexamined legal risk here.
 10. Everything else.
