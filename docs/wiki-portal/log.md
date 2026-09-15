@@ -889,3 +889,4 @@ change), §3 (resolved for free by §0, no separate wiki note needed), §4
 ## [2026-09-22] ingest | PR #147 fix(paper-portfolios): match a slot window, not an exact minute | pages touched: 3
 ## [2026-09-22] ingest | chore(paper-portfolios): seed production + provision PAPER_CRON_SECRET | pages touched: 1
 ## [2026-09-22] ingest | docs(register-45-etfs): register all 54 gcp3 industry ETFs into the hydrate lane | pages touched: 2
+## [2026-09-15] ingest | PR #139 chore(handoff): close the git checkout guard hole, evidence-backed pr-nwf verification | pages touched: 3
