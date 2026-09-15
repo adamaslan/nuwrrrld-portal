@@ -51,8 +51,8 @@ tracks what's actually built against that 8-phase plan.
 | 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 |
 | 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — this branch (`feat/paper-portfolios-phase-5-6-arbitration-firestore`) |
 | 6 | Firestore mirror + reconciliation | **Shipped** — this branch |
-| 7 | `/api/paper/*` + `/dashboard/council/portfolios` | Not started |
-| 8 | Metrics + first written finding | Not started |
+| 7 | `/api/paper/*` + `/dashboard/council/portfolios` | Drafted on `feat/paper-portfolios-phase-7-api-dashboard`, not yet merged |
+| 8 | Metrics | **Shipped** — this branch (`feat/paper-portfolios-phase-8-metrics`, stacked on Phases 5-6's tip). The written-finding half of Phase 8 is unstarted by design — it needs weeks of real run data. |
 
 ## Where used
 
@@ -103,6 +103,10 @@ tracks what's actually built against that 8-phase plan.
   `FIRESTORE_SERVICE_ACCOUNT_JSON`; every write is non-fatal per guardrail #7.
   `lib/paper-engine.ts` calls the mirror after every run's Neon transaction
   commits and the reconcile check only at `settle`.
+- `lib/shared/paper-metrics-core.ts` / `lib/paper-metrics.ts` (Phase 8) — §7's
+  scoring: CAGR/vol/Sharpe match `docs/moo-council-run/sim_moo.py`'s `lump()`
+  exactly. `lib/paper-engine.ts` calls it at `settle`, writing
+  `paper_runs.detail.metrics`, non-fatal.
 
 ## Known failures
 
@@ -162,6 +166,12 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
   layout implies deactivated rows (`active: false`, `drop_reason`) should
   also be visible there, but this build only ever reads/writes the active
   set. Deferred, not dropped.
+- **Phase 8:** `spy`/`equal`'s total return for the active-return comparison
+  is read from their own latest NAV point, not necessarily the *same* settle
+  run — `PAPER_ACCOUNTS` runs the six trading accounts first, so their settle
+  metrics would otherwise block on rows that don't exist yet within the same
+  route call. One run's staleness on a comparison-only figure, judged
+  acceptable against reordering the whole loop.
 
 ## Open questions
 

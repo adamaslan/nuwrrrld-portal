@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-15 (portal PR — paper-portfolios Phases 5–6, arbitration + Firestore mirror)_
+_Last updated: 2026-09-15 (portal PR — paper-portfolios Phase 8, metrics)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -24,7 +24,7 @@ One page per named component. These are the hubs — everything links to entitie
 **AI Council**
 - [[entity-ai-council]] — the six-seat deliberation system; `app/api/council/*` + `lib/openrouter.ts`
 - [[entity-openrouter-client]] — `lib/openrouter.ts`; seats, model map, `FREE_MODEL_CHAIN`, `runSeat` fallback
-- [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` + `scripts/seed-paper-portfolios.mjs` + `lib/paper-engine.ts` + `.github/workflows/paper-portfolios.yml` + `lib/paper-arbitration.ts` + `lib/paper-firestore-mirror.ts` (Phases 1–4 merged, PR #124/#127/#128/#137; 5–6 on this branch, not yet merged)
+- [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` + `scripts/seed-paper-portfolios.mjs` + `lib/paper-engine.ts` + `.github/workflows/paper-portfolios.yml` + `lib/paper-arbitration.ts` + `lib/paper-firestore-mirror.ts` + `lib/paper-metrics.ts` + `app/dashboard/council/portfolios/` (Phases 1–4 merged, PR #124/#127/#128/#137; 5–6/#138, 7/#139, 8 code-complete, not yet merged)
 
 **Grounding**
 - [[entity-grounding-tier-ladder]] — `lib/grounding/*` + `lib/council-grounding.ts`; the four-tier deterministic brief resolver

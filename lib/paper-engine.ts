@@ -12,10 +12,10 @@
  *
  * Also mirrors the run to Firestore (Phase 6, non-fatal — a mirror failure
  * never fails the run, guardrail #7) and, on the `settle` slot only, runs the
- * Neon-vs-Firestore drift check. Both live in
- * lib/paper-firestore-mirror.ts / lib/paper-reconcile.ts; this module just
- * calls them after its own transaction has committed and records the outcome
- * into `paper_runs.detail`.
+ * Neon-vs-Firestore drift check and computes §7's account metrics (Phase 8,
+ * lib/paper-metrics.ts, same non-fatal contract). All three live outside this
+ * module; it just calls them after its own transaction has committed and
+ * records the outcome into `paper_runs.detail`.
  *
  * RANK/PROPOSE/CLIP/FILL/ARBITRATE's pure half are in
  * lib/shared/paper-engine-core.ts; this module is the I/O shell — load state,
@@ -69,6 +69,7 @@ import {
 import { arbitrateOne } from "@/lib/paper-arbitration";
 import { mirrorPaperAccount, mirrorWatchlistIfVersionChanged } from "@/lib/paper-firestore-mirror";
 import { reconcileAccount } from "@/lib/paper-reconcile";
+import { computeMetricsForAccount } from "@/lib/paper-metrics";
 import type { Horizon } from "@/lib/grounding/taxonomy";
 
 /** Shared, mutable across every account in one route call — the
@@ -492,6 +493,17 @@ export async function runAccountSlot(
       neonOrdersN: await countOrders(account),
     });
     detailPatch.reconcile = reconcile;
+
+    // Metrics (§7, Phase 8) — best-effort, same as mirror/reconcile: a
+    // scoring failure must never fail the run that already committed its
+    // Neon transaction. Read fresh from the DB (not the in-memory state
+    // above) since the settle NAV row this run just wrote is part of the
+    // series computeMetricsForAccount reads.
+    try {
+      detailPatch.metrics = await computeMetricsForAccount(account);
+    } catch (err) {
+      console.warn(`[paper-engine] metrics computation failed for ${account}: ${err}`);
+    }
   }
 
   if (Object.keys(detailPatch).length > 0) {
