@@ -47,8 +47,8 @@ tracks what's actually built against that 8-phase plan.
 |---|---|---|
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
-| 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — this PR (`feat/paper-portfolios-phase-3-engine`, cut from `origin/main`, independent of #127) |
-| 4 | GitHub Actions cron (4 slots × 2 DST crons) | Not started |
+| 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
+| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 (this PR) |
 | 5 | Arbitration layer (model veto/downsize/confirm) | Not started |
 | 6 | Firestore mirror + reconciliation | Not started |
 | 7 | `/api/paper/*` + `/dashboard/council/portfolios` | Not started |
@@ -80,6 +80,11 @@ tracks what's actually built against that 8-phase plan.
   reads. Best-effort, not verbatim — see its module doc.
 - `app/api/pipeline/paper-portfolios/route.ts` (Phase 3) — the cron entry
   point, bearer-authed on its own `PAPER_CRON_SECRET`.
+- `.github/workflows/paper-portfolios.yml` (Phase 4) — 8 cron lines (4 slots ×
+  EST/EDT), gate resolves which slot fired from the NY wall-clock time itself
+  rather than a fixed hour (unlike `track-followed-tickers.yml`'s single-slot
+  gate), `workflow_dispatch` inputs for a forced `slot`/`account`, a non-fatal
+  "zero orders across all 8 accounts" sanity check on non-`settle` slots.
 
 ## Known failures
 

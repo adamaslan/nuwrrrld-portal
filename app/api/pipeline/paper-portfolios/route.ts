@@ -3,8 +3,10 @@
  *
  * docs/council-paper-portfolios.md §4/§6, Phase 3 of
  * docs/paper-portfolios-remaining-todo.md. Called four times a trading day by
- * .github/workflows/paper-portfolios.yml (Phase 4, not yet written) — this
- * route implements the deterministic loop itself, with no cron wiring yet.
+ * .github/workflows/paper-portfolios.yml (Phase 4) — that workflow resolves
+ * which of the four slots fired from the NY wall-clock time and passes it as
+ * ?slot=. Still 401s until PAPER_CRON_SECRET is provisioned and pushed to
+ * GitHub Actions (docs/manual-setup-todo.md, added 2026-09-13/2026-09-14).
  *
  * `?slot=` is required (`preopen|midday|preclose|settle`); `?account=` is
  * optional and restricts the run to one account, for a targeted rerun. Every
