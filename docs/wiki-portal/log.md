@@ -842,4 +842,4 @@ list of what PR #132 touched and what wiki candidates it suggests.
 
 ## [2026-09-14] ingest | PR #134 fix(e2e): scope portfolio-liveness watchlist assertion to added ticker | pages touched: 2
 
-## [2026-09-14] ingest | PR TBD feat(paper-portfolios): cron workflow (Phase 4) | pages touched: 2
+## [2026-09-14] ingest | PR #137 feat(paper-portfolios): cron workflow (Phase 4) | pages touched: 2

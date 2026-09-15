@@ -47,8 +47,8 @@ tracks what's actually built against that 8-phase plan.
 |---|---|---|
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
-| 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — this PR (`feat/paper-portfolios-phase-3-engine`, cut from `origin/main`, independent of #127) |
-| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — this PR (`feat/paper-portfolios-phase-4-cron`, cut from `origin/main`) |
+| 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
+| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 (this PR) |
 | 5 | Arbitration layer (model veto/downsize/confirm) | Not started |
 | 6 | Firestore mirror + reconciliation | Not started |
 | 7 | `/api/paper/*` + `/dashboard/council/portfolios` | Not started |
