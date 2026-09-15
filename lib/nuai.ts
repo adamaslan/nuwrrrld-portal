@@ -38,3 +38,22 @@ export function isRefusedQuery(text: string): boolean {
 
 /** Per-user daily token budget cap (approximate) */
 export const NU_AI_DAILY_TOKEN_BUDGET = 50_000;
+
+/**
+ * Whether an atomic reservation (the running total *after* adding this
+ * request's estimated tokens) has pushed the day's usage over budget.
+ *
+ * Pulled out as a pure function so the budget rule — reject only when the
+ * post-reservation total exceeds the cap, and fail *open* when the
+ * reservation itself couldn't be made (a metering outage shouldn't block the
+ * product, matching lib/nuai-db.ts's existing fail-open convention) — is
+ * testable without a database. The caller (lib/nuai-db.ts's `reserveTokens`)
+ * does the actual atomic increment; this only decides what to do with the
+ * result.
+ */
+export function reservationExceedsBudget(
+  totalAfterReservation: number | null,
+  budget: number = NU_AI_DAILY_TOKEN_BUDGET,
+): boolean {
+  return totalAfterReservation !== null && totalAfterReservation > budget;
+}

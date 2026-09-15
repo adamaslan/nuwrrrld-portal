@@ -9,8 +9,8 @@ import { gradeFromScore } from "@/lib/portfolio";
 import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWithIdleTimeout } from "@/lib/openrouter";
 import { getPrecomputed, subjectFromTickers } from "@/lib/precomputed-ai-db";
 import { localPortfolioHealth } from "@/lib/portfolio-health-local";
-import { NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
-import { getUsedTokensToday, addTokenUsage } from "@/lib/nuai-db";
+import { NU_AI_DAILY_TOKEN_BUDGET, reservationExceedsBudget } from "@/lib/nuai";
+import { getUsedTokensToday, addTokenUsage, reserveTokens, releaseTokens } from "@/lib/nuai-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
 
@@ -60,10 +60,19 @@ async function fetchHealth(tickers: string[]): Promise<PortfolioHealth | null> {
 // from one budget, because they are the same underlying cost: a model call.
 // Before this, health-ai was the one Pro-gated model-call path with no rate
 // limit and no budget accounting at all (docs/portfolio-health-todo.md §7).
+//
+// The L1 cache below is a fast-path *optimization* only — it skips the
+// upstream fetchHealth() call for a user this instance already knows is
+// clearly over budget. It is never the authority on whether a request may
+// proceed; `reserveAndCheckBudget` (called right before the model call,
+// once the real prompt size is known) is, via an atomic DB round trip. Two
+// concurrent requests both reading a stale/optimistic L1 value and both
+// proceeding is exactly the race CodeRabbit flagged on PR #135 when the old
+// getRemainingBudget()-then-proceed check was the only gate.
 const L1_TTL_MS = 60_000;
 const dailyUsageL1 = new Map<string, { tokens: number; expiresAt: number }>();
 
-async function getRemainingBudget(userId: string): Promise<number> {
+async function getCachedRemainingBudget(userId: string): Promise<number> {
   const now = Date.now();
   const cached = dailyUsageL1.get(userId);
   if (cached && cached.expiresAt > now) {
@@ -74,7 +83,32 @@ async function getRemainingBudget(userId: string): Promise<number> {
   return NU_AI_DAILY_TOKEN_BUDGET - used;
 }
 
-async function recordUsage(userId: string, tokens: number) {
+/**
+ * The authoritative gate: atomically reserve `tokens` against today's budget
+ * and report whether that reservation pushed the total over the cap. On
+ * reject, the reservation is released so the request never counts against
+ * quota. Updates the L1 cache either way so the next request's fast-path
+ * pre-check stays close to the durable total.
+ */
+async function reserveAndCheckBudget(userId: string, tokens: number): Promise<{ allowed: boolean }> {
+  const totalAfter = await reserveTokens(userId, tokens);
+  const cached = dailyUsageL1.get(userId);
+  if (reservationExceedsBudget(totalAfter, NU_AI_DAILY_TOKEN_BUDGET)) {
+    await releaseTokens(userId, tokens);
+    // totalAfter is non-null here (reservationExceedsBudget only rejects a
+    // real total, never the fail-open null case) — cache it post-release.
+    if (cached) cached.tokens = Math.max(cached.tokens, (totalAfter as number) - tokens);
+    return { allowed: false };
+  }
+  if (cached) cached.tokens = totalAfter ?? cached.tokens + tokens;
+  else if (totalAfter !== null) dailyUsageL1.set(userId, { tokens: totalAfter, expiresAt: Date.now() + L1_TTL_MS });
+  return { allowed: true };
+}
+
+/** Adds the response-side tokens on top of what was already reserved for the
+ *  prompt — `reserveAndCheckBudget` already accounted for the prompt itself. */
+async function recordAdditionalUsage(userId: string, tokens: number) {
+  if (tokens <= 0) return;
   const cached = dailyUsageL1.get(userId);
   if (cached) cached.tokens += tokens;
   await addTokenUsage(userId, tokens);
@@ -191,13 +225,26 @@ export async function POST(req: NextRequest) {
   if (!checkRateLimit(userId)) {
     return NextResponse.json({ error: "rate_limit_exceeded" }, { status: 429 });
   }
-  if ((await getRemainingBudget(userId)) <= 0) {
+  // Fast-path only — skips the upstream fetchHealth() call below for a user
+  // this instance already knows is clearly over budget. Not authoritative;
+  // see reserveAndCheckBudget below for the actual gate.
+  if ((await getCachedRemainingBudget(userId)) <= 0) {
     return NextResponse.json({ error: "daily_limit_reached" }, { status: 429 });
   }
 
   const health = await fetchHealth(watchlist);
   const prompt = buildHealthPrompt(watchlist, health);
-  let tokenCount = estimateTokens(prompt);
+  const promptTokens = estimateTokens(prompt);
+  // The authoritative gate: reserves promptTokens atomically before any
+  // model call starts, so two concurrent requests can never both observe
+  // "budget available" and both proceed (PR #135 CodeRabbit finding). Only
+  // the prompt side is reserved up front — the response's token count isn't
+  // known yet; recordAdditionalUsage below adds it once the call completes.
+  const { allowed } = await reserveAndCheckBudget(userId, promptTokens);
+  if (!allowed) {
+    return NextResponse.json({ error: "daily_limit_reached" }, { status: 429 });
+  }
+  let tokenCount = promptTokens;
   // Surfaced to the client so an ungrounded narrative is shown as such rather
   // than silently — see docs/wiki-portal/concept-graceful-degradation.md
   // ("degrade to a lesser state, never to a plausible-looking fabrication").
@@ -272,7 +319,7 @@ export async function POST(req: NextRequest) {
         }
       } finally {
         clearTimeout(timer);
-        void recordUsage(userId, tokenCount);
+        void recordAdditionalUsage(userId, tokenCount - promptTokens);
         reader.cancel().catch(() => {});
       }
       return NextResponse.json({ answer: fullText, grounded });
@@ -326,7 +373,7 @@ export async function POST(req: NextRequest) {
           ctrl2.error(err);
         } finally {
           clearTimeout(timer);
-          void recordUsage(userId, tokenCount);
+          void recordAdditionalUsage(userId, tokenCount - promptTokens);
         }
       },
       cancel() {
@@ -346,6 +393,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     clearTimeout(timer);
+    // No model in the fallback chain answered — nothing was actually served,
+    // so release the prompt reservation rather than charging the user's
+    // budget for a call that never produced a response (matches the prior
+    // behavior, where recordUsage was only ever reached after a response
+    // object came back).
+    void releaseTokens(userId, promptTokens);
     console.error("Health AI error", err);
     return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
   }
