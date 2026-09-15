@@ -103,13 +103,27 @@ them.
       measured confirmation. Do it **after** the dev-branch item above, not
       before.
 
-- [ ] **The stale-watchlist e2e failure is still live**, unchanged since it
-      was filed 2026-09-12. PR #135's `e2e (4)` shard failed today with
-      `locator('.port-watch-item') resolved to 2 elements` (then 3 on retry),
-      on all three `portfolio-liveness.spec.ts` tests. The shared Clerk e2e
-      account's watchlist keeps growing. A one-off DB cleanup of that account's
-      `watchlist_items` rows would green it today; the durable fix is the
-      locator/`beforeEach` change already described below.
+- [x] ~~**The stale-watchlist e2e failure is still live**~~ — **fixed and
+      merged as PR #134** (`fix(e2e): scope portfolio-liveness watchlist
+      assertion to added ticker`), merged to `main` 2026-09-14T23:01 UTC —
+      *before* this verification pass ran, which is why the pass above wrongly
+      called it still-live. The locator now scopes to `hasText: "AAPL"`
+      instead of the bare `.port-watch-item` class, so pre-existing seeded
+      watchlist rows (MSFT, NVDA) no longer trip a strict-mode violation.
+      PR #135 (still open) has not rebased onto this fix yet — its
+      `fix/portfolio-health-freshness` branch predates PR #134's merge, so its
+      own e2e run will still show the old failure until it rebases:
+      ```bash
+      git fetch origin main
+      git worktree add /tmp/wt-pr135-reb fix/portfolio-health-freshness
+      cd /tmp/wt-pr135-reb && git rebase origin/main && git push --force-with-lease
+      cd - && git worktree remove /tmp/wt-pr135-reb
+      ```
+      **Note on retriggering CI without new content**: GitHub does not fire
+      `pull_request.synchronize` for a commit with an empty diff (verified
+      2026-09-14 — an `--allow-empty` push here produced zero new workflow
+      runs). A rebase is a real diff-bearing push and will trigger it; an
+      empty commit will not.
 
 - [ ] **`signals-app`'s `OPENROUTER_API_KEY` could not be pushed from here.**
       That repo has **no `.env.local`**, and a cross-repo `gh secret set` was
