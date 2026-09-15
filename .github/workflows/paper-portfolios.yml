@@ -1,0 +1,224 @@
+name: Council Paper Portfolios (4x daily)
+
+# Runs the deterministic paper-trading loop (docs/council-paper-portfolios.md
+# §4) across all 8 seat accounts, four times a trading day. Each of the four
+# slots (preopen/midday/preclose/settle) gets its own EST+EDT cron pair, per
+# §4.1's cadence table — both fire year-round and the gate below picks the
+# slot whose NY wall-clock time matches, so the off-season entry is a no-op
+# rather than a duplicate run an hour apart (same convention as
+# afternoon-pipeline.yml / track-followed-tickers.yml).
+#
+# `/api/pipeline/paper-portfolios` (Phase 3, PR #128) does the actual
+# LOAD/MARK/SCREEN/RANK/PROPOSE/CLIP/FILL/PERSIST loop per account, with
+# per-account try/catch so one account's failure doesn't abort the other
+# seven. This workflow only gates on market hours, resolves which slot fired,
+# calls that route once, and reports.
+#
+# MANUAL STEP STILL BLOCKING: PAPER_CRON_SECRET is not yet a GitHub Actions
+# secret (docs/paper-portfolios-remaining-todo.md Phase 4) — every run below
+# fails the "Verify required secrets exist" step until it's set via the
+# secrets-sync skill. Separately, paper_accounts has 0 rows in the current dev
+# DB until scripts/seed-paper-portfolios.mjs is run for real (Phase 3's own
+# blocker) — even an authenticated run would process zero accounts until then.
+
+on:
+  schedule:
+    # preopen 09:00 ET
+    - cron: '0 14 * * 1-5'   # EST (UTC-5)
+    - cron: '0 13 * * 1-5'   # EDT (UTC-4)
+    # midday 12:30 ET
+    - cron: '30 17 * * 1-5'  # EST
+    - cron: '30 16 * * 1-5'  # EDT
+    # preclose 15:45 ET
+    - cron: '45 20 * * 1-5'  # EST
+    - cron: '45 19 * * 1-5'  # EDT
+    # settle 16:30 ET — mark-to-market close, no trading
+    - cron: '30 21 * * 1-5'  # EST
+    - cron: '30 20 * * 1-5'  # EDT
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Slot to run (overrides wall-clock detection)'
+        required: false
+        type: choice
+        options: [preopen, midday, preclose, settle]
+      account:
+        description: 'Restrict to one account (optional — default all 8)'
+        required: false
+        type: string
+      skip_market_check:
+        description: 'Skip weekday/market-hours gate'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: paper-portfolios
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Gate ────────────────────────────────────────────────────────────────
+  gate:
+    name: Market-hours gate + slot resolution
+    runs-on: ubuntu-latest
+    outputs:
+      is_trading_day: ${{ steps.check.outputs.is_trading_day }}
+      slot: ${{ steps.check.outputs.slot }}
+    steps:
+      - id: check
+        name: Weekday + NY-wall-clock slot check
+        run: |
+          DAY=$(date -u +%u)   # 1=Mon … 7=Sun
+          NY_TIME=$(TZ="America/New_York" date +%H:%M)
+          echo "NY local time: ${NY_TIME}"
+
+          if [[ "$DAY" -ge 6 && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "Weekend — skipping."
+            exit 0
+          fi
+
+          if [[ -n "${{ inputs.slot }}" ]]; then
+            SLOT="${{ inputs.slot }}"
+          else
+            # Two cron entries (EST/EDT) fire for every slot, year-round; only
+            # one lands on the slot's actual NY local time on any given day.
+            # The other is a silent no-op rather than a duplicate run.
+            case "$NY_TIME" in
+              09:00) SLOT="preopen" ;;
+              12:30) SLOT="midday" ;;
+              15:45) SLOT="preclose" ;;
+              16:30) SLOT="settle" ;;
+              *) SLOT="" ;;
+            esac
+          fi
+
+          if [[ -z "$SLOT" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NY local time ${NY_TIME} matches no slot — off-season cron entry, skipping."
+          else
+            echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
+            echo "slot=${SLOT}" >> "$GITHUB_OUTPUT"
+            echo "Resolved slot: ${SLOT}"
+          fi
+
+  # ── Run ─────────────────────────────────────────────────────────────────
+  run-slot:
+    name: Run the paper-portfolio loop for the resolved slot
+    needs: gate
+    if: needs.gate.outputs.is_trading_day == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    outputs:
+      run_status: ${{ steps.run.outputs.status }}
+    steps:
+      - name: Verify required secrets exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'PORTAL_URL' || { echo "PORTAL_URL secret missing"; exit 1; }
+          gh secret list --repo "${{ github.repository }}" --json name \
+            | jq -r '.[].name' \
+            | grep -qx 'PAPER_CRON_SECRET' || { echo "PAPER_CRON_SECRET secret missing — see docs/paper-portfolios-remaining-todo.md Phase 4"; exit 1; }
+
+      - name: Run ${{ needs.gate.outputs.slot }} slot across all accounts
+        id: run
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          PAPER_CRON_SECRET: ${{ secrets.PAPER_CRON_SECRET }}
+          SLOT: ${{ needs.gate.outputs.slot }}
+          ACCOUNT: ${{ inputs.account }}
+        run: |
+          set -euo pipefail
+          URL="$PORTAL_URL/api/pipeline/paper-portfolios?slot=$SLOT"
+          if [[ -n "${ACCOUNT:-}" ]]; then
+            URL="${URL}&account=${ACCOUNT}"
+          fi
+          STATUS=$(curl -sS -o /tmp/paper-run.json -w '%{http_code}' \
+            -X POST "$URL" \
+            -H "Authorization: Bearer $PAPER_CRON_SECRET" \
+            -H 'Content-Type: application/json' \
+            --max-time 280)
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "paper-portfolios HTTP $STATUS"
+          jq . /tmp/paper-run.json 2>/dev/null || cat /tmp/paper-run.json
+          if [[ "$STATUS" != 2* ]]; then
+            echo "::error::paper-portfolios returned HTTP $STATUS for slot=$SLOT"
+            exit 1
+          fi
+
+      - name: Sanity check — zero orders across all accounts
+        if: steps.run.outputs.status == '200' && needs.gate.outputs.slot != 'settle'
+        run: |
+          # settle never trades (mark-to-market only), so this check is
+          # meaningless there — every other slot writing zero orders across
+          # all 8 accounts is unusual enough to flag, not to fail on (a quiet
+          # market, or every account already at target, is a real outcome).
+          ORDERS=$(jq -r '.meta.ordersTotal // 0' /tmp/paper-run.json 2>/dev/null || echo 0)
+          SKIPPED=$(jq -r '[.results[]? | select(.status == "skipped")] | length' /tmp/paper-run.json 2>/dev/null || echo 0)
+          echo "orders=$ORDERS skipped_accounts=$SKIPPED"
+          if [[ "$ORDERS" == "0" && "$SKIPPED" == "0" ]]; then
+            echo "::warning::Zero orders written across all 8 accounts for slot=${{ needs.gate.outputs.slot }}, and none were skipped — worth a look."
+          fi
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Paper portfolios — ${{ needs.gate.outputs.slot }} — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| slot | ${{ needs.gate.outputs.slot }} |"
+            echo "| account filter | ${{ inputs.account || 'all 8' }} |"
+            echo "| run HTTP | ${{ steps.run.outputs.status || '—' }} |"
+            if [[ -f /tmp/paper-run.json ]]; then
+              echo ""
+              echo '```json'
+              jq '{ok, tradeDate, slot, orders: (.meta.ordersTotal // 0), errors: (.errors // [])}' \
+                /tmp/paper-run.json 2>/dev/null || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload run artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-portfolios-${{ needs.gate.outputs.slot }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/paper-run.json
+          retention-days: 30
+
+  # ── Notify on failure ──────────────────────────────────────────────────
+  notify:
+    name: Failure notification
+    needs: [gate, run-slot]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Paper portfolios (${{ needs.gate.outputs.slot || 'unresolved slot' }}) failed $(date -u '+%Y-%m-%d')" \
+            --body "**Run:** ${RUN_URL}
+
+          **Slot:** ${{ needs.gate.outputs.slot || 'unresolved' }}
+          **Run status:** ${{ needs.run-slot.outputs.run_status || 'did not reach run step' }}
+
+          Likely cause if this is the first failure: \`PAPER_CRON_SECRET\` not yet
+          set as a GitHub Actions secret, or \`paper_accounts\` still empty in the
+          target DB — see docs/paper-portfolios-remaining-todo.md Phase 4." \
+            --label "pipeline-failure"

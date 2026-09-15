@@ -5,8 +5,8 @@
 > (§10 "Build phases"); this doc tracks only what's **done vs. left**, and any
 > open decisions a phase surfaced that the design doc didn't anticipate.
 
-**Status as of 2026-09-13:** Phases 1–2 merged (#124, #127). Phase 3 done on
-this branch. Phases 4–8 not started.
+**Status as of 2026-09-14:** Phases 1–3 merged (#124, #127, #128). Phase 4
+done on this branch. Phases 5–8 not started.
 
 ---
 
@@ -49,6 +49,26 @@ this branch. Phases 4–8 not started.
     `skip_reason: 'market_closed'`, recorded, never silent.
   - Step 6 (ARBITRATE) does not exist — every order this phase writes has
     `decided_by = 'rule'`, `model = null`. Phase 5 adds the model layer.
+- [x] **Phase 4 — Cron workflow.** This branch
+      (`feat/paper-portfolios-phase-4-cron`, cut from `origin/main`).
+  - `.github/workflows/paper-portfolios.yml` — 8 cron lines (4 slots x EST/EDT
+    each), copied structure from `track-followed-tickers.yml` (gate/run/notify
+    job split, `concurrency` group, step summary, failure issue). Unlike the
+    single-slot workflows this repo already has, the gate resolves *which* of
+    the four slots fired from the NY wall-clock time itself (`09:00` ->
+    `preopen`, `12:30` -> `midday`, `15:45` -> `preclose`, `16:30` -> `settle`)
+    rather than gating a fixed hour - the doubled EST/EDT cron lines mean only
+    one of the eight entries matches on any given day; the rest no-op.
+  - `workflow_dispatch` inputs let a human force a specific `slot` and/or a
+    single `account` for a targeted rerun, matching the route's own
+    `?account=` support.
+  - Non-fatal sanity-check step: warns (does not fail) if `meta.ordersTotal`
+    is `0` across all 8 accounts on a non-`settle` slot and no account was
+    skipped - `settle` is excluded since it never trades by design (§4.1).
+    The model-call half of this check (Phase 5) isn't wired - there's no
+    model-call field to check yet.
+  - `PAPER_CRON_SECRET` is verified present (like `PORTAL_URL`) before the
+    run step, matching `track-followed-tickers.yml`'s secret-presence guard.
 
 ### Known simplifications introduced in Phase 3 (stated, not bugs)
 
@@ -71,28 +91,31 @@ this branch. Phases 4–8 not started.
 
 ## Left
 
-### Phase 3 — one manual step still blocks a real end-to-end run
+### Phases 3–4 — three manual steps still block a real end-to-end run
 
-- [ ] **Manual, not code** (tracked in `docs/manual-setup-todo.md`, added
-      2026-09-13): run `scripts/seed-paper-portfolios.mjs` for real against a
-      non-prod Neon branch (still only dry-run/validated in a session, never
-      actually written), and set `PAPER_CRON_SECRET` via the `secrets-sync`
-      skill. Until both are done, the route 401s with no secret configured
-      and would find zero `paper_accounts` rows even once authenticated.
+None of the three below are code. All are tracked in
+`docs/manual-setup-todo.md` (added 2026-09-13, Phase 4's secret-push item
+added 2026-09-14):
 
-### Phase 4 — Cron workflow
+- [ ] **Seed the DB for real.** Run `scripts/seed-paper-portfolios.mjs`
+      against a confirmed non-prod Neon branch — still only dry-run/validated
+      in a session, never actually written. Blocked as of 2026-09-14 on
+      confirming which Neon branch the local `DATABASE_URL` names (see
+      `docs/caveats/2026-09-14-council-paper-portfolios-db-safety.md` — the
+      prod-write guard, `PRODUCTION_DB_HOST`, is also unset and therefore
+      inert, so this isn't just "run the script," it's "confirm the target
+      first").
+- [ ] **Generate `PAPER_CRON_SECRET`** via the `secrets-sync` skill (never
+      typed into chat) and put it in `.env.local` / Vercel. The route already
+      reads it from `process.env.PAPER_CRON_SECRET`.
+- [ ] **Push that same `PAPER_CRON_SECRET` to GitHub Actions** —
+      `gh secret set PAPER_CRON_SECRET` (piped from a file, never pasted) —
+      so `.github/workflows/paper-portfolios.yml`'s "Verify required secrets
+      exist" step stops failing every scheduled run.
 
-- [ ] `.github/workflows/paper-portfolios.yml` — 4 slots × 2 DST cron lines
-      each, copied structure from `track-followed-tickers.yml` (gate/
-      pipeline/notify job split, `concurrency` group, 15-min stagger after
-      the corresponding afternoon-pipeline slot per §4.1's table).
-- [ ] **Manual step:** set `PAPER_CRON_SECRET` as a repo secret via the
-      `secrets-sync` skill (never typed into chat) — same secret Phase 3
-      already reads from `process.env`, just not yet provisioned as a GitHub
-      Actions secret.
-- [ ] A non-fatal sanity-check step (adapt `track-followed-tickers.yml`'s
-      `::warning::` pattern) — "zero orders across all 8 accounts" at
-      minimum; the model-call half of that check waits for Phase 5.
+Until all three are done: the workflow's secret-check step fails before ever
+calling the route, and even a manually authenticated call would find zero
+`paper_accounts` rows.
 
 ### Phase 5 — Arbitration layer (model calls)
 

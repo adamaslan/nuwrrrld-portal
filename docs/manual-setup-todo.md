@@ -918,3 +918,24 @@ resolved in code.
   no `PAPER_CRON_SECRET` set, and even authenticated would find zero
   `paper_accounts` rows until seeding actually runs.
 - **Added**: 2026-09-13
+
+## Added 2026-09-14 — Phase 4 of the paper-portfolio council simulation
+
+### Push `PAPER_CRON_SECRET` to GitHub Actions once it exists
+
+- **From**: `docs/paper-portfolios-remaining-todo.md` Phase 4,
+  `feat/paper-portfolios-phase-4-cron` (this branch).
+- **Blocked on**: the `PAPER_CRON_SECRET` value from the 2026-09-13 entry
+  above existing at all — this is a third, independent step, not a
+  duplicate. Once it's generated and in `.env.local`/Vercel:
+  `gh secret set PAPER_CRON_SECRET` (pipe from the file, never paste the
+  value into a command or chat).
+- **Why it can't be code**: `.github/workflows/paper-portfolios.yml`'s
+  "Verify required secrets exist" step calls `gh secret list` against the
+  live repo — nothing in this branch's diff can populate a GitHub Actions
+  secret store.
+- **Unblocks**: every one of the 4 daily scheduled slots
+  (`preopen`/`midday`/`preclose`/`settle`) — until this is set, every
+  scheduled run fails at the secret-check step before ever calling the
+  route, and files a `pipeline-failure` issue.
+- **Added**: 2026-09-14
