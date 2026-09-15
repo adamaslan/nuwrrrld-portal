@@ -13,23 +13,69 @@ plan to **ingest** the change per `docs/wiki-portal/SCHEMA.md` "On PR Creation"
 (update affected pages, `index.md`, append a `log.md` line) before finishing.
 See [[concept-wiki-led-development]] for the full loop.
 
+## 0.4 Ownership — decide what is YOURS before anything else
+
+**A dirty working tree is not a changelist.** Another Claude session, or your
+own earlier unit, may own files here. Establishing that boundary is the first
+step, not an afterthought — getting it wrong is destructive, not merely untidy.
+
+> This step exists because its absence cost real work. On 2026-09-14 a session
+> read the whole dirty tree as "my change", hit a build error in files it had
+> never written, and ran `git checkout -- <13 paths>` to make the build pass.
+> Those paths were another session's in-flight work. See
+> `docs/model-handoff-hygiene.md`.
+
+```bash
+# Everything dirty in this tree — NOT the same as "your change"
+git status --porcelain
+
+# What this session actually wrote (the guard records it per session)
+node ~/.claude/scripts/worktree-guard.mjs --report
+```
+
+Write down an explicit **OWNED** list before staging. Then:
+
+- **Stage only OWNED paths, by name.** Never `git add -A`, `git add .`, or
+  `git commit -a`.
+- **Never "clean up" a file you did not write** to make a build or test pass.
+  If a foreign file breaks the build, **STOP and report it.** That is a signal
+  another session is mid-edit — not a defect for you to resolve.
+- If you cannot tell who owns a dirty file, treat it as foreign. The cost of
+  leaving a stale file alone is a red build; the cost of discarding a live one
+  is unrecoverable.
+- If foreign work blocks you and must be moved, **preserve, never discard**:
+  `git stash push -u -m "foreign-work-preserved-<date>" -- <paths>` or commit it
+  to a `salvage/<what>-<date>` branch, and name every ref you created in your
+  final report.
+
 ## Pre-PR Conflict Guard — clear the queue FIRST
 
 Before branching, check whether open PRs already touch the files you're about
 to change. If they do, opening a new PR now risks landing merge conflicts.
 
+Don't hand-roll this — `no-conflicts1` already computes it, with a disk cache
+so it stays cheap and a real `gh`-capability probe rather than `gh auth status`
+(which false-negatives when *any* configured account has a stale token):
+
 ```bash
-# What files does this change touch?
-git status --porcelain | awk '{print $2}' | sort > /tmp/my-files.txt
-
-# What files do the open PRs touch?
-for pr in $(gh pr list --repo adamaslan/nuwrrrld-portal --state open --json number --jq '.[].number'); do
-  gh pr diff "$pr" --repo adamaslan/nuwrrrld-portal --name-only
-done | sort -u > /tmp/open-pr-files.txt
-
-# Any overlap → conflict risk
-comm -12 /tmp/my-files.txt /tmp/open-pr-files.txt
+node ~/.claude/scripts/no-conflicts-guard.mjs --report   # behind-count, divergence,
+                                                         # open PR for this branch,
+                                                         # files overlapping other PRs
+node ~/.claude/scripts/no-conflicts-guard.mjs --clear-cache   # if it looks stale
 ```
+
+Two things that report tells you, both load-bearing:
+
+1. **Does this branch already have an open PR?** If it does and this is new
+   work, cut a fresh branch from `origin/main` (per `no-conflicts1`). If the
+   PR is **merged**, the branch is stale — also cut a fresh one.
+2. **Which files overlap another open PR?** That overlap doubles as an
+   *ownership* signal: a dirty file that appears in someone else's open PR is
+   almost certainly not yours to stage or revert.
+
+**Silence is not proof of safety.** The guard caches PR state (~60s) and stays
+quiet when `gh` is offline or rate-limited. When the answer actually matters,
+verify directly with `gh pr view` / `gh pr list`.
 
 **If the overlap is non-empty**, run **`/bugmerge1`** first: it scans the open
 PRs, fixes the bugs their review comments describe, and merges them
@@ -123,12 +169,16 @@ done
 # 5. Branch (descriptive; same name as the mobile branch if this is a pair).
 #    Branch off origin/main — never off a checked-out local main, which can
 #    clobber newer work (~/.claude/rules/stay-on-branch-after-merge.md).
+#
+#    The branch name lands in merge history permanently. Reject throwaway
+#    names — temp*, tmp*, test*, wip*, fix1, my-branch. On 2026-09-14 a real
+#    fix merged as `temp-entitlement-fix`. Name it for the surface it owns.
 git fetch origin main
 git checkout -b <feat/scope-description> origin/main
 
-# 6. Stage ONLY specific safe files (never blind `git add -A`)
+# 6. Stage ONLY the OWNED paths from step 0.4 (never blind `git add -A`)
 git add <specific files>
-git diff --cached --name-only        # review before commit
+git diff --cached --name-only        # review before commit — is every path yours?
 
 # 7. Commit (conventional)
 git commit -m "type(scope): description
@@ -138,19 +188,54 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 # 8. Push
 git push -u origin HEAD
 
-# 9. Open PR
+# 8b. Record verification EVIDENCE — run this before writing the PR body.
+#     Each line's [x] comes from a real exit code, not from intent. Anything
+#     you did not run renders as NOT RUN and must stay that way.
+#
+#     Why: on 2026-09-14 a PR shipped with "build succeeds / 704 tests pass /
+#     drift gate passes" all check-marked. The build had just FAILED, the tests
+#     were never run on that branch, and the drift check was never invoked —
+#     the numbers were carried over from a different branch. A box that cannot
+#     be ticked without evidence cannot be fabricated.
+# `git rev-parse --git-dir`, not a literal `.git/` — inside a worktree `.git`
+# is a FILE, not a directory, and the literal path fails there. Worktrees are
+# the recommended setup when another session is live, so this matters.
+VERIFY_OUT="$(git rev-parse --git-dir)/claude-verify.md"
+: > "$VERIFY_OUT"
+record() {   # record "<label>" "<command>"
+  local label="$1" cmd="$2" rc
+  # Subshell + explicit capture: `$?` read inside an else-branch is unreliable,
+  # and a bare `eval` of a command that exits would kill this shell.
+  ( eval "$cmd" ) >/dev/null 2>&1; rc=$?
+  if [ "$rc" -eq 0 ]; then
+    printf -- '- [x] `%s` — %s (exit 0, %s)\n' "$cmd" "$label" "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$VERIFY_OUT"
+  else
+    printf -- '- [ ] `%s` — %s (**FAILED**, exit %d)\n' "$cmd" "$label" "$rc" >> "$VERIFY_OUT"
+  fi
+}
+record "production build"   "npm run build"
+record "unit + components"  "npm test"
+record "shared-drift gate"  "node scripts/check-shared-drift.mjs"
+cat "$VERIFY_OUT"           # paste THIS into the PR body verbatim
+
+# 9. Open PR — Test Plan is the recorded output above, not a fresh assertion.
 gh pr create --base main --title "feat/fix: short description" --body "## Summary
 
 Brief description of changes.
 
 ## Security Verification
-- [x] No .env files committed
-- [x] No keys / tokens / secrets in NEXT_PUBLIC_*
-- [x] Backend URLs resolved server-side (not NEXT_PUBLIC_)
-- [x] No Playwright/nulogdash artifacts staged (test-results/, playwright-report/, blob-report/, playwright/.auth/, .nulogdash/)
+- [ ] No .env files committed
+- [ ] No keys / tokens / secrets in NEXT_PUBLIC_*
+- [ ] Backend URLs resolved server-side (not NEXT_PUBLIC_)
+- [ ] No Playwright/nulogdash artifacts staged (test-results/, playwright-report/, blob-report/, playwright/.auth/, .nulogdash/)
+
+<!-- Tick each box above ONLY after running the step-2/3/3b scan that proves it.
+     They ship unchecked on purpose: a pre-checked template is a fabricated
+     claim waiting to be copied. -->
 
 ## Test Plan
-- [ ] \`npm run build\` passes (\"ƒ Proxy (Middleware)\" present)
+<!-- Paste the recorder output from step 8b verbatim. Do not hand-write
+     these lines, and do not tick a box the recorder left unticked. -->
 - [ ] Auth gate works (/dashboard requires sign-in)
 - [ ] No regressions in related routes
 
