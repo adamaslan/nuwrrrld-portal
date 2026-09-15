@@ -2,7 +2,7 @@
 date: 2026-09-14
 type: incident
 tags: [git, model-handoff, worktree-guard, verification, shared-tree, tooling]
-sources: [../model-handoff-hygiene.md, ../../.claude/commands/pr-nwf.md, ~/.claude/scripts/worktree-guard.mjs, PR#129, PR#132, PR#139]
+sources: [../model-handoff-hygiene.md, ../../.claude/commands/pr-nwf.md, ~/.claude/scripts/worktree-guard.mjs, PR#129, PR#132, PR#142]
 ---
 
 # Incident: An Opus→Haiku Handoff Destroyed 13 Files of Foreign Work Through an Unguarded `git checkout -- <paths>`
@@ -54,7 +54,7 @@ this change touch?" step was `git status --porcelain | awk '{print $2}'` —
 treating every dirty file in the tree as part of the current change, which is
 precisely the assumption that makes clearing foreign work feel reasonable.
 
-## Resolution (PR #139)
+## Resolution (PR #142)
 
 - Both missing patterns added to `worktree-guard.mjs`, with a 12-case
   regression suite asserting both directions (catches real invocations, stays
