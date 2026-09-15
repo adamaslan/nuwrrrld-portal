@@ -849,3 +849,9 @@ list of what PR #132 touched and what wiki candidates it suggests.
 ## [2026-09-15] ingest | PR #140 feat(paper-portfolios): metrics (Phase 8) | pages touched: 2
 
 ## [2026-09-15] ingest | PR #139 feat(paper-portfolios): API routes + dashboard (Phase 7) | pages touched: 2
+
+## [2026-09-15] ingest | PR #136 docs(caveats): record paper-portfolios Phase 4-6 status | pages touched: 0
+
+Docs-only `/cave` entry, no code/behavior change. No page edit — the
+substance (Phases 4-6 build status) is already covered by
+`entity-paper-portfolios.md`'s ingest for PR #138 in this same session.
