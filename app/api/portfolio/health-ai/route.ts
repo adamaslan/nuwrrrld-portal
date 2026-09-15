@@ -8,6 +8,9 @@ import type { PortfolioHealth } from "@/lib/portfolio";
 import { gradeFromScore } from "@/lib/portfolio";
 import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWithIdleTimeout } from "@/lib/openrouter";
 import { getPrecomputed, subjectFromTickers } from "@/lib/precomputed-ai-db";
+import { localPortfolioHealth } from "@/lib/portfolio-health-local";
+import { NU_AI_DAILY_TOKEN_BUDGET, reservationExceedsBudget } from "@/lib/nuai";
+import { getUsedTokensToday, addTokenUsage, reserveTokens, releaseTokens } from "@/lib/nuai-db";
 
 const MCP_URL = process.env.MCP_BACKEND_URL;
 
@@ -15,7 +18,7 @@ const MCP_URL = process.env.MCP_BACKEND_URL;
 // Clerk token is sent; gcp3's endpoint has no concept of "whose" portfolio
 // this is, only "which tickers." See
 // docs/wiki-portal/incident-2026-07-26-portfolio-health-endpoint-missing.md.
-async function fetchHealth(tickers: string[]): Promise<PortfolioHealth | null> {
+async function fetchUpstreamHealth(tickers: string[]): Promise<PortfolioHealth | null> {
   if (!MCP_URL || tickers.length === 0) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 7_000);
@@ -38,6 +41,97 @@ async function fetchHealth(tickers: string[]): Promise<PortfolioHealth | null> {
   } catch { return null; } finally { clearTimeout(t); }
 }
 
+/**
+ * Upstream first, then the local score computed from `ticker_cards` — exactly
+ * the fallback `app/api/portfolio/health/route.ts` already applies. Before
+ * this, a downed upstream (the only state gcp3's route has ever been in; its
+ * OpenAPI still lists no `portfolio` path) meant the AI narrative degraded to
+ * "no GCP3 backend connection" and narrated a portfolio it was handed no data
+ * about. `localPortfolioHealth` has returned a real, factor-level score since
+ * PR #123 — this was the one caller left not using it. See
+ * docs/portfolio-health-todo.md §1.
+ */
+async function fetchHealth(tickers: string[]): Promise<PortfolioHealth | null> {
+  return (await fetchUpstreamHealth(tickers)) ?? (await localPortfolioHealth(tickers));
+}
+
+// Same durable daily pool as /api/nuai (lib/nuai-db.ts's `nuai_usage` table,
+// keyed by user+date, not by feature) — a health check and a chat turn draw
+// from one budget, because they are the same underlying cost: a model call.
+// Before this, health-ai was the one Pro-gated model-call path with no rate
+// limit and no budget accounting at all (docs/portfolio-health-todo.md §7).
+//
+// The L1 cache below is a fast-path *optimization* only — it skips the
+// upstream fetchHealth() call for a user this instance already knows is
+// clearly over budget. It is never the authority on whether a request may
+// proceed; `reserveAndCheckBudget` (called right before the model call,
+// once the real prompt size is known) is, via an atomic DB round trip. Two
+// concurrent requests both reading a stale/optimistic L1 value and both
+// proceeding is exactly the race CodeRabbit flagged on PR #135 when the old
+// getRemainingBudget()-then-proceed check was the only gate.
+const L1_TTL_MS = 60_000;
+const dailyUsageL1 = new Map<string, { tokens: number; expiresAt: number }>();
+
+async function getCachedRemainingBudget(userId: string): Promise<number> {
+  const now = Date.now();
+  const cached = dailyUsageL1.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return NU_AI_DAILY_TOKEN_BUDGET - cached.tokens;
+  }
+  const used = await getUsedTokensToday(userId);
+  dailyUsageL1.set(userId, { tokens: used, expiresAt: now + L1_TTL_MS });
+  return NU_AI_DAILY_TOKEN_BUDGET - used;
+}
+
+/**
+ * The authoritative gate: atomically reserve `tokens` against today's budget
+ * and report whether that reservation pushed the total over the cap. On
+ * reject, the reservation is released so the request never counts against
+ * quota. Updates the L1 cache either way so the next request's fast-path
+ * pre-check stays close to the durable total.
+ */
+async function reserveAndCheckBudget(userId: string, tokens: number): Promise<{ allowed: boolean }> {
+  const totalAfter = await reserveTokens(userId, tokens);
+  const cached = dailyUsageL1.get(userId);
+  if (reservationExceedsBudget(totalAfter, NU_AI_DAILY_TOKEN_BUDGET)) {
+    await releaseTokens(userId, tokens);
+    // totalAfter is non-null here (reservationExceedsBudget only rejects a
+    // real total, never the fail-open null case) — cache it post-release.
+    if (cached) cached.tokens = Math.max(cached.tokens, (totalAfter as number) - tokens);
+    return { allowed: false };
+  }
+  if (cached) cached.tokens = totalAfter ?? cached.tokens + tokens;
+  else if (totalAfter !== null) dailyUsageL1.set(userId, { tokens: totalAfter, expiresAt: Date.now() + L1_TTL_MS });
+  return { allowed: true };
+}
+
+/** Adds the response-side tokens on top of what was already reserved for the
+ *  prompt — `reserveAndCheckBudget` already accounted for the prompt itself. */
+async function recordAdditionalUsage(userId: string, tokens: number) {
+  if (tokens <= 0) return;
+  const cached = dailyUsageL1.get(userId);
+  if (cached) cached.tokens += tokens;
+  await addTokenUsage(userId, tokens);
+}
+
+const RATE_LIMIT_MAX_PER_MINUTE = 12;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitWindows = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const rec = rateLimitWindows.get(userId);
+  if (!rec || now - rec.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitWindows.set(userId, { count: 1, windowStart: now });
+    return true;
+  }
+  if (rec.count >= RATE_LIMIT_MAX_PER_MINUTE) return false;
+  rec.count += 1;
+  return true;
+}
+
+const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+
 function buildHealthPrompt(
   watchlist: string[],
   health: PortfolioHealth | null,
@@ -59,7 +153,9 @@ function buildHealthPrompt(
       );
     }
   } else {
-    lines.push(`Portfolio health data: unavailable (no GCP3 backend connection)`);
+    // Reached only when neither upstream nor the local ticker_cards fallback
+    // produced a score — i.e. not one watchlist ticker has a computed signal.
+    lines.push(`Portfolio health data: unavailable (no signals computed for this watchlist yet)`);
   }
 
   lines.push(
@@ -123,8 +219,32 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Precomputed responses above cost zero quota; only requests that reach the
+  // live model call are metered, same split /api/nuai draws around its own
+  // (non-existent) precomputed path.
+  if (!checkRateLimit(userId)) {
+    return NextResponse.json({ error: "rate_limit_exceeded" }, { status: 429 });
+  }
+  // Fast-path only — skips the upstream fetchHealth() call below for a user
+  // this instance already knows is clearly over budget. Not authoritative;
+  // see reserveAndCheckBudget below for the actual gate.
+  if ((await getCachedRemainingBudget(userId)) <= 0) {
+    return NextResponse.json({ error: "daily_limit_reached" }, { status: 429 });
+  }
+
   const health = await fetchHealth(watchlist);
   const prompt = buildHealthPrompt(watchlist, health);
+  const promptTokens = estimateTokens(prompt);
+  // The authoritative gate: reserves promptTokens atomically before any
+  // model call starts, so two concurrent requests can never both observe
+  // "budget available" and both proceed (PR #135 CodeRabbit finding). Only
+  // the prompt side is reserved up front — the response's token count isn't
+  // known yet; recordAdditionalUsage below adds it once the call completes.
+  const { allowed } = await reserveAndCheckBudget(userId, promptTokens);
+  if (!allowed) {
+    return NextResponse.json({ error: "daily_limit_reached" }, { status: 429 });
+  }
+  let tokenCount = promptTokens;
   // Surfaced to the client so an ungrounded narrative is shown as such rather
   // than silently — see docs/wiki-portal/concept-graceful-degradation.md
   // ("degrade to a lesser state, never to a plausible-looking fabrication").
@@ -189,16 +309,17 @@ export async function POST(req: NextRequest) {
           const { done, value } = await readChunkWithIdleTimeout(reader);
           if (done) {
             sseBuffer += decoder.decode();
-            if (sseBuffer) drainSSELines(sseBuffer + "\n", d => { fullText += d; });
+            if (sseBuffer) drainSSELines(sseBuffer + "\n", d => { fullText += d; tokenCount += estimateTokens(d); });
             break;
           }
           sseBuffer += decoder.decode(value, { stream: true });
-          const result = drainSSELines(sseBuffer, d => { fullText += d; });
+          const result = drainSSELines(sseBuffer, d => { fullText += d; tokenCount += estimateTokens(d); });
           sseBuffer = result.remaining;
           if (result.done) break;
         }
       } finally {
         clearTimeout(timer);
+        void recordAdditionalUsage(userId, tokenCount - promptTokens);
         reader.cancel().catch(() => {});
       }
       return NextResponse.json({ answer: fullText, grounded });
@@ -220,6 +341,8 @@ export async function POST(req: NextRequest) {
         const parsed = JSON.parse(payload);
         const choice = parsed?.choices?.[0];
         if (choice?.delta) {
+          const delta: string = choice.delta.content ?? "";
+          if (delta) tokenCount += estimateTokens(delta);
           delete choice.delta.reasoning;
           delete choice.delta.reasoning_details;
         }
@@ -250,6 +373,7 @@ export async function POST(req: NextRequest) {
           ctrl2.error(err);
         } finally {
           clearTimeout(timer);
+          void recordAdditionalUsage(userId, tokenCount - promptTokens);
         }
       },
       cancel() {
@@ -269,6 +393,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     clearTimeout(timer);
+    // No model in the fallback chain answered — nothing was actually served,
+    // so release the prompt reservation rather than charging the user's
+    // budget for a call that never produced a response (matches the prior
+    // behavior, where recordUsage was only ever reached after a response
+    // object came back).
+    void releaseTokens(userId, promptTokens);
     console.error("Health AI error", err);
     return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
   }

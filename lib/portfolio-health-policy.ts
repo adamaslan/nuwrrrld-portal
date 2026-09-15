@@ -29,10 +29,11 @@ import type {
   PortfolioHealth,
 } from "./portfolio";
 import type { CardAction, CardUniverse } from "./shared/card-policy";
+import { cardAgeDays } from "./shared/universe-policy";
 
 /** Bump when the weights or factor set below change, so a cached score from an
  *  older shape is never presented beside a new one as though comparable. */
-export const LOCAL_HEALTH_VERSION = "LOCAL_HEALTH_V1";
+export const LOCAL_HEALTH_VERSION = "LOCAL_HEALTH_V2";
 
 /** One `ticker_cards` row, reduced to the columns this scorer reads. */
 export interface HealthCardInput {
@@ -43,6 +44,19 @@ export interface HealthCardInput {
   action: CardAction;
   /** 0..1 — `card-policy.dataQuality()` for the card. */
   dataQuality: number;
+  /**
+   * `YYYY-MM-DD` of the bar this card describes. Optional only so existing
+   * fixtures that predate this field keep compiling — a caller that omits it
+   * gets no freshness penalty and no freshness credit for that card, which is
+   * strictly more honest than guessing.
+   *
+   * This is deliberately separate from `dataQuality`: that field is measured
+   * once, at hydration time, and frozen in the row. A card built from a clean
+   * window scores `dataQuality: 1.0` forever, even after the bar behind it is
+   * a month stale — see docs/portfolio-health-todo.md §0. Freshness has to be
+   * re-derived against `now` on every read; it cannot live in a stored column.
+   */
+  barDate?: string;
 }
 
 /** Watchlist size at which the diversification factor stops improving. Ten
@@ -50,12 +64,40 @@ export interface HealthCardInput {
  *  beyond it, adding names is not what is limiting the portfolio. */
 const DIVERSIFICATION_TARGET = 10;
 
-/** Weights of the three *scored* factors. Coverage is deliberately excluded —
- *  see `buildCoverageFactor`. They sum to 1. */
-const WEIGHTS = { signal: 0.45, direction: 0.3, diversification: 0.25 } as const;
+/** Weights of the four *scored* factors. Coverage is deliberately excluded —
+ *  see `buildCoverageFactor`. They sum to 1. Freshness (0.20) was carved out of
+ *  the original three (0.45/0.30/0.25, scaled by 0.8) rather than picked fresh,
+ *  so the relative balance between signal/direction/diversification is
+ *  unchanged from before §0's fix. */
+const WEIGHTS = { signal: 0.36, direction: 0.24, diversification: 0.2, freshness: 0.2 } as const;
+
+/** A card at or below this many days old carries no freshness penalty at all —
+ *  the normal gap between a bar closing and a read the same or next day. */
+const FRESHNESS_FULL_WEIGHT_DAYS = 2;
+/** Beyond this many days stale, a card is floored at `FRESHNESS_MIN_FACTOR`
+ *  rather than driven to zero. ~4 trading weeks: long enough that "one bad
+ *  week" doesn't floor a card, short enough that the 26-day-stale cards
+ *  observed in docs/portfolio-health-todo.md §0 land at the floor, not
+ *  somewhere in the middle pretending to still be informative. */
+const FRESHNESS_STALE_FLOOR_DAYS = 20;
+/** A fully stale card still counts — never dropped, per §0's explicit
+ *  "do not fix this by hiding stale cards" — but contributes almost nothing to
+ *  the weighted average once past the floor. */
+const FRESHNESS_MIN_FACTOR = 0.05;
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
+}
+
+/**
+ * 1.0 at or below `FRESHNESS_FULL_WEIGHT_DAYS`, linear down to
+ * `FRESHNESS_MIN_FACTOR` at `FRESHNESS_STALE_FLOOR_DAYS`, floored there.
+ */
+function freshnessFactor(ageDays: number): number {
+  if (ageDays <= FRESHNESS_FULL_WEIGHT_DAYS) return 1;
+  const span = FRESHNESS_STALE_FLOOR_DAYS - FRESHNESS_FULL_WEIGHT_DAYS;
+  const factor = 1 - (ageDays - FRESHNESS_FULL_WEIGHT_DAYS) / span;
+  return clamp(factor, FRESHNESS_MIN_FACTOR, 1);
 }
 
 /** Card score [-100, 100] → health scale [0, 100]. */
@@ -71,29 +113,116 @@ function impactFor(score: number): HealthFactor["impact"] {
 
 /**
  * Mean card score across the covered watchlist, weighted by each card's
- * `dataQuality`.
+ * `dataQuality` **and** how stale its bar is as of `now`.
  *
  * Weighting rather than filtering is the point: a card built from a gappy or
  * truncated series still carries information, it just should not outvote a
  * clean one. Dropping it instead would silently shrink the portfolio being
  * scored, which is the class of quiet substitution this whole file exists to
  * avoid.
+ *
+ * `dataQuality` alone is not enough — it is frozen at hydration time, so a
+ * card that was clean when built and then sat unrefreshed for a month still
+ * reports `1.0` (docs/portfolio-health-todo.md §0). Multiplying in
+ * `freshnessFactor(ageDays)`, computed against `now` rather than read from a
+ * stored column, is what actually discounts a card that has gone stale since
+ * arrival — the gap the incident measured.
  */
-function buildSignalFactor(cards: HealthCardInput[]): HealthFactor {
-  const weight = cards.reduce((sum, c) => sum + Math.max(c.dataQuality, 0.01), 0);
-  const weighted = cards.reduce(
-    (sum, c) => sum + toHealthScale(c.score) * Math.max(c.dataQuality, 0.01),
-    0,
-  );
+function buildSignalFactor(cards: HealthCardInput[], now: Date): HealthFactor {
+  const cardWeight = (c: HealthCardInput) => {
+    const fresh = c.barDate ? freshnessFactor(cardAgeDays(c.barDate, now) ?? 0) : 1;
+    return Math.max(c.dataQuality, 0.01) * fresh;
+  };
+  const weight = cards.reduce((sum, c) => sum + cardWeight(c), 0);
+  const weighted = cards.reduce((sum, c) => sum + toHealthScale(c.score) * cardWeight(c), 0);
   const score = Math.round(weighted / weight);
   return {
     name: "Signal strength",
     score,
     impact: impactFor(score),
     description:
-      `Quality-weighted mean signal across ${cards.length} covered ` +
+      `Quality- and freshness-weighted mean signal across ${cards.length} covered ` +
       `${cards.length === 1 ? "holding" : "holdings"}.`,
   };
+}
+
+/**
+ * How stale the covered cards are, scored (not just informational) — unlike
+ * coverage, "the data we have is a month old" is a genuinely worse basis for a
+ * grade, and treating it as neutral information would repeat the conflation
+ * §0 identified between "no data" and "bad data." Month-old signals are
+ * different from no signals: they are actively worse to rely on than an
+ * honest gap.
+ */
+/**
+ * `available: false` means every card omitted `barDate` — the caller must
+ * exclude this factor from the weighted score and renormalize the rest
+ * rather than average in `score`, which exists only to give the *displayed*
+ * factor list something neutral-looking to show (§0's undated-card case).
+ * Scoring it into the weighted average would credit the portfolio for
+ * freshness data it doesn't have — the exact "no data" vs "bad data"
+ * conflation this file's own module doc says it exists to avoid.
+ */
+function buildFreshnessFactor(
+  cards: HealthCardInput[],
+  now: Date,
+): { factor: HealthFactor; available: boolean } {
+  const dated = cards
+    .map((c) => (c.barDate ? cardAgeDays(c.barDate, now) : null))
+    .filter((d): d is number => d !== null);
+
+  if (dated.length === 0) {
+    return {
+      available: false,
+      factor: {
+        name: "Signal freshness",
+        score: 100,
+        impact: "neutral",
+        description: "Bar dates unavailable for this read — freshness could not be assessed.",
+      },
+    };
+  }
+
+  const meanFactor = dated.reduce((sum, d) => sum + freshnessFactor(d), 0) / dated.length;
+  const score = Math.round(meanFactor * 100);
+  const staleCount = dated.filter((d) => d > FRESHNESS_FULL_WEIGHT_DAYS).length;
+  const oldest = Math.max(...dated);
+
+  return {
+    available: true,
+    factor: {
+      name: "Signal freshness",
+      score,
+      impact: impactFor(score),
+      description:
+        staleCount === 0
+          ? `All ${dated.length} dated holdings carry a signal ${FRESHNESS_FULL_WEIGHT_DAYS} day(s) old or newer.`
+          : `${staleCount} of ${dated.length} dated holdings carry a signal older than ` +
+            `${FRESHNESS_FULL_WEIGHT_DAYS} days; oldest is ${oldest} day${oldest === 1 ? "" : "s"} stale.`,
+    },
+  };
+}
+
+/**
+ * `"50 from 2026-09-13, 882 from 2026-08-19"` — the distribution of bar dates
+ * behind the covered cards, largest group first.
+ *
+ * Replaces reporting `max(bar_date)` as *the* portfolio's bar date, which read
+ * as "this is current" when one fresh card could hide hundreds of month-old
+ * ones (§0's central finding). A single date cannot describe this set
+ * honestly; a short distribution can.
+ */
+function summarizeBarDates(cards: HealthCardInput[]): string | null {
+  const dated = cards.filter((c): c is HealthCardInput & { barDate: string } => !!c.barDate);
+  if (dated.length === 0) return null;
+
+  const counts = new Map<string, number>();
+  for (const c of dated) counts.set(c.barDate, (counts.get(c.barDate) ?? 0) + 1);
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? 1 : -1));
+
+  const shown = sorted.slice(0, 3).map(([date, n]) => `${n} from ${date}`);
+  const rest = sorted.length - shown.length;
+  return rest > 0 ? `${shown.join(", ")}, +${rest} more date${rest === 1 ? "" : "s"}` : shown.join(", ");
 }
 
 /**
@@ -171,7 +300,6 @@ function summarize(
   cards: HealthCardInput[],
   covered: number,
   requested: number,
-  barDate: string | null,
 ): string {
   const sells = cards.filter((c) => c.action === "SELL").length;
   const buys = cards.filter((c) => c.action === "BUY").length;
@@ -189,7 +317,9 @@ function summarize(
         `no computed signal yet and did not affect the score.`,
     );
   }
-  if (barDate) parts.push(`Latest bar ${barDate}.`);
+  // Distribution, not a single "latest bar" — see summarizeBarDates()'s header.
+  const barDates = summarizeBarDates(cards);
+  if (barDates) parts.push(`Bar dates: ${barDates}.`);
   return parts.join(" ");
 }
 
@@ -201,33 +331,51 @@ function summarize(
  * (the upstream path's `score ?? 0` behaviour) is worse than saying so.
  *
  * @param requestedTickers every ticker on the watchlist, including uncovered ones.
- * @param cards            the subset that had a `ticker_cards` row.
- * @param barDate          `YYYY-MM-DD` of the newest bar behind those cards.
+ * @param cards            the subset that had a `ticker_cards` row. Each
+ *                          card's own `barDate` drives freshness — there is no
+ *                          separate portfolio-wide bar-date parameter, because
+ *                          §0 established that a single date cannot describe a
+ *                          set whose cards can span weeks.
+ * @param now               injectable for deterministic tests of freshness.
  */
 export function buildLocalHealth(
   requestedTickers: string[],
   cards: HealthCardInput[],
-  barDate: string | null = null,
   now: Date = new Date(),
 ): PortfolioHealth | null {
   if (requestedTickers.length === 0 || cards.length === 0) return null;
 
-  const signal = buildSignalFactor(cards);
+  const signal = buildSignalFactor(cards, now);
   const direction = buildDirectionFactor(cards);
   const diversification = buildDiversificationFactor(cards);
+  const { factor: freshness, available: freshnessAvailable } = buildFreshnessFactor(cards, now);
   const coverage = buildCoverageFactor(cards.length, requestedTickers.length);
 
-  const score = Math.round(
-    signal.score * WEIGHTS.signal +
-      direction.score * WEIGHTS.direction +
-      diversification.score * WEIGHTS.diversification,
-  );
+  // Freshness is excluded from the weighted score (not scored as 100) when no
+  // card carries a valid bar date — the remaining three weights renormalize by
+  // dividing out (1 - WEIGHTS.freshness), which restores the pre-freshness
+  // 0.45/0.30/0.25 balance exactly (see WEIGHTS's own doc comment). The factor
+  // still renders in `factors` either way — this only changes what feeds the
+  // headline score.
+  const score = freshnessAvailable
+    ? Math.round(
+        signal.score * WEIGHTS.signal +
+          direction.score * WEIGHTS.direction +
+          diversification.score * WEIGHTS.diversification +
+          freshness.score * WEIGHTS.freshness,
+      )
+    : Math.round(
+        (signal.score * WEIGHTS.signal +
+          direction.score * WEIGHTS.direction +
+          diversification.score * WEIGHTS.diversification) /
+          (1 - WEIGHTS.freshness),
+      );
 
   return {
     score,
     grade: gradeFromScore(score),
-    factors: [signal, direction, diversification, coverage],
-    summary: summarize(score, cards, cards.length, requestedTickers.length, barDate),
+    factors: [signal, direction, diversification, freshness, coverage],
+    summary: summarize(score, cards, cards.length, requestedTickers.length),
     generatedAt: now.toISOString(),
   };
 }
