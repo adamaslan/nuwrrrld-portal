@@ -7,9 +7,19 @@
  * `lib/paper-engine.ts` is the DB-touching orchestrator (LOAD/MARK/SCREEN/PERSIST)
  * that calls into this module for the parts that are pure functions of state.
  *
- * Step 6 (ARBITRATE) does not exist yet (Phase 5) — every candidate that would
- * reach it instead falls through as CONFIRM-none, i.e. this module's plan is
- * the final plan for Phase 3.
+ * Step 6 (ARBITRATE, Phase 5) is implemented below as `selectArbitrationCandidates`
+ * + `applyArbitrationResults`, but deliberately applied *after* this module's
+ * combined PROPOSE+CLIP pass rather than between them as §4.2 numbers the
+ * steps. A veto only removes an order and a downsize only shrinks its
+ * quantity, so applying arbitration to an already-CLIP-satisfying order list
+ * can never violate a cap that list already satisfied — re-running CLIP
+ * against a smaller order set would only ever leave more headroom, never
+ * less, so nothing downstream needs re-optimizing. Slotting arbitration
+ * before CLIP instead would raise exactly that re-optimization question
+ * (does freeing turnover budget let a *different*, non-arbitrated candidate
+ * in?) that guardrail #5 ("the model never invents a ticker or a size") is
+ * written to foreclose. Post-CLIP application keeps that guarantee by
+ * construction instead of needing to prove it.
  *
  * Known simplification: a sell is always a full exit of the position, never a
  * partial trim. The design doc's exit reasons (stop / score_exit / void) are
@@ -25,7 +35,8 @@ export type OrderReason =
   | "score_exit"
   | "stop"
   | "void"
-  | "cap_clip";
+  | "cap_clip"
+  | "seat_downsize";
 
 export interface EngineCandidate {
   ticker: string;
@@ -232,4 +243,109 @@ export function fillOrders(
         : null;
     return { ...o, fillPrice, slippageBps, notional, realizedPnl };
   });
+}
+
+// ── ARBITRATE (§4.2 step 6, Phase 5) ────────────────────────────────────────
+
+/** How close a buy's card score can be to the buy threshold and still count
+ *  as "genuinely tied" (§4.2 step 6) rather than a clear signal. Score points,
+ *  not a fraction — thresholds in PaperPolicy are already on the card-score
+ *  scale (§3's table), so this stays on the same scale rather than inventing
+ *  a normalized one. Chosen, not derived: the design doc names the *category*
+ *  ("genuinely tied") without a number. */
+const BUY_TIE_BAND = 5;
+
+/** How far a not-yet-stopped `score_exit` sell has to have closed the
+ *  distance toward its stop, as a fraction of the stop's own pct, before it
+ *  counts as "near its stop" (§4.2 step 6). 0 = at the position's basis
+ *  (avgCost or highWater, per stopRule.kind), 1 = at the stop itself — a sell
+ *  that has already reached 1 is a `reason: 'stop'` order, which is mandatory
+ *  and never reaches arbitration (see the loop below). */
+const NEAR_STOP_FRACTION = 0.8;
+
+export type ArbitrationFlagReason = "score_tie" | "near_stop";
+
+export interface ArbitrationCandidate {
+  order: ProposedOrder;
+  flagReason: ArbitrationFlagReason;
+}
+
+/**
+ * Pick up to `maxCandidates` proposed orders that qualify for arbitration —
+ * buys whose score is within `BUY_TIE_BAND` of the buy threshold, or
+ * `score_exit` sells trading within `NEAR_STOP_FRACTION` of their stop.
+ * `stop` and `void` sells are forced exits and never arbitrated (guardrail
+ * #5 bounds the model's blast radius to trades that were discretionary in
+ * the first place). Sorted closest-to-the-boundary first so a tight budget
+ * spends its calls on the trades genuinely in question, not an arbitrary
+ * subset.
+ */
+export function selectArbitrationCandidates(
+  orders: ProposedOrder[],
+  policy: PaperPolicy,
+  positions: ReadonlyMap<string, EnginePosition>,
+  scores: ReadonlyMap<string, number>,
+  prices: Readonly<Record<string, number>>,
+  maxCandidates: number,
+): ArbitrationCandidate[] {
+  if (maxCandidates <= 0) return [];
+
+  const flagged: (ArbitrationCandidate & { margin: number })[] = [];
+
+  for (const order of orders) {
+    if (order.side === "buy") {
+      const score = scores.get(order.ticker);
+      if (score == null) continue;
+      const margin = score - policy.buyThreshold;
+      if (margin >= 0 && margin <= BUY_TIE_BAND) {
+        flagged.push({ order, flagReason: "score_tie", margin });
+      }
+    } else if (order.reason === "score_exit") {
+      const position = positions.get(order.ticker);
+      const price = prices[order.ticker];
+      if (!position || price == null) continue;
+      const basis = policy.stopRule.kind === "fixed" ? position.avgCost : position.highWater;
+      const stopDistance = basis * policy.stopRule.pct;
+      if (stopDistance <= 0) continue;
+      const closedFraction = (basis - price) / stopDistance; // 0 at basis, 1 at the stop
+      if (closedFraction >= NEAR_STOP_FRACTION && closedFraction < 1) {
+        flagged.push({ order, flagReason: "near_stop", margin: 1 - closedFraction });
+      }
+    }
+  }
+
+  flagged.sort((a, b) => a.margin - b.margin);
+  return flagged.slice(0, maxCandidates).map(({ margin: _margin, ...c }) => c);
+}
+
+export interface ArbitrationResult {
+  ticker: string;
+  action: "veto" | "downsize" | "confirm";
+  /** Fraction of the order's quantity to cut, 0 < downsizePct < 1. Only set
+   *  when action === "downsize". */
+  downsizePct?: number;
+  model: string;
+}
+
+/**
+ * Apply arbitration results to the (already RANK/PROPOSE/CLIP'd) order list.
+ * `confirm` and "no decision recorded for this ticker" are equivalent — both
+ * leave the order untouched, matching "unparseable response = CONFIRM-none"
+ * (§4.2 step 6).
+ */
+export function applyArbitrationResults(
+  orders: ProposedOrder[],
+  results: ReadonlyMap<string, ArbitrationResult>,
+): ProposedOrder[] {
+  const out: ProposedOrder[] = [];
+  for (const order of orders) {
+    const result = results.get(order.ticker);
+    if (!result || result.action === "confirm") {
+      out.push(order);
+    } else if (result.action === "downsize" && result.downsizePct) {
+      out.push({ ...order, quantity: order.quantity * (1 - result.downsizePct), reason: "seat_downsize" });
+    }
+    // action === "veto" (or a downsize with no usable pct): drop the order.
+  }
+  return out;
 }

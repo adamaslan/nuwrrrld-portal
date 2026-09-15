@@ -3,17 +3,27 @@
  * (docs/council-paper-portfolios.md §4.2, Phase 3 of
  * docs/paper-portfolios-remaining-todo.md).
  *
- * Implements steps 1–5 and 7–9: LOAD, MARK, SCREEN, RANK, PROPOSE, CLIP, FILL,
- * PERSIST. Step 6 (ARBITRATE) doesn't exist yet — every candidate that would
- * reach it falls through as CONFIRM-none, i.e. `model_calls` is always 0 and
- * `decided_by` is always `'rule'` for every order this module writes (Phase 5
- * adds the model layer between RANK/PROPOSE and CLIP, not here).
+ * Implements steps 1–9: LOAD, MARK, SCREEN, RANK, PROPOSE, ARBITRATE, CLIP,
+ * FILL, PERSIST. ARBITRATE (Phase 5) is applied after CLIP rather than
+ * before it — see the module doc on `selectArbitrationCandidates` in
+ * lib/shared/paper-engine-core.ts for why that ordering is still faithful to
+ * §4.2's guardrails. QUANT makes zero model calls by construction
+ * (`policy.maxModelCallsPerRun === 0`) and never reaches arbitration.
  *
- * RANK/PROPOSE/CLIP/FILL are pure functions in lib/shared/paper-engine-core.ts;
- * this module is the I/O shell — load state, screen candidates, call the pure
- * planner, persist the result in one transaction. Same split as every other
- * pipeline route in this repo (e.g. app/api/pipeline/followed-tickers/route.ts
- * calling into lib/shared/followed-tickers-policy.ts).
+ * Also mirrors the run to Firestore (Phase 6, non-fatal — a mirror failure
+ * never fails the run, guardrail #7) and, on the `settle` slot only, runs the
+ * Neon-vs-Firestore drift check. Both live in
+ * lib/paper-firestore-mirror.ts / lib/paper-reconcile.ts; this module just
+ * calls them after its own transaction has committed and records the outcome
+ * into `paper_runs.detail`.
+ *
+ * RANK/PROPOSE/CLIP/FILL/ARBITRATE's pure half are in
+ * lib/shared/paper-engine-core.ts; this module is the I/O shell — load state,
+ * screen candidates, call the pure planner, make the arbitration model calls,
+ * persist the result in one transaction, then mirror. Same split as every
+ * other pipeline route in this repo (e.g.
+ * app/api/pipeline/followed-tickers/route.ts calling into
+ * lib/shared/followed-tickers-policy.ts).
  *
  * Idempotency (§4.4): the run row's id is generated client-side and inserted
  * with `ON CONFLICT (account, trade_date, slot) DO NOTHING`. Every order this
@@ -34,21 +44,48 @@ import {
   getRun,
   listActiveWatchlist,
   getScreenCandidates,
+  updateRunDetail,
+  countOrders,
   type Slot,
   type RunStatus,
+  type OrderRow,
 } from "@/lib/paper-db";
 import {
   isTradingAccount,
   policyFor,
+  ACCOUNT_SEAT,
   type PaperAccount,
+  type TradingAccount,
 } from "@/lib/shared/paper-policy";
 import {
   planRun,
   fillOrders,
+  selectArbitrationCandidates,
+  applyArbitrationResults,
   type EngineCandidate,
   type EnginePosition,
+  type ArbitrationResult,
 } from "@/lib/shared/paper-engine-core";
+import { arbitrateOne } from "@/lib/paper-arbitration";
+import { mirrorPaperAccount, mirrorWatchlistIfVersionChanged } from "@/lib/paper-firestore-mirror";
+import { reconcileAccount } from "@/lib/paper-reconcile";
 import type { Horizon } from "@/lib/grounding/taxonomy";
+
+/** Shared, mutable across every account in one route call — the
+ *  ≤36-calls-per-run-across-all-accounts ceiling (§4.2) has to be enforced
+ *  across the whole loop in app/api/pipeline/paper-portfolios/route.ts, not
+ *  per account, so the route passes the same object into every
+ *  `runAccountSlot` call and each call decrements it as it spends. */
+export interface ModelCallBudget {
+  remaining: number;
+}
+
+export interface RunAccountSlotOptions {
+  /** OPENROUTER_API_KEY. Arbitration is skipped entirely when absent —
+   *  degrades to deterministic-only rather than failing (guardrail #4). */
+  apiKey?: string;
+  globalBudget?: ModelCallBudget;
+}
 
 export interface RunResult {
   account: PaperAccount;
@@ -58,6 +95,7 @@ export interface RunResult {
   skipReason: string | null;
   candidatesN: number;
   ordersN: number;
+  modelCalls: number;
   /** True when this call found an existing run row instead of doing work —
    *  either the fast-path getRun() check, or the FK-abort recovery path. */
   alreadyRan: boolean;
@@ -90,6 +128,7 @@ export async function runAccountSlot(
   account: PaperAccount,
   tradeDate: string,
   slot: Slot,
+  options: RunAccountSlotOptions = {},
 ): Promise<RunResult> {
   const existing = await getRun(account, tradeDate, slot);
   if (existing) {
@@ -101,6 +140,7 @@ export async function runAccountSlot(
       skipReason: existing.skipReason,
       candidatesN: existing.candidatesN ?? 0,
       ordersN: existing.ordersN ?? 0,
+      modelCalls: existing.modelCalls,
       alreadyRan: true,
     };
   }
@@ -118,6 +158,7 @@ export async function runAccountSlot(
       skipReason: "account_not_seeded",
       candidatesN: 0,
       ordersN: 0,
+      modelCalls: 0,
       alreadyRan: false,
     };
   }
@@ -179,9 +220,52 @@ export async function runAccountSlot(
         })
       : { orders: [], turnoverUsed: 0 };
 
-  const avgCostByTicker = new Map(markedPositions.map((p) => [p.ticker, p.avgCost]));
-  const filled = fillOrders(plan.orders, avgCostByTicker);
   const cardScoreByTicker = new Map(candidates.map((c) => [c.ticker, c.score]));
+
+  // ── ARBITRATE (§4.2 step 6, Phase 5) ────────────────────────────────────
+  // Applied after planRun's combined PROPOSE+CLIP, before FILL — see
+  // lib/shared/paper-engine-core.ts's module doc for why that ordering still
+  // honors guardrail #5. QUANT (maxModelCallsPerRun === 0) never enters this
+  // block; neither does settle (tradingSlot is false there).
+  const arbitrationResults = new Map<string, ArbitrationResult>();
+  let modelCallsUsed = 0;
+  const positionsByTicker = new Map(markedPositions.map((p) => [p.ticker, p]));
+  if (tradingSlot && policy && policy.maxModelCallsPerRun > 0 && options.apiKey && options.globalBudget) {
+    const seat = ACCOUNT_SEAT[account as TradingAccount];
+    const perRunBudget = Math.min(policy.maxModelCallsPerRun, options.globalBudget.remaining);
+    const arbitrationCandidates = selectArbitrationCandidates(
+      plan.orders,
+      policy,
+      positionsByTicker,
+      cardScoreByTicker,
+      Object.fromEntries(prices),
+      perRunBudget,
+    );
+    for (const candidate of arbitrationCandidates) {
+      if (options.globalBudget.remaining <= 0) break;
+      try {
+        const result = await arbitrateOne(seat, candidate, nav, options.apiKey);
+        arbitrationResults.set(result.ticker, result);
+      } catch (err) {
+        // One failed model call degrades to CONFIRM-none for that ticker,
+        // not a failed run — same per-item isolation as the route's
+        // per-account try/catch.
+        console.warn(
+          `[paper-engine] arbitration call failed for ${account}/${candidate.order.ticker}: ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        // Count the attempt against both budgets whether or not it answered
+        // usefully — a call that timed out or errored still spent quota.
+        modelCallsUsed++;
+        options.globalBudget.remaining--;
+      }
+    }
+  }
+
+  const arbitratedOrders = applyArbitrationResults(plan.orders, arbitrationResults);
+  const avgCostByTicker = new Map(markedPositions.map((p) => [p.ticker, p.avgCost]));
+  const filled = fillOrders(arbitratedOrders, avgCostByTicker);
 
   // Apply fills to the in-memory book so PERSIST writes the post-run state.
   const finalPositions = new Map(markedPositions.map((p) => [p.ticker, { ...p }]));
@@ -218,6 +302,17 @@ export async function runAccountSlot(
   const dayReturn = nav > 0 ? finalNav / nav - 1 : null;
   const totalReturn = dbAccount.startingCash > 0 ? finalNav / dbAccount.startingCash - 1 : null;
 
+  // Ids assigned here (not left to filled.map(() => sql`...randomUUID()...`))
+  // so the mirror step below can reference the exact rows just inserted,
+  // matching §5.1's "order_id is the Neon uuid" idempotency requirement.
+  const filledWithIds = filled.map((o) => ({ ...o, id: randomUUID() }));
+  const arbitrationDetail = [...arbitrationResults.values()].map((r) => ({
+    ticker: r.ticker,
+    action: r.action,
+    downsizePct: r.downsizePct ?? null,
+    model: r.model,
+  }));
+
   const queries = [
     sql`
       INSERT INTO paper_runs
@@ -225,22 +320,25 @@ export async function runAccountSlot(
          model_calls, policy_version, detail, finished_at)
       VALUES (
         ${runId}, ${account}, ${tradeDate}, ${slot}, 'ok', null, ${candidates.length},
-        ${filled.length}, 0, ${dbAccount.policyVersion}, ${JSON.stringify({ turnoverUsed: plan.turnoverUsed })}, now()
+        ${filled.length}, ${modelCallsUsed}, ${dbAccount.policyVersion},
+        ${JSON.stringify({ turnoverUsed: plan.turnoverUsed, arbitration: arbitrationDetail })}, now()
       )
       ON CONFLICT (account, trade_date, slot) DO NOTHING
     `,
-    ...filled.map(
-      (o) => sql`
+    ...filledWithIds.map((o) => {
+      const decision = arbitrationResults.get(o.ticker);
+      return sql`
         INSERT INTO paper_orders
           (id, run_id, account, ticker, side, quantity, ref_price, fill_price,
            slippage_bps, notional, realized_pnl, reason, decided_by, model, card_score)
         VALUES (
-          ${randomUUID()}, ${runId}, ${account}, ${o.ticker}, ${o.side}, ${o.quantity},
+          ${o.id}, ${runId}, ${account}, ${o.ticker}, ${o.side}, ${o.quantity},
           ${o.refPrice}, ${o.fillPrice}, ${o.slippageBps}, ${o.notional}, ${o.realizedPnl},
-          ${o.reason}, 'rule', null, ${cardScoreByTicker.get(o.ticker) ?? null}
+          ${o.reason}, ${decision ? "model" : "rule"}, ${decision?.model ?? null},
+          ${cardScoreByTicker.get(o.ticker) ?? null}
         )
-      `,
-    ),
+      `;
+    }),
     ...[...finalPositions.values()].map(
       (p) => sql`
         INSERT INTO paper_positions
@@ -294,10 +392,112 @@ export async function runAccountSlot(
         skipReason: winner.skipReason,
         candidatesN: winner.candidatesN ?? 0,
         ordersN: winner.ordersN ?? 0,
+        modelCalls: winner.modelCalls,
         alreadyRan: true,
       };
     }
     throw err;
+  }
+
+  // ── Mirror + reconcile (Phase 6) ────────────────────────────────────────
+  // Only reached after the Neon transaction above has committed — mirroring
+  // a run that lost the idempotency race (the FK-abort path above) would
+  // mirror state this process never actually wrote. Both calls are
+  // best-effort: neither can fail this function, only annotate its detail.
+  const mirrorErrors: string[] = [];
+
+  if (watchlist.length > 0) {
+    const watchlistMirror = await mirrorWatchlistIfVersionChanged({
+      account,
+      watchlistVersion: watchlist[0].watchlistVersion,
+      entries: watchlist,
+    });
+    if (!watchlistMirror.ok && watchlistMirror.error !== "not_configured") {
+      mirrorErrors.push(`watchlist: ${watchlistMirror.error}`);
+    }
+  }
+
+  const mirrorPositions = [...finalPositions.values()].map((p) => ({
+    ticker: p.ticker,
+    quantity: p.quantity,
+    avgCost: p.avgCost,
+    mv: p.quantity * (prices.get(p.ticker) ?? p.avgCost),
+    weight: finalNav > 0 ? (p.quantity * (prices.get(p.ticker) ?? p.avgCost)) / finalNav : 0,
+    runsHeld: p.runsHeld,
+  }));
+  const newOrders: OrderRow[] = filledWithIds.map((o) => ({
+    id: o.id,
+    runId,
+    account,
+    ticker: o.ticker,
+    side: o.side,
+    quantity: o.quantity,
+    refPrice: o.refPrice,
+    fillPrice: o.fillPrice,
+    slippageBps: o.slippageBps,
+    notional: o.notional,
+    realizedPnl: o.realizedPnl,
+    reason: o.reason,
+    decidedBy: arbitrationResults.has(o.ticker) ? "model" : "rule",
+    model: arbitrationResults.get(o.ticker)?.model ?? null,
+    cardScore: cardScoreByTicker.get(o.ticker) ?? null,
+    createdAt: new Date().toISOString(),
+  }));
+
+  const accountMirror = await mirrorPaperAccount({
+    account,
+    seat: dbAccount.seat,
+    label: dbAccount.label,
+    policyVersion: dbAccount.policyVersion,
+    cash: finalCash,
+    nav: finalNav,
+    totalReturn,
+    tradeDate,
+    slot,
+    runStatus: "ok",
+    skipReason: null,
+    ordersN: filled.length,
+    modelCalls: modelCallsUsed,
+    positions: mirrorPositions,
+    newOrders,
+    navPoint: {
+      account,
+      tradeDate,
+      slot,
+      cash: finalCash,
+      positionsMv: finalPositionsMv,
+      nav: finalNav,
+      dayReturn,
+      totalReturn,
+      positionsN: finalPositions.size,
+      turnover: plan.turnoverUsed,
+    },
+  });
+  if (!accountMirror.ok && accountMirror.error !== "not_configured") {
+    mirrorErrors.push(`account: ${accountMirror.error}`);
+  }
+
+  const detailPatch: Record<string, unknown> = {};
+  if (mirrorErrors.length > 0) detailPatch.mirror_error = mirrorErrors.join("; ");
+
+  // Reconciliation only runs at settle (§5.1) — comparing mid-day Neon state
+  // against a mirror the same run just wrote would trivially agree and tell
+  // us nothing about drift accumulated over the day's earlier slots.
+  if (slot === "settle") {
+    const reconcile = await reconcileAccount({
+      account,
+      neonCash: finalCash,
+      neonNav: finalNav,
+      neonPositionsN: finalPositions.size,
+      neonOrdersN: await countOrders(account),
+    });
+    detailPatch.reconcile = reconcile;
+  }
+
+  if (Object.keys(detailPatch).length > 0) {
+    await updateRunDetail(runId, detailPatch).catch((err) => {
+      console.warn(`[paper-engine] failed to record mirror/reconcile detail for ${account}: ${err}`);
+    });
   }
 
   return {
@@ -308,6 +508,7 @@ export async function runAccountSlot(
     skipReason: null,
     candidatesN: candidates.length,
     ordersN: filled.length,
+    modelCalls: modelCallsUsed,
     alreadyRan: false,
   };
 }
@@ -340,6 +541,7 @@ async function persistSkippedRun(
     skipReason: row?.skipReason ?? skipReason,
     candidatesN: 0,
     ordersN: 0,
+    modelCalls: 0,
     alreadyRan: false,
   };
 }

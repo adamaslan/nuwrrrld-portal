@@ -48,9 +48,9 @@ tracks what's actually built against that 8-phase plan.
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
 | 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
-| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 (this PR) |
-| 5 | Arbitration layer (model veto/downsize/confirm) | Not started |
-| 6 | Firestore mirror + reconciliation | Not started |
+| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 |
+| 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — this branch (`feat/paper-portfolios-phase-5-6-arbitration-firestore`) |
+| 6 | Firestore mirror + reconciliation | **Shipped** — this branch |
 | 7 | `/api/paper/*` + `/dashboard/council/portfolios` | Not started |
 | 8 | Metrics + first written finding | Not started |
 
@@ -78,13 +78,31 @@ tracks what's actually built against that 8-phase plan.
 - `lib/shared/paper-sectors.ts` (Phase 3) — ticker→sector map the CLIP step's
   sector cap reads, plus the mega/large-cap set the FILL step's slippage tier
   reads. Best-effort, not verbatim — see its module doc.
-- `app/api/pipeline/paper-portfolios/route.ts` (Phase 3) — the cron entry
-  point, bearer-authed on its own `PAPER_CRON_SECRET`.
+- `app/api/pipeline/paper-portfolios/route.ts` (Phase 3, extended Phases 4-5)
+  — the cron entry point, bearer-authed on its own `PAPER_CRON_SECRET`; now
+  also enforces `lib/pipeline-db-guard.ts`'s prod-DB guard (guardrail #2 —
+  Phase 3 shipped without it) and computes the shared ≤36/run, ≤108/day
+  model-call budget via `lib/paper-db.ts`'s new `getModelCallsToday`.
 - `.github/workflows/paper-portfolios.yml` (Phase 4) — 8 cron lines (4 slots ×
   EST/EDT), gate resolves which slot fired from the NY wall-clock time itself
   rather than a fixed hour (unlike `track-followed-tickers.yml`'s single-slot
   gate), `workflow_dispatch` inputs for a forced `slot`/`account`, a non-fatal
   "zero orders across all 8 accounts" sanity check on non-`settle` slots.
+- `lib/paper-arbitration.ts` (Phase 5) — the model side of ARBITRATE: one
+  `runSeat()` call per flagged candidate, `ARBITRATION_SYSTEM`'s constrained
+  single-line-JSON output (veto/downsize/confirm), unparseable = CONFIRM-none.
+- `lib/shared/paper-engine-core.ts`'s `selectArbitrationCandidates` /
+  `applyArbitrationResults` (Phase 5) — pure selection (buys within 5 score
+  points of the buy threshold, `score_exit` sells ≥80% of the way to their
+  stop) and application, deliberately run *after* `planRun`'s CLIP rather than
+  between PROPOSE and CLIP as §4.2 numbers the steps — see the module's own
+  doc comment for why that preserves guardrail #5 by construction.
+- `lib/firestore-admin.ts` / `lib/paper-firestore-mirror.ts` /
+  `lib/paper-reconcile.ts` (Phase 6) — the first Firestore client this repo
+  has needed (`firebase-admin`, new dependency). Lazily initialized from
+  `FIRESTORE_SERVICE_ACCOUNT_JSON`; every write is non-fatal per guardrail #7.
+  `lib/paper-engine.ts` calls the mirror after every run's Neon transaction
+  commits and the reconcile check only at `settle`.
 
 ## Known failures
 
@@ -126,6 +144,24 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
   Deferred rather than invented — RANK is raw `score DESC` for every account
   in this phase; see `docs/paper-portfolios-remaining-todo.md`'s Phase 3
   section for the full list of stated simplifications.
+- **Phase 3:** the run route had no prod-DB guard at all — `lib/pipeline-db-guard.ts`
+  exists for exactly this and every other pipeline route uses it, but Phase 3
+  shipped without it. Fixed in Phase 5's PR rather than a separate patch,
+  since it touched the same route anyway.
+- **Phase 5:** §4.2 numbers ARBITRATE (step 6) between PROPOSE (5) and CLIP
+  (7); this build applies it *after* CLIP instead. A veto/downsize can only
+  shrink an already-CLIP-satisfying order list, never require re-checking a
+  cap, so the guardrail (#5, "the model never invents a ticker or a size") is
+  preserved without needing to re-run CLIP — see
+  `lib/shared/paper-engine-core.ts`'s module doc for the full argument. "Near
+  its stop" and "genuinely tied" (§4.2 step 6's own wording) are also
+  undefined by the design doc — this build picked 5 card-score points and 80%
+  of the way from basis to stop, respectively; both are named constants
+  (`BUY_TIE_BAND`, `NEAR_STOP_FRACTION`) rather than derived.
+- **Phase 6:** only the *active* watchlist mirrors to Firestore — §5.1's
+  layout implies deactivated rows (`active: false`, `drop_reason`) should
+  also be visible there, but this build only ever reads/writes the active
+  set. Deferred, not dropped.
 
 ## Open questions
 

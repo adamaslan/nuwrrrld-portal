@@ -295,6 +295,17 @@ export async function listOrders(
   }
 }
 
+/** Total order count for one account, all time — the Neon side of the
+ *  settle-slot Neon-vs-Firestore order-count reconciliation (§5.1). */
+export async function countOrders(account: PaperAccount): Promise<number> {
+  try {
+    const rows = await sql`SELECT COUNT(*) AS total FROM paper_orders WHERE account = ${account}`;
+    return Number(rows[0]?.total ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
 // ── NAV ─────────────────────────────────────────────────────────────────────
 
 export interface NavPoint {
@@ -462,6 +473,22 @@ export async function updateRunDetail(
   const current = (rows[0]?.detail as Record<string, unknown>) ?? {};
   const merged = { ...current, ...patch };
   await sql`UPDATE paper_runs SET detail = ${JSON.stringify(merged)} WHERE id = ${runId}`;
+}
+
+/** Sum of `model_calls` across every account's run today — the input to the
+ *  108/day ceiling (§4.2, `MAX_MODEL_CALLS_PER_DAY_ALL_ACCOUNTS`). Degrades to
+ *  0 on a read failure, same as this module's other reads — a miscounted
+ *  budget undercounting to 0 just means arbitration proceeds as if today's
+ *  count were 0, never that a run fails. */
+export async function getModelCallsToday(tradeDate: string): Promise<number> {
+  try {
+    const rows = await sql`
+      SELECT COALESCE(SUM(model_calls), 0) AS total FROM paper_runs WHERE trade_date = ${tradeDate}
+    `;
+    return Number(rows[0]?.total ?? 0);
+  } catch {
+    return 0;
+  }
 }
 
 // ── Screening (SCREEN, §4.2 step 3) ─────────────────────────────────────────

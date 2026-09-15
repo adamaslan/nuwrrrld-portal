@@ -5,8 +5,9 @@
 > (§10 "Build phases"); this doc tracks only what's **done vs. left**, and any
 > open decisions a phase surfaced that the design doc didn't anticipate.
 
-**Status as of 2026-09-14:** Phases 1–3 merged (#124, #127, #128). Phase 4
-done on this branch. Phases 5–8 not started.
+**Status as of 2026-09-15:** Phases 1–4 merged (#124, #127, #128, #137).
+Phases 5–6 (arbitration + Firestore mirror/reconcile) done on this branch.
+Phases 7–8 not started.
 
 ---
 
@@ -49,8 +50,7 @@ done on this branch. Phases 5–8 not started.
     `skip_reason: 'market_closed'`, recorded, never silent.
   - Step 6 (ARBITRATE) does not exist — every order this phase writes has
     `decided_by = 'rule'`, `model = null`. Phase 5 adds the model layer.
-- [x] **Phase 4 — Cron workflow.** This branch
-      (`feat/paper-portfolios-phase-4-cron`, cut from `origin/main`).
+- [x] **Phase 4 — Cron workflow.** PR [#137](https://github.com/adamaslan/nuwrrrld-portal/pull/137), merged.
   - `.github/workflows/paper-portfolios.yml` — 8 cron lines (4 slots x EST/EDT
     each), copied structure from `track-followed-tickers.yml` (gate/run/notify
     job split, `concurrency` group, step summary, failure issue). Unlike the
@@ -69,6 +69,66 @@ done on this branch. Phases 5–8 not started.
     model-call field to check yet.
   - `PAPER_CRON_SECRET` is verified present (like `PORTAL_URL`) before the
     run step, matching `track-followed-tickers.yml`'s secret-presence guard.
+- [x] **Phase 5 — Arbitration layer (model calls).** This branch
+      (`feat/paper-portfolios-phase-5-6-arbitration-firestore`, cut from
+      `origin/main`).
+  - `lib/shared/paper-engine-core.ts` — `selectArbitrationCandidates` (pure:
+    flags buys within `BUY_TIE_BAND` (5 score points) of the buy threshold,
+    and `score_exit` sells that have closed `NEAR_STOP_FRACTION` (80%) of the
+    distance to their stop; `stop`/`void` sells are forced exits and never
+    arbitrated) and `applyArbitrationResults` (pure: veto drops the order,
+    downsize shrinks quantity and relabels `reason: 'seat_downsize'`, confirm
+    or "no decision" both leave it untouched).
+  - `lib/paper-arbitration.ts` — `arbitrateOne()`, the actual model call:
+    the seat's own persona prompt (`seatSystemPrompt`) plus a constrained
+    single-line-JSON instruction block, `max_tokens=80`, `temperature=0.2`.
+    `parseArbitrationResponse` degrades any unparseable/malformed answer to
+    CONFIRM-none, never throws.
+  - `lib/paper-engine.ts` — wired between `planRun` and `fillOrders`,
+    **after** CLIP rather than between PROPOSE and CLIP as §4.2 numbers the
+    steps; see that file's own module doc and paper-engine-core.ts's doc on
+    `selectArbitrationCandidates` for why post-CLIP is still faithful to
+    guardrail #5 (veto/downsize can only shrink an already-satisfying order
+    set, never require re-clipping). `model_calls` is now the real count;
+    `decided_by`/`model` are set per order from the arbitration result.
+  - Budget: `ModelCallBudget` is one mutable object the route constructs
+    once (`min(36, 108 - getModelCallsToday(tradeDate))`) and threads through
+    every account's `runAccountSlot` call, so the ≤36/run-across-all-accounts
+    and ≤108/day ceilings are enforced globally, not per account. `quant`
+    (`maxModelCallsPerRun: 0`, already in `PAPER_POLICY`) never enters the
+    arbitration block.
+  - **Deferred, not implemented:** the per-seat tilt functions (§4.2 step 4)
+    the todo item suggested bundling in here. Phase 3's reason for deferring
+    them (no historical price series in `ticker_cards`) is unchanged by
+    adding the arbitration layer — bundling them would have been scope
+    creep against what was actually blocking, not a natural pairing.
+- [x] **Phase 6 — Firestore mirror + reconciliation.** Same branch as Phase 5
+      (see "Known overlaps" below for why these two shipped together instead
+      of as separate branches).
+  - `firebase-admin` added to `package.json` (`^13.0.0`).
+  - `lib/firestore-admin.ts` — lazy, memoized Admin SDK init from
+    `FIRESTORE_SERVICE_ACCOUNT_JSON`; returns `null` (never throws) when
+    unset or unparseable, which every caller treats as "mirror/reconcile is
+    a no-op this run" (guardrail #7).
+  - `lib/paper-firestore-mirror.ts` — `mirrorPaperAccount()` (account
+    summary + full positions subcollection, replacing stale docs for
+    closed-out tickers + this run's new orders, doc id = the Neon order
+    uuid, so a replay is idempotent + the day's NAV doc, one field per slot
+    + the run-status doc) and `mirrorWatchlistIfVersionChanged()` (reads the
+    account doc's own `watchlist_version` field first; only re-writes the
+    watchlist subcollection when it disagrees with the current version).
+  - `lib/paper-reconcile.ts` — `reconcileAccount()`, called only at `settle`:
+    compares Neon cash/NAV/position-count/order-count against the Firestore
+    mirror, written into `paper_runs.detail.reconcile` via
+    `updateRunDetail()`.
+  - **Known simplification:** only the *active* watchlist mirrors. §5.1's
+    layout implies dropped tickers stay visible with `active: false`;
+    mirroring the full (including-inactive) history is deferred, not
+    silently dropped.
+  - **Known simplification:** the mirror only runs on a run that actually
+    executed (`status: 'ok'`). A market-closed `skipped` run is recorded in
+    Neon's `paper_runs` but not yet mirrored to Firestore's
+    `paper/{account}/runs/*` — deferred for scope, not an oversight.
 
 ### Known simplifications introduced in Phase 3 (stated, not bugs)
 
@@ -113,41 +173,35 @@ added 2026-09-14):
       so `.github/workflows/paper-portfolios.yml`'s "Verify required secrets
       exist" step stops failing every scheduled run.
 
-Until all three are done: the workflow's secret-check step fails before ever
-calling the route, and even a manually authenticated call would find zero
-`paper_accounts` rows.
+`.github/workflows/paper-portfolios.yml` (Phase 4, PR #137) is merged and live
+on `main`. Until all three steps above are done: the workflow's secret-check
+step fails before ever calling the route, and even a manually authenticated
+call would find zero `paper_accounts` rows.
 
-### Phase 5 — Arbitration layer (model calls)
+### Phase 5 — Arbitration layer (model calls) — done, see "Done" above
 
-- [ ] `lib/paper-arbitration.ts` — constrained-output system prompt
-      (single-line JSON, `max_tokens≈80`, styled like
-      `CHAIR_VERDICT_SYSTEM`), response shape `{ ticker, action:
-      'veto'|'downsize'|'confirm', downsize_pct? }`. Unparseable response =
-      CONFIRM-none.
-- [ ] Wire into `lib/paper-engine.ts` between RANK/PROPOSE and CLIP —
-      `runSeat(seat, messages, apiKey, 80, 0.2)`, capped at ≤36 calls/run
-      across all 8 accounts, ≤108/day. `quant` makes zero calls by
-      construction — skip step 6 entirely for that account.
-- [ ] `paper_runs.model_calls` incremented per actual call; a run that would
-      exceed its cap degrades to deterministic-only rather than failing.
-- [ ] Consider implementing the per-seat tilt functions (§4.2 step 4) at the
-      same time — Phase 3 deferred them for lack of historical data, and
-      Phase 5 is already adding new per-seat richness to the loop.
+- [ ] **Manual step, new in this phase:** provision `OPENROUTER_API_KEY` in
+      whatever environment runs the paper-portfolios route, if it isn't
+      already set there for the rest of the council. Without it, arbitration
+      is silently skipped (every order is `decided_by: 'rule'`) rather than
+      the run failing — confirm the key is present if seat-distinct behavior
+      is expected, don't assume its absence would be loud.
 
-### Phase 6 — Firestore mirror + reconciliation
+### Phase 6 — Firestore mirror + reconciliation — done, see "Done" above
 
-- [ ] Add `firebase-admin` dependency.
-- [ ] `lib/paper-firestore-mirror.ts` — `mirrorPaperAccount(account)`,
-      non-fatal (try/catch, `console.warn`, never throw), the §5.1
-      collection layout verbatim. Watchlist mirrors only on seed/version
-      bump, not every run.
-- [ ] **Manual step:** provision `FIRESTORE_SERVICE_ACCOUNT_JSON` (or
-      equivalent) via `secrets-sync`, targeting the same Firebase project
-      `gcp3`'s mobile app already reads — a genuinely new dependency for this
-      repo (no Firestore client exists in `nuwrrrld-portal` today).
-- [ ] `lib/paper-reconcile.ts` — the `settle`-only drift check (NAV, position
-      count, cash, order count, Neon vs Firestore), written into
-      `paper_runs.detail.reconcile`.
+- [ ] **Manual step:** provision `FIRESTORE_SERVICE_ACCOUNT_JSON` via
+      `secrets-sync`, targeting the same Firebase project `gcp3`'s mobile app
+      already reads — a genuinely new dependency for this repo (no Firestore
+      client existed in `nuwrrrld-portal` before this phase). Until it's set,
+      every mirror/reconcile call is a documented no-op (`error:
+      "not_configured"` in `paper_runs.detail`) — the run itself still
+      succeeds.
+- [ ] `npm install` to actually resolve `firebase-admin` — `package.json` was
+      edited and `package-lock.json` regenerated in this branch's own
+      worktree, but confirm it lands clean after a rebase/merge onto
+      whatever `main` looks like by the time this ships (Phase 4's branch
+      also touches `package-lock.json`-adjacent files not at all, so no
+      conflict expected there specifically).
 
 ### Phase 7 — API routes + dashboard
 
@@ -193,15 +247,34 @@ calling the route, and even a manually authenticated call would find zero
 - Update this doc's checkboxes and `council-paper-portfolios.md`'s status
   header as each phase merges.
 
-## Known overlaps with other in-flight work (as of 2026-09-13)
+## Known overlaps with other in-flight work (as of 2026-09-15)
 
-- **This file itself.** Phase 2's PR #127 and Phase 3's PR both create/edit
-  `docs/paper-portfolios-remaining-todo.md`, since it's a done-vs-left
-  tracker that every phase's PR necessarily touches. #127 merged first; this
-  file was manually reconciled on Phase 3's branch during its rebase onto the
-  post-#127 `main` rather than resolved by conflict markers alone — the
-  "Done"/"Left" sections needed re-deriving, not just picking a side.
-- PR #126 (`feat/beta-tester-pro-allowlist`) touches
-  `docs/manual-setup-todo.md` and `docs/wiki-portal/index.md`/`log.md` — the
-  same files Phase 3's branch touches. Whichever merges first, the other
-  needs a rebase before merging.
+- **This file itself.** Every phase's branch edits
+  `docs/paper-portfolios-remaining-todo.md` (it's a done-vs-left tracker that
+  every phase necessarily touches) — resolved by re-deriving the "Done"/"Left"
+  sections on each rebase, never by picking a side at the conflict markers.
+- **Phases 5+6 deliberately share one branch**
+  (`feat/paper-portfolios-phase-5-6-arbitration-firestore`), a documented
+  exception to this file's own "one branch per phase" cross-cutting rule.
+  Reason: both were requested in the same turn, and both edit the exact same
+  insertion point in `lib/paper-engine.ts` (Phase 5 between `planRun` and
+  `fillOrders`, Phase 6 immediately after the transaction commits) — splitting
+  them into two branches cut from the same `origin/main` would have produced
+  a guaranteed, purely mechanical self-conflict on the very next merge, for
+  no isolation benefit (no second agent was working either phase
+  concurrently). See `multi-branch-optimization.md` §1: "if two planned
+  branches overlap on any file, either sequence them or split" — this is the
+  sequencing option, made explicit rather than silently deviating from the
+  stated convention.
+- **Phase 4** (PR #137, merged 2026-09-15) and **this Phase 5+6 branch**
+  touched the same top-of-file module comment in
+  `app/api/pipeline/paper-portfolios/route.ts`, plus
+  `docs/paper-portfolios-remaining-todo.md` and `docs/manual-setup-todo.md`.
+  Resolved via a standard rebase of this branch onto `main` after #137
+  merged — re-derived the "Done"/"Left" sections and the route.ts comment
+  rather than picking a side at the conflict markers, per this file's own
+  convention.
+- PR #126 (`feat/beta-tester-pro-allowlist`, already merged) touched
+  `docs/manual-setup-todo.md` and `docs/wiki-portal/index.md`/`log.md` — noted
+  here for history; no longer a live overlap since it merged before this
+  branch was cut.

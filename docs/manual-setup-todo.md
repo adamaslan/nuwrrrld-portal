@@ -960,3 +960,49 @@ resolved in code.
   PR that doesn't touch `/api/signals/*` or its proxy chain, without
   re-verifying it's pre-existing each time.
 - **Added**: 2026-09-15
+
+## Added 2026-09-15 — Phases 5 and 6 of the paper-portfolio council simulation
+
+### Confirm `OPENROUTER_API_KEY` is set wherever the paper-portfolios route runs
+
+- **From**: `docs/paper-portfolios-remaining-todo.md` Phase 5,
+  `feat/paper-portfolios-phase-5-6-arbitration-firestore`.
+- **Blocked on**: nothing new to generate — this key already exists and backs
+  every other council seat call (`app/api/council/route.ts` reads the same
+  var). The action here is confirming it's present in whichever environment
+  actually runs the cron (production Vercel env, or GitHub Actions if the
+  workflow ever calls the route with it directly rather than relying on the
+  deployed environment).
+- **Why it can't be code**: a missing key degrades silently by design —
+  `runAccountSlot` treats `options.apiKey` being empty as "skip arbitration
+  entirely," per guardrail #4 ("a run that would exceed its cap degrades to
+  deterministic-only rather than failing"), extended here to "missing
+  entirely" as the same class of degrade. Nothing will error or page; every
+  order will simply read `decided_by: 'rule'` forever.
+  Confirming the key's presence is a one-line environment check, not a code
+  change — but it can't be verified from this session (the key must never be
+  printed, and this session cannot read the deployed environment).
+- **Unblocks**: seats behaving distinctly from QUANT — the actual point of
+  Phase 5 (`docs/council-paper-portfolios.md` §10, Phase 5 row: "the seats
+  become distinct from QUANT"). Without it, Phase 5's code ships but the
+  eight accounts trade identically to how Phase 3 left them.
+- **Added**: 2026-09-15
+
+### Provision `FIRESTORE_SERVICE_ACCOUNT_JSON`
+
+- **From**: `docs/paper-portfolios-remaining-todo.md` Phase 6, same branch.
+- **Blocked on**: a Firebase service-account JSON key for the `gcp3` Firebase
+  project (the one `gcp3-mobile` already reads), via the `secrets-sync` skill
+  — never typed into chat, never committed. Firebase console → Project
+  settings → Service accounts → Generate new private key.
+- **Why it can't be code**: it's a credential this session cannot generate or
+  fetch. `lib/firestore-admin.ts` reads it from
+  `process.env.FIRESTORE_SERVICE_ACCOUNT_JSON` as a JSON string (the whole
+  key file's contents, not a path) and warns once (not per call) when absent.
+- **Unblocks**: `lib/paper-firestore-mirror.ts` and `lib/paper-reconcile.ts`
+  — until this is set, every mirror/reconcile call returns
+  `{ ok: false, error: "not_configured" }` (recorded into
+  `paper_runs.detail.mirror_error` / `.reconcile`, never failing the run
+  itself), and the mobile app has nothing to read from `paper/*` in
+  Firestore regardless of how many runs execute against Neon.
+- **Added**: 2026-09-15
