@@ -12,7 +12,7 @@ import {
 
 interface Props {
   /** Which trade-shaped surface is gating on this — recorded with the ack for audit. */
-  surface: "verdict" | "signals" | "portfolio" | "analyze";
+  surface: "verdict" | "signals" | "portfolio" | "analyze" | "paper";
   /** Viewer mode: always open, dismissible, no gating — used by DisclaimerFooter's
    *  "View full disclaimer" link so re-reading the text never clears an ack. */
   forceOpen?: boolean;

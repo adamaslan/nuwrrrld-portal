@@ -4,7 +4,7 @@ import { DISCLAIMER_VERSION, DISCLAIMER_LAST_UPDATED } from "@/lib/disclaimer";
 import DisclaimerModal from "./DisclaimerModal";
 
 interface Props {
-  surface: "verdict" | "signals" | "portfolio" | "analyze";
+  surface: "verdict" | "signals" | "portfolio" | "analyze" | "paper";
 }
 
 /**
