@@ -60,8 +60,8 @@ node scripts/seed-paper-portfolios.mjs --dry-run
 
 ### Caveats — shipped, but
 - **"The paper-portfolio schema is migrated and ready"** — true, but `PRODUCTION_DB_HOST` is unset, so `lib/pipeline-db-guard.ts`'s prod-write protection does nothing right now. Any future seed or pipeline run against whatever `DATABASE_URL` happens to resolve to (locally, or in a misconfigured CI job) proceeds unguarded.
-  - *Risk if ignored:* a seed script or `/api/pipeline/paper-portfolios` run executed with `DATABASE_URL` accidentally pointed at production would write real account/order rows with no structural check to stop it — the guard would warn "inert" once and then allow it.
-  - *To close:* set `PRODUCTION_DB_HOST` to the actual production Neon host in every environment that must never take a live paper-portfolio write, per `lib/pipeline-db-guard.ts`'s own module doc.
+  - *Risk if ignored:* a `/api/pipeline/paper-portfolios` run executed with `DATABASE_URL` accidentally pointed at production would write real account/order rows with no structural check to stop it — `lib/pipeline-db-guard.ts`'s `assertNotProductionDb` would warn "inert" once and then allow it. `scripts/seed-paper-portfolios.mjs` is a **separate case**: it uses its own inline host check (not `assertNotProductionDb`), and that check is opt-in by design — with `PRODUCTION_DB_HOST` unset it proceeds silently, with no "inert" warning at all, since the check only activates once the variable is set.
+  - *To close:* set `PRODUCTION_DB_HOST` to the actual production Neon host in every environment that must never take a live paper-portfolio write, per `lib/pipeline-db-guard.ts`'s own module doc. This covers both the route's guard and the seed script's inline check.
 
 ### Undone — in scope, not delivered
 - **Seed 8 paper accounts + 501 watchlist rows for real** — *Why not:* user could not confirm the local `DATABASE_URL` is a non-prod branch. *Blocked on:* human confirmation of which Neon branch `DATABASE_URL` names (already tracked in `docs/manual-setup-todo.md`, filed 2026-09-13 — this session did not add a new blocker, it re-confirmed an existing one against live state).
