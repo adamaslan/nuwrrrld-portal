@@ -63,8 +63,9 @@ npx tsc --noEmit -p tsconfig.json 2>&1 | grep "error TS" | sed -E 's/\([0-9]+,[0
 - **"Phases 4-6 are done"** is true of the code, not of the feature. Nothing
   in this session ran against a live Neon branch, a real GitHub Actions
   schedule, an actual OpenRouter call, or a real Firestore project. Every
-  verification was static (typecheck, lint, unit tests on pure functions and
-  `parseArbitrationResponse`).
+  verification was repository-local and non-live (typecheck, lint, and 682
+  executed unit tests, including on the pure functions and
+  `parseArbitrationResponse`) — real, but never against a live dependency.
   - *Risk if ignored:* the workflow's slot-resolution gate, the arbitration
     prompt's actual output shape from a live model, and the Firestore batch
     writes' real permissions/quota behavior are all unverified. A live model
