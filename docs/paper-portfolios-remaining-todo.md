@@ -6,8 +6,10 @@
 > open decisions a phase surfaced that the design doc didn't anticipate.
 
 **Status as of 2026-09-15:** Phases 1–4 merged (#124, #127, #128, #137).
-Phases 5–6 (arbitration + Firestore mirror/reconcile) done on this branch.
-Phases 7–8 not started.
+Phase 5–6 (arbitration + Firestore mirror/reconcile, PR #138) and Phase 8
+(metrics, this branch, stacked on 5-6's tip) are code-complete, not yet
+merged. Phase 7 (API + dashboard, PR #139) is code-complete, drafted
+independently, cut from `origin/main`.
 
 ---
 
@@ -129,6 +131,35 @@ Phases 7–8 not started.
     executed (`status: 'ok'`). A market-closed `skipped` run is recorded in
     Neon's `paper_runs` but not yet mirrored to Firestore's
     `paper/{account}/runs/*` — deferred for scope, not an oversight.
+- [x] **Phase 8 — Metrics.** Branch `feat/paper-portfolios-phase-8-metrics`,
+      cut from Phase 5-6's branch (extends the same `lib/paper-engine.ts`
+      `settle` block those phases already touch, so it stacks rather than
+      re-deriving that wiring).
+  - `lib/shared/paper-metrics-core.ts` — pure §7 scoring: CAGR, annualized
+    vol, Sharpe (rf=0), max/current drawdown, hit rate + avg win/loss,
+    rolling 20-run turnover, avg holding period, active return vs `spy`/
+    `equal`. CAGR/vol/Sharpe formulas match `docs/moo-council-run/sim_moo.py`'s
+    `lump()` exactly (sample std, `sqrt(252)` annualization). Unit-tested in
+    `__tests__/paper-metrics-core.test.ts`.
+  - `lib/paper-metrics.ts` — the I/O side: reads the `settle`-slot NAV series
+    (not every slot — using intraday marks as independent daily returns would
+    badly overstate annualized vol), the last 20 runs' turnover, and the full
+    order history, then calls the pure module.
+  - Wired into `lib/paper-engine.ts`'s `settle` block, alongside Phase 6's
+    reconcile call — writes `paper_runs.detail.metrics`, best-effort (a
+    scoring failure never fails the run, same contract as mirror/reconcile).
+  - **Known simplification:** holding period is derived from order history
+    (first buy since flat → the closing sell), not a stored field — correct
+    given Phase 3's own "a sell is always a full exit" simplification, but it
+    would need lot-level tracking to stay correct if that assumption ever
+    changes.
+  - **Known simplification:** `spy`/`equal`'s total return for the active-
+    return comparison is read from their own latest NAV point, not
+    necessarily from the *same* settle run — `PAPER_ACCOUNTS` runs the six
+    trading accounts before the two controls in one route call (§6), so a
+    trading account's settle metrics would otherwise block on rows that don't
+    exist yet. One run's staleness on a comparison-only figure was judged an
+    acceptable trade against reordering the whole route loop.
 
 ### Known simplifications introduced in Phase 3 (stated, not bugs)
 
@@ -221,13 +252,8 @@ call would find zero `paper_accounts` rows.
 - [ ] Add `"paper"` to `components/DisclaimerFooter.tsx`'s `surface` union;
       render it on the new dashboard page.
 
-### Phase 8 — Metrics + first written finding
+### Phase 8 — first written finding — done, see "Done" above for the metrics code
 
-- [ ] `lib/paper-metrics.ts` — total/day/since-inception CAGR, annualized
-      vol, Sharpe (rf=0, matching `docs/moo-council-run/sim_moo.py`'s
-      convention), max/current drawdown, hit rate, avg win/loss, rolling
-      20-run turnover, avg holding period, active return vs `spy` and `equal`.
-- [ ] Wire into the `settle` slot in `lib/paper-engine.ts`.
 - [ ] **Not code, needs real accumulated data first:** once enough runs exist
       to say something real, write
       `docs/wiki-portal/decision-paper-portfolio-first-finding.md` answering

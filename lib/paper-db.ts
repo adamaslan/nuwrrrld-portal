@@ -363,6 +363,86 @@ export async function getNavSeries(account: PaperAccount, limit = 200): Promise<
   }
 }
 
+function rowToNavPoint(r: Record<string, unknown>): NavPoint {
+  return {
+    account: r.account as PaperAccount,
+    tradeDate: new Date(r.trade_date as string).toISOString().slice(0, 10),
+    slot: r.slot as Slot,
+    cash: Number(r.cash),
+    positionsMv: Number(r.positions_mv),
+    nav: Number(r.nav),
+    dayReturn: r.day_return == null ? null : Number(r.day_return),
+    totalReturn: r.total_return == null ? null : Number(r.total_return),
+    positionsN: Number(r.positions_n),
+    turnover: Number(r.turnover),
+  };
+}
+
+/** `settle`-slot NAV only, oldest-first — the one-point-per-day close series
+ *  CAGR/vol/Sharpe/drawdown are computed against (`lib/paper-metrics.ts`,
+ *  Phase 8). Using every slot instead would treat four intraday marks a day
+ *  as four independent daily returns, badly overstating annualized vol. */
+export async function getSettleNavSeries(account: PaperAccount, limit = 2000): Promise<NavPoint[]> {
+  try {
+    const rows = await sql`
+      SELECT * FROM paper_nav WHERE account = ${account} AND slot = 'settle'
+      ORDER BY trade_date ASC LIMIT ${limit}
+    `;
+    return rows.map(rowToNavPoint);
+  } catch {
+    return [];
+  }
+}
+
+/** Every slot, most-recent-first — the input to the rolling 20-run turnover
+ *  figure (§7), which is deliberately a run-count window, not a day-count one
+ *  (four runs/day means a 20-run window is roughly a trading week). */
+export async function getRecentNavRuns(account: PaperAccount, limit = 20): Promise<NavPoint[]> {
+  try {
+    const rows = await sql`
+      SELECT * FROM paper_nav WHERE account = ${account}
+      ORDER BY trade_date DESC, slot DESC LIMIT ${limit}
+    `;
+    return rows.map(rowToNavPoint);
+  } catch {
+    return [];
+  }
+}
+
+/** Every order for one account, oldest-first — hit rate / avg win-loss /
+ *  holding period (§7) all need the full sequence, not a page of it. 5000 is
+ *  generous against the realistic lifetime of one 50-75-name account trading
+ *  up to 4x/day; a real cap would need pagination, which nothing here needs
+ *  yet. */
+export async function getOrdersForMetrics(account: PaperAccount, limit = 5000): Promise<OrderRow[]> {
+  try {
+    const rows = await sql`
+      SELECT * FROM paper_orders WHERE account = ${account}
+      ORDER BY created_at ASC LIMIT ${limit}
+    `;
+    return rows.map((r) => ({
+      id: r.id as string,
+      runId: r.run_id as string,
+      account: r.account as PaperAccount,
+      ticker: r.ticker as string,
+      side: r.side as OrderSide,
+      quantity: Number(r.quantity),
+      refPrice: Number(r.ref_price),
+      fillPrice: Number(r.fill_price),
+      slippageBps: Number(r.slippage_bps),
+      notional: Number(r.notional),
+      realizedPnl: r.realized_pnl == null ? null : Number(r.realized_pnl),
+      reason: r.reason as string,
+      decidedBy: r.decided_by as DecidedBy,
+      model: (r.model as string) ?? null,
+      cardScore: r.card_score == null ? null : Number(r.card_score),
+      createdAt: new Date(r.created_at as string).toISOString(),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ── Runs ─────────────────────────────────────────────────────────────────────
 
 export interface RunRow {
@@ -411,6 +491,23 @@ export async function getRun(
     const rows = await sql`
       SELECT * FROM paper_runs
       WHERE account = ${account} AND trade_date = ${tradeDate} AND slot = ${slot}
+    `;
+    return rows[0] ? rowToRun(rows[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Most recent run row for one account+slot, regardless of trade_date — the
+ *  read behind the leaderboard's "latest computed metrics" (Phase 8 writes
+ *  them into `detail.metrics` on the `settle` slot only, so callers pass
+ *  `'settle'`). */
+export async function getLatestRun(account: PaperAccount, slot: Slot): Promise<RunRow | null> {
+  try {
+    const rows = await sql`
+      SELECT * FROM paper_runs
+      WHERE account = ${account} AND slot = ${slot}
+      ORDER BY trade_date DESC LIMIT 1
     `;
     return rows[0] ? rowToRun(rows[0]) : null;
   } catch {

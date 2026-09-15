@@ -845,3 +845,5 @@ list of what PR #132 touched and what wiki candidates it suggests.
 ## [2026-09-14] ingest | PR #137 feat(paper-portfolios): cron workflow (Phase 4) | pages touched: 2
 
 ## [2026-09-15] ingest | PR #138 feat(paper-portfolios): arbitration + Firestore mirror (Phases 5-6) | pages touched: 2
+
+## [2026-09-15] ingest | PR #140 feat(paper-portfolios): metrics (Phase 8) | pages touched: 2
