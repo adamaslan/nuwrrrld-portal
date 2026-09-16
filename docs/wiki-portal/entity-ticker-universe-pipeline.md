@@ -243,6 +243,35 @@ failures #3 for why).
    the row, its cards and its history; the script prints the re-enable
    statement rather than DELETEing anything.
 
+
+**Found 2026-09-15 by a full 933-ticker scan (PR #143):**
+
+13. **No sector column, so 81.1% of the universe is unclassifiable.**
+   `ticker_universe` carries only `universe text CHECK (universe IN ('etf','stock'))`
+   (`lib/db/schema.sql` L353–359). The sole sector source is
+   `lib/shared/paper-sectors.ts`, a hand-maintained literal covering 176 tickers
+   — **176 of 933 active symbols (18.9%); 757 have no sector at all.** This is
+   what makes [[entity-paper-portfolios]]'s `sectorCapPct` unenforceable outside
+   the paper-portfolio ticker list, and why sector rotation had to be inferred
+   from stock-level aggregation rather than read. See
+   [[concept-unvalidated-recommendation-surface]].
+14. **Share-class notation is registered in both spellings.** `BRK.B`/`BRK-B` and
+   `BF.B`/`BF-B` each exist as two rows for one security (dot active, hyphen
+   inactive), because `normalizeTicker` accepts both and canonicalizes neither.
+   The dot form is correct for Alpaca and *fails* against Yahoo, which returns
+   "possibly delisted; no price data found" — a live mega-cap presenting as a
+   dead symbol. The vendor-boundary half is fixed in `homebase/locrun.py`
+   (`to_yahoo_symbol()`); the duplicate-row half is open, since canonicalizing
+   the key touches enqueue, drain, and the watchlist route.
+15. **The leveraged/inverse contamination of failure 10 recurs outside
+   `topCards()`.** That fix added a `universe` argument to the *portal's*
+   ranking query, which the raw `locrun` scan path does not go through. Of the
+   171 active ETFs, **86 (50%) are leveraged, inverse, or option-income
+   products** — so any breadth statistic computed over the whole universe
+   double-weights underlyings and inverts signs, exactly as the top-100 did.
+   The 2026-09-15 scan worked around it by computing breadth on the 762 stocks
+   only; nothing in the data layer enforces that.
+
 ## Open questions
 
 - ❓ Should `seed-yahoo-portfolio.mjs`'s non-US-suffix filter list
