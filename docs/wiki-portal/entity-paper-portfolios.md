@@ -129,6 +129,18 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
 
 ## Known gaps found during implementation (not in the design doc)
 
+- **`sectorCapPct` is enforced against a sector map covering 18.9% of the
+  universe** (found 2026-09-15, PR #143). `lib/shared/paper-policy.ts` sets the
+  cap per account (0.15–0.35) and `lib/shared/paper-engine-core.ts:178` enforces
+  it — but the only sector source is `lib/shared/paper-sectors.ts`, a
+  hand-maintained literal for 176 tickers, and `ticker_universe` has no sector
+  column ([[entity-ticker-universe-pipeline]] failure 13). Inside the seeded
+  Core 50 + extras the cap works as designed; the moment an account holds
+  anything outside that list there is no sector to cap against. The page header
+  already concedes the map is "not a guaranteed exact match" for the design
+  doc's aggregate counts. See
+  [[concept-unvalidated-recommendation-surface]].
+
 - The design doc claimed `scripts/gen-sqlite-schema.mjs` needs **no** changes
   for the new tables. True for the six plain tables, false for the trigger —
   its `DROP_STATEMENT_PATTERNS` only knew how to strip one specific existing

@@ -1,0 +1,347 @@
+<title>Risk-Off Rotation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#f6f7f9; --surface:#ffffff; --surface-2:#eef0f5;
+  --ink:#171b24; --muted:#616b7d; --faint:#8b94a4;
+  --border:#e2e5ec; --rule:#cdd2dd;
+  --accent:#43508f; --accent-soft:#e7e9f5;
+  --bull:#18754f; --bull-soft:#e0f0e8;
+  --bear:#b03a30; --bear-soft:#f8e5e3;
+  --warn:#9a6b12;
+  --shadow:0 1px 2px rgba(23,27,36,.06),0 8px 24px -12px rgba(23,27,36,.18);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#12151c; --surface:#191d26; --surface-2:#212736;
+    --ink:#e6e9f0; --muted:#98a1b3; --faint:#6e788c;
+    --border:#2a3040; --rule:#394154;
+    --accent:#8b97d6; --accent-soft:#232a44;
+    --bull:#4fbd8c; --bull-soft:#153025;
+    --bear:#e2776b; --bear-soft:#341f1d;
+    --warn:#d2a04a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#12151c; --surface:#191d26; --surface-2:#212736;
+  --ink:#e6e9f0; --muted:#98a1b3; --faint:#6e788c;
+  --border:#2a3040; --rule:#394154;
+  --accent:#8b97d6; --accent-soft:#232a44;
+  --bull:#4fbd8c; --bull-soft:#153025;
+  --bear:#e2776b; --bear-soft:#341f1d;
+  --warn:#d2a04a;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Newsreader",Georgia,serif; font-size:18px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px 96px}
+.col{max-width:64ch}
+h1,h2,h3,.ui{font-family:"Archivo",system-ui,-apple-system,sans-serif}
+.mono,td.n,th.n{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.eyebrow{
+  font-family:"Archivo",sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent);margin:0 0 14px
+}
+header.masthead{padding:64px 0 40px;border-bottom:2px solid var(--ink)}
+h1{font-size:clamp(2.6rem,6vw,4.1rem);line-height:1.02;letter-spacing:-.03em;font-weight:700;margin:0 0 20px;text-wrap:balance}
+.standfirst{font-size:1.32rem;line-height:1.5;color:var(--muted);margin:0;max-width:56ch}
+.byline{
+  display:flex;flex-wrap:wrap;gap:10px 28px;margin-top:30px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--faint);
+  font-variant-numeric:tabular-nums
+}
+.byline b{color:var(--muted);font-weight:500}
+h2{
+  font-size:.82rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin:0;padding-bottom:12px;border-bottom:1px solid var(--rule)
+}
+section{padding-top:60px}
+.lede{font-size:1.24rem;line-height:1.55;margin:28px 0 0;text-wrap:pretty}
+p{margin:20px 0 0}
+strong{font-weight:500;color:var(--ink);box-shadow:inset 0 -.5em 0 var(--accent-soft)}
+/* verdict */
+.verdict{
+  margin-top:30px;background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--bear);border-radius:3px;padding:30px 32px;box-shadow:var(--shadow)
+}
+.verdict .vlabel{font-family:"Archivo",sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--bear)}
+.verdict .vhead{font-family:"Archivo",sans-serif;font-size:1.7rem;font-weight:600;letter-spacing:-.02em;margin:8px 0 0;line-height:1.2}
+.verdict p{font-size:1.06rem}
+/* breadth bar */
+.breadth{margin-top:26px}
+.bbar{display:flex;height:42px;border-radius:3px;overflow:hidden;border:1px solid var(--border)}
+.bbar span{display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:#fff}
+.bbar .b-bear{background:var(--bear)}
+.bbar .b-hold{background:var(--faint)}
+.bbar .b-bull{background:var(--bull)}
+.blegend{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:10px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)}
+.blegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:baseline}
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:3px;margin-top:26px;overflow:hidden}
+.stat{background:var(--surface);padding:20px 22px}
+.stat .k{font-family:"Archivo",sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.stat .v{font-family:"IBM Plex Mono",monospace;font-size:1.85rem;font-weight:500;letter-spacing:-.02em;margin-top:8px;font-variant-numeric:tabular-nums}
+.stat .s{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);margin-top:5px}
+/* theme concentration */
+.conc{margin-top:28px;display:flex;flex-direction:column;gap:16px}
+.crow{display:grid;grid-template-columns:172px 1fr 92px;gap:18px;align-items:center}
+.cname{font-family:"Archivo",sans-serif;font-size:13.5px;font-weight:600}
+.cname em{display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:400;font-style:normal;color:var(--faint);margin-top:3px}
+.ctrack{position:relative;height:26px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.cfill{height:100%;background:var(--accent);opacity:.88}
+.cbase{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.62}
+.cval{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.baseline-note{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--faint);margin-top:14px}
+/* tables */
+.scroll{overflow-x:auto;margin-top:26px;border:1px solid var(--border);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums}
+th{
+  text-align:left;font-family:"Archivo",sans-serif;font-size:10px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);padding:14px 14px;border-bottom:1px solid var(--rule);white-space:nowrap
+}
+td{padding:13px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+td.n,th.n{text-align:right}
+.tkr{font-weight:600;font-size:13.5px}
+.co{font-family:"Newsreader",serif;font-size:14px;color:var(--muted);white-space:normal;min-width:180px}
+.rank{color:var(--faint);font-size:12px}
+.pos{color:var(--bull)} .neg{color:var(--bear)}
+.pill{display:inline-block;padding:2px 8px;border-radius:2px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-family:"Archivo",sans-serif}
+.pill-bull{background:var(--bull-soft);color:var(--bull)}
+.pill-bear{background:var(--bear-soft);color:var(--bear)}
+.pill-warn{background:var(--accent-soft);color:var(--warn)}
+.flag{font-family:"Newsreader",serif;font-size:13px;color:var(--warn);white-space:normal;min-width:150px;font-style:italic}
+/* caveats */
+.cav{display:grid;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:3px;margin-top:26px;overflow:hidden}
+.cav>div{background:var(--surface);padding:22px 24px}
+.cav h3{font-family:"Archivo",sans-serif;font-size:14px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.cav p{margin:0;font-size:15.5px;line-height:1.55;color:var(--muted)}
+.cav .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--bear);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:9px}
+.cav .tag.ok{color:var(--bull)}
+footer{margin-top:72px;padding-top:26px;border-top:1px solid var(--rule);font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--faint);line-height:1.7}
+a{color:var(--accent)}
+@media (max-width:640px){
+  body{font-size:17px}
+  .crow{grid-template-columns:1fr;gap:7px}
+  .cval{text-align:left}
+  header.masthead{padding:44px 0 32px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Local signal scan · 933-ticker universe</p>
+  <h1>Risk-Off Rotation</h1>
+  <p class="standfirst">Three-quarters of the book is bearish, bonds and gold are falling with equities, and every cybersecurity name in the universe is a buy. A macro read built only from the signals.</p>
+  <div class="byline">
+    <span><b>Bar date</b> 2026-09-15 16:00 ET</span>
+    <span><b>Scanned</b> 929 of 933 active</span>
+    <span><b>Engine</b> locrun · RSI/MACD/SMA20/volume</span>
+    <span><b>Source</b> yfinance, 3mo daily</span>
+  </div>
+</header>
+
+<section>
+  <div class="col">
+    <h2>The regime</h2>
+    <div class="verdict">
+      <span class="vlabel">Verdict — correlated de-risking</span>
+      <p class="vhead">Nothing is working except energy, insurance and security software.</p>
+      <p>Equities, Treasuries, gold and silver are <em>all</em> bearish at once. That combination rules out a rotation into safety — in a flight to quality, bonds and gold rise as stocks fall. Here they fall together, which points to broad de-leveraging rather than repositioning.</p>
+    </div>
+  </div>
+
+  <div class="breadth">
+    <div class="bbar" role="img" aria-label="Of 758 stocks: 490 sell, 152 hold, 116 buy">
+      <span class="b-bear" style="width:64.6%">SELL 64.6%</span>
+      <span class="b-hold" style="width:20.1%">HOLD 20.1%</span>
+      <span class="b-bull" style="width:15.3%">BUY 15.3%</span>
+    </div>
+    <div class="blegend">
+      <span><i style="background:var(--bear)"></i>490 sell</span>
+      <span><i style="background:var(--faint)"></i>152 hold</span>
+      <span><i style="background:var(--bull)"></i>116 buy</span>
+      <span>· 758 stocks, leveraged and inverse ETFs excluded</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Stocks bearish</div><div class="v" style="color:var(--bear)">74.4%</div><div class="s">564 of 758</div></div>
+    <div class="stat"><div class="k">Median RSI</div><div class="v">43</div><div class="s">mean 44.1 · neutral is 50</div></div>
+    <div class="stat"><div class="k">Above SMA20</div><div class="v">26.8%</div><div class="s">203 of 758</div></div>
+    <div class="stat"><div class="k">Decliners</div><div class="v">549</div><div class="s">vs 201 advancers</div></div>
+    <div class="stat"><div class="k">Oversold RSI&lt;30</div><div class="v">58</div><div class="s">vs 14 overbought &gt;70</div></div>
+    <div class="stat"><div class="k">Median 1-day</div><div class="v" style="color:var(--bear)">−0.80%</div><div class="s">median stock</div></div>
+  </div>
+
+  <div class="col">
+    <p>The distribution is more informative than the headline. A median RSI of <strong>43</strong> with only 14 names overbought against 58 oversold is not a market at an extreme — it is a market grinding lower with room to fall further. Washed-out readings that mark capitulation lows are absent.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Cross-asset — every instrument in the universe</h2>
+  <div class="col">
+    <p class="lede">Each of these is a signal the scan produced, not an outside data point. Read down the column: there is no positive row outside energy, communications and volatility.</p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Instrument</th><th class="co" style="text-align:left">Reads</th><th>Signal</th>
+        <th class="n">Score</th><th class="n">RSI</th><th class="n">MACD</th><th class="n">Vol</th><th class="n">1-day</th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="tkr">QQQ</td><td class="co">Nasdaq 100</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">12</td><td class="n">44</td><td class="n neg">−1.155</td><td class="n">0.8×</td><td class="n neg">−0.71%</td></tr>
+        <tr><td class="tkr">DIA</td><td class="co">Dow 30</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">12</td><td class="n">40</td><td class="n neg">−1.479</td><td class="n">1.0×</td><td class="n neg">−0.65%</td></tr>
+        <tr><td class="tkr">IWM</td><td class="co">Russell 2000 — small caps</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">25</td><td class="n">34</td><td class="n neg">−1.200</td><td class="n">1.3×</td><td class="n neg">−0.99%</td></tr>
+        <tr><td class="tkr">EEM</td><td class="co">Emerging markets</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">0</td><td class="n">44</td><td class="n neg">−0.210</td><td class="n">0.8×</td><td class="n neg">−0.28%</td></tr>
+        <tr><td class="tkr">TLT</td><td class="co">20+ year Treasuries</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">12</td><td class="n">36</td><td class="n neg">−0.130</td><td class="n">1.1×</td><td class="n neg">−0.27%</td></tr>
+        <tr><td class="tkr">AGG</td><td class="co">Aggregate bond</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">25</td><td class="n">30</td><td class="n neg">−0.137</td><td class="n">1.5×</td><td class="n neg">−0.04%</td></tr>
+        <tr><td class="tkr">GLD</td><td class="co">Gold</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">0</td><td class="n">45</td><td class="n neg">−3.113</td><td class="n">0.6×</td><td class="n pos">+0.28%</td></tr>
+        <tr><td class="tkr">SLV</td><td class="co">Silver</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">12</td><td class="n">46</td><td class="n neg">−0.569</td><td class="n">0.7×</td><td class="n pos">+0.93%</td></tr>
+        <tr><td class="tkr">IBIT</td><td class="co">Bitcoin</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">25</td><td class="n">54</td><td class="n neg">−0.315</td><td class="n">1.2×</td><td class="n neg">−2.64%</td></tr>
+        <tr><td class="tkr">VIXY</td><td class="co">VIX short-term futures</td><td><span class="pill pill-bull">Bullish</span></td><td class="n">50</td><td class="n">42</td><td class="n pos">+0.116</td><td class="n">1.4×</td><td class="n pos">+0.17%</td></tr>
+        <tr><td class="tkr">XLE</td><td class="co">Energy sector</td><td><span class="pill pill-bull">Bullish</span></td><td class="n">62</td><td class="n">68</td><td class="n neg">−0.054</td><td class="n">1.2×</td><td class="n pos">+2.09%</td></tr>
+        <tr><td class="tkr">XLC</td><td class="co">Communication services</td><td><span class="pill pill-bull">Bullish</span></td><td class="n">100</td><td class="n">57</td><td class="n pos">+0.173</td><td class="n">1.3×</td><td class="n neg">−1.08%</td></tr>
+        <tr><td class="tkr">XLI</td><td class="co">Industrials</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">25</td><td class="n">30</td><td class="n neg">−0.651</td><td class="n">1.2×</td><td class="n neg">−0.75%</td></tr>
+        <tr><td class="tkr">XLU</td><td class="co">Utilities</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">12</td><td class="n">30</td><td class="n neg">−0.094</td><td class="n">1.2×</td><td class="n neg">−1.24%</td></tr>
+        <tr><td class="tkr">XLB</td><td class="co">Materials</td><td><span class="pill pill-bear">Bearish</span></td><td class="n">12</td><td class="n">38</td><td class="n neg">−0.303</td><td class="n">0.9×</td><td class="n pos">+0.42%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p>Two rows carry most of the weight. <strong>Utilities and industrials at RSI 30</strong> are the classic defensive and cyclical anchors — both are as oversold as anything in the book, so buyers are not hiding there either. And <strong>IWM at RSI 34, well below QQQ's 44</strong>, says small caps are being sold harder than mega-cap tech: a risk-appetite signal, not a growth-versus-value one.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Where the buys actually are</h2>
+  <div class="col">
+    <p class="lede">Sector membership isn't stored in the database, so rotation can't be looked up. It can be measured: tag the tickers by theme and compare each theme's buy rate to the 15.3% universe baseline.</p>
+  </div>
+
+  <div class="conc">
+    <div class="crow">
+      <div class="cname">Cybersecurity<em>10 of 10 names</em></div>
+      <div class="ctrack"><div class="cfill" style="width:100%"></div><div class="cbase" style="left:15.3%"></div></div>
+      <div class="cval" style="color:var(--bull)">100%</div>
+    </div>
+    <div class="crow">
+      <div class="cname">Energy &amp; oil services<em>12 of 21 names</em></div>
+      <div class="ctrack"><div class="cfill" style="width:57.1%"></div><div class="cbase" style="left:15.3%"></div></div>
+      <div class="cval">57.1%</div>
+    </div>
+    <div class="crow">
+      <div class="cname">Insurance<em>8 of 14 names</em></div>
+      <div class="ctrack"><div class="cfill" style="width:57.1%"></div><div class="cbase" style="left:15.3%"></div></div>
+      <div class="cval">57.1%</div>
+    </div>
+    <div class="crow">
+      <div class="cname">Healthcare<em>8 of 22 names</em></div>
+      <div class="ctrack"><div class="cfill" style="width:36.4%"></div><div class="cbase" style="left:15.3%"></div></div>
+      <div class="cval">36.4%</div>
+    </div>
+    <div class="crow">
+      <div class="cname">Staples &amp; defensive<em>4 of 18 names</em></div>
+      <div class="ctrack"><div class="cfill" style="width:22.2%"></div><div class="cbase" style="left:15.3%"></div></div>
+      <div class="cval">22.2%</div>
+    </div>
+    <div class="crow">
+      <div class="cname" style="color:var(--muted)">Universe baseline<em>116 of 758 stocks</em></div>
+      <div class="ctrack"><div class="cfill" style="width:15.3%;background:var(--faint)"></div></div>
+      <div class="cval" style="color:var(--muted)">15.3%</div>
+    </div>
+  </div>
+  <p class="baseline-note">▏ vertical rule marks the 15.3% universe baseline</p>
+
+  <div class="col">
+    <p>Cybersecurity is the finding. <strong>CHKP, CRWD, FFIV, FTNT, NET, NTSK, OKTA, PANW, S and ZS — all ten, without exception</strong>, rate BUY in a tape where fewer than one name in six does. A cluster that clean is unlikely to be noise, and it is the one growth pocket holding up while the rest of high-multiple tech sells off.</p>
+    <p>Energy and insurance at 57% corroborate the cross-asset table: XLE was the strongest sector ETF in the book, and insurance is the rate-sensitive value pocket that benefits when bonds sell off. The overall shape — energy, insurers, managed care, staples leading; industrials, utilities, materials and small caps lagging — is a defensive, late-cycle rotation.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Top 10 buy candidates</h2>
+  <div class="col">
+    <p class="lede">Every name below scored a perfect 100 — all four indicator conditions satisfied. Twenty-four stocks did; these ten are the ones not already overbought, ranked by volume confirmation.</p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Ticker</th><th class="co" style="text-align:left">Company</th>
+        <th class="n">Price</th><th class="n">1-day</th><th class="n">RSI</th><th class="n">MACD</th><th class="n">Vol</th><th class="n">vs SMA20</th>
+        <th style="text-align:left">Read it with</th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="rank">1</td><td class="tkr">WST</td><td class="co">West Pharmaceutical Services</td><td class="n">$365.00</td><td class="n pos">+2.76%</td><td class="n">67</td><td class="n pos">+1.953</td><td class="n">1.9×</td><td class="n pos">+5.3%</td><td class="flag">Strongest volume of the non-overbought set</td></tr>
+        <tr><td class="rank">2</td><td class="tkr">NTSK</td><td class="co">Netskope</td><td class="n">$17.47</td><td class="n pos">+1.87%</td><td class="n">68</td><td class="n pos">+0.212</td><td class="n">1.8×</td><td class="n pos">+18.4%</td><td class="flag">Extended — 18% above SMA20, recent IPO</td></tr>
+        <tr><td class="rank">3</td><td class="tkr">CHKP</td><td class="co">Check Point Software</td><td class="n">$137.79</td><td class="n neg">−0.51%</td><td class="n">57</td><td class="n pos">+0.190</td><td class="n">1.7×</td><td class="n pos">+3.1%</td><td class="flag">Cleanest entry: lowest RSI, least extended</td></tr>
+        <tr><td class="rank">4</td><td class="tkr">KR</td><td class="co">The Kroger Co.</td><td class="n">$62.25</td><td class="n pos">+2.20%</td><td class="n">69</td><td class="n pos">+0.419</td><td class="n">1.5×</td><td class="n pos">+7.3%</td><td class="flag">RSI 69 — one point from overbought</td></tr>
+        <tr><td class="rank">5</td><td class="tkr">WRB</td><td class="co">W. R. Berkley</td><td class="n">$71.28</td><td class="n pos">+0.58%</td><td class="n">60</td><td class="n pos">+0.374</td><td class="n">1.5×</td><td class="n pos">+2.9%</td><td class="flag">Insurance cluster, moderate readings</td></tr>
+        <tr><td class="rank">6</td><td class="tkr">WTI</td><td class="co">W&amp;T Offshore</td><td class="n">$4.13</td><td class="n pos">+2.50%</td><td class="n">61</td><td class="n pos">+0.023</td><td class="n">1.5×</td><td class="n pos">+6.8%</td><td class="flag">$4 microcap — thin liquidity, sizing risk</td></tr>
+        <tr><td class="rank">7</td><td class="tkr">FFIV</td><td class="co">F5, Inc.</td><td class="n">$430.88</td><td class="n pos">+4.80%</td><td class="n">64</td><td class="n pos">+3.700</td><td class="n">1.4×</td><td class="n pos">+8.7%</td><td class="flag">Largest MACD in the set</td></tr>
+        <tr><td class="rank">8</td><td class="tkr">CRWD</td><td class="co">CrowdStrike Holdings</td><td class="n">$242.49</td><td class="n pos">+2.97%</td><td class="n">65</td><td class="n pos">+2.283</td><td class="n">1.4×</td><td class="n pos">+15.5%</td><td class="flag">Extended 15.5% above SMA20</td></tr>
+        <tr><td class="rank">9</td><td class="tkr">ELV</td><td class="co">Elevance Health</td><td class="n">$417.54</td><td class="n neg">−1.58%</td><td class="n">59</td><td class="n pos">+2.039</td><td class="n">1.4×</td><td class="n pos">+3.6%</td><td class="flag">Only pick that fell today — not chasing strength</td></tr>
+        <tr><td class="rank">10</td><td class="tkr">MOS</td><td class="co">The Mosaic Company</td><td class="n">$25.46</td><td class="n pos">+1.63%</td><td class="n">61</td><td class="n pos">+0.024</td><td class="n">1.4×</td><td class="n">+4.4%</td><td class="flag">MACD barely positive — weakest conviction</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p>Seven more names scored 100 and were <em>excluded for being overbought</em> — <span class="mono">TRMD, RVTY, SWKS, VLO, OXY, CVX, APA</span>, all RSI above 70, five of them energy. They are not worse companies; they are worse entries today. If you want the energy trade specifically, that list is where it lives.</p>
+    <p>One structural caution: <strong>these are counter-trend longs</strong>. In a book where 74% of names are bearish and every index is falling, a perfect technical score means a stock is rising against its market, not with it. Position sizing matters more than selection here.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What would change this read</h2>
+  <div class="cav">
+    <div>
+      <span class="tag ok">Verified</span>
+      <h3>The engine is internally coherent</h3>
+      <p>All twelve inverse/leveraged mirror pairs in the universe resolved opposite as they must — SH bullish against UPRO bearish, SQQQ against TQQQ, SOXS against SOXL, and nine more. Since these track identical underlyings by construction, agreement would have proven the indicators were reading noise. None did.</p>
+    </div>
+    <div>
+      <span class="tag">Data gap</span>
+      <h3>No sentiment reached any signal</h3>
+      <p>Finnhub's news-sentiment endpoint returned HTTP 403 for every symbol requested. Every reading here is pure price and volume — no news, no fundamentals, no earnings dates. A name can score 100 the day before a catastrophic print.</p>
+    </div>
+    <div>
+      <span class="tag">Sample bias</span>
+      <h3>This universe is a portfolio, not an index</h3>
+      <p>The 933 tickers are a Yahoo portfolio export unioned with a partial large-cap seed — not the S&amp;P 500, and there is no index-membership column to filter by. The 74.4% bearish figure describes <em>this book</em>. It is a reasonable proxy for a broad tape but is not a market-cap-weighted breadth measure, and its theme weights reflect prior collection interest.</p>
+    </div>
+    <div>
+      <span class="tag">Method</span>
+      <h3>The score has nine values, so ties decide the ranking</h3>
+      <p>Score is <span class="mono">50 + (bullish − bearish) × 12.5</span> over four booleans, so 24 stocks tie at 100 and the ordering above comes from the tiebreak — volume confirmation first, RSI headroom second — not from the engine. Treat the ten as an unordered set and use the raw columns to form your own view.</p>
+    </div>
+    <div>
+      <span class="tag">Coverage</span>
+      <h3>Four tickers never resolved, and six sector ETFs are missing</h3>
+      <p>BBBY and VSCO are delisted; <span class="mono">BRK.B</span> and <span class="mono">BF.B</span> failed because the database stores dot-notation share classes while the price API expects <span class="mono">BRK-B</span>. Separately, only 5 of the 11 SPDR sector ETFs are registered — XLK, XLF, XLV, XLY, XLP and XLRE are absent, as are SPY, HYG, LQD and UUP, so sector rotation had to be inferred from stock-level aggregation rather than read directly.</p>
+    </div>
+    <div>
+      <span class="tag">Scope</span>
+      <h3>One bar, no backtest</h3>
+      <p>This is a single daily close. Nothing here is validated against forward returns, no hit rate is claimed for the scoring model, and the defensive rotation described is a same-day cross-section — not a trend confirmed over weeks.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Generated from a local <span class="mono">locrun</span> scan of 929 resolved tickers · bar date 2026-09-15 16:00 ET · indicators RSI(14), MACD(12,26,9), SMA20, 20-day volume ratio over 3 months of daily bars.<br>
+  Read-only run — Firestore writes and GCP3 backend refresh were disabled; GCP3 <span class="mono">/refresh</span> endpoints returned 401 on the runs where they were attempted.<br><br>
+  Informational analysis of technical indicators, not investment advice. No fundamental, valuation, or risk analysis was performed.
+</footer>
+
+</div>

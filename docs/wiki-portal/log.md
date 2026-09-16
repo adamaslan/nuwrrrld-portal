@@ -884,3 +884,53 @@ body): §2 (hydration workflow reliability, an ops item, not this PR's code
 change), §3 (resolved for free by §0, no separate wiki note needed), §4
 (mobile repo — `gcp3-mobile/docs/wiki-mobile/` is where that lands, not here),
 §5/§6/§8 (research/decision items with no code change yet).
+
+## [2026-09-15] ingest | PR #143 docs(signals): 933-ticker scan findings + 10 recommendation deficiencies | pages touched: 5
+
+First full-universe scan of `ticker_universe` (933 active, 929 resolved) run
+read-only through the `locrun` indicator pipeline, plus an audit of what
+surrounds the indicator math. The scan's macro conclusion is secondary to what
+it exposed about the data layer.
+
+New page [[concept-unvalidated-recommendation-surface]] names the pattern: the
+portal emits BUY/HOLD/SELL and a 0–100 score from four equally-weighted
+booleans, with no backtest, no fundamentals, and no risk model behind it. Its
+distinguishing feature is the *appearance* of rigor — a `sectorCapPct`, a
+`position_size` string, a backtest client, a `volatilityPercentile` — where the
+capability is absent.
+
+Three findings updated existing entities:
+
+- [[entity-ticker-universe-pipeline]] failures 13–15. **No sector column**, so
+  757 of 933 active symbols (81.1%) are unclassifiable; the only sector source
+  is a 176-ticker hand-maintained literal. **Share classes registered in both
+  spellings** (`BRK.B`/`BRK-B`, `BF.B`/`BF-B`) because `normalizeTicker`
+  canonicalizes neither — the dot form is right for Alpaca and returns
+  "possibly delisted" from Yahoo, which silently dropped Berkshire from the
+  scan. And failure 10's leveraged/inverse contamination **recurs outside
+  `topCards()`**: that fix added a `universe` filter to the portal's ranking
+  query, but 86 of 171 active ETFs (50%) are leveraged/inverse/income products
+  and the raw scan path has no such filter.
+- [[entity-paper-portfolios]] — `sectorCapPct` is genuinely enforced at
+  `paper-engine-core.ts:178` against that 18.9%-coverage map. Correct inside
+  the seeded Core 50; unenforceable for anything outside it. A risk control
+  that reads as real.
+- [[entity-backtest-engine]] failure 3 — being disabled by default is not just
+  a dark badge. It is the repo's only validation surface, so every action label
+  shipped to users is uncalibrated.
+
+One thing verified rather than assumed: all twelve inverse/leveraged ETF mirror
+pairs resolved opposite, as they mechanically must, so the indicators are not
+reading noise. That establishes coherence and says nothing about predictive
+validity — which is precisely what cannot be established while
+[[entity-backtest-engine]] is dark.
+
+**Fixed outside this repo:** `homebase/locrun.py` gained `to_yahoo_symbol()`,
+translating dot notation at the yfinance boundary while still reporting under
+the upstream spelling (BRK.B → $516.76, BF.B → $26.18 now resolve). That repo
+has no git remote, so the change could not be submitted as a PR — recorded here
+because the portal-side half (canonicalizing `normalizeTicker`) is deliberately
+still open: it is a data-plane key change touching enqueue, drain, and the
+watchlist route.
+
+## [2026-09-15] friction | whole-universe breadth stats are silently wrong unless leveraged/inverse ETFs are excluded by hand, and nothing in the data layer marks them | cost: rework

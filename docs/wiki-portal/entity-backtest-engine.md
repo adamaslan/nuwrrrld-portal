@@ -43,6 +43,15 @@ Two properties define it:
    correct-by-design but easy to mistake for a bug.
 2. **No caching.** Every badge render is a live 8 s-timeout round-trip; there is
    no Neon L2 in front of it the way Hold/Fold has one.
+3. **Its absence leaves the whole scoring model uncalibrated** (established
+   2026-09-15, PR #143). Because this is the *only* validation surface in the
+   repo, "disabled by default" means no score anywhere — including the
+   BUY/HOLD/SELL action on every card — has a measured hit rate behind it. The
+   0–100 score reaches only nine discrete values and its four inputs carry
+   equal, unfitted weight, so there is nothing to appeal to when asked how often
+   a 100 was right. Distinct from failure 1: a dark track-record *badge* is
+   cosmetic, whereas an uncalibrated *action label* is presented to users as a
+   recommendation. See [[concept-unvalidated-recommendation-surface]].
 
 ## Open questions
 
