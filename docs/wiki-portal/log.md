@@ -886,3 +886,4 @@ change), §3 (resolved for free by §0, no separate wiki note needed), §4
 §5/§6/§8 (research/decision items with no code change yet).
 
 ## [2026-09-22] ingest | PR #149 docs: expand Modal pipeline status with free-tier plan, reporting design, AI budget | pages touched: 1
+## [2026-09-22] ingest | PR #147 fix(paper-portfolios): match a slot window, not an exact minute | pages touched: 3
