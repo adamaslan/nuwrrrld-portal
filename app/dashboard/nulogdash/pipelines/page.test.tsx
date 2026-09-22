@@ -29,6 +29,9 @@ function run(overrides: Partial<PipelineRunRow> = {}): PipelineRunRow {
       { subject: "MSFT", model: null, outcome: "skip" },
     ],
     summary: { selection: "watchlist" },
+    host: null,
+    status: null,
+    coverage: {},
     ...overrides,
   };
 }
