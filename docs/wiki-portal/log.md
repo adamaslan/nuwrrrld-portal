@@ -884,3 +884,5 @@ body): §2 (hydration workflow reliability, an ops item, not this PR's code
 change), §3 (resolved for free by §0, no separate wiki note needed), §4
 (mobile repo — `gcp3-mobile/docs/wiki-mobile/` is where that lands, not here),
 §5/§6/§8 (research/decision items with no code change yet).
+
+## [2026-09-22] ingest | PR #149 docs: expand Modal pipeline status with free-tier plan, reporting design, AI budget | pages touched: 1
