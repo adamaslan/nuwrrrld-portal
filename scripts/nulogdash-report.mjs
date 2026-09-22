@@ -94,6 +94,11 @@ const blockerRow = ([reason, info]) => `<tr>
   <td class="feats">${info.features.map((f) => `<code>${esc(f)}</code>`).join(" ")}</td>
 </tr>`;
 
+const chartData = {
+  status: { labels: ["pass", "fail", "blocked", "not_run"], counts: ["pass", "fail", "blocked", "not_run"].map((s) => counts[s] ?? 0) },
+  blockers: { labels: blockerRows.map(([reason]) => reason), counts: blockerRows.map(([, info]) => info.features.length) },
+};
+
 const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -103,6 +108,7 @@ const html = `<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   :root {
     --bg: #f6f8fa; --panel: #ffffff; --panel2: #eef1f5; --line: #dde3ea;
@@ -188,6 +194,27 @@ const html = `<!doctype html>
   .badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); }
   .badge.err { color: var(--err); } .badge.muted { color: var(--muted); }
   footer { color: var(--muted); font-size: 12px; margin-top: 34px; line-height: 1.85; }
+
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0 4px; }
+  @media (max-width: 720px) { .charts { grid-template-columns: 1fr; } }
+  .chartbox { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .chartbox .ck { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 10px; }
+  .chartbox canvas { max-height: 220px; }
+  .chart-fallback { color: var(--muted); font-size: 12px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+  .toolbar input[type="search"] {
+    flex: 1; min-width: 180px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 7px 11px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
+  }
+  .toolbar input[type="search"]::placeholder { color: var(--muted); }
+  .toolbar button.chip {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; padding: 5px 12px; cursor: pointer;
+  }
+  .toolbar button.chip.active { color: var(--ink); border-color: var(--accent); background: var(--panel2); }
+  .rowcount { color: var(--muted); font-size: 11.5px; margin: 0 0 8px; }
+  tr.hide { display: none; }
 </style>
 </head>
 <body>
@@ -216,6 +243,19 @@ const html = `<!doctype html>
   </div>
   <div class="barkey">pass ${counts.pass ?? 0} &middot; fail ${counts.fail ?? 0} &middot; blocked ${counts.blocked ?? 0} &middot; not_run ${counts.not_run ?? 0}</div>
 
+  <div class="charts">
+    <div class="chartbox">
+      <div class="ck">Status breakdown</div>
+      <canvas id="statusChart" role="img" aria-label="Donut chart of feature status counts"></canvas>
+      <div id="statusFallback" class="chart-fallback" style="display:none">Chart.js failed to load — see the cards above for exact counts.</div>
+    </div>
+    <div class="chartbox">
+      <div class="ck">Top blockers by feature count</div>
+      <canvas id="blockerChart" role="img" aria-label="Bar chart of blocker causes ranked by affected feature count"></canvas>
+      <div id="blockerFallback" class="chart-fallback" style="display:none">Chart.js failed to load — see the table below for exact counts.</div>
+    </div>
+  </div>
+
   ${(run.driftWarnings ?? []).length ? `<h2>Inventory drift</h2>
   <div class="scroll"><table><tbody>${run.driftWarnings.map((w) => `<tr><td class="why">${esc(typeof w === "string" ? w : JSON.stringify(w))}</td></tr>`).join("")}</tbody></table></div>`
     : `<h2>Inventory drift</h2><p>None — <code>docs/nulogdash-inventory.json</code> matches the routes under <code>app/api/**</code>.</p>`}
@@ -229,9 +269,18 @@ const html = `<!doctype html>
 
   <h2>Every feature (${total})</h2>
   <p>Failures first, then blocked, then excluded, then passing. Reasons are redacted and truncated at write time by <code>scripts/nulogdash.mjs</code>.</p>
+  <div class="toolbar">
+    <input type="search" id="featureFilter" placeholder="Filter by feature, entrypoint, or reason&hellip;" autocomplete="off">
+    <button class="chip active" data-status="all">all ${total}</button>
+    <button class="chip" data-status="pass">pass ${counts.pass ?? 0}</button>
+    <button class="chip" data-status="fail">fail ${counts.fail ?? 0}</button>
+    <button class="chip" data-status="blocked">blocked ${counts.blocked ?? 0}</button>
+    <button class="chip" data-status="not_run">not_run ${counts.not_run ?? 0}</button>
+  </div>
+  <p class="rowcount" id="rowcount"></p>
   <div class="scroll"><table>
     <thead><tr><th>Status</th><th>Feature</th><th>Entrypoint</th><th>Depends on</th><th class="n">Latency</th><th>Reason</th></tr></thead>
-    <tbody>${results.map(featureRow).join("\n")}</tbody>
+    <tbody id="featureBody">${results.map((r) => featureRow(r).replace("<tr", `<tr data-status="${r.status}" data-search="${esc(`${r.feature} ${(r.entrypoints ?? []).join(" ")} ${r.reason ?? ""}`).toLowerCase()}"`)).join("\n")}</tbody>
   </table></div>
 
   <footer>
@@ -241,6 +290,92 @@ const html = `<!doctype html>
     The live matrix is at <code>${esc(run.baseUrl)}/dashboard/nulogdash</code>.
   </footer>
 </div>
+<script>
+(function () {
+  var DATA = ${JSON.stringify(chartData)};
+  var STATUS_COLOR = { pass: "#15803d", fail: "#b91c1c", blocked: "#b45309", not_run: "#5c6773" };
+  var isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  var gridColor = isDark ? "#2a323d" : "#dde3ea";
+  var textColor = isDark ? "#8b98a5" : "#5c6773";
+
+  function renderCharts() {
+    if (typeof Chart === "undefined") {
+      var sf = document.getElementById("statusFallback"); if (sf) sf.style.display = "block";
+      var bf = document.getElementById("blockerFallback"); if (bf) bf.style.display = "block";
+      return;
+    }
+    var statusCanvas = document.getElementById("statusChart");
+    if (statusCanvas && DATA.status.counts.some(function (n) { return n > 0; })) {
+      new Chart(statusCanvas, {
+        type: "doughnut",
+        data: {
+          labels: DATA.status.labels,
+          datasets: [{ data: DATA.status.counts, backgroundColor: DATA.status.labels.map(function (s) { return STATUS_COLOR[s]; }), borderWidth: 0 }],
+        },
+        options: {
+          plugins: { legend: { position: "bottom", labels: { color: textColor, font: { size: 11 }, boxWidth: 10 } } },
+          cutout: "62%",
+        },
+      });
+    }
+    var blockerCanvas = document.getElementById("blockerChart");
+    if (blockerCanvas && DATA.blockers.counts.length) {
+      new Chart(blockerCanvas, {
+        type: "bar",
+        data: {
+          labels: DATA.blockers.labels.map(function (l) { return l.length > 34 ? l.slice(0, 33) + "…" : l; }),
+          datasets: [{ data: DATA.blockers.counts, backgroundColor: "#b45309", borderRadius: 4, maxBarThickness: 18 }],
+        },
+        options: {
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor, font: { size: 10.5 } }, grid: { display: false } },
+          },
+        },
+      });
+    } else if (blockerCanvas) {
+      var bf2 = document.getElementById("blockerFallback"); if (bf2) { bf2.textContent = "No blockers to chart — every feature ran."; bf2.style.display = "block"; }
+    }
+  }
+
+  function initFilter() {
+    var input = document.getElementById("featureFilter");
+    var rows = Array.prototype.slice.call(document.querySelectorAll("#featureBody tr"));
+    var chips = Array.prototype.slice.call(document.querySelectorAll(".toolbar button.chip"));
+    var rowcount = document.getElementById("rowcount");
+    var activeStatus = "all";
+
+    function apply() {
+      var q = (input.value || "").trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (tr) {
+        var matchesStatus = activeStatus === "all" || tr.getAttribute("data-status") === activeStatus;
+        var matchesQuery = !q || (tr.getAttribute("data-search") || "").indexOf(q) !== -1;
+        var visible = matchesStatus && matchesQuery;
+        tr.classList.toggle("hide", !visible);
+        if (visible) shown++;
+      });
+      rowcount.textContent = "Showing " + shown + " of " + rows.length + " features.";
+    }
+
+    if (input) input.addEventListener("input", apply);
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chips.forEach(function (c) { c.classList.remove("active"); });
+        chip.classList.add("active");
+        activeStatus = chip.getAttribute("data-status");
+        apply();
+      });
+    });
+    apply();
+  }
+
+  renderCharts();
+  initFilter();
+})();
+</script>
 </body>
 </html>`;
 

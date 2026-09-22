@@ -1,0 +1,269 @@
+<title>Running nulogdash</title>
+<style>
+  :root{
+    --ink:#1b1f1d; --sub:#4d5650; --line:#dbe3dc; --panel:#f4f7f3; --bg:#fbfcfa;
+    --accent:#1f7a5c; --accent-ink:#0d3f2d; --amber:#8a5a12; --amber-bg:#fbf1de;
+    --code-bg:#121713; --code-ink:#d9f2e4; --code-dim:#7fae95; --focus:#1f7a5c;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e9f0ea; --sub:#a9b6ae; --line:#2a332c; --panel:#161c18; --bg:#0f1310;
+      --accent:#4fd3a0; --accent-ink:#c9f5e2; --amber:#e0b256; --amber-bg:#2a2211;
+      --code-bg:#0a0f0b; --code-ink:#d9f2e4; --code-dim:#6e9782; --focus:#4fd3a0;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e9f0ea; --sub:#a9b6ae; --line:#2a332c; --panel:#161c18; --bg:#0f1310;
+    --accent:#4fd3a0; --accent-ink:#c9f5e2; --amber:#e0b256; --amber-bg:#2a2211;
+    --code-bg:#0a0f0b; --code-ink:#d9f2e4; --code-dim:#6e9782; --focus:#4fd3a0;
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Source Sans 3", Arial, sans-serif;
+    padding-inline:16px;
+  }
+  a{color:var(--accent-ink);}
+  .wrap{max-width:760px; margin:0 auto; padding-block:48px 80px;}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:.8rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent-ink); margin:0 0 10px;
+  }
+  h1{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:clamp(1.7rem, 4vw, 2.3rem); line-height:1.15; margin:0 0 10px;
+    text-wrap:balance; letter-spacing:-.01em;
+  }
+  .dek{color:var(--sub); font-size:1.05rem; line-height:1.55; max-width:60ch; margin:0 0 32px;}
+
+  nav.toc{
+    display:flex; flex-wrap:wrap; gap:8px 14px;
+    border:1px solid var(--line); background:var(--panel);
+    border-radius:10px; padding:14px 16px; margin-bottom:40px;
+  }
+  nav.toc a{
+    font-size:.85rem; color:var(--sub); text-decoration:none;
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+  }
+  nav.toc a:hover, nav.toc a:focus-visible{color:var(--accent-ink);}
+  nav.toc span{color:var(--line);}
+
+  section{margin-bottom:44px; scroll-margin-top:16px;}
+  h2{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:1.15rem; display:flex; align-items:baseline; gap:10px;
+    margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid var(--line);
+  }
+  h2 .num{color:var(--accent); font-size:1rem;}
+  p{line-height:1.6; color:var(--ink); margin:0 0 14px;}
+  p.note{color:var(--sub); font-size:.92rem;}
+
+  ul.checks{list-style:none; margin:0 0 8px; padding:0; display:grid; gap:8px;}
+  ul.checks li{
+    display:flex; gap:10px; align-items:flex-start;
+    font-size:.95rem; line-height:1.5;
+  }
+  ul.checks li::before{
+    content:"›"; color:var(--accent); font-weight:700; flex:none;
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+  }
+  ul.checks code, p code, li code{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; font-size:.88em; color:var(--accent-ink);
+  }
+
+  .step{
+    display:grid; grid-template-columns:28px 1fr; gap:12px 14px; margin-bottom:22px;
+  }
+  .step .dot{
+    width:28px; height:28px; border-radius:50%; background:var(--accent);
+    color:var(--bg); font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-weight:700; font-size:.85rem; display:flex; align-items:center; justify-content:center;
+  }
+  .step .body{min-width:0;}
+  .step h3{margin:2px 0 6px; font-size:1rem; font-family:"Source Sans 3", Arial, sans-serif; font-weight:700;}
+  .step p{margin:0 0 10px;}
+
+  pre{
+    background:var(--code-bg); color:var(--code-ink);
+    border-radius:8px; padding:14px 16px; margin:0 0 6px;
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:.86rem; line-height:1.55; overflow-x:auto;
+  }
+  pre .cmt{color:var(--code-dim);}
+  figcaption{color:var(--sub); font-size:.82rem; margin:0 0 10px;}
+
+  table{width:100%; border-collapse:collapse; font-size:.9rem; margin-bottom:6px;}
+  caption{text-align:left; color:var(--sub); font-size:.82rem; margin-bottom:8px;}
+  th, td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:.78rem; letter-spacing:.03em; text-transform:uppercase; color:var(--sub);}
+  td code{font-family:"IBM Plex Mono", ui-monospace, monospace; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:.85em; color:var(--accent-ink);}
+  .tbl-wrap{overflow-x:auto;}
+
+  .callout{
+    border:1px solid var(--amber); background:var(--amber-bg);
+    border-radius:10px; padding:14px 16px; font-size:.92rem; line-height:1.55;
+    color:var(--ink); margin-bottom:6px;
+  }
+  .callout strong{color:var(--amber);}
+
+  footer{border-top:1px solid var(--line); margin-top:48px; padding-top:20px; color:var(--sub); font-size:.85rem;}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">nuwrrrld-portal · operator guide</p>
+  <h1>Running nulogdash</h1>
+  <p class="dek">
+    A feature-level end-to-end sweep of the portal: it calls every real API route in
+    <code>docs/nulogdash-inventory.json</code> against your local dev server, then writes a
+    pass / fail / blocked / not_run verdict for each one to <code>.nulogdash/latest.json</code>.
+  </p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#preconditions">Preconditions</a><span>·</span>
+    <a href="#run">Run the sweep</a><span>·</span>
+    <a href="#view">View results</a><span>·</span>
+    <a href="#report">Standalone HTML report</a><span>·</span>
+    <a href="#reading">Reading blocked/fail</a><span>·</span>
+    <a href="#reference">Command reference</a>
+  </nav>
+
+  <section id="preconditions">
+    <h2><span class="num">01</span> Preconditions</h2>
+    <p>All four need to be true before a sweep will tell you anything real. Skip one and the sweep
+      still runs — it just reports most features as <code>blocked</code> instead of exercising them.</p>
+    <ul class="checks">
+      <li><code>next dev</code> is running (<code>npm run dev</code>) — the sweep hits
+        <code>http://localhost:3000</code> by default, overridable with <code>NULOGDASH_BASE_URL</code>.</li>
+      <li><code>.env.local</code> has the same keys <code>/local-check</code> verifies (Neon, OpenRouter,
+        Stripe, GCP backend). Run that first if you're not sure.</li>
+      <li><code>NULOGDASH_SESSION_COOKIE</code> is set to a real Clerk <code>__session</code> cookie value
+        for a dedicated test user — copy it from browser devtools after signing in as that user.
+        Without it, every auth-required feature reports <code>blocked</code>, not silently skipped.</li>
+      <li><code>NULOGDASH_ADMIN_EMAILS</code> (comma-separated) includes your own email, or
+        <code>/dashboard/nulogdash</code> won't let you view the results.</li>
+    </ul>
+    <p class="note">Want the sweep's test user to actually have data (a watchlist, a scored portfolio) instead of
+      hitting empty-state 503s that report a true but meaningless pass? Run the fixture seed first:</p>
+    <pre><span class="cmt"># idempotent — only adds watchlist rows for the dedicated E2E test user</span>
+node --env-file=.env.local scripts/nulogdash-fixture.mjs
+
+<span class="cmt"># check whether seeding already happened, without writing anything</span>
+node --env-file=.env.local scripts/nulogdash-fixture.mjs --check</pre>
+  </section>
+
+  <section id="run">
+    <h2><span class="num">02</span> Run the sweep</h2>
+
+    <div class="step">
+      <div class="dot">1</div>
+      <div class="body">
+        <h3>Regenerate the feature inventory</h3>
+        <p>Rebuilds <code>docs/nulogdash-inventory.json</code> from <code>app/api/**</code> and warns on drift —
+          a route added or removed without the inventory catching up.</p>
+        <pre>npm run nulogdash:inventory</pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="dot">2</div>
+      <div class="body">
+        <h3>Run the full sweep</h3>
+        <p>Chains step 1, then calls every feature's entrypoint with the session cookie above.</p>
+        <pre>npm run nulogdash
+<span class="cmt"># same as: npm run nulogdash:inventory && node --env-file=.env.local scripts/nulogdash.mjs</span></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="dot">3</div>
+      <div class="body">
+        <h3>Or run just one feature</h3>
+        <p>Fast iteration while debugging a single check — <code>slug</code> comes from
+          <code>docs/nulogdash-inventory.json</code>.</p>
+        <pre>node --env-file=.env.local scripts/nulogdash.mjs --feature &lt;slug&gt;</pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="view">
+    <h2><span class="num">03</span> View the results</h2>
+    <p>With <code>next dev</code> still running, open
+      <code>http://localhost:3000/dashboard/nulogdash</code> — it renders <code>.nulogdash/latest.json</code>
+      as a live matrix. This is the primary way to read a sweep; nothing else in this guide replaces it.</p>
+  </section>
+
+  <section id="report">
+    <h2><span class="num">04</span> Generate a standalone HTML report</h2>
+    <p>For sharing a sweep outside the running dev server — in a PR, a Slack thread, an incident writeup —
+      <code>scripts/nulogdash-report.mjs</code> renders one sweep as a single self-contained HTML file. It only
+      reads <code>.nulogdash/</code>; it never calls the dev server, the database, or a model.</p>
+    <pre>npm run nulogdash:report
+<span class="cmt"># same as: node scripts/nulogdash-report.mjs</span>
+
+<span class="cmt"># a specific past run instead of the latest sweep</span>
+node scripts/nulogdash-report.mjs --run &lt;runId&gt;
+
+<span class="cmt"># open the generated file immediately</span>
+node scripts/nulogdash-report.mjs --open
+
+<span class="cmt"># change where the HTML is written (default shown)</span>
+node scripts/nulogdash-report.mjs --out-dir docs/nulogdash-runs</pre>
+    <p class="note">The report groups every <code>blocked</code> / <code>not_run</code> feature by its redacted
+      <code>reason</code>, so thirty-eight identical "no session cookie" rows read as one root cause instead of
+      thirty-eight separate lines.</p>
+  </section>
+
+  <section id="reading">
+    <h2><span class="num">05</span> Reading a blocked or failed sweep</h2>
+    <div class="callout">
+      <strong>Blocked isn't broken.</strong> A feature reporting <code>blocked</code> almost always means a
+      precondition from step 01 is missing, most often <code>NULOGDASH_SESSION_COOKIE</code>. Fix the
+      precondition and re-run — don't start debugging the route itself until the sweep can actually reach it.
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <caption>Status meanings</caption>
+        <thead><tr><th>Status</th><th>Meaning</th><th>What to check first</th></tr></thead>
+        <tbody>
+          <tr><td><code>pass</code></td><td>Route was called and returned the expected shape.</td><td>—</td></tr>
+          <tr><td><code>fail</code></td><td>Route was called and returned something wrong.</td><td>The redacted <code>reason</code> field in the report — don't re-run the request to see raw output.</td></tr>
+          <tr><td><code>blocked</code></td><td>A precondition stopped the sweep from calling the route at all.</td><td><code>NULOGDASH_SESSION_COOKIE</code>, then the other three preconditions in order.</td></tr>
+          <tr><td><code>not_run</code></td><td>Feature was intentionally excluded from this sweep.</td><td>The <code>excluded:</code> prefix on its reason.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="reference">
+    <h2><span class="num">06</span> Command reference</h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Command</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><code>npm run nulogdash:inventory</code></td><td>Rebuild the feature inventory from <code>app/api/**</code>.</td></tr>
+          <tr><td><code>npm run nulogdash</code></td><td>Inventory, then the full authenticated sweep.</td></tr>
+          <tr><td><code>node --env-file=.env.local scripts/nulogdash.mjs --feature &lt;slug&gt;</code></td><td>Sweep one feature only.</td></tr>
+          <tr><td><code>npm run nulogdash:fixture</code></td><td>Seed the sweep's test user with real, card-covered watchlist tickers.</td></tr>
+          <tr><td><code>npm run nulogdash:fixture:check</code></td><td>Check fixture state without writing anything.</td></tr>
+          <tr><td><code>npm run nulogdash:report</code></td><td>Render the latest sweep as a standalone HTML file.</td></tr>
+          <tr><td><code>npm run test:e2e:nulogdash</code></td><td>Playwright pass, then the merge-e2e script.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Slash-command form: <code>/nulogdash</code> (full sweep) or <code>/nulogdash --feature &lt;slug&gt;</code>
+      — see <code>.claude/commands/nulogdash.md</code>.</p>
+  </section>
+
+  <footer>
+    Sources: <code>.claude/commands/nulogdash.md</code>, <code>scripts/nulogdash.mjs</code>,
+    <code>scripts/nulogdash-report.mjs</code>, <code>scripts/nulogdash-fixture.mjs</code>, <code>package.json</code>.
+  </footer>
+</div>
