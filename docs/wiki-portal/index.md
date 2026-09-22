@@ -59,6 +59,7 @@ One page per named component. These are the hubs — everything links to entitie
 Cross-cutting patterns and design choices.
 
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
+- [[concept-unvalidated-recommendation-surface]] — the app emits BUY/HOLD/SELL from four booleans with no backtest, no fundamentals, and no risk model; the vocabulary of rigor exists where the capability does not
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
 - [[concept-composited-contrast]] — a token passing WCAG can still render at 2:1 once opacity multiplies it; and a media query adds no specificity
