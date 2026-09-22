@@ -165,6 +165,17 @@ what sits behind the second gate.
   fail-closed and cheap, but rotating an admin means a redeploy, and the console
   cannot show *who* else is an admin.
 
+## Report output (PR #152, 2026-09-22)
+
+`scripts/nulogdash-report.mjs`'s per-sweep HTML (written to
+`docs/nulogdash-runs/*.html`) was static tables only. It now also renders a
+Chart.js status-breakdown donut and a top-blockers-by-feature-count bar
+chart, plus a client-side search box and status-filter chips over the
+per-feature table — no change to the sweep data shape, `.nulogdash/latest.json`,
+or the CLI (`npm run nulogdash:report`). Chart.js loads from a pinned cdnjs
+URL with a plain-text fallback if the CDN is unreachable, so the report still
+reads (numbers only, no charts) offline or if cdnjs is blocked.
+
 ## See also
 
 - [[incident-2026-09-11-nulogdash-blind-sweep]] — the run that made this harness honest, and the four bugs it had been covering
