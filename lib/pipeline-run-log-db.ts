@@ -15,7 +15,23 @@ import sql from "@/lib/db";
 export type PipelineName =
   | "followed-tickers"
   | "followed-tickers-judge"
-  | "precompute-ai";
+  | "precompute-ai"
+  | "hydrate-universe"
+  | "paper-portfolios"
+  | "gcp3-signals"
+  | "homebase-signals"
+  | "signal-articles"
+  | "litmus-54";
+
+/** How a run's coverage broke down against what it expected to fill. */
+export interface RunCoverage {
+  expected: number;
+  filled: number;
+  /** Capped at 50 — enough to diagnose a miss without bloating the row. */
+  missing?: string[];
+  missingCount?: number;
+  staleCount?: number;
+}
 
 /** How one unit of work resolved. `skip` = no model call was attempted. */
 export type RunItemOutcome = "ok" | "empty" | "fail" | "skip";
@@ -46,6 +62,11 @@ export interface PipelineRunLog {
   itemsTotal: number;
   items: RunItem[];
   summary: Record<string, unknown>;
+  /** Where the run executed. Optional so the three pre-existing callers keep compiling unchanged. */
+  host?: "gha" | "modal" | "gcp" | "local" | null;
+  /** Computed by lib/shared/run-status.ts. Optional for the same reason as `host`. */
+  status?: "ok" | "degraded" | "partial" | "fail" | null;
+  coverage?: RunCoverage | null;
 }
 
 /** Fold a flat item list into the per-model rollup stored in the `models` column. */
@@ -95,7 +116,8 @@ export async function logPipelineRun(run: PipelineRunLog): Promise<boolean> {
     // has no default on `id TEXT PRIMARY KEY` — an omitted id there stores NULL.
     await sql`
       INSERT INTO pipeline_run_log
-        (id, pipeline, dry_run, session, items_total, items_ai, models, items, summary)
+        (id, pipeline, dry_run, session, items_total, items_ai, models, items, summary,
+         host, status, coverage)
       VALUES (
         ${randomUUID()},
         ${run.pipeline},
@@ -105,7 +127,10 @@ export async function logPipelineRun(run: PipelineRunLog): Promise<boolean> {
         ${itemsAi},
         ${JSON.stringify(models)},
         ${JSON.stringify(run.items)},
-        ${JSON.stringify(run.summary)}
+        ${JSON.stringify(run.summary)},
+        ${run.host ?? null},
+        ${run.status ?? null},
+        ${JSON.stringify(run.coverage ?? {})}
       )
     `;
     return true;
@@ -138,6 +163,9 @@ export interface PipelineRunRow {
   models: Record<string, PerModelStats>;
   items: RunItem[];
   summary: Record<string, unknown>;
+  host: string | null;
+  status: string | null;
+  coverage: RunCoverage | Record<string, never>;
 }
 
 /** `models`/`items`/`summary` come back as objects from Postgres (jsonb) but as
@@ -166,6 +194,9 @@ function toRow(r: Record<string, unknown>): PipelineRunRow {
     models: parseJson<Record<string, PerModelStats>>(r.models, {}),
     items: parseJson<RunItem[]>(r.items, []),
     summary: parseJson<Record<string, unknown>>(r.summary, {}),
+    host: (r.host as string | null) ?? null,
+    status: (r.status as string | null) ?? null,
+    coverage: parseJson<RunCoverage | Record<string, never>>(r.coverage, {}),
   };
 }
 
@@ -175,7 +206,8 @@ export async function listPipelineRuns(limit = 50): Promise<PipelineRunRow[]> {
   // value would let one request pull the whole audit table into memory.
   const n = Math.min(Math.max(Math.trunc(limit) || 0, 1), 200);
   const rows = (await sql`
-    SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, items, summary
+    SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, items, summary,
+           host, status, coverage
     FROM pipeline_run_log ORDER BY run_at DESC LIMIT ${n}
   `) as Record<string, unknown>[];
   return rows.map(toRow);
@@ -187,7 +219,8 @@ export async function getPipelineRun(id: string): Promise<PipelineRunRow | null>
   // returning zero rows, which would surface as a 500 on a mistyped URL.
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
   const rows = (await sql`
-    SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, items, summary
+    SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, items, summary,
+           host, status, coverage
     FROM pipeline_run_log WHERE id = ${id}
   `) as Record<string, unknown>[];
   return rows[0] ? toRow(rows[0]) : null;

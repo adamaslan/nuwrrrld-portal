@@ -6,7 +6,7 @@ import { isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
 import { NulogdashTabs } from "../page";
 import { TriggerControls } from "./_components/TriggerControls";
 import { listPipelineRuns, summarizeOutcomes } from "@/lib/pipeline-run-log-db";
-import type { PipelineRunRow } from "@/lib/pipeline-run-log-db";
+import type { PipelineName, PipelineRunRow } from "@/lib/pipeline-run-log-db";
 import "../nulogdash.css";
 
 export const metadata: Metadata = {
@@ -19,9 +19,12 @@ export const dynamic = "force-dynamic";
 
 const PIPELINES = ["followed-tickers", "followed-tickers-judge", "precompute-ai"] as const;
 
-/** The three pipelines' human labels — kept here rather than in the DB module
- * because they are presentation, and the union there is the contract. */
-const PIPELINE_LABEL: Record<(typeof PIPELINES)[number], string> = {
+/** Human labels for the pipelines this page knows how to render.
+ * Partial rather than a full `Record<PipelineName, string>`: `PipelineName`
+ * widens ahead of a pipeline actually being wired into this dashboard (see
+ * docs/modal-pipeline-status.md Design 1), and `RunRow`'s `?? run.pipeline`
+ * fallback already covers the raw name until its label is added here. */
+const PIPELINE_LABEL: Partial<Record<PipelineName, string>> = {
   "followed-tickers": "Followed tickers",
   "followed-tickers-judge": "Followed tickers · judge",
   "precompute-ai": "Precompute AI",
