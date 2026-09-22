@@ -947,3 +947,4 @@ watchlist route.
 ## [2026-09-25] ingest | PR #175 feat(grounding): incremental, budgeted compile + content-addressed chunk ids | pages touched: 1
 ## [2026-09-25] ingest | PR #176 feat(corpus): import real trader-qa corpus + weekly sync from ai-text-opt | pages touched: 1
 ## [2026-09-22] ingest | PR #158 feat(hydrate-universe): wire the busiest pipeline into pipeline_run_log | pages touched: 2
+## [2026-09-22] ingest | PR #152 feat(nulogdash): deluxe HTML report — charts + live filter | pages touched: 1
