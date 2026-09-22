@@ -130,6 +130,7 @@
     <a href="#preconditions">Preconditions</a><span>·</span>
     <a href="#run">Run the sweep</a><span>·</span>
     <a href="#view">View results</a><span>·</span>
+    <a href="#admin">The admin site</a><span>·</span>
     <a href="#report">Standalone HTML report</a><span>·</span>
     <a href="#reading">Reading blocked/fail</a><span>·</span>
     <a href="#reference">Command reference</a>
@@ -150,6 +151,15 @@
       <li><code>NULOGDASH_ADMIN_EMAILS</code> (comma-separated) includes your own email, or
         <code>/dashboard/nulogdash</code> won't let you view the results.</li>
     </ul>
+    <div class="callout">
+      <strong><code>npm run dev</code> by itself gets you none of this.</strong> It's just
+      <code>next dev</code> — it starts the portal so the sweep has something to call, but it doesn't sign
+      you in, doesn't set <code>NULOGDASH_ADMIN_EMAILS</code>, and doesn't run a sweep. Straight after
+      <code>npm run dev</code>, signing in and opening <code>/dashboard/nulogdash</code> gets you a
+      <code>404</code> — not an error, just <code>notFound()</code> because your email isn't allowlisted yet.
+      Signed-out entirely, you're redirected to <code>/sign-in</code> instead. See
+      <a href="#admin">§04</a> for exactly what unlocks the page.
+    </div>
     <p class="note">Want the sweep's test user to actually have data (a watchlist, a scored portfolio) instead of
       hitting empty-state 503s that report a true but meaningless pass? Run the fixture seed first:</p>
     <pre><span class="cmt"># idempotent — only adds watchlist rows for the dedicated E2E test user</span>
@@ -200,8 +210,43 @@ node --env-file=.env.local scripts/nulogdash-fixture.mjs --check</pre>
       as a live matrix. This is the primary way to read a sweep; nothing else in this guide replaces it.</p>
   </section>
 
+  <section id="admin">
+    <h2><span class="num">04</span> The admin site — and what it isn't</h2>
+    <p><code>/dashboard/nulogdash</code> <em>is</em> the admin site — the portal's only admin surface today.
+      There's no separate deployment or subdomain to find; it's a normal route in this app, gated by an
+      email allowlist rather than a role or plan.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <caption>What actually gates access</caption>
+        <thead><tr><th>State</th><th>What you see</th></tr></thead>
+        <tbody>
+          <tr><td>Signed out</td><td>Redirected to <code>/sign-in?redirect_url=/dashboard/nulogdash</code>.</td></tr>
+          <tr><td>Signed in, email <em>not</em> in <code>NULOGDASH_ADMIN_EMAILS</code></td><td><code>404</code> via <code>notFound()</code> — the route doesn't reveal itself exists.</td></tr>
+          <tr><td>Signed in, email allowlisted, no MFA enrolled</td><td>Page loads and reports are readable; mutating actions (triggering a pipeline run) stay disabled with an on-page notice.</td></tr>
+          <tr><td>Signed in, allowlisted, MFA enrolled</td><td>Full access — reports plus pipeline-triggering actions.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The allowlist check is one function, <code>isNulogdashAdmin()</code> in <code>lib/nulogdash.ts</code>,
+      shared by the page itself and by the main dashboard navbar — non-admins simply don't see a
+      <code>nulogdash</code> link there either, matching the page's 404-if-not-allowlisted behavior.</p>
+
+    <div class="callout">
+      <strong>One file in this repo is not that admin site.</strong> <code>docs/nulogdash-admin.html</code>
+      is a static prototype mockup (sidebar, fake metrics, a "Create User" button) that was never wired to
+      real data — its own title says <em>Prototype</em>. If you open it expecting live results, that's why
+      nothing updates. <code>docs/nulogdash-admin-site.html</code>, by contrast, is a static write-up
+      <em>about</em> the real admin page and links out to it — useful background, not a page you run.
+      The one page with real, live data is <code>/dashboard/nulogdash</code> itself.
+    </div>
+
+    <p class="note">A second tab, <code>/dashboard/nulogdash/pipelines</code>, sits behind the same allowlist
+      gate and shows pipeline run history rather than the feature sweep — same admin site, different tab.</p>
+  </section>
+
   <section id="report">
-    <h2><span class="num">04</span> Generate a standalone HTML report</h2>
+    <h2><span class="num">05</span> Generate a standalone HTML report</h2>
     <p>For sharing a sweep outside the running dev server — in a PR, a Slack thread, an incident writeup —
       <code>scripts/nulogdash-report.mjs</code> renders one sweep as a single self-contained HTML file. It only
       reads <code>.nulogdash/</code>; it never calls the dev server, the database, or a model.</p>
@@ -222,7 +267,7 @@ node scripts/nulogdash-report.mjs --out-dir docs/nulogdash-runs</pre>
   </section>
 
   <section id="reading">
-    <h2><span class="num">05</span> Reading a blocked or failed sweep</h2>
+    <h2><span class="num">06</span> Reading a blocked or failed sweep</h2>
     <div class="callout">
       <strong>Blocked isn't broken.</strong> A feature reporting <code>blocked</code> almost always means a
       precondition from step 01 is missing, most often <code>NULOGDASH_SESSION_COOKIE</code>. Fix the
@@ -243,7 +288,7 @@ node scripts/nulogdash-report.mjs --out-dir docs/nulogdash-runs</pre>
   </section>
 
   <section id="reference">
-    <h2><span class="num">06</span> Command reference</h2>
+    <h2><span class="num">07</span> Command reference</h2>
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>Command</th><th>Does</th></tr></thead>
