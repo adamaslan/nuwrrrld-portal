@@ -48,7 +48,7 @@ tracks what's actually built against that 8-phase plan.
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
 | 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
-| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137 |
+| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137, but its slot gate never matched a real cron tick (exact-minute equality vs. GHA's typical 30-90min late start) — see [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]. Gate fixed to a window match in PR #147; `PAPER_CRON_SECRET` provisioning and the real account seed remain open, so scheduled runs still don't complete end to end as of 2026-09-22. |
 | 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — PR #138 |
 | 6 | Firestore mirror + reconciliation | **Shipped** — PR #138 |
 | 7 | `/api/paper/*` + `/dashboard/council/portfolios` | **Shipped** — this PR (`feat/paper-portfolios-phase-7-api-dashboard`, cut independently from `origin/main`) |
@@ -84,9 +84,11 @@ tracks what's actually built against that 8-phase plan.
   Phase 3 shipped without it) and computes the shared ≤36/run, ≤108/day
   model-call budget via `lib/paper-db.ts`'s new `getModelCallsToday`.
 - `.github/workflows/paper-portfolios.yml` (Phase 4) — 8 cron lines (4 slots ×
-  EST/EDT), gate resolves which slot fired from the NY wall-clock time itself
-  rather than a fixed hour (unlike `track-followed-tickers.yml`'s single-slot
-  gate), `workflow_dispatch` inputs for a forced `slot`/`account`, a non-fatal
+  EST/EDT), gate resolves which slot *window* the NY wall-clock time falls in
+  (PR #147 — originally an exact-minute match that never fired, see
+  [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]) rather
+  than a fixed hour (unlike `track-followed-tickers.yml`'s single-slot gate),
+  `workflow_dispatch` inputs for a forced `slot`/`account`, a non-fatal
   "zero orders across all 8 accounts" sanity check on non-`settle` slots.
 - `lib/paper-arbitration.ts` (Phase 5) — the model side of ARBITRATE: one
   `runSeat()` call per flagged candidate, `ARBITRATION_SYSTEM`'s constrained
