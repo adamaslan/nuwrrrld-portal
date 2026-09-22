@@ -579,19 +579,33 @@ miss names the leg that caused it. Two rules keep the test honest:
   `/signals` response. It does not keep its own copy of the list, so if
   `INDUSTRIES` changes, the test changes with it.
 
-### Open decision this forces
+### Open decision — resolved 2026-09-22, Option 1
 
-F1 (`tickers/{symbol}`) is currently **stock only**, because "gcp3 owns ETFs".
-Neon shows that boundary was never enforced, so pick one of these before
-building the litmus test's Firestore leg:
+F1 (`tickers/{symbol}`) was **stock only**, because "gcp3 owns ETFs". Neon
+showed that boundary was never enforced (only 9/54 overlapped), so it had to
+be picked explicitly:
 
-1. **Neon's hydrate lane owns every ETF card.** Register the 54 (below), and
-   F1 mirrors ETFs too. gcp3's `/signals` stays a separate, independent
-   engine, and the litmus test compares the two. *Recommended: this gives one
-   write path per store and makes the three-way comparison meaningful.*
-2. **gcp3 owns the 54.** Schedule `seed-etf-cards.mjs` as a real GHA job.
-   The `source = 'gcp3'` rows then need a precedence rule over `hydrate-local`
-   for the 9 overlapping symbols.
+1. **Neon's hydrate lane owns every ETF card.** Register the 54, and F1
+   mirrors ETFs too. gcp3's `/signals` stays a separate, independent engine,
+   and the litmus test compares the two. *Recommended: this gives one write
+   path per store and makes the three-way comparison meaningful.* **← chosen.**
+2. ~~gcp3 owns the 54. Schedule `seed-etf-cards.mjs` as a real GHA job.~~ Not
+   chosen — `scripts/seed-etf-cards.mjs` stays manual/unscheduled, since
+   Option 1 was already the effective default: `card-policy.ts`'s
+   `dataQuality` tie-break silently favors the hydrate lane's card over
+   gcp3's on any overlap (see `docs/wiki-portal/concept-signal-engine-host-parity.md`),
+   so gcp3-owned cards would never have actually landed for the 9 overlapping
+   symbols anyway.
+
+**Registration completed 2026-09-22**, per the runbook below, with one live
+drift from when this doc was written: gcp3's live `/signals` response
+returned `MOO` in place of `PBS` (54 symbols either way — the underlying
+`INDUSTRIES` list moved between the doc being written and the registration
+running). Both were registered; final state is all 54 of gcp3's *current*
+industry ETFs present in `ticker_universe` and carded (`missing: 0` on
+re-verification). This is a real, expected kind of litmus finding — the
+Phase 9 litmus test fetches the 54 from gcp3's own `/signals` response each
+run specifically so it never needs its own copy of this list.
 
 ### Close the 45-ETF gap (either option starts here)
 
@@ -647,7 +661,8 @@ bug to hide. `prune-universe.mjs --dry-run` will classify them as `young` or
 
 ### Order of work
 
-1. Register the 45 (above) and decide the ETF ownership question.
+1. ~~Register the 45 (above) and decide the ETF ownership question.~~ **Done
+   2026-09-22** — Option 1, see above.
 2. `pipeline_run_log` columns + `run-status.ts` + logging from
    `hydrate-universe`. This is the largest gap, because the busiest pipeline
    currently writes no run record.

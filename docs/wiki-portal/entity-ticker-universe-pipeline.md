@@ -29,7 +29,14 @@ in PR #66:
     download, not a parsing bug). Dry-run verified; real run blocked on the
     same deploy gap as everything else in this pipeline (see Known failures).
   - `scripts/seed-etf-cards.mjs` — the 54 gcp3-tracked ETFs, carded directly
-    (see below), confirmed working end-to-end against live gcp3 data.
+    (see below), confirmed working end-to-end against live gcp3 data. **Never
+    scheduled or run against production** (decided 2026-09-22, see
+    [[concept-signal-engine-host-parity]]): all 54 of gcp3's current
+    industry ETFs were instead registered into `ticker_universe` and carded
+    via the hydrate lane (`hydrate-local.mjs`), which already silently wins
+    `card-policy.ts`'s `dataQuality` tie-break on any overlap. Only 9/54
+    overlapped before this; now all 54 do, by explicit choice rather than by
+    accident.
 - **`ticker_cards`** (Neon table) — one scored/ranked card per ticker per
   horizon, built by `lib/shared/card-policy.ts`'s `buildCard()`, written via
   `upsertCards()`, read back via `topCards()`/`coverageForDate()` in
