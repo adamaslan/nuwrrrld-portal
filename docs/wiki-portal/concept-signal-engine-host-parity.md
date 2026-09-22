@@ -74,6 +74,16 @@ production ranking runs the pre-port engine and Modal's detector families
   fields from a truncated 40-bar window outrank two fields from a purpose-built
   ETF model, so gcp3's ETF cards never land when GHA has run. The parity doc's
   §6.1 (port signals-app's real `data_quality.py`) fixes this as a side effect.
+  **Made an explicit decision instead of a side effect (2026-09-22):** since
+  the hydrate lane already silently wins this tie-break, all 54 of gcp3's
+  industry ETFs were registered into `ticker_universe` and carded via
+  `hydrate-local` (previously only 9 of 54 overlapped; `scripts/seed-etf-cards.mjs`
+  had never run against production). gcp3's `/signals` stays a separately
+  computed, separately served engine — compared, not merged — via the planned
+  54-ETF litmus test (`docs/modal-pipeline-status.md`, free-tier plan Phase 9).
+  This does not fix the underlying `confluence` drift documented above; it
+  just makes the existing precedence explicit and complete instead of
+  accidental and 17%-covered.
 - **Lookback disagreement is load-bearing, not cosmetic.** 365 vs 120 days
   changes `volatilityPercentile` buckets and makes Modal's 50/200 MA detector
   computable only on its side.
