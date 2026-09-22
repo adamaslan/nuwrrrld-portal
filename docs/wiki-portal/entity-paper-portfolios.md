@@ -46,7 +46,7 @@ tracks what's actually built against that 8-phase plan.
 | Phase | What | Status |
 |---|---|---|
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
-| 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127 |
+| 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127, only actually run against production for real on 2026-09-22 (8 accounts, 501 watchlist rows) — see PR #147's companion wiki incident page (rebase note: same-day PR, merge order matters here) |
 | 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
 | 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137, but its slot gate never matched a real cron tick (exact-minute equality vs. GHA's typical 30-90min late start) — see [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]. Gate fixed to a window match in PR #147; `PAPER_CRON_SECRET` provisioning and the real account seed remain open, so scheduled runs still don't complete end to end as of 2026-09-22. |
 | 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — PR #138 |

@@ -65,8 +65,19 @@ them.
 
 ### 🔴 Newly found 2026-09-14
 
-- [ ] **`.env.local`'s `DATABASE_URL` points at production, and §9's
-      `PRODUCTION_DB_HOST` guard cannot be armed until that changes.**
+- [x] **`.env.local`'s `DATABASE_URL` points at production — `PRODUCTION_DB_HOST`
+      is now armed (2026-09-22)**, guard verified refusing
+      (`node scripts/local-trigger.mjs C track-followed-tickers --local
+      --no-dry-run --yes` → `--no-dry-run refused: DATABASE_URL resolves to
+      the host named by PRODUCTION_DB_HOST`). **Still open**: no dev branch
+      exists yet (every `preview/*` branch in the Neon project is `archived`)
+      — `DATABASE_URL` itself still points at production, only the guard is
+      now live. Creating a real dev branch and repointing `DATABASE_URL` at
+      it (Step 2 below) is tracked as its own follow-up in
+      `docs/modal-pipeline-status.md`'s free-tier plan Phase 2, not done in
+      this pass. The paper-portfolio seed (next item) was run against
+      production directly, on explicit owner confirmation, before this guard
+      was armed.
       - **From**: the 2026-09-14 verification pass
       - **Evidence**: the Neon project has exactly **one** live branch —
         `main`, flagged `primary: true, default: true`. Every other branch
@@ -117,11 +128,12 @@ them.
         Expect a non-zero exit and "refused", with no request sent, when
         `PRODUCTION_DB_HOST` matches the `DATABASE_URL` host.
 
-- [ ] **The paper-portfolio seed still has not run** — `paper_accounts` and
-      `paper_watchlists` both hold **0 rows** (verified 2026-09-14). The
-      Phase 3 item at the bottom of this file is unchanged and now has a
-      measured confirmation. Do it **after** the dev-branch item above, not
-      before.
+- [x] **The paper-portfolio seed has run** — done 2026-09-22, against
+      production directly (see the `PRODUCTION_DB_HOST` item above), on
+      explicit owner confirmation rather than after the dev-branch item as
+      originally planned here. `scripts/seed-paper-portfolios.mjs` inserted 8
+      `paper_accounts` rows and 501 `paper_watchlists` rows. Manifest:
+      `docs/watchlist-seeds/paper/seed-2026-09-22T20-08-52-284Z.json`.
 
 - [x] ~~**The stale-watchlist e2e failure is still live**~~ — **fixed and
       merged as PR #134** (`fix(e2e): scope portfolio-liveness watchlist
@@ -171,7 +183,7 @@ them.
 `STRIPE_SECRET_KEY` rotation (§4 — the value is live `sk_live_` and recorded as
 exposed), a **test-mode** Stripe key for the sweep, the Clerk Production
 instance (§3), admin MFA, `MCP_ANALYZE_URL`, `NULOGDASH_SESSION_COOKIE`,
-`SIGNALS_ENGINE_URL` (empty in `.env.local`), `PAPER_CRON_SECRET`, the four
+`SIGNALS_ENGINE_URL` (empty in `.env.local`), the four
 missing `afternoon-pipeline` routes (still absent from `app/api/pipeline/`,
 though the workflow is green), the §6 legal/DPA items, and the §6b
 explain-quality decision. Nothing in the 2026-09-14 pass moved any of those.
@@ -1526,6 +1538,8 @@ resolved in code.
   no `PAPER_CRON_SECRET` set, and even authenticated would find zero
   `paper_accounts` rows until seeding actually runs.
 - **Added**: 2026-09-13
+- **Resolved**: 2026-09-22 — both items done, see the "Newly found 2026-09-14"
+  checklist near the top of this file for the commands and evidence.
 
 ## Added 2026-09-14 — Phase 4 of the paper-portfolio council simulation
 
@@ -1547,6 +1561,12 @@ resolved in code.
   scheduled run fails at the secret-check step before ever calling the
   route, and files a `pipeline-failure` issue.
 - **Added**: 2026-09-14
+- **Resolved**: 2026-09-22 — `gh secret list` confirms `PAPER_CRON_SECRET`
+  present. Note this alone doesn't complete the picture: PR #147 also fixed
+  the gate's exact-minute slot match (see
+  `docs/wiki-portal/incident-2026-09-22-paper-portfolios-slot-gate-never-matched.md`),
+  which was silently causing every one of the 38 scheduled runs since
+  2026-09-15 to skip regardless of this secret's presence.
 
 ## Added 2026-09-15 — `e2e-resiliency.yml`'s `signals-liveness` shard has been red on `main` since 2026-09-13
 
