@@ -578,19 +578,23 @@ CREATE TABLE IF NOT EXISTS pipeline_run_log (
   items_ai    int         NOT NULL DEFAULT 0,   -- of those, how many spent a model call
   models      jsonb       NOT NULL DEFAULT '{}'::jsonb,
   items       jsonb       NOT NULL DEFAULT '[]'::jsonb,
-  summary     jsonb       NOT NULL DEFAULT '{}'::jsonb
+  summary     jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  -- Design 1 (docs/modal-pipeline-status.md): every pipeline reports coverage,
+  -- not just crash/no-crash. `status` is computed by lib/shared/run-status.ts;
+  -- `coverage` is `{ expected, filled, missing: [..<=50 symbols], missing_count,
+  -- stale_count }`.
+  host        text,                  -- 'gha' | 'modal' | 'gcp' | 'local'
+  status      text,                  -- 'ok' | 'degraded' | 'partial' | 'fail'
+  coverage    jsonb       NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS pipeline_run_log_at_idx
   ON pipeline_run_log (run_at DESC);
 CREATE INDEX IF NOT EXISTS pipeline_run_log_pipeline_idx
   ON pipeline_run_log (pipeline, run_at DESC);
 
--- Design 1 (docs/modal-pipeline-status.md): every pipeline reports coverage,
--- not just crash/no-crash. `status` is computed by lib/shared/run-status.ts;
--- `coverage` is `{ expected, filled, missing: [..<=50 symbols], missing_count,
--- stale_count }`.
-ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS host text;   -- 'gha' | 'modal' | 'gcp' | 'local'
-ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS status text; -- 'ok' | 'degraded' | 'partial' | 'fail'
+-- Idempotent adds for deployments created before these columns existed.
+ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS host text;
+ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS status text;
 ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS coverage jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 -- ── Council paper portfolios (docs/council-paper-portfolios.md) ─────────────

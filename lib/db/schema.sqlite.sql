@@ -583,20 +583,24 @@ CREATE TABLE IF NOT EXISTS pipeline_run_log (
   items_ai    int         NOT NULL DEFAULT 0,   -- of those, how many spent a model call
   models      TEXT       NOT NULL DEFAULT '{}',
   items       TEXT       NOT NULL DEFAULT '[]',
-  summary     TEXT       NOT NULL DEFAULT '{}'
+  summary     TEXT       NOT NULL DEFAULT '{}',
+  -- Design 1 (docs/modal-pipeline-status.md): every pipeline reports coverage,
+  -- not just crash/no-crash. `status` is computed by lib/shared/run-status.ts;
+  -- `coverage` is `{ expected, filled, missing: [..<=50 symbols], missing_count,
+  -- stale_count }`.
+  host        text,                  -- 'gha' | 'modal' | 'gcp' | 'local'
+  status      text,                  -- 'ok' | 'degraded' | 'partial' | 'fail'
+  coverage    TEXT       NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS pipeline_run_log_at_idx
   ON pipeline_run_log (run_at DESC);
 CREATE INDEX IF NOT EXISTS pipeline_run_log_pipeline_idx
   ON pipeline_run_log (pipeline, run_at DESC);
 
--- Design 1 (docs/modal-pipeline-status.md): every pipeline reports coverage,
--- not just crash/no-crash. `status` is computed by lib/shared/run-status.ts;
--- `coverage` is `{ expected, filled, missing: [..<=50 symbols], missing_count,
--- stale_count }`.
-ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS host text;   -- 'gha' | 'modal' | 'gcp' | 'local'
-ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS status text; -- 'ok' | 'degraded' | 'partial' | 'fail'
-ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS coverage TEXT NOT NULL DEFAULT '{}';
+-- Idempotent adds for deployments created before these columns existed.
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 
 -- ── Council paper portfolios (docs/council-paper-portfolios.md) ─────────────
 -- Eight simulated $10,000 accounts — one per council seat (T1/T2/RISK/MACRO/
