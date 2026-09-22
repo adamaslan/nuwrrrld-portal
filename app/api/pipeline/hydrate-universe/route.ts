@@ -30,6 +30,7 @@ import { buildCard, type CardUniverse, type FrameStats } from "@/lib/shared/card
 import { isCryptoShaped, normalizeTicker } from "@/lib/shared/signal-policy";
 import {
   coverageForDate,
+  coverageForUniverseAndDate,
   latestCardBarDate,
   listActiveTickers,
   upsertCards,
@@ -37,6 +38,13 @@ import {
   type StoredCard,
 } from "@/lib/ticker-cards-db";
 import type { Horizon, SignalStateInput, VerdictDirection } from "@/lib/grounding/taxonomy";
+import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
+import { computeRunStatus } from "@/lib/shared/run-status";
+
+/** Which compute host actually ran the batch. Optional: an older caller that
+ *  omits it logs `host: null` rather than failing the request — this is
+ *  observability, not a contract the ingest path should enforce. */
+type HydrateHost = "gha" | "modal" | "local";
 
 export const maxDuration = 300;
 
@@ -75,6 +83,8 @@ interface HydrateBody {
   universe?: CardUniverse;
   barDate?: string;
   rows?: HydrateRow[];
+  /** Which compute host is posting this chunk. See lib/pipeline-run-log-db.ts. */
+  host?: HydrateHost;
 }
 
 /**
@@ -275,6 +285,39 @@ export async function POST(req: NextRequest) {
       `tickers=${seen.length} written=${written} skipped=${skipped} failed=${failed.length} ` +
       `upstreamErrors=${upstreamErrors.length} coverage=${coverage.covered}/${coverage.active}`,
   );
+
+  // Design 1 (docs/modal-pipeline-status.md): every pipeline reports coverage,
+  // not just crash/no-crash — this was the single largest reporting gap the
+  // doc identified (zero pipeline_run_log rows for the busiest pipeline).
+  // `expected`/`filled` are scoped to *this request's* universe, since a
+  // caller posts stocks and ETFs as separate chunks. Logged once per chunk
+  // (not once per run) so a wedged multi-chunk run still leaves a partial
+  // trail instead of nothing.
+  const universeCoverage = await coverageForUniverseAndDate(universe, barDate);
+  const runStatus = computeRunStatus({
+    expected: universeCoverage.expected,
+    filled: universeCoverage.filled,
+  });
+  const items: RunItem[] = [
+    ...outcomes.map((o) => ({
+      subject: o.ticker,
+      model: null,
+      outcome: (o.outcome === "written" ? "ok" : o.outcome === "failed" ? "fail" : "skip") as RunItem["outcome"],
+    })),
+    ...upstreamErrors.map((e) => ({ subject: e.ticker, model: null, outcome: "fail" as const })),
+    ...rejected.map((r) => ({ subject: r.ticker, model: null, outcome: "skip" as const })),
+  ];
+  await logPipelineRun({
+    pipeline: "hydrate-universe",
+    dryRun: false,
+    session: body.runId ?? null,
+    itemsTotal: rows.length,
+    items,
+    host: body.host ?? null,
+    status: runStatus,
+    coverage: universeCoverage,
+    summary: { universe, source, barDate, written, skipped, failed: failed.length },
+  });
 
   return NextResponse.json({
     ok: true,
