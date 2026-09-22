@@ -219,26 +219,34 @@ None of the three below are code. All are tracked in
 `docs/manual-setup-todo.md` (added 2026-09-13, Phase 4's secret-push item
 added 2026-09-14):
 
-- [ ] **Seed the DB for real.** Run `scripts/seed-paper-portfolios.mjs`
-      against a confirmed non-prod Neon branch — still only dry-run/validated
-      in a session, never actually written. Blocked as of 2026-09-14 on
-      confirming which Neon branch the local `DATABASE_URL` names (see
-      `docs/caveats/2026-09-14-council-paper-portfolios-db-safety.md` — the
-      prod-write guard, `PRODUCTION_DB_HOST`, is also unset and therefore
-      inert, so this isn't just "run the script," it's "confirm the target
-      first").
-- [ ] **Generate `PAPER_CRON_SECRET`** via the `secrets-sync` skill (never
-      typed into chat) and put it in `.env.local` / Vercel. The route already
-      reads it from `process.env.PAPER_CRON_SECRET`.
-- [ ] **Push that same `PAPER_CRON_SECRET` to GitHub Actions** —
-      `gh secret set PAPER_CRON_SECRET` (piped from a file, never pasted) —
-      so `.github/workflows/paper-portfolios.yml`'s "Verify required secrets
-      exist" step stops failing every scheduled run.
+- [x] **Seed the DB for real.** Done 2026-09-22. `DATABASE_URL` was confirmed
+      via the Neon API to point at project `lingering-rain-31058530`'s `main`
+      branch (`br-divine-unit-ahqmuabh`, `primary: true`/`default: true`) —
+      it IS production, and no live non-prod branch currently exists (every
+      preview branch in the project is `archived`). Seeded anyway on explicit
+      user confirmation: `node scripts/seed-paper-portfolios.mjs` inserted 8
+      `paper_accounts` rows and 501 `paper_watchlists` rows. Manifest:
+      `docs/watchlist-seeds/paper/seed-2026-09-22T20-08-52-284Z.json`, undo
+      command included in the script's own output. **Creating a real non-prod
+      Neon dev branch is now its own follow-up item** — see
+      `docs/modal-pipeline-status.md`'s Phase 2 in the free-tier plan.
+- [x] **Generate `PAPER_CRON_SECRET`.** Done 2026-09-22 via the `secrets-sync`
+      skill (`openssl rand -hex 32`, never typed into chat). Written to
+      `.env.local`, the route already reads it from
+      `process.env.PAPER_CRON_SECRET`.
+- [x] **Push that same `PAPER_CRON_SECRET` to GitHub Actions and Vercel.**
+      Done 2026-09-22 — `gh secret list` and `vercel env ls production` both
+      confirm presence (names only, values never printed). Vercel production
+      may need a fresh deployment to pick up the new env var on already-
+      running serverless functions — verify on the next scheduled tick rather
+      than assuming it's live immediately.
 
 `.github/workflows/paper-portfolios.yml` (Phase 4, PR #137) is merged and live
-on `main`. Until all three steps above are done: the workflow's secret-check
-step fails before ever calling the route, and even a manually authenticated
-call would find zero `paper_accounts` rows.
+on `main`, and its slot gate is fixed in PR #147 (see
+[[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]] in
+`docs/wiki-portal/`). All three items above are now closed — verify end to
+end on the next scheduled tick (`gh run list --workflow paper-portfolios.yml`)
+rather than assuming success from the checklist alone.
 
 ### Phase 5 — Arbitration layer (model calls) — done, see "Done" above
 
