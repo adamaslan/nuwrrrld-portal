@@ -4,9 +4,11 @@ name: Council Paper Portfolios (4x daily)
 # §4) across all 8 seat accounts, four times a trading day. Each of the four
 # slots (preopen/midday/preclose/settle) gets its own EST+EDT cron pair, per
 # §4.1's cadence table — both fire year-round and the gate below picks the
-# slot whose NY wall-clock time matches, so the off-season entry is a no-op
-# rather than a duplicate run an hour apart (same convention as
-# afternoon-pipeline.yml / track-followed-tickers.yml).
+# slot whose NY-time *window* the wall clock falls in (not an exact-minute
+# match — GHA scheduled runs start late often enough that exact matching left
+# every recorded run skipped, see the gate step's own comment), so the
+# off-season entry is a no-op rather than a duplicate run an hour apart (same
+# convention as afternoon-pipeline.yml / track-followed-tickers.yml).
 #
 # `/api/pipeline/paper-portfolios` (Phase 3, PR #128) does the actual
 # LOAD/MARK/SCREEN/RANK/PROPOSE/CLIP/FILL/PERSIST loop per account, with
@@ -85,15 +87,30 @@ jobs:
             SLOT="${{ inputs.slot }}"
           else
             # Two cron entries (EST/EDT) fire for every slot, year-round; only
-            # one lands on the slot's actual NY local time on any given day.
-            # The other is a silent no-op rather than a duplicate run.
-            case "$NY_TIME" in
-              09:00) SLOT="preopen" ;;
-              12:30) SLOT="midday" ;;
-              15:45) SLOT="preclose" ;;
-              16:30) SLOT="settle" ;;
-              *) SLOT="" ;;
-            esac
+            # one is close to the slot's actual NY local time on any given
+            # day. GitHub Actions scheduled runs commonly start 30-90 minutes
+            # late (documented GHA behavior under load), so this must be a
+            # window match, not exact-minute equality — an exact match never
+            # fires reliably and left every one of the 38 runs recorded
+            # 2026-09-15..2026-09-22 as `run=skipped` (see
+            # docs/modal-pipeline-status.md "Why paper portfolios have never
+            # run"). Each slot claims the window up to the next slot's start;
+            # `settle` extends to end-of-day. Re-running the same slot within
+            # its window is safe: the route's own idempotency (unique
+            # constraint on paper_runs(account, trade_date, slot) + an early
+            # getRun() check in lib/paper-engine.ts::runAccountSlot) absorbs a
+            # duplicate trigger without double-running.
+            NY_MIN=$(( 10#$(TZ="America/New_York" date +%H) * 60 + 10#$(TZ="America/New_York" date +%M) ))
+            PREOPEN=$((9 * 60))
+            MIDDAY=$((12 * 60 + 30))
+            PRECLOSE=$((15 * 60 + 45))
+            SETTLE=$((16 * 60 + 30))
+            if   (( NY_MIN >= PREOPEN  && NY_MIN < MIDDAY   )); then SLOT="preopen"
+            elif (( NY_MIN >= MIDDAY   && NY_MIN < PRECLOSE )); then SLOT="midday"
+            elif (( NY_MIN >= PRECLOSE && NY_MIN < SETTLE   )); then SLOT="preclose"
+            elif (( NY_MIN >= SETTLE   && NY_MIN < 24 * 60  )); then SLOT="settle"
+            else SLOT=""
+            fi
           fi
 
           if [[ -z "$SLOT" ]]; then
