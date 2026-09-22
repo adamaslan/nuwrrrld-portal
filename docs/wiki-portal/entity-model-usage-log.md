@@ -17,12 +17,13 @@ Before this, model-per-call was recorded only where a table already had a `model
 
   | column | meaning |
   |---|---|
-  | `pipeline` | `followed-tickers` \| `followed-tickers-judge` \| `precompute-ai` |
+  | `pipeline` | `followed-tickers` \| `followed-tickers-judge` \| `precompute-ai`, plus (PR #155, unwired) `hydrate-universe` \| `paper-portfolios` \| `gcp3-signals` \| `homebase-signals` \| `signal-articles` \| `litmus-54` |
   | `run_at`, `dry_run`, `session` | when, whether it was a dry run, optional caller run id |
   | `items_total` / `items_ai` | units seen / units that spent a model call |
   | `models` (jsonb) | `{ "<model id>": { calls, empty, fallbacks, avgLatencyMs } }` — `fallbacks` = the seat's primary lost and `FREE_MODEL_CHAIN` served; `empty` = HTTP-200 with no content |
   | `items` (jsonb) | compact per-unit list `[{ subject, seat, model, outcome }]`, `outcome ∈ ok \| empty \| fail \| skip` |
   | `summary` (jsonb) | pipeline-specific totals (cohortSize, councilDegraded, generated, goldAgreement, verdictsGraded, …) |
+  | `host`, `status`, `coverage` (added PR #155) | `host ∈ gha \| modal \| gcp \| local`; `status ∈ ok \| degraded \| partial \| fail`, computed by [[concept-run-coverage-status]]; `coverage` jsonb `{ expected, filled, missing, missingCount, staleCount }`. All three are optional/nullable — no pipeline writes them yet, this PR is schema + the classifier only |
 
 - **`lib/pipeline-run-log-db.ts`** — write side: `logPipelineRun(run)` (one INSERT) and `rollupModels(items)` (pure fold to the `models` column), **best-effort by design** — it catches and logs its own errors and returns a boolean, so losing an audit row never fails a pipeline run. Opposite stance from [[concept-followed-tickers-tracking|followed-tickers-db]], where a dropped write is fatal.
   Read side (added since PR #115): `listPipelineRuns(limit)` / `getPipelineRun(id)` / `summarizeOutcomes(items)`, the first *request-path* readers — the `/dashboard/nulogdash/pipelines` tab. These **throw** rather than swallow: a dashboard silently showing "no runs" on a failed query is worse than one that errors. `listPipelineRuns` clamps `limit` to 1–200; `getPipelineRun` uuid-shape-guards before the Postgres cast.

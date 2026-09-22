@@ -939,3 +939,4 @@ still open: it is a data-plane key change touching enqueue, drain, and the
 watchlist route.
 
 ## [2026-09-15] friction | whole-universe breadth stats are silently wrong unless leveraged/inverse ETFs are excluded by hand, and nothing in the data layer marks them | cost: rework
+## [2026-09-22] ingest | PR #155 feat(pipeline-run-log): status/coverage schema + run-status.ts | pages touched: 3

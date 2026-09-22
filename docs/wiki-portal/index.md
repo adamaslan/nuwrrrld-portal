@@ -76,6 +76,7 @@ Cross-cutting patterns and design choices.
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
 - [[concept-global-automation-layer]] — the `~/.claude/` global tier (`/geepr`, `/bugz`, `/reb`, `/rem1`, `/maxtoke`, `/locrun`…), always-on rules, hooks, and the `wiki-guard` PR hook that automate + enforce the build process
 - [[concept-followed-tickers-tracking]] — the monthly bear/bull cohort as a standing benchmark: 10 strongest bearish + 10 strongest bullish signals frozen as scoreable predictions, resolved across seven horizons (d1→y1) against realized prices, with reasoning quality graded separately by an outcome-blind LLM judge
+- [[concept-run-coverage-status]] — ok/degraded/partial/fail: how a pipeline run's coverage (not just crash/no-crash) becomes one status column, and why `hydrate-universe` carding 700/762 stocks used to exit green
 
 ---
 
