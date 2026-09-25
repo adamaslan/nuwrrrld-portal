@@ -88,19 +88,27 @@ export function chunkDocument(doc) {
   const fileHash = sha1(doc.sourceFile).slice(0, 12);
 
   const chunks = [];
+  const seenIds = new Set();
   let index = 0;
   for (const raw of rawChunks) {
     const body = raw.trim();
     if (!body) continue;
     // Drop stub chunks — ~4 chars/token for English prose (matches ingest.py).
     if (body.length < MIN_CHUNK_TOKENS * 4) continue;
+    const contentHash = sha1(body);
+    // Content-addressed, not positional: inserting a paragraph must not
+    // renumber (and so force re-extraction of) every later chunk in the file.
+    const chunkId = `${fileHash}_${contentHash.slice(0, 12)}`;
+    // An identical body twice in one file is the same evidence; keep one.
+    if (seenIds.has(chunkId)) continue;
+    seenIds.add(chunkId);
     chunks.push({
-      chunkId: `${fileHash}_${String(index).padStart(5, "0")}`,
+      chunkId,
       sourceFile: doc.sourceFile,
       chunkIndex: index,
       body,
       charLen: body.length,
-      contentHash: sha1(body),
+      contentHash,
     });
     index++;
   }

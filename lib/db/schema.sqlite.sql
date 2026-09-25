@@ -213,12 +213,19 @@ CREATE TABLE IF NOT EXISTS corpus_chunks (
   tags          TEXT      NOT NULL DEFAULT '[]',
   body          text        NOT NULL,
   search_terms  TEXT      NOT NULL DEFAULT '[]', -- doc2query: questions this chunk answers + synonyms
+  content_hash  text,                       -- sha1(body); set only after a successful extraction
+  taxonomy_version text,                    -- taxonomy the chunk was last extracted under
   tsv          TEXT,
   updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 -- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 CREATE INDEX IF NOT EXISTS corpus_chunks_trader_filter_idx
   ON corpus_chunks (trader_filter);
+-- Incremental compile: a chunk is re-extracted only when its content hash or
+-- the taxonomy version changes (scripts/compile_grounding_pack.mjs). The
+-- ALTERs migrate databases created before those columns existed.
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 
 -- Compiled, per-signal-state rules extracted from corpus_chunks once (the
 -- weekly compile job), looked up many times at zero model cost. Every row

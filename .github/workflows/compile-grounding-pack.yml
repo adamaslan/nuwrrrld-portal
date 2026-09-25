@@ -1,11 +1,13 @@
 name: Compile grounding pack
 
-# Weekly, plus on any corpus edit and manual trigger. Runs
-# scripts/compile_grounding_pack.mjs against the Neon database — the
-# extraction is idempotent (ON CONFLICT upserts), so re-runs are safe.
+# Daily, plus on any corpus edit and manual trigger. Runs
+# scripts/compile_grounding_pack.mjs against the Neon database. The compile
+# is incremental (unchanged chunks are skipped by content hash) and budgeted
+# (--max-calls, default 40/day), so a no-change day costs zero model calls and
+# a large corpus import finishes over several days, resuming each run.
 on:
   schedule:
-    - cron: '23 6 * * 1' # Mondays 06:23 UTC (after the free-model refresh at 06:17)
+    - cron: '23 6 * * *' # daily 06:23 UTC (after the free-model refresh at 06:17)
   push:
     branches: [main]
     paths:
@@ -31,7 +33,7 @@ jobs:
         run: node scripts/compile_grounding_pack.mjs
 
   # ── Notify on failure ──────────────────────────────────────────────────
-  # Only for the weekly cron: a push-triggered failure already shows up in
+  # Only for the scheduled cron: a push-triggered failure already shows up in
   # the PR/commit checks, but a broken *scheduled* compile means grounding
   # silently stops refreshing (it runs right after the free-model refresh,
   # so a chain change can break it).
@@ -50,10 +52,10 @@ jobs:
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           gh issue create \
             --repo "${{ github.repository }}" \
-            --title "Weekly grounding-pack compile failed $(date -u '+%Y-%m-%d')" \
+            --title "Scheduled grounding-pack compile failed $(date -u '+%Y-%m-%d')" \
             --body "**Run:** ${RUN_URL}
 
-          \`scripts/compile_grounding_pack.mjs\` failed on the Monday 06:23 UTC
+          \`scripts/compile_grounding_pack.mjs\` failed on the daily 06:23 UTC
           schedule. The \`grounding_pack\` table was not refreshed; the corpus a
           model reads is now whatever the last successful run left." \
             --label "pipeline-failure"
