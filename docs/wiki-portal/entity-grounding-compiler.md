@@ -2,7 +2,7 @@
 date: 2026-07-20
 type: entity
 tags: [grounding, compiler, corpus, chunker, ci, neon]
-sources: [../../scripts/compile_grounding_pack.mjs, ../../scripts/grounding-chunker.mjs, ../../corpus/README.md, ../../.github/workflows/compile-grounding-pack.yml, PR#36, PR#37, PR#175]
+sources: [../../scripts/compile_grounding_pack.mjs, ../../scripts/grounding-chunker.mjs, ../../corpus/README.md, ../../.github/workflows/compile-grounding-pack.yml, PR#36, PR#37, PR#175, PR#176]
 ---
 
 # Entity: Grounding Compiler (`scripts/compile_grounding_pack.mjs` + `corpus/`)
@@ -37,7 +37,7 @@ Every row is stamped with `CORPUS_VERSION` (git short SHA, else `"dev"`) and `TA
 
 ## Known failures
 
-1. **Production corpus not yet migrated.** `corpus/` currently holds only two clearly-marked sample files (`sample/t1-sample-swing-notes.md`, `t2-sample-growth-notes.md`). The real corpus lives in a sibling repo (`ai-text-opt-1024`'s `DOCS_ROOT`) not checked out here — so today's compiled pack is a placeholder proving the pipeline end-to-end, not real trading knowledge. See `corpus/README.md`.
+1. **Production corpus not yet migrated** (resolved). Until PR #176, `corpus/` held only two sample files, so the compiled pack was a placeholder. `corpus/trader-qa/` is now a reviewed mirror of `adamaslan/ai-text-opt`'s `docs/trader-qa/` (9 files, 260 chunks), kept current by `scripts/sync-corpus.mjs` through a weekly PR-opening workflow. Six outline and RAG-tooling files are excluded. The two news docs in it are time-sensitive and have no freshness flag yet.
 2. **Under-constrained rule → Cartesian blow-up.** A rule that pins few taxonomy dimensions expands into many `state_key` rows; `MAX_EXPANDED_ROWS_PER_RULE` (24) caps this.
 3. **Extraction model returns malformed tuples.** The verbatim-quote invariant rejects fabricated evidence, but a chunk that yields zero valid rules simply contributes nothing — silent under-coverage rather than an error.
 4. **The hardcoded extraction model was retired, and the run still exited 0** (fixed in PR #70). `COMPILE_MODEL` defaulted to `qwen/qwen3-next-80b-a3b-instruct:free`, which OpenRouter has since removed; every extraction call 404'd, the script warned per chunk, and it finished reporting `rules_extracted=0` with a **success** exit code. That output is indistinguishable from failure #3's legitimate "the corpus had nothing to say" — the acute form of the same silent-under-coverage shape, and the reason it went unnoticed. Three fixes: the default now reads the head of `FREE_MODEL_CHAIN` from `lib/openrouter.ts` (the chain `refresh-free-models.mjs` already live-probes, so there is one maintained source instead of two); a 404 throws rather than being swallowed per chunk, since a dead model id is fatal to the whole run; and transport failures (429/5xx/timeout) are counted separately so a run where *every* chunk failed exits non-zero instead of reporting a successful empty compile. The run log now names the model it is using.
@@ -47,7 +47,6 @@ Every row is stamped with `CORPUS_VERSION` (git short SHA, else `"dev"`) and `TA
 
 ## Open questions
 
-- ❓ When the real corpus migrates, `sample/` must be removed (per `corpus/README.md`). Is there a guard that prevents a production compile from silently running against sample data?
 - ❓ `COMPILE_MODEL` is a single free-tier model; extraction quality gates the whole grounding system. Should extraction use a stronger paid model given it runs weekly, not per-request?
 
 ## See also
