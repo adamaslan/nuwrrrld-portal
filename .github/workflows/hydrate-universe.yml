@@ -119,6 +119,10 @@ jobs:
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          # Explicit even though GITHUB_ACTIONS=true already makes the script
+          # auto-detect 'gha' — stated here so the pipeline_run_log host value
+          # doesn't depend on an env var GitHub could stop setting.
+          HOST: gha
           IN_UNIVERSE: ${{ github.event.inputs.universe }}
           IN_LIMIT: ${{ github.event.inputs.limit }}
           IN_DRY_RUN: ${{ github.event.inputs.dryRun }}

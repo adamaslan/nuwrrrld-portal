@@ -38,11 +38,15 @@ GitHub issue, the same way each workflow's `notify` job already does.
 The `status` value is stored on [[entity-model-usage-log|`pipeline_run_log`]]'s
 new `status` column (`host`/`status`/`coverage`, PR #155), alongside a
 `coverage` jsonb blob (`{ expected, filled, missing, missingCount,
-staleCount }`). As of PR #155 the column and the classifier both exist but
-**no pipeline calls `computeRunStatus()` yet** — wiring `hydrate-universe`
-first is the next phase (Phase 4 of the modal-pipeline-status plan), since
-it's the pipeline with the worst version of exactly this blind spot: zero
-`pipeline_run_log` rows at all today.
+staleCount }`).
+
+**Wired up 2026-09-22 (PR #158, Phase 4):** `hydrate-universe` is the first
+real caller of `computeRunStatus()`, logging once per POST chunk with
+`coverage` scoped to that chunk's own universe (`coverageForUniverseAndDate()`
+in `ticker-cards-db.ts` — stocks and ETFs post separately, so a whole-universe
+`expected` would misreport either lane). Verified against a live 2-symbol
+run: `status: "fail"` at 2/762 filled, correctly below the 0.95 threshold.
+See [[entity-ticker-universe-pipeline]] failure 16 for the full change.
 
 `run-status.ts` is pure and dependency-free by the same rule as
 [[concept-followed-tickers-tracking|universe-policy.ts]] and its siblings: no
@@ -66,12 +70,13 @@ rather than only reachable through a live pipeline run.
 
 ## Open questions
 
-- ❓ Once `hydrate-universe` starts writing `status`, should the nulogdash
+- ❓ Now that `hydrate-universe` writes `status`, should the nulogdash
   pipelines tab (`/dashboard/nulogdash/pipelines`) surface it as a badge next
   to the existing outcome counts, or is a filter/column enough for v1?
 - ❓ Does the fixed 0.95 threshold survive contact with real
-  `hydrate-universe` data, or does it need a per-pipeline override once that's
-  wired up (Phase 4)?
+  `hydrate-universe` data at full-universe scale — the only run tested so far
+  is a manual 2-symbol smoke test, not a real nightly chunk sequence — or does
+  it need a per-pipeline override?
 
 ## See also
 
