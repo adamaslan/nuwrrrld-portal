@@ -32,6 +32,7 @@ One page per named component. These are the hubs — everything links to entitie
 
 **Signal Data Plane**
 - [[entity-signal-data-plane]] — **canonical signals doc**; `lib/shared/signal-lookup.ts` for the gcp3 fetch-and-shape path and `lib/shared/signalFilters.ts` for shared client-side filtering and sorting
+- [[entity-signal-engine]] — pure-TS canonical Fibonacci engine (`lib/engine/`), golden-fixture parity with the lab, `daily_bars` + `engine_*` tables, nightly shadow run and labels; ladder route flagged off; paper `engine` account core
 - [[entity-backtest-engine]] — `lib/backtest.ts`; the *separate* hit-rate engine, disabled by default
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
@@ -97,6 +98,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-local-portfolio-scoring-over-upstream-wait]] — the portal scores portfolios from its own `ticker_cards` instead of waiting any longer on gcp3's never-deployed `/api/portfolio/health`; upstream demoted from dependency to preferred optimisation
 - [[decision-local-signal-chat-over-missing-gcp3-agent]] — the same call made a second time: `/api/signals/{ticker}/chat` proxied to a gcp3 agent that was never registered and 503'd for its entire life, so the portal now grounds and answers it locally, upstream-first, with an `X-Signal-Chat-Source` header
 - [[decision-clerk-subdomain-without-satellite]] — financial.nuwrrrld.com uses `allowed_origins`, not Clerk's paid satellite-domain feature; `change_domain` silently no-ops if misused as an "add a subdomain" call
+- [[decision-engine-shadow-mode-first]] — the engine writes only its own tables and is promoted by a pre-committed checklist, not switched in; older signal writers stay until then
 
 ---
 

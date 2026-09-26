@@ -424,6 +424,22 @@ secret sync + smoke run (human-only), Phase 3.1 one-confluence-implementation
 relative-strength / sector rank (needs the full ~950-symbol run and a
 server-side pass).
 
+## Engine bar store and nightly run (PR #189, 2026-09-26)
+
+The card pipeline above discards the bars it reads. The signal engine
+([[entity-signal-engine]]) needs them, so a second, separate lane now keeps them:
+a `daily_bars` table keyed by ticker, data feed and date, filled by an
+incremental Alpaca fetcher that reuses this pipeline's pagination and bad-symbol
+handling but lives in its own script and its own workflow chained after the
+nightly hydration. It is deliberately not folded into `hydrate-local.mjs` or
+`hydrate-universe.yml`, so an open change to those files could not conflict and
+so a failure in one lane cannot stall the other. Nothing here changes how cards
+are written or how coverage is computed; the engine reads the active universe and
+writes only its own tables.
+
+> ❓ Open question: the feed choice for stored bars (free vs consolidated volume)
+> is still undecided and affects the engine's volume gate, not card coverage.
+
 ## See also
 
 - [[decision-precompute-ai-at-quota-reset]] — the sibling route this shares
