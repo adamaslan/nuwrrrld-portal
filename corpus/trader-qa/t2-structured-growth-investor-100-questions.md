@@ -59,7 +59,7 @@
 
 ### Tax-Aware Holding Decisions
 
-11. **At what point does a position qualify as "long-term capital gains" (>365 days) in your trading calendar?**
+11. **At what point does a position qualify as "long-term capital gains" (held more than one year) in your trading calendar?**
     - Do you plan exit dates around this threshold?
     - If a position is set to exit Day 360, do you hold 5 extra days for LTCG treatment?
 
@@ -502,7 +502,7 @@
 - [ ] **Quantified fundamental growth drivers** (revenue, EPS, margins, ROE targets)
 - [ ] **Identified sector tailwinds** supporting each position for 5+ years
 - [ ] **Backtested trend-following criteria** for long-term holdings (higher highs/lows, 200-MA relationship)
-- [ ] **Calculated LTCG tax benefit** of holding >365 days vs. selling earlier
+- [ ] **Calculated LTCG tax benefit** of holding more than one year vs. selling earlier
 - [ ] **Built sector rotation thesis** for next 3-5 years
 - [ ] **Established rebalancing discipline** (annual, quarterly, or trigger-based)
 - [ ] **Defined position concentration limits** (max % per position, max % per sector)

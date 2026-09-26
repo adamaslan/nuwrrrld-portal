@@ -148,7 +148,7 @@ These setups align with this trader's short-dated options, narrative-driven, mul
 #### Quantum Computing — RGTI / QUBT
 RGTI is trading near $16 (down ~27% YTD) with a TipRanks consensus price target of ~$35 — implying 117% upside. QUBT is down ~28% YTD but just completed a $110M acquisition of Luminar Semiconductor, expanding into photonics; Rosenblatt has a $22 PT (197% upside). Both are deeply oversold relative to analyst targets.
 
-**Trade idea:** Buy 30–45 DTE OTM calls on RGTI (e.g., $20–$22 strike) and QUBT (e.g., $10–$12 strike) sizing small given binary execution risk. Consider a ratio spread (buy 1 call, sell 2 further OTM calls) to reduce premium outlay while capping upside at a realistic catalyst-driven move.
+**Trade idea:** Buy 30–45 DTE OTM calls on RGTI (e.g., $20–$22 strike) and QUBT (e.g., $10–$12 strike) sizing small given binary execution risk. Consider a ratio spread (buy 1 call, sell 2 further OTM calls) to reduce premium outlay while capping upside at a realistic catalyst-driven move. Note the risk: the extra short call is uncovered, so a move far above the short strike produces losses that keep growing without a cap.
 
 #### Nuclear Energy — OKLO
 OKLO recently surged ~29% in a single session on AI data center energy demand momentum, confirming the thesis remains market-active. Small modular reactor (SMR) regulatory tailwinds continue building. Microsoft's 20-year PPA with Constellation Energy and the Three Mile Island restart underscore the structural tailwind.

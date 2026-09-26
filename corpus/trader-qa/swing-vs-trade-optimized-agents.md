@@ -56,7 +56,7 @@ The structure follows the original five sections, each with ten proofs.
 
 ### 10. Stationarity of Edge (Tax Regime Consistency)
 - **Definition:** Your after‑tax edge must be stable across **different tax regimes** (e.g., changes in tax rates, wash sale rules). If the edge disappears when tax laws change, it’s not robust.  
-- **Example for $AAPL:** The 50‑day MA crossover edge on $AAPL worked in 2024 when the LTCG rate was 20% and again in 2026 when it became 23%? If not, the strategy fails stationarity.
+- **Example for $AAPL:** The 50‑day MA crossover edge on $AAPL worked in 2024 under the 0/15/20% federal LTCG brackets (plus 3.8% NIIT for high earners) and again in 2026, when those income-based brackets still apply? If not, the strategy fails stationarity.
 
 ---
 
@@ -64,7 +64,7 @@ The structure follows the original five sections, each with ten proofs.
 
 ### 1. Gambler’s Ruin (Tax‑Erosion Version)
 - **Definition:** Taxes can silently erode capital even if you break even pre‑tax. Risk of ruin grows when you pay taxes on false “gains” (e.g., short‑term trades that net zero).  
-- **Example for $AAPL:** Over‑leveraging $AAPL options so that a 5% drop wipes you out – but even before that, frequent short‑term trades with zero net profit would owe 37% on winners, ruining you slowly.
+- **Example for $AAPL:** Over‑leveraging $AAPL options so that a 5% drop wipes you out – but even before that, frequent short‑term trades are taxed at ordinary rates (up to 37%) on any net gain, and costs plus lost loss carry‑forwards ruin you slowly.
 
 ### 2. Fixed Fractional Risk (After‑Tax Equity)
 - **Definition:** Risk a fixed **percentage of your after‑tax account equity** each trade. Tax liabilities reduce your true net capital.  
@@ -72,7 +72,7 @@ The structure follows the original five sections, each with ten proofs.
 
 ### 3. The 6% Rule (Tax‑Correlated Assets)
 - **Definition:** Correlated assets may trigger **wash sales** if sold at a loss and repurchased. The 6% risk cap must include wash‑sale penalty risk.  
-- **Example for $AAPL:** Holding $AAPL, $MSFT, $NVDA – selling $AAPL at a loss and buying $MSFT within 30 days could trigger a wash sale on the $AAPL loss, disallowing the deduction. That increases effective risk.
+- **Example for $AAPL:** Holding $AAPL, $MSFT, $NVDA – selling $AAPL at a loss and re‑buying $AAPL (or a substantially identical security) within 30 days before or after triggers a wash sale on the loss, disallowing the deduction — buying a different stock like $MSFT does not. That increases effective risk.
 
 ### 4. Correlation Ceiling (Tax‑Lot Diversity)
 - **Definition:** To avoid wash sales and tax‑lot confusion, keep pairwise correlation below 0.7 across holdings with different tax lots.  
@@ -107,7 +107,7 @@ The structure follows the original five sections, each with ten proofs.
 ## III. Market Structure & Execution Logic (Tax‑Aware)
 
 ### 1. Trend Symmetry (Tax‑Aligned Timeframes)
-- **Definition:** For a trend to be worth holding for a tax‑efficient period (≥1 year), it must show higher highs and higher lows on **monthly** charts, not just daily.  
+- **Definition:** For a trend to be worth holding for a tax‑efficient period (more than one year), it must show higher highs and higher lows on **monthly** charts, not just daily.  
 - **Example for $AAPL:** $AAPL monthly chart shows higher highs ($288) and higher lows ($245) – a multi‑year uptrend suitable for a 10‑year hold. A daily pattern is only for 1‑month swings.
 
 ### 2. Mean Reversion (Tax‑Harvesting Trigger)
@@ -152,7 +152,7 @@ The structure follows the original five sections, each with ten proofs.
 
 ### 1. Short Vol Logic (Tax‑Friendly Option Selling)
 - **Definition:** Sell options in **tax‑deferred accounts** (IRA, 401k) to avoid annual tax on short‑term option gains. In taxable accounts, prefer long put/call spreads.  
-- **Example for $AAPL:** Sell $AAPL puts when IV=27% > RV=21% – but do this in an IRA. In a taxable account, the short‑term gains would be taxed at 37% each year, destroying the edge.
+- **Example for $AAPL:** Sell $AAPL puts when IV=27% > RV=21% – but do this in an IRA. In a taxable account, the premium gains would be taxed at ordinary rates (up to 37%) each year — written equity‑option premium generally stays short‑term however long the position is open — destroying the edge.
 
 ### 2. Theta Decay Identity (Tax‑Deferred Time Value)
 - **Definition:** Time decay is most valuable when the profits are **tax‑deferred** (e.g., in a retirement account) or realized as LTCG (if holding long options >1 year).  
@@ -168,7 +168,7 @@ The structure follows the original five sections, each with ten proofs.
 
 ### 5. Vega Hedging (Tax‑Aware Volatility Harvesting)
 - **Definition:** Harvest volatility premium (sell high IV, buy low RV) using **tax‑efficient instruments** – e.g., VIX futures ETNs that are taxed as 60% long‑term / 40% short‑term (Section 1256).  
-- **Example for $AAPL:** Instead of short $AAPL options directly (100% short‑term gains), use a VIX‑linked instrument to profit from $AAPL’s IV crush. Then 60% of gains are LTCG.
+- **Example for $AAPL:** Instead of short $AAPL options directly (100% short‑term gains), use a VIX‑linked instrument to profit from $AAPL’s IV crush. Only qualifying Section 1256 contracts (e.g. cash‑settled VIX index options or VIX futures) get the 60/40 split; VIX ETNs generally do not, so check the specific product.
 
 ### 6. Put/Call Ratio Sentiment (Tax‑Contrarian Entry)
 - **Definition:** When PCR is extremely low (greedy), consider shorting calls – but only if you can hold the position for >1 year to get LTCG on the short call gains (unusual). Better to use puts.  
@@ -180,7 +180,7 @@ The structure follows the original five sections, each with ten proofs.
 
 ### 8. Contango/Backwardation Logic (Tax‑Efficient Roll)
 - **Definition:** For long‑term options (LEAPS), backwardation (near > far) allows you to roll forward and defer taxes on gains. Contango forces you to pay more for roll – avoid.  
-- **Example for $AAPL:** $AAPL LEAPS: 2027 call = $30, 2028 call = $28 (backwardation). Buy the 2027, later roll to 2028 – you realize a gain only on the roll, deferring tax until final sale.
+- **Example for $AAPL:** $AAPL LEAPS: 2027 call = $30, 2028 call = $28 (backwardation). Buy the 2027, later roll to 2028 – closing the 2027 call realizes its gain or loss at the roll; the 2028 call is a new position, so a roll is not tax deferral.
 
 ### 9. Iron Condor Range (Tax‑Effective Spread Duration)
 - **Definition:** Set iron condor strikes such that the probability of staying inside is high enough that you can confidently **hold to expiration (>1 year)** for LTCG on the short premium.  
@@ -199,12 +199,12 @@ The structure follows the original five sections, each with ten proofs.
 - **Example for $AAPL:** A buy‑and‑hold $AAPL for 10 years (one tax lot) is better than 100 short‑term swings (100 tax lots, each requiring gain/loss tracking) even if pre‑tax returns are similar.
 
 ### 2. Backtest Overfitting (Tax‑Regime Overfitting)
-- **Definition:** A strategy that works perfectly under 2024 tax rates but fails when LTCG rate changes to 23% in 2026 is overfitted to a specific tax regime.  
-- **Example for $AAPL:** A tax‑harvesting strategy that relies on a 20% LTCG rate for 11‑month holds fails when rates go to 23% and the required holding period becomes 13 months.
+- **Definition:** A strategy that works perfectly under 2024 tax rates but fails when the LTCG rate changes (say, to a hypothetical 23%) is overfitted to a specific tax regime.  
+- **Example for $AAPL:** A tax‑harvesting strategy that relies on a 20% LTCG rate for 11‑month holds fails if rates were to go to a hypothetical 23% and the required holding period becomes 13 months.
 
 ### 3. Slippage Impact (Tax‑Adjusted Slippage)
 - **Definition:** Slippage plus **tax drag** must be less than gross edge. Tax drag on slippage (e.g., slippage increases realized gains) can be significant.  
-- **Example for $AAPL:** $0.01 slippage per share on $AAPL, plus tax on that slippage as additional gain (37%). Effective slippage = $0.0137. Still less than $4.00 edge → acceptable.
+- **Example for $AAPL:** $0.01 slippage per share on $AAPL, slippage is already in the realized price, so it is not taxed separately — it only reduces the after‑tax gain. Effective slippage = $0.01. Still less than $4.00 edge → acceptable.
 
 ### 4. Data Latency Bias (Tax‑Lot Timing)
 - **Definition:** Your tax optimization strategy (e.g., specific lot identification) depends on being able to **timestamp** each lot purchase. Your data feed must reflect real‑time lot assignment.  
@@ -219,7 +219,7 @@ The structure follows the original five sections, each with ten proofs.
 - **Example for $AAPL:** Before buying $AAPL, assume its post‑tax return (assuming forced sale in 2 months) is worse than 4% risk‑free. Search for evidence that you can hold >1 year to get LTCG.
 
 ### 7. Sunk Cost Negation (Tax‑Sunk Cost)
-- **Definition:** Do not hold a losing position simply because you want to wait for it to become a long‑term loss (which does not exist – losses are always short‑term regardless of holding period).  
+- **Definition:** Do not hold a losing position simply because you want to wait for it to become a long‑term loss (capital losses take the character of the holding period — a loss on an asset held more than one year is long‑term — and both types offset gains, then up to $3,000 of ordinary income).  
 - **Example for $AAPL:** You bought $AAPL at $280, it’s now $250 after 13 months. The loss is long‑term (less valuable). Do not hold further – sell immediately. The market doesn’t care about your hope for a rebound.
 
 ### 8. Consistency of Signal (Tax‑Rule Consistency)
