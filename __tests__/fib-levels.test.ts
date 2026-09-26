@@ -55,4 +55,15 @@ describe("buildFibLadder", () => {
   it("ignores non-finite levels", () => {
     expect(buildFibLadder({ fib_levels: [{ ...level("x", 100, SPOT), price: NaN }] })).toBeNull();
   });
+
+  it("drops levels at or below -100% distance instead of deriving an infinite or negative spot", () => {
+    const corrupt = (d: number): FibLevel => ({ ...level("bad", 100, SPOT), distance_pct: d });
+    expect(buildFibLadder({ fib_levels: [corrupt(-100)] })).toBeNull();
+    expect(buildFibLadder({ fib_levels: [corrupt(-150)] })).toBeNull();
+
+    const ladder = buildFibLadder({ fib_levels: [corrupt(-100), level("0.5", 148, SPOT)] })!;
+    const marker = ladder.rows.find((r) => r.kind === "price")!;
+    expect(marker.price).toBeCloseTo(SPOT, 6);
+    expect(ladder.rows.filter((r) => r.kind === "level")).toHaveLength(1);
+  });
 });

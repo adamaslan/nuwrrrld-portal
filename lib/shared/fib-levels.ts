@@ -42,8 +42,14 @@ export interface FibLadder {
 export const MAX_LADDER_LEVELS = 6;
 export const MAX_LADDER_ZONES = 3;
 
+/** A usable level: finite, and a distance above -100% (at or below that the
+ *  implied spot price is infinite or negative, so the level is corrupt). */
 function isFiniteLevel(level: FibLevel): boolean {
-  return Number.isFinite(level.price) && Number.isFinite(level.distance_pct);
+  return (
+    Number.isFinite(level.price) &&
+    Number.isFinite(level.distance_pct) &&
+    level.distance_pct > -100
+  );
 }
 
 /** The backend sends no spot price, but each level carries its distance from
@@ -63,6 +69,7 @@ export function buildFibLadder(summary: FibSummary): FibLadder | null {
   if (levels.length === 0) return null;
 
   const spot = impliedPrice(levels[0]);
+  if (!Number.isFinite(spot) || spot <= 0) return null;
   const nearest = [...levels]
     .sort((a, b) => Math.abs(a.distance_pct) - Math.abs(b.distance_pct))
     .slice(0, MAX_LADDER_LEVELS);
