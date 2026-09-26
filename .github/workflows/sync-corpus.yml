@@ -1,0 +1,45 @@
+name: Sync grounding corpus
+
+# Weekly, plus manual trigger. Mirrors docs/trader-qa/*.md from the public
+# adamaslan/ai-text-opt repo into corpus/trader-qa/ (scripts/sync-corpus.mjs)
+# and opens a PR if anything changed. Merging that PR triggers
+# compile-grounding-pack.yml, which re-extracts only new or changed chunks.
+on:
+  schedule:
+    - cron: '41 5 * * 1' # Mondays 05:41 UTC, ahead of the 06:23 compile
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Sync corpus/trader-qa from ai-text-opt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/sync-corpus.mjs
+
+      - name: Open PR if the corpus changed
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+        with:
+          branch: chore/sync-corpus
+          base: main
+          add-paths: corpus/trader-qa/**
+          commit-message: 'chore(corpus): sync trader-qa from ai-text-opt'
+          title: 'chore(corpus): weekly trader-qa sync from ai-text-opt'
+          body: |
+            Automated sync of `corpus/trader-qa/` from `adamaslan/ai-text-opt`
+            (`docs/trader-qa/`, minus `EXCLUDED_FILES` in `scripts/sync-corpus.mjs`).
+
+            Review the diff as corpus content: whatever merges here gets compiled
+            into `grounding_pack` and cited to the council as evidence.
+          delete-branch: true
