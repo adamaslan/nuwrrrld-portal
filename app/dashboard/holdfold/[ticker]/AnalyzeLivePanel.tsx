@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import type { FibSummary } from "@/lib/shared/fib-levels";
+import { FibLadder } from "./FibLadder";
 
 interface Props {
   ticker: string;
@@ -12,11 +14,10 @@ interface TradePlan {
   risk_reward?: number;
 }
 
-interface AnalyzeResult {
+interface AnalyzeResult extends FibSummary {
   verdict?: string;
   confidence?: number;
   trade_plan?: TradePlan;
-  fibonacci?: { levels?: Record<string, number> };
   [key: string]: unknown;
 }
 
@@ -129,6 +130,7 @@ export function AnalyzeLivePanel({ ticker }: Props) {
               <div className="hf-ind-cell"><span className="hf-ind-label">R:R</span><span className="hf-ind-val">{result.trade_plan.risk_reward ?? "—"}</span></div>
             </div>
           )}
+          <FibLadder summary={result} />
           <button onClick={() => { setResult(null); setError(null); }} className="hf-live-advanced-toggle">
             Run again
           </button>
