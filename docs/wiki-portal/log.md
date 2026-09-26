@@ -940,3 +940,5 @@ watchlist route.
 
 ## [2026-09-15] friction | whole-universe breadth stats are silently wrong unless leveraged/inverse ETFs are excluded by hand, and nothing in the data layer marks them | cost: rework
 ## [2026-09-22] ingest | PR #155 feat(pipeline-run-log): status/coverage schema + run-status.ts | pages touched: 3
+
+## [2026-09-26] ingest | PR #185 feat(holdfold): Fibonacci ladder in live analysis panel | pages touched: 2
