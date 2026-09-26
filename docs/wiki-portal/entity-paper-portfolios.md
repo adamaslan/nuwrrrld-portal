@@ -211,6 +211,32 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
   was "done on this branch" / "in progress" after PR #128 had already merged
   it — the merge didn't update either header. Both now reflect actual state.
 
+## Scheduled-run blockers found 2026-09-26 (and what the fix PR changes)
+
+Read-only checks against production showed the feature had never traded: every
+paper table empty. Two of three independent blockers are addressed in code:
+
+- **Secrets pre-check.** The workflow's "verify secrets" step listed Actions
+  secrets with the default token, which has no secrets scope, so every trading
+  run failed before calling the route. It now checks the env values the run
+  step receives. Four sibling workflows (`afternoon-pipeline`,
+  `judge-followed-tickers`, `select-followed-tickers`, `track-followed-tickers`)
+  carry the same defect and are unfixed.
+- **No reference prices.** The engine fills only at a `live_prices` row and the
+  Finnhub WebSocket writer is not running. A runner step now pushes Alpaca IEX
+  latest trades for the active watchlist union to
+  [[entity-live-price-tier]]'s POST route before each slot. It is
+  non-fatal, so a vendor outage degrades to "no trade", not a failed run. A
+  dry run priced all 176 watchlist names.
+- **Still open: threshold scale.** Policy buy/sell thresholds read as a 0-100
+  scale while card scores span -100..100, so the as-written policy produces no
+  trades even with prices. This needs a policy decision and a
+  `PAPER_POLICY_VERSION` bump; it is not part of the fix.
+- **Still open:** whether the production-DB guard rejects the route in
+  production, and provisioning `PORTAL_PUSH_SECRET` plus the two Alpaca
+  credentials as Actions secrets.
+
+
 ## Open questions
 
 Carried from the design doc's §11, unresolved: whether CHAIR's book reads a

@@ -52,6 +52,17 @@ two of which live in `homebase/` (a separate repo):
    `nuwrrrld-secrets` (`PORTAL_PUSH_SECRET`, `FINNHUB_API_KEY2`,
    `EXPO_PUBLIC_PORTAL_URL`); a rotation must update that secret or both stop.
 
+## Second writer: Alpaca latest trades (paper trading)
+
+The WebSocket worker is not the only possible source. The paper-portfolios
+workflow now runs a script that fetches Alpaca IEX latest trades for the paper
+watchlists and posts them to the same route with the same bearer secret. Rows
+are upserted latest-per-ticker, so the two sources are indistinguishable in the
+table: the table carries no source or feed column. Share-class symbols are
+mapped from the portal's hyphen form to Alpaca's dot form at the boundary.
+Related: [[entity-paper-portfolios]].
+
+
 ## Open questions
 
 - ❓ Should `fetchTickerEntry` / the Hold-Fold UI prefer `live_prices` over the
