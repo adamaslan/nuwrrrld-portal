@@ -16,6 +16,12 @@ on:
       - 'scripts/grounding-chunker.mjs'
   workflow_dispatch: {}
 
+# One compile at a time: overlapping runs (cron + corpus push + manual) would
+# each get their own --max-calls budget and can race on the same chunks.
+concurrency:
+  group: compile-grounding-pack
+  cancel-in-progress: false
+
 jobs:
   compile:
     runs-on: ubuntu-latest

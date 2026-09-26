@@ -78,7 +78,8 @@ const DEFAULT_MAX_CALLS = 40;
 function parseMaxCalls(argv) {
   const i = argv.indexOf("--max-calls");
   if (i === -1) return DEFAULT_MAX_CALLS;
-  const n = Number(argv[i + 1]);
+  const raw = argv[i + 1];
+  const n = raw === undefined || raw.trim() === "" ? NaN : Number(raw);
   if (!Number.isInteger(n) || n < 0) {
     console.error(`--max-calls needs a non-negative integer, got "${argv[i + 1]}"`);
     process.exit(1);
@@ -347,7 +348,10 @@ async function loadCompiledChunkIds(sql) {
     );
     return new Map(rows.map((r) => [r.chunk_id, r.content_hash]));
   } catch (err) {
-    // Only reachable in --dry-run before the columns exist: nothing is cached yet.
+    // Before the columns exist a dry run has nothing cached. A real run has
+    // just ensured the columns, so a failure here is a genuine DB problem:
+    // treating everything as new would burn the whole model budget.
+    if (!DRY_RUN) throw err;
     console.warn(`  could not read compiled chunk hashes (${err.message}); treating all as new`);
     return new Map();
   }
@@ -484,7 +488,7 @@ async function main() {
         ],
         packRows,
         ["state_key", "chunk_id"],
-        ["rule_text = EXCLUDED.rule_text", "quote = EXCLUDED.quote", "corpus_version = EXCLUDED.corpus_version", "compiled_at = now()"],
+        ["rule_text = EXCLUDED.rule_text", "quote = EXCLUDED.quote", "corpus_version = EXCLUDED.corpus_version", "taxonomy_version = EXCLUDED.taxonomy_version", "compiled_at = now()"],
       );
     } else {
       const dryKeys = new Set();
