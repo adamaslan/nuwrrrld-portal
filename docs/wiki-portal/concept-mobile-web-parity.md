@@ -206,6 +206,8 @@ between the two denominators.
 
 > ℹ️ **Portal PR #185 (2026-09-26) assessed — portal-only UI plus one new `lib/shared/` module, headline unchanged at ~62%.** The Hold/Fold live-analysis panel now renders the Fibonacci data the backend was already sending (nearest support/resistance, the levels nearest price, top confluence zones). The new **`lib/shared/fib-levels.ts`** types the real response shape and holds the pure ladder derivation. It is portable today, since it has no backend or storage dependency mobile lacks, but mobile's `clients/holdfold.ts` still declares `FibLevel { level, price }`, a field the backend never sends, and mobile has no Fibonacci surface at all. So this is a new portal-only shared module, a parity candidate rather than a drift of an existing file. Feature-domain parity is unchanged: Hold/Fold stays 🟡 Partial. See [[concept-sync-requirements]] for the port item.
 
+> ℹ️ **Mobile PR fix/holdfold-fib-type (2026-09-26) assessed — mobile type fix only, headline unchanged at ~62%.** `clients/holdfold.ts` now declares the Fibonacci response the backend actually sends (`FibLevel { name, price, distance_pct, strength, type }`, `fib_confluence_zones`, `nearest_fib_support/resistance`), replacing `{ level, price }` whose `level` never arrived. Nothing in the mobile app reads these fields yet, so no behavior changed. Mobile and portal now agree on the *type*; the portal's `lib/shared/fib-levels.ts` (portal PR #185) is deliberately not copied into mobile until that PR merges, since the drift gate compares against the other repo's `main`. No denominator moves.
+
 ## Domain parity matrix
 
 | Domain | Mobile | Portal | Shared module | Status |

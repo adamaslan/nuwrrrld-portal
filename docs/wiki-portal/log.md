@@ -942,3 +942,5 @@ watchlist route.
 ## [2026-09-22] ingest | PR #155 feat(pipeline-run-log): status/coverage schema + run-status.ts | pages touched: 3
 
 ## [2026-09-26] ingest | PR #185 feat(holdfold): Fibonacci ladder in live analysis panel | pages touched: 2
+
+## [2026-09-26] ingest | mobile fix/holdfold-fib-type — FibLevel type matches backend | pages touched: 1
