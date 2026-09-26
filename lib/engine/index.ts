@@ -22,3 +22,5 @@ export {
 export { FibonacciDetector } from "./detectors/fibonacci";
 export type { Detector, EngineSignal, SignalStrength } from "./detectors/types";
 export { runDetectors, type DetectorRun } from "./run";
+export { snapshotFrame, holdExitLevels, SNAPSHOT_DETECTORS, type TickerSnapshot, type SnapshotHit } from "./snapshot";
+export { labelHit, DEFAULT_HORIZON_DAYS, type HitLabel } from "./labels";

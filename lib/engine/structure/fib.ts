@@ -16,6 +16,8 @@ export const TARGET_RATIO = 1.618;
 export const MIN_LEG_ATR = 3.0;
 export const ZONE_ATR = 0.5;
 export const MAX_LEGS = 3;
+/** Stop sits this many ATRs below the pocket's low (matches the detector's hold tolerance). */
+export const TOLERANCE_ATR_FOR_STOP = 0.25;
 const PIVOT_POOL = 60;
 
 export interface FibLeg {
