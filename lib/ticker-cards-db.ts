@@ -246,6 +246,8 @@ export async function coverageForUniverseAndDate(
   missing: string[];
   missingCount: number;
   staleCount: number;
+  /** True when a query threw, so zeros mean "unknown", not "nothing to do". */
+  queryFailed: boolean;
 }> {
   try {
     const activeRows = await sql`
@@ -253,12 +255,15 @@ export async function coverageForUniverseAndDate(
     `;
     const active = activeRows.map((r) => r.ticker as string);
     if (active.length === 0) {
-      return { expected: 0, filled: 0, missing: [], missingCount: 0, staleCount: 0 };
+      return { expected: 0, filled: 0, missing: [], missingCount: 0, staleCount: 0, queryFailed: false };
     }
 
+    // Restricted to active tickers so a card for a deactivated symbol can't
+    // offset a missing active one in `filled`.
     const coveredRows = await sql`
       SELECT DISTINCT ticker FROM ticker_cards
       WHERE bar_date = ${barDate} AND universe = ${universe}
+        AND ticker = ANY(${active})
     `;
     const covered = new Set(coveredRows.map((r) => r.ticker as string));
     const missing = active.filter((t) => !covered.has(t));
@@ -282,10 +287,11 @@ export async function coverageForUniverseAndDate(
       missing: missing.slice(0, 50),
       missingCount: missing.length,
       staleCount,
+      queryFailed: false,
     };
   } catch (err) {
     console.error(`[ticker-cards] coverageForUniverseAndDate failed: ${errMsg(err)}`);
-    return { expected: 0, filled: 0, missing: [], missingCount: 0, staleCount: 0 };
+    return { expected: 0, filled: 0, missing: [], missingCount: 0, staleCount: 0, queryFailed: true };
   }
 }
 

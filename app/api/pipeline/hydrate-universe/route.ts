@@ -293,10 +293,13 @@ export async function POST(req: NextRequest) {
   // caller posts stocks and ETFs as separate chunks. Logged once per chunk
   // (not once per run) so a wedged multi-chunk run still leaves a partial
   // trail instead of nothing.
-  const universeCoverage = await coverageForUniverseAndDate(universe, barDate);
+  const { queryFailed, ...universeCoverage } = await coverageForUniverseAndDate(universe, barDate);
+  // A failed coverage query reads as expected=0/filled=0, which
+  // computeRunStatus would score "ok" — so surface it as a failed run.
   const runStatus = computeRunStatus({
     expected: universeCoverage.expected,
     filled: universeCoverage.filled,
+    threw: queryFailed,
   });
   const items: RunItem[] = [
     ...outcomes.map((o) => ({
@@ -311,7 +314,7 @@ export async function POST(req: NextRequest) {
     pipeline: "hydrate-universe",
     dryRun: false,
     session: body.runId ?? null,
-    itemsTotal: rows.length,
+    itemsTotal: items.length,
     items,
     host: body.host ?? null,
     status: runStatus,
