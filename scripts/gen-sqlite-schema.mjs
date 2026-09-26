@@ -64,6 +64,8 @@ const DROP_STATEMENT_PATTERNS = [
   /ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS host text;/i,
   /ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS status text;/i,
   /ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS coverage jsonb NOT NULL DEFAULT '\{\}'::jsonb;/i,
+  /ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS content_hash text;/i,
+  /ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS taxonomy_version text;/i,
   // paper_orders' watchlist-membership guard: SQLite triggers use different
   // syntax (no PL/pgSQL, no RAISE EXCEPTION with this form) and the read-only
   // backup mirror never receives live INSERTs that need validating, so the

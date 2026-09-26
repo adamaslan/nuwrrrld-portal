@@ -204,6 +204,8 @@ CREATE TABLE IF NOT EXISTS corpus_chunks (
   tags          text[]      NOT NULL DEFAULT '{}',
   body          text        NOT NULL,
   search_terms  text[]      NOT NULL DEFAULT '{}', -- doc2query: questions this chunk answers + synonyms
+  content_hash  text,                       -- sha1(body); set only after a successful extraction
+  taxonomy_version text,                    -- taxonomy the chunk was last extracted under
   tsv           tsvector GENERATED ALWAYS AS (
                   immutable_corpus_tsvector(body, search_terms)
                 ) STORED,
@@ -213,6 +215,11 @@ CREATE INDEX IF NOT EXISTS corpus_chunks_tsv_idx
   ON corpus_chunks USING GIN (tsv);
 CREATE INDEX IF NOT EXISTS corpus_chunks_trader_filter_idx
   ON corpus_chunks (trader_filter);
+-- Incremental compile: a chunk is re-extracted only when its content hash or
+-- the taxonomy version changes (scripts/compile_grounding_pack.mjs). The
+-- ALTERs migrate databases created before those columns existed.
+ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS content_hash text;
+ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS taxonomy_version text;
 
 -- Compiled, per-signal-state rules extracted from corpus_chunks once (the
 -- weekly compile job), looked up many times at zero model cost. Every row

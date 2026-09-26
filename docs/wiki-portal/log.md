@@ -944,3 +944,4 @@ watchlist route.
 ## [2026-09-26] ingest | PR #185 feat(holdfold): Fibonacci ladder in live analysis panel | pages touched: 2
 
 ## [2026-09-26] ingest | mobile fix/holdfold-fib-type — FibLevel type matches backend | pages touched: 1
+## [2026-09-25] ingest | PR #175 feat(grounding): incremental, budgeted compile + content-addressed chunk ids | pages touched: 1

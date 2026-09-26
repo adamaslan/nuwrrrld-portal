@@ -19,7 +19,18 @@
  *   OPENROUTER_API_KEY    required (unless --dry-run)
  *   CORPUS_VERSION        stamped on every row (default: git short SHA, else "dev")
  *   COMPILE_MODEL         model used for extraction (default: a free-tier model)
- *   --dry-run             chunk + extract, print counts, write nothing
+ *   --dry-run             chunk, report what would be extracted, write nothing
+ *   --force               re-extract every chunk, ignoring the content-hash skip
+ *                         (use when deliberately switching COMPILE_MODEL)
+ *   --max-calls N         extraction-call budget for this run (default 40 —
+ *                         leaves 10 of the free tier's 50/day for the live
+ *                         council). Chunks past the budget are deferred, not
+ *                         written, so the next run resumes where this stopped.
+ *
+ * Incremental: a chunk whose (content_hash, taxonomy_version) already has a
+ * corpus_chunks row was extracted successfully before and is skipped, so an
+ * unchanged corpus costs zero model calls. Chunk ids are content-addressed
+ * (grounding-chunker.mjs), so editing one paragraph re-extracts only that chunk.
  *
  * Exit codes: 0 = success, 1 = misconfigured / fatal error.
  */
@@ -61,11 +72,28 @@ function firstFreeModelFromChain() {
 const COMPILE_MODEL = process.env.COMPILE_MODEL ?? firstFreeModelFromChain();
 const MAX_EXPANDED_ROWS_PER_RULE = 24; // guards against a Cartesian blow-up on under-constrained rules
 const DRY_RUN = process.argv.includes("--dry-run");
+const FORCE = process.argv.includes("--force");
+const DEFAULT_MAX_CALLS = 40;
+
+function parseMaxCalls(argv) {
+  const i = argv.indexOf("--max-calls");
+  if (i === -1) return DEFAULT_MAX_CALLS;
+  const raw = argv[i + 1];
+  const n = raw === undefined || raw.trim() === "" ? NaN : Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    console.error(`--max-calls needs a non-negative integer, got "${argv[i + 1]}"`);
+    process.exit(1);
+  }
+  return n;
+}
+const MAX_CALLS = parseMaxCalls(process.argv);
 
 /** Chunks whose extraction call never returned usable JSON (429, 5xx, timeout).
  *  Tracked so "the corpus yielded no rules" can be told apart from "the model
  *  was never successfully reached" — those look identical in the totals. */
 let extractFailures = 0;
+/** Extraction calls actually sent this run — what --max-calls budgets. */
+let callsMade = 0;
 
 const RSI = ["oversold", "neutral", "overbought"];
 const MACD = ["bullish_cross", "bearish_cross", "none"];
@@ -301,6 +329,34 @@ async function batchUpsert(sql, table, columns, rows, conflictColumns, setClause
   await sql.query(text, values);
 }
 
+/**
+ * Idempotent, additive columns the incremental skip needs. Also in
+ * lib/db/schema.sql (applied by db-migrate on deploy), repeated here because
+ * this workflow can run on a push to main before that deploy has migrated.
+ */
+async function ensureIncrementalColumns(sql) {
+  await sql.query("ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS content_hash text");
+  await sql.query("ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS taxonomy_version text");
+}
+
+/** chunk_ids already extracted from identical content under this taxonomy. */
+async function loadCompiledChunkIds(sql) {
+  try {
+    const rows = await sql.query(
+      "SELECT chunk_id, content_hash FROM corpus_chunks WHERE taxonomy_version = $1 AND content_hash IS NOT NULL",
+      [TAXONOMY_VERSION],
+    );
+    return new Map(rows.map((r) => [r.chunk_id, r.content_hash]));
+  } catch (err) {
+    // Before the columns exist a dry run has nothing cached. A real run has
+    // just ensured the columns, so a failure here is a genuine DB problem:
+    // treating everything as new would burn the whole model budget.
+    if (!DRY_RUN) throw err;
+    console.warn(`  could not read compiled chunk hashes (${err.message}); treating all as new`);
+    return new Map();
+  }
+}
+
 async function main() {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
@@ -327,6 +383,9 @@ async function main() {
       (DRY_RUN ? " (dry run, no extraction)" : `, model=${COMPILE_MODEL}`),
   );
 
+  if (!DRY_RUN) await ensureIncrementalColumns(sql);
+  const compiled = FORCE ? new Map() : await loadCompiledChunkIds(sql);
+
   const files = await walkMarkdown(CORPUS_DIR);
   console.log(`Found ${files.length} corpus file(s) under ${relative(repoRoot, CORPUS_DIR)}/`);
 
@@ -334,6 +393,8 @@ async function main() {
   let totalRules = 0;
   let totalRows = 0;
   let totalRejected = 0;
+  let totalSkipped = 0;
+  let totalDeferred = 0;
 
   for (const filePath of files) {
     const sourceFile = relative(CORPUS_DIR, filePath);
@@ -346,6 +407,15 @@ async function main() {
     // the whole file into one INSERT each instead of one per chunk/rule.
     const chunkResults = [];
     for (const chunk of chunks) {
+      if (compiled.get(chunk.chunkId) === chunk.contentHash) {
+        totalSkipped++;
+        continue;
+      }
+      if (callsMade >= MAX_CALLS) {
+        totalDeferred++;
+        continue;
+      }
+      callsMade++; // in --dry-run this counts the calls it *would* make
       const before = extractFailures;
       const rules = DRY_RUN ? [] : await extractRules(apiKey, chunk);
       const failed = extractFailures > before;
@@ -371,15 +441,25 @@ async function main() {
       }
       const chunkRows = writableResults.map(({ chunk, validRules }) => {
         const searchTerms = validRules.flatMap((r) => r.search_terms ?? []);
-        return [chunk.chunkId, chunk.sourceFile, traderFilter, [], chunk.body, searchTerms];
+        return [
+          chunk.chunkId, chunk.sourceFile, traderFilter, [], chunk.body, searchTerms,
+          chunk.contentHash, TAXONOMY_VERSION,
+        ];
       });
       await batchUpsert(
         sql,
         "corpus_chunks",
-        ["chunk_id", "source_file", "trader_filter", "tags", "body", "search_terms"],
+        [
+          "chunk_id", "source_file", "trader_filter", "tags", "body", "search_terms",
+          "content_hash", "taxonomy_version",
+        ],
         chunkRows,
         ["chunk_id"],
-        ["body = EXCLUDED.body", "trader_filter = EXCLUDED.trader_filter", "search_terms = EXCLUDED.search_terms", "updated_at = now()"],
+        [
+          "body = EXCLUDED.body", "trader_filter = EXCLUDED.trader_filter",
+          "search_terms = EXCLUDED.search_terms", "content_hash = EXCLUDED.content_hash",
+          "taxonomy_version = EXCLUDED.taxonomy_version", "updated_at = now()",
+        ],
       );
 
       // Keyed by (state_key, chunk_id) — the batch's own ON CONFLICT target —
@@ -408,11 +488,11 @@ async function main() {
         ],
         packRows,
         ["state_key", "chunk_id"],
-        ["rule_text = EXCLUDED.rule_text", "quote = EXCLUDED.quote", "corpus_version = EXCLUDED.corpus_version", "compiled_at = now()"],
+        ["rule_text = EXCLUDED.rule_text", "quote = EXCLUDED.quote", "corpus_version = EXCLUDED.corpus_version", "taxonomy_version = EXCLUDED.taxonomy_version", "compiled_at = now()"],
       );
     } else {
       const dryKeys = new Set();
-      for (const { chunk, validRules } of writableResults) {
+      for (const { chunk, validRules } of chunkResults) {
         for (const rule of validRules) {
           for (const { stateKey } of expandRule(rule)) dryKeys.add(`${stateKey} ${chunk.chunkId}`);
         }
@@ -420,12 +500,14 @@ async function main() {
       totalRows += dryKeys.size;
     }
 
-    console.log(`  ${sourceFile}: ${chunks.length} chunk(s)`);
+    console.log(`  ${sourceFile}: ${chunks.length} chunk(s), ${chunkResults.length} to extract`);
   }
 
   console.log(
     `\nDone. chunks=${totalChunks} rules_extracted=${totalRules} ` +
-      `rejected(unverbatim/invalid)=${totalRejected} pack_rows=${totalRows}` +
+      `rejected(unverbatim/invalid)=${totalRejected} pack_rows=${totalRows} ` +
+      `extract_calls=${callsMade}${DRY_RUN ? " (would make)" : ""} skipped_unchanged=${totalSkipped}` +
+      (totalDeferred ? ` deferred_over_budget=${totalDeferred} (next run resumes)` : "") +
       (extractFailures ? ` extract_failures=${extractFailures}` : "") +
       (DRY_RUN ? " (dry-run, nothing written)" : ""),
   );
@@ -435,9 +517,9 @@ async function main() {
   // what let a retired model id and an exhausted daily quota both read as a
   // successful no-op run. Nothing was persisted for a failed chunk (see the
   // writableResults filter), so "left unchanged" is literally true here.
-  if (!DRY_RUN && totalChunks > 0 && extractFailures === totalChunks) {
+  if (!DRY_RUN && callsMade > 0 && extractFailures === callsMade) {
     throw new Error(
-      `all ${totalChunks} extraction call(s) failed — no rule could be compiled. ` +
+      `all ${callsMade} extraction call(s) failed — no rule could be compiled. ` +
         `Check the model id and the OpenRouter quota; the pack was left unchanged.`,
     );
   }

@@ -2,7 +2,7 @@
 date: 2026-07-20
 type: entity
 tags: [grounding, compiler, corpus, chunker, ci, neon]
-sources: [../../scripts/compile_grounding_pack.mjs, ../../scripts/grounding-chunker.mjs, ../../corpus/README.md, ../../.github/workflows/compile-grounding-pack.yml, PR#36, PR#37]
+sources: [../../scripts/compile_grounding_pack.mjs, ../../scripts/grounding-chunker.mjs, ../../corpus/README.md, ../../.github/workflows/compile-grounding-pack.yml, PR#36, PR#37, PR#175]
 ---
 
 # Entity: Grounding Compiler (`scripts/compile_grounding_pack.mjs` + `corpus/`)
@@ -19,16 +19,17 @@ A dependency-light Node ESM script (native `fetch` + `@neondatabase/serverless` 
    - `t1-*` / `t2-*` filenames also set the chunk's `trader_filter` column — this is where the horizon wall originates.
    - Prose → 480 tokens / 96 overlap.
    - Chunks under `MIN_CHUNK_TOKENS` (80, ~320 chars) are dropped as stubs.
-3. **Upsert** `corpus_chunks`.
-4. **Extract** rule tuples via one batched LLM call per chunk (`COMPILE_MODEL`, default a `:free` model), keyed to the taxonomy state-key space.
-5. **Upsert** `grounding_pack` (`ON CONFLICT` — idempotent, re-runs safe).
+3. **Skip unchanged chunks.** Chunk ids are content-addressed (`sha1(file)[:12]_sha1(body)[:12]`), and a chunk whose `(content_hash, taxonomy_version)` already sits in `corpus_chunks` was extracted successfully before, so it is skipped. `--force` disables the skip, for when you deliberately switch models.
+4. **Extract** rule tuples, one LLM call per new or changed chunk (`COMPILE_MODEL`, default a `:free` model), keyed to the taxonomy state-key space. The run is capped by `--max-calls` (default 40, which leaves 10 of the free tier's 50/day for the live council). Chunks over the budget are deferred and left unwritten, so the next run resumes where this one stopped.
+5. **Upsert** `corpus_chunks` (now stamped with `content_hash` and `taxonomy_version`, written only for chunks whose extraction call succeeded).
+6. **Upsert** `grounding_pack` (`ON CONFLICT` — idempotent, re-runs safe).
 
 **The hard invariant:** a rule can only enter the pack if its `quote` is a *verbatim substring* of the chunk body. The pack physically cannot contain text the corpus doesn't.
 
 ## Where used
 
 - Produces the `grounding_pack` and `corpus_chunks` tables that [[entity-grounding-tier-ladder]] reads at Tiers 0–2
-- Runs in CI: `.github/workflows/compile-grounding-pack.yml` — weekly (Mondays 06:23 UTC), on any `corpus/**` or chunker/compiler push to `main`, and manual `workflow_dispatch`
+- Runs in CI: `.github/workflows/compile-grounding-pack.yml` — daily (06:23 UTC; a no-change day makes zero model calls), on any `corpus/**` or chunker/compiler push to `main`, and manual `workflow_dispatch`
 
 ## Versioning
 
@@ -40,7 +41,9 @@ Every row is stamped with `CORPUS_VERSION` (git short SHA, else `"dev"`) and `TA
 2. **Under-constrained rule → Cartesian blow-up.** A rule that pins few taxonomy dimensions expands into many `state_key` rows; `MAX_EXPANDED_ROWS_PER_RULE` (24) caps this.
 3. **Extraction model returns malformed tuples.** The verbatim-quote invariant rejects fabricated evidence, but a chunk that yields zero valid rules simply contributes nothing — silent under-coverage rather than an error.
 4. **The hardcoded extraction model was retired, and the run still exited 0** (fixed in PR #70). `COMPILE_MODEL` defaulted to `qwen/qwen3-next-80b-a3b-instruct:free`, which OpenRouter has since removed; every extraction call 404'd, the script warned per chunk, and it finished reporting `rules_extracted=0` with a **success** exit code. That output is indistinguishable from failure #3's legitimate "the corpus had nothing to say" — the acute form of the same silent-under-coverage shape, and the reason it went unnoticed. Three fixes: the default now reads the head of `FREE_MODEL_CHAIN` from `lib/openrouter.ts` (the chain `refresh-free-models.mjs` already live-probes, so there is one maintained source instead of two); a 404 throws rather than being swallowed per chunk, since a dead model id is fatal to the whole run; and transport failures (429/5xx/timeout) are counted separately so a run where *every* chunk failed exits non-zero instead of reporting a successful empty compile. The run log now names the model it is using.
-5. **The free-model daily quota is a hard ceiling on corpus size.** Extraction is one model call per chunk, and OpenRouter's free tier caps the whole API key at 50 requests/day — the same account-wide ceiling recorded as failure #3 on [[entity-openrouter-client]], re-confirmed here from a live 429's `X-RateLimit-Limit: 50` / `X-RateLimit-Remaining: 0` headers. A real corpus of a few hundred chunks therefore **cannot** be compiled in one day on the free tier: it needs credits (≥10 raises the cap to 1000/day), several chunks batched per call, or a multi-day incremental run. Worth planning for before the corpus migration, not after.
+5. **The free-model daily quota is a hard ceiling on corpus size.** Extraction is one model call per chunk, and OpenRouter's free tier caps the whole API key at 50 requests/day — the same account-wide ceiling recorded as failure #3 on [[entity-openrouter-client]], re-confirmed here from a live 429's `X-RateLimit-Limit: 50` / `X-RateLimit-Remaining: 0` headers. A real corpus of a few hundred chunks therefore **cannot** be compiled in one day on the free tier: it needs credits (≥10 raises the cap to 1000/day), several chunks batched per call, or a multi-day incremental run. Worth planning for before the corpus migration, not after. *Mitigated:* the compile is now incremental and budgeted, so a large import finishes over several daily runs. Batching several chunks per call is still not implemented.
+
+6. **Content-addressed ids don't make chunking edit-local.** The chunker packs sentences greedily, so an edit shifts every chunk boundary after it: in a synthetic 26-chunk file, an insert in the middle kept 12/26 ids, and a prepend kept 0/26. What the content-addressed ids *do* fix is correctness. With positional ids, an edited chunk overwrote the same row while the `grounding_pack` rows from its old text stayed attached. The ids replaced under the new scheme, and the pre-change positional rows, stay in the table until pruning ships (plan PR 3, which deletes rows in Neon and needs explicit sign-off).
 
 ## Open questions
 
