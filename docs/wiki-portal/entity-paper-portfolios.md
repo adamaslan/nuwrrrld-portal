@@ -228,13 +228,17 @@ paper table empty. Two of three independent blockers are addressed in code:
   [[entity-live-price-tier]]'s POST route before each slot. It is
   non-fatal, so a vendor outage degrades to "no trade", not a failed run. A
   dry run priced all 176 watchlist names.
-- **Still open: threshold scale.** Policy buy/sell thresholds read as a 0-100
-  scale while card scores span -100..100, so the as-written policy produces no
-  trades even with prices. This needs a policy decision and a
-  `PAPER_POLICY_VERSION` bump; it is not part of the fix.
-- **Still open:** whether the production-DB guard rejects the route in
-  production, and provisioning `PORTAL_PUSH_SECRET` plus the two Alpaca
-  credentials as Actions secrets.
+- **Threshold scale (policy v2).** v1 thresholds read as a 0-100 scale while
+  card scores span -100..100, so no ticker could clear a buy threshold. v2
+  re-expresses every buy/sell threshold through x -> 2x - 100 (for example T1
+  buy 70 -> 40, QUANT sell 50 -> 0). The map is a linear rescale, not a tuned
+  policy; nothing has yet shown these levels trade well. Existing
+  `paper_accounts` rows stay stamped `v1` until updated, and runs stamp the
+  account row's version, so a run under v2 code would be labelled v1 until the
+  rows are re-stamped.
+- **Checked, not a blocker:** the production-DB guard is opt-in and
+  `PRODUCTION_DB_HOST` is unset in production, so the route is not rejected.
+  The Actions secrets the workflow needs already exist.
 
 
 ## Open questions
