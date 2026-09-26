@@ -271,11 +271,11 @@ const html = `<!doctype html>
   <p>Failures first, then blocked, then excluded, then passing. Reasons are redacted and truncated at write time by <code>scripts/nulogdash.mjs</code>.</p>
   <div class="toolbar">
     <input type="search" id="featureFilter" placeholder="Filter by feature, entrypoint, or reason&hellip;" autocomplete="off">
-    <button class="chip active" data-status="all">all ${total}</button>
-    <button class="chip" data-status="pass">pass ${counts.pass ?? 0}</button>
-    <button class="chip" data-status="fail">fail ${counts.fail ?? 0}</button>
-    <button class="chip" data-status="blocked">blocked ${counts.blocked ?? 0}</button>
-    <button class="chip" data-status="not_run">not_run ${counts.not_run ?? 0}</button>
+    <button class="chip active" aria-pressed="true" data-status="all">all ${total}</button>
+    <button class="chip" aria-pressed="false" data-status="pass">pass ${counts.pass ?? 0}</button>
+    <button class="chip" aria-pressed="false" data-status="fail">fail ${counts.fail ?? 0}</button>
+    <button class="chip" aria-pressed="false" data-status="blocked">blocked ${counts.blocked ?? 0}</button>
+    <button class="chip" aria-pressed="false" data-status="not_run">not_run ${counts.not_run ?? 0}</button>
   </div>
   <p class="rowcount" id="rowcount"></p>
   <div class="scroll"><table>
@@ -292,7 +292,7 @@ const html = `<!doctype html>
 </div>
 <script>
 (function () {
-  var DATA = ${JSON.stringify(chartData)};
+  var DATA = ${JSON.stringify(chartData).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029")};
   var STATUS_COLOR = { pass: "#15803d", fail: "#b91c1c", blocked: "#b45309", not_run: "#5c6773" };
   var isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
   var gridColor = isDark ? "#2a323d" : "#dde3ea";
@@ -363,8 +363,9 @@ const html = `<!doctype html>
     if (input) input.addEventListener("input", apply);
     chips.forEach(function (chip) {
       chip.addEventListener("click", function () {
-        chips.forEach(function (c) { c.classList.remove("active"); });
+        chips.forEach(function (c) { c.classList.remove("active"); c.setAttribute("aria-pressed", "false"); });
         chip.classList.add("active");
+        chip.setAttribute("aria-pressed", "true");
         activeStatus = chip.getAttribute("data-status");
         apply();
       });

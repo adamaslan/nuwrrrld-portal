@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Running nulogdash</title>
 <style>
   :root{
@@ -116,7 +121,8 @@
 
   footer{border-top:1px solid var(--line); margin-top:48px; padding-top:20px; color:var(--sub); font-size:.85rem;}
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <p class="eyebrow">nuwrrrld-portal · operator guide</p>
   <h1>Running nulogdash</h1>
@@ -145,9 +151,13 @@
         <code>http://localhost:3000</code> by default, overridable with <code>NULOGDASH_BASE_URL</code>.</li>
       <li><code>.env.local</code> has the same keys <code>/local-check</code> verifies (Neon, OpenRouter,
         Stripe, GCP backend). Run that first if you're not sure.</li>
-      <li><code>NULOGDASH_SESSION_COOKIE</code> is set to a real Clerk <code>__session</code> cookie value
-        for a dedicated test user — copy it from browser devtools after signing in as that user.
-        Without it, every auth-required feature reports <code>blocked</code>, not silently skipped.</li>
+      <li><strong>Auth is automatic by default.</strong> When <code>NULOGDASH_SESSION_COOKIE</code> is unset,
+        the sweep mints a session token for the user named by <code>E2E_CLERK_TEST_EMAIL</code> using
+        <code>CLERK_SECRET_KEY</code> and presents it as a bearer token, so both variables must be in
+        <code>.env.local</code> and that user must exist on the Clerk instance. Setting
+        <code>NULOGDASH_SESSION_COOKIE</code> to a real Clerk <code>__session</code> cookie value is an
+        optional override. If neither path works, auth-required features report <code>blocked</code>,
+        not silently skipped.</li>
       <li><code>NULOGDASH_ADMIN_EMAILS</code> (comma-separated) includes your own email, or
         <code>/dashboard/nulogdash</code> won't let you view the results.</li>
     </ul>
@@ -280,7 +290,7 @@ node scripts/nulogdash-report.mjs --out-dir docs/nulogdash-runs</pre>
         <tbody>
           <tr><td><code>pass</code></td><td>Route was called and returned the expected shape.</td><td>—</td></tr>
           <tr><td><code>fail</code></td><td>Route was called and returned something wrong.</td><td>The redacted <code>reason</code> field in the report — don't re-run the request to see raw output.</td></tr>
-          <tr><td><code>blocked</code></td><td>A precondition stopped the sweep from calling the route at all.</td><td><code>NULOGDASH_SESSION_COOKIE</code>, then the other three preconditions in order.</td></tr>
+          <tr><td><code>blocked</code></td><td>A precondition stopped the sweep from getting a real answer: it never called the route, or the route's own rate limiter refused the call (HTTP 429, reported with a retry window).</td><td>The auth setup (<code>E2E_CLERK_TEST_EMAIL</code> and <code>CLERK_SECRET_KEY</code>, or the cookie override), then the other preconditions in order. For a 429, wait out the retry window and re-run.</td></tr>
           <tr><td><code>not_run</code></td><td>Feature was intentionally excluded from this sweep.</td><td>The <code>excluded:</code> prefix on its reason.</td></tr>
         </tbody>
       </table>
@@ -312,3 +322,5 @@ node scripts/nulogdash-report.mjs --out-dir docs/nulogdash-runs</pre>
     <code>scripts/nulogdash-report.mjs</code>, <code>scripts/nulogdash-fixture.mjs</code>, <code>package.json</code>.
   </footer>
 </div>
+</body>
+</html>
