@@ -1,0 +1,20 @@
+# docs/wiki-portal/log.md is a strictly append-only, one-line-per-entry file
+# (see multi-branch-optimization.md and the wiki SCHEMA's "log.md is
+# append-only" rule). It is by far the highest-churn file in this repo —
+# 33 of the last 40 commits touched it — because every PR appends one line
+# to it as part of its wiki ingest, so concurrent branches collide on the
+# same trailing hunk constantly.
+#
+# `merge=union` is git's built-in union merge driver: on a conflict it keeps
+# lines added by BOTH sides (deduping exact duplicates) instead of raising a
+# conflict marker. For a pure append log that is exactly the correct
+# resolution — "both lines, in append order" is what a human would always
+# choose anyway (see multi-branch-optimization.md's explicit log.md
+# resolution rule) — so this makes that resolution automatic instead of
+# manual on every rebase.
+#
+# Do NOT extend this to index.md: its entries are alphabetically-slotted
+# under section headers rather than a single append point, and union merge
+# does not understand sections — it would happily produce a technically
+# non-conflicting but structurally wrong file.
+docs/wiki-portal/log.md merge=union
