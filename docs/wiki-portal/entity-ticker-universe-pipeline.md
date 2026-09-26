@@ -279,6 +279,28 @@ failures #3 for why).
    The 2026-09-15 scan worked around it by computing breadth on the 762 stocks
    only; nothing in the data layer enforces that.
 
+**Closed 2026-09-22 (PR #158):**
+
+16. **Zero `pipeline_run_log` rows despite being the busiest pipeline.**
+   `docs/modal-pipeline-status.md`'s audit confirmed no reference at all to
+   `pipeline-run-log-db` in this route or its workflow — every other batch
+   pipeline (`precompute-ai`, `followed-tickers*`) logged its runs, this one
+   never had. `POST /api/pipeline/hydrate-universe` now calls
+   `logPipelineRun()` once per chunk, `session` = the caller's `runId` so a
+   multi-chunk run's rows are attributable to one run. New
+   `coverageForUniverseAndDate()` in `ticker-cards-db.ts` scopes `expected`/
+   `filled` to the chunk's own universe (stocks and ETFs post separately, so
+   the pre-existing whole-universe `coverageForDate()` would have misreported
+   `expected` for either lane). `status` comes from Phase 3's
+   `computeRunStatus()` — see [[concept-run-coverage-status]]. `host`
+   (`'gha' | 'modal' | 'local'`) is resolved in `hydrate-local.mjs` from
+   `--host=`, the `HOST` env var, or auto-detected `GITHUB_ACTIONS=true`, and
+   the workflow now sets `HOST: gha` explicitly. Verified end-to-end: a real
+   2-symbol run against the live database produced a row with
+   `status: "fail"` (correctly reflecting 2/762 filled — this was a manual
+   smoke test, not a full run) and a coverage snapshot with accurate
+   `missing`/`staleCount`.
+
 ## Open questions
 
 - ❓ Should `seed-yahoo-portfolio.mjs`'s non-US-suffix filter list

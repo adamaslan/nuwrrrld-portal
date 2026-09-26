@@ -20,6 +20,7 @@
  *   node scripts/hydrate-local.mjs --universe=etf             # ETFs only
  *   node scripts/hydrate-local.mjs --limit=50                 # first 50 per lane
  *   node scripts/hydrate-local.mjs --dry-run                  # fetch bars, don't POST
+ *   node scripts/hydrate-local.mjs --host=modal                # override auto-detected host
  */
 
 import { readFileSync } from "node:fs";
@@ -120,6 +121,19 @@ if (universeFlag) {
     fail("--universe must be 'stock' or 'etf'");
   }
   UNIVERSE = raw;
+}
+
+// Which compute host is actually running this — recorded in pipeline_run_log
+// so a partial run is traceable to where it ran, not just when. GITHUB_ACTIONS
+// is set automatically by every Actions runner, so the workflow doesn't have
+// to be the only thing that gets this right; an explicit --host= or HOST=
+// still wins, since Modal has no such auto-detected env var of its own.
+const hostFlag = process.argv.find(a => a.startsWith("--host="));
+let HOST = hostFlag
+  ? hostFlag.slice("--host=".length).trim().toLowerCase()
+  : (process.env.HOST ?? env.HOST ?? (process.env.GITHUB_ACTIONS === "true" ? "gha" : "local"));
+if (HOST !== "gha" && HOST !== "modal" && HOST !== "local") {
+  fail("--host (or HOST) must be 'gha', 'modal', or 'local'");
 }
 
 // ── guards ────────────────────────────────────────────────────────────────
@@ -362,6 +376,7 @@ async function postChunk(rows, runId, barDate, universe) {
       universe,
       barDate,
       rows,
+      host: HOST,
     }),
   });
 
@@ -411,7 +426,7 @@ async function main() {
   const runId = `hydrate-local:${barDate}:${new Date().getTime()}`;
 
   const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
-  console.log(`[hydrate] run=${runId} ${laneSummary} chunk=${CHUNK_SIZE}`);
+  console.log(`[hydrate] run=${runId} host=${HOST} ${laneSummary} chunk=${CHUNK_SIZE}`);
 
   // Three counters, deliberately distinct: rows the portal confirmed it wrote,
   // rows that failed to *compute* locally, and rows lost to a failed POST.

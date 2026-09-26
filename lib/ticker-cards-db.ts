@@ -231,6 +231,70 @@ export async function coverageForDate(
   }
 }
 
+/** Coverage for one universe on one bar date, in the shape `RunCoverage`
+ *  (lib/pipeline-run-log-db.ts) expects. Distinct from `coverageForDate`
+ *  above: that one is the whole-universe freshness number the workflow
+ *  summary prints; this one is per-universe, per-run-log-row detail — the
+ *  compute host posts stocks and ETFs as separate chunks, so `expected`
+ *  must be scoped to the universe the caller actually asked about. */
+export async function coverageForUniverseAndDate(
+  universe: CardUniverse,
+  barDate: string,
+): Promise<{
+  expected: number;
+  filled: number;
+  missing: string[];
+  missingCount: number;
+  staleCount: number;
+  /** True when a query threw, so zeros mean "unknown", not "nothing to do". */
+  queryFailed: boolean;
+}> {
+  try {
+    const activeRows = await sql`
+      SELECT ticker FROM ticker_universe WHERE active AND universe = ${universe}
+    `;
+    const active = activeRows.map((r) => r.ticker as string);
+    if (active.length === 0) {
+      return { expected: 0, filled: 0, missing: [], missingCount: 0, staleCount: 0, queryFailed: false };
+    }
+
+    // Restricted to active tickers so a card for a deactivated symbol can't
+    // offset a missing active one in `filled`.
+    const coveredRows = await sql`
+      SELECT DISTINCT ticker FROM ticker_cards
+      WHERE bar_date = ${barDate} AND universe = ${universe}
+        AND ticker = ANY(${active})
+    `;
+    const covered = new Set(coveredRows.map((r) => r.ticker as string));
+    const missing = active.filter((t) => !covered.has(t));
+
+    // Of the missing tickers, how many were covered on some *earlier* bar
+    // date — i.e. this is stale coverage, not a ticker that has never once
+    // been carded. That distinction is what tells a reader whether a miss is
+    // "the vendor had nothing today" or "this symbol was never onboarded".
+    let staleCount = 0;
+    if (missing.length > 0) {
+      const staleRows = await sql`
+        SELECT COUNT(DISTINCT ticker) AS c FROM ticker_cards
+        WHERE universe = ${universe} AND ticker = ANY(${missing})
+      `;
+      staleCount = Number(staleRows[0]?.c ?? 0);
+    }
+
+    return {
+      expected: active.length,
+      filled: covered.size,
+      missing: missing.slice(0, 50),
+      missingCount: missing.length,
+      staleCount,
+      queryFailed: false,
+    };
+  } catch (err) {
+    console.error(`[ticker-cards] coverageForUniverseAndDate failed: ${errMsg(err)}`);
+    return { expected: 0, filled: 0, missing: [], missingCount: 0, staleCount: 0, queryFailed: true };
+  }
+}
+
 /**
  * The newest `bar_date` anywhere in `ticker_cards`, as `YYYY-MM-DD`, or null
  * when the table is empty or unreadable.
