@@ -67,6 +67,8 @@ async function fetchTrades(symbols, headers) {
 
 async function main() {
   const portalUrl = requireEnv("PORTAL_URL").replace(/\/$/, "");
+  // The POST carries PORTAL_PUSH_SECRET as a bearer token; never send it in cleartext.
+  if (new URL(portalUrl).protocol !== "https:") throw new Error("PORTAL_URL must use HTTPS");
   const pushSecret = dryRun ? null : requireEnv("PORTAL_PUSH_SECRET");
   const headers = {
     "APCA-API-KEY-ID": requireEnv("ALPACA_API_KEY"),
