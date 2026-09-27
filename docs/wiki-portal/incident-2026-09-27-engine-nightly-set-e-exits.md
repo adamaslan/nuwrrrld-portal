@@ -70,22 +70,39 @@ This was a shell-idiom bug in the workflow's own glue code, not in
 `lib/engine/` or the bar-fetch/run scripts themselves, which the dry run
 proved correct (5,480 bars fetched, 0 written as expected, 0 rejected).
 
+## Correction: the `args=()` lines were not actually the fatal path
+
+The real 730-day backfill (run 36337851579, dispatched with `backfillDays=730
+feed=iex` — `limit` and `dryRun` left at their unset/default values, so
+`IN_LIMIT=""` and `IN_DRY_RUN="false"`) ran on the **unfixed** workflow (PR
+#191 had not yet merged) and completed `success` end to end: 481,468 bars
+across 978 tickers stored, then a shadow engine run against 974 tickers, 0
+failed, 0 degraded, 87 hits. `IN_LIMIT=""` hit line 76's false-test branch —
+the same shape suspected of being fatal — and the step did not abort.
+
+So the confirmed, reproduced failure is narrower than first written above:
+**only** the Summarize step's `[ -f "$f" ] && { block }` form, and only when
+`run.log` is genuinely absent (the dry-run case, where the engine-run step is
+skipped by its own `if:`). The four `args=()` lines in "Store daily bars" do
+not appear to be live bugs on the actual runner — evidently a bare `test &&
+action` as a complete statement is more forgiving of a false test under this
+runner's bash than the local reproduction attempts suggested. The `|| true`
+fix for those four lines is kept anyway as cheap, unambiguous insurance, but
+this incident should not be read as evidence they were ever broken in
+practice.
+
 ## Open items
 
-- ❓ **Not yet confirmed on the real Ubuntu GitHub Actions runner.** The fix
-  was verified with local `bash -e` reproductions only; local bash version
-  and invocation differences from the actual runner mean the specific
-  failure mode (which exact line trips `set -e`) couldn't be pinned down
-  with full confidence — only that the fixed forms are safe regardless.
-  Confirm on the next real dispatch (dry-run or the 730-day backfill in
-  progress as of this writing).
-- ❓ **The automatic `workflow_run` trigger has likely never completed
-  successfully.** Every prior manual test supplied all four optional
-  inputs; the scheduled/automatic path supplies none. If the "Store daily
-  bars" step's `args=()` lines were the actual failure point (rather than
-  only Summarize), the nightly automatic run may have been failing since
-  PR #189 merged. Worth checking the first automatic run after PR #191
-  merges to confirm it completes.
+- ❓ **The Summarize-step fix itself is still unconfirmed on a real dispatch.**
+  Verified only via local `bash -e` reproduction of the extracted script
+  fragment. Confirm on the next dry-run dispatch after PR #191 merges.
+- ❓ **No automatic `workflow_run` trigger has fired yet.** As of this
+  writing, `gh run list --workflow engine-nightly.yml` shows exactly two
+  runs, both `workflow_dispatch` (the dry-run and the real backfill in this
+  incident). The automatic trigger only fires after "Nightly universe
+  hydration" completes on its own schedule, which hasn't happened since PR
+  #189 merged. Given the correction above, it's now expected to succeed,
+  but check the first one directly once it fires.
 
 ## See also
 
