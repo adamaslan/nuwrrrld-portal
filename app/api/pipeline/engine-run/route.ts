@@ -5,7 +5,7 @@
  *
  * mode=shadow (default) writes only engine_* tables. mode=live also folds the
  * fib ladder into ticker_cards.numerics and is refused (403) unless
- * ENGINE_LADDER_ENABLED=true. Never calls a model.
+ * ENGINE_LIVE_ENABLED=true. Never calls a model.
  * Auth: Bearer PORTAL_PUSH_SECRET.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -25,7 +25,7 @@ import {
 } from "@/lib/engine-db";
 import { requirePushSecret } from "@/lib/pipeline-auth";
 import { BAR_FEEDS, isIsoDate, type BarFeed } from "@/lib/shared/engine-bars";
-import { engineLadderEnabled, engineLiveEnabled } from "@/lib/shared/engine-ladder";
+import { engineLiveEnabled } from "@/lib/shared/engine-ladder";
 
 export const maxDuration = 300;
 
