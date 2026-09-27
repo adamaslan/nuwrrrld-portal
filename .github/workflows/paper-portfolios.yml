@@ -152,6 +152,7 @@ jobs:
           node-version: 20
       - name: Refresh live_prices from Alpaca (IEX latest trades)
         continue-on-error: true
+        timeout-minutes: 5
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}

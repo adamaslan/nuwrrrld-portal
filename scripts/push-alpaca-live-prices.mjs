@@ -46,13 +46,23 @@ async function loadWatchlistTickers(portalUrl) {
   return [...tickers].sort();
 }
 
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 1000;
+const isTransient = (status) => status === 429 || status >= 500;
+
 async function fetchTrades(symbols, headers) {
   const url = new URL(ALPACA_TRADES_URL);
   url.searchParams.set("symbols", symbols.join(","));
   url.searchParams.set("feed", ALPACA_FEED);
-  const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`alpaca trades/latest: HTTP ${res.status}`);
-  return (await res.json()).trades ?? {};
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) });
+    if (res.ok) return (await res.json()).trades ?? {};
+    if (!isTransient(res.status) || attempt === MAX_ATTEMPTS) {
+      throw new Error(`alpaca trades/latest: HTTP ${res.status}`);
+    }
+    const delayMs = BASE_BACKOFF_MS * 2 ** (attempt - 1) + Math.random() * BASE_BACKOFF_MS;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
 }
 
 async function main() {
@@ -68,8 +78,14 @@ async function main() {
 
   const prices = [];
   for (const group of chunk(tickers, SYMBOLS_PER_REQUEST)) {
-    const trades = await fetchTrades(group.map(toAlpacaSymbol), headers);
-    prices.push(...tradesToLivePrices(group, trades));
+    // One failed chunk must not discard the chunks already fetched: a missing
+    // price only means those tickers cannot trade this slot.
+    try {
+      const trades = await fetchTrades(group.map(toAlpacaSymbol), headers);
+      prices.push(...tradesToLivePrices(group, trades));
+    } catch (err) {
+      process.stderr.write(`skipping ${group.length} tickers: ${err.message}\n`);
+    }
   }
   process.stdout.write(
     `watchlist=${tickers.length} priced=${prices.length} missing=${tickers.length - prices.length} source=alpaca feed=${ALPACA_FEED}\n`,
