@@ -205,15 +205,18 @@ export interface PendingHit {
  * Directional hits with no label at `horizon` whose entry bar is old enough to
  * have `horizon` later bars **in the hit's own feed** (a ticker can hold both
  * iex and sip rows, and counting across them would strand a hit unlabeled).
+ * The entry close comes from that same feed's bar: engine_structure is keyed
+ * without feed, so a later run on another feed can overwrite its close.
  */
 export async function pendingHits(horizon: number, limit: number): Promise<PendingHit[]> {
   const rows = await sql`
-    SELECT h.id, h.ticker, h.bar_date::text AS d, s.close AS entry,
+    SELECT h.id, h.ticker, h.bar_date::text AS d, entry_bar.close AS entry,
            (h.features->>'stop')::float8 AS stop, (h.features->>'target')::float8 AS target,
            r.feed AS feed, h.strength AS strength
     FROM engine_detector_hits h
     JOIN engine_runs r ON r.id = h.run_id
-    JOIN engine_structure s ON s.ticker = h.ticker AND s.bar_date = h.bar_date AND s.code_version = h.code_version
+    JOIN daily_bars entry_bar
+      ON entry_bar.ticker = h.ticker AND entry_bar.feed = r.feed AND entry_bar.bar_date = h.bar_date
     LEFT JOIN engine_forward_returns f ON f.hit_id = h.id AND f.horizon_days = ${horizon}
     WHERE f.hit_id IS NULL
       AND h.strength = ANY(${DIRECTIONAL_STRENGTHS as readonly string[]})

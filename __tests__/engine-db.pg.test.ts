@@ -125,12 +125,15 @@ describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, 
     // The sip feed alone has 21 later bars; the hit's own feed (iex) has none. The old count
     // spanned feeds, so this hit was returned first every run and could never be labeled.
     await db.upsertBars(mk(21, 26), { feed: "sip", adjustment: "split", source: "test" });
+    // A sip bar on the hit date with a very different close must not become the entry.
+    await db.upsertBars([{ ...mk(1, 25)[0], close: 99 }], { feed: "sip", adjustment: "split", source: "test" });
     expect((await db.pendingHits(21, 50)).filter((h) => h.ticker === "ZZTWO")).toHaveLength(0);
 
     await db.upsertBars(mk(21, 26), { feed: "iex", adjustment: "split", source: "test" });
     const pending = (await db.pendingHits(21, 50)).filter((h) => h.ticker === "ZZTWO");
     expect(pending).toHaveLength(1); // SIGNIFICANT has no direction, so it is never a label candidate
-    expect(pending[0]).toMatchObject({ feed: "iex", side: -1 });
+    // Entry is the iex bar's close (15.5), not engine_structure's close (15) and not the sip bar (99).
+    expect(pending[0]).toMatchObject({ feed: "iex", side: -1, entry: 15.5 });
     expect(await db.barsAfter("ZZTWO", "iex", pending[0].barDate, 21)).toHaveLength(21);
   });
 
