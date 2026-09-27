@@ -20,3 +20,5 @@ export function structureToFibSummary(row: EngineStructureRow): FibSummary {
 }
 
 export const engineLadderEnabled = (): boolean => process.env.ENGINE_LADDER_ENABLED === "true";
+
+export const engineLiveEnabled = (): boolean => process.env.ENGINE_LIVE_ENABLED === "true";

@@ -25,7 +25,7 @@ import {
 } from "@/lib/engine-db";
 import { requirePushSecret } from "@/lib/pipeline-auth";
 import { BAR_FEEDS, isIsoDate, type BarFeed } from "@/lib/shared/engine-bars";
-import { engineLadderEnabled } from "@/lib/shared/engine-ladder";
+import { engineLadderEnabled, engineLiveEnabled } from "@/lib/shared/engine-ladder";
 
 export const maxDuration = 300;
 
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
     asOf?: string;
   };
   // Live mode writes user-facing card numerics, so it stays off until the
-  // promotion flag that also opens the ladder route is set.
-  if (body.mode === "live" && !engineLadderEnabled()) {
+  // promotion checklist is approved. Separate from ENGINE_LADDER_ENABLED.
+  if (body.mode === "live" && !engineLiveEnabled()) {
     return NextResponse.json({ error: "live mode is not enabled" }, { status: 403 });
   }
   const mode = body.mode === "live" ? "live" : "shadow";
