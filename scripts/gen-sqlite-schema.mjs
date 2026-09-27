@@ -66,6 +66,11 @@ const DROP_STATEMENT_PATTERNS = [
   /ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS coverage jsonb NOT NULL DEFAULT '\{\}'::jsonb;/i,
   /ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS content_hash text;/i,
   /ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS taxonomy_version text;/i,
+  /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS stop_price numeric;/i,
+  /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS target_price numeric;/i,
+  /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS exit_by date;/i,
+  /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS engine_hit_id uuid;/i,
+  /ALTER TABLE paper_orders ADD COLUMN IF NOT EXISTS engine_hit_id uuid;/i,
   // paper_orders' watchlist-membership guard: SQLite triggers use different
   // syntax (no PL/pgSQL, no RAISE EXCEPTION with this form) and the read-only
   // backup mirror never receives live INSERTs that need validating, so the
@@ -98,6 +103,9 @@ const RULES = [
   // supplies one via crypto.randomUUID() for the Postgres path — the SQLite
   // path must do the same, per Phase 8's contract-test coverage).
   [/uuid\s+PRIMARY KEY DEFAULT gen_random_uuid\(\)/gi, "TEXT PRIMARY KEY"],
+  // A uuid that is UNIQUE but not the primary key (engine_detector_hits.id):
+  // same app-side-id contract, so the Postgres-side default is dropped too.
+  [/uuid(\s+NOT NULL) DEFAULT gen_random_uuid\(\)/gi, "TEXT$1"],
   [/\buuid\b/gi, "TEXT"],
 
   // Scalar type swaps.

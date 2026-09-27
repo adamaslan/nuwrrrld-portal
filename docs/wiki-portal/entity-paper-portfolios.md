@@ -218,6 +218,20 @@ fresh card pass or a weighted consensus of the other five seats' proposed
 targets; reset cadence (leaning never); whether RISK needs shorts to be a fair
 test of its mandate.
 
+## Engine account — decision core (PR #189, 2026-09-26)
+
+A seventh, non-council account is designed to trade the signal engine's hits
+([[entity-signal-engine]]). Only its **pure decision core** exists so far
+(`lib/shared/paper-engine-events.ts`): long-only entries from default Fibonacci
+hits on the latest engine bar date that have no order yet; position size from a
+fixed risk fraction of NAV over the distance to the stop, capped per name, with a
+cash floor, a sector cap and a per-run new-position limit; exits on stop, target,
+a time limit, or the ticker leaving the watchlist. No model calls. The schema
+gained the columns it needs (stop, target, exit-by, and a link from positions and
+orders back to the hit that caused them). The I/O half — the run loop, the store
+changes, the seed script and account registration — is not written, and the
+existing production-database guard for paper runs applies to it unchanged.
+
 ## See also
 
 - [`docs/council-paper-portfolios.md`](../council-paper-portfolios.md) — the full design doc

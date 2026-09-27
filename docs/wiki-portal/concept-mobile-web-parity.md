@@ -208,6 +208,8 @@ between the two denominators.
 
 > ℹ️ **Mobile PR fix/holdfold-fib-type (2026-09-26) assessed — mobile type fix only, headline unchanged at ~62%.** `clients/holdfold.ts` now declares the Fibonacci response the backend actually sends (`FibLevel { name, price, distance_pct, strength, type }`, `fib_confluence_zones`, `nearest_fib_support/resistance`), replacing `{ level, price }` whose `level` never arrived. Nothing in the mobile app reads these fields yet, so no behavior changed. Mobile and portal now agree on the *type*; the portal's `lib/shared/fib-levels.ts` (portal PR #185) is deliberately not copied into mobile until that PR merges, since the drift gate compares against the other repo's `main`. No denominator moves.
 
+> ℹ️ **Portal PR #189 (2026-09-26) assessed — portal-only signal engine in shadow mode, headline unchanged at ~62%.** Lands [[entity-signal-engine]]: a pure TypeScript port of the canonical Fibonacci logic under `lib/engine/` with a golden-fixture parity suite, a `daily_bars` store, four `engine_*` tables, a nightly fetch-run-label workflow, a flagged ladder route, and the pure decision core of a paper `engine` account ([[decision-engine-shadow-mode-first]]). Three new `lib/shared/` modules (`engine-bars.ts`, `engine-ladder.ts`, `paper-engine-events.ts`) are portal-only: mobile has no bar store, no ticker universe and no engine, so they are parity candidates only if mobile ever grows a Fibonacci surface — not drift of an existing shared file, and none is in the drift gate's synced set. Feature-domain parity is unchanged because nothing user visible moved on either surface; the ladder route ships off. `engine-ladder.ts` reuses the portal's `FibSummary` shape, which mobile's type fix (see above) now agrees with, so a future mobile ladder would not need a new response contract. The portal's `lib/shared/` module count rises by three against mobile's unchanged five.
+
 ## Domain parity matrix
 
 | Domain | Mobile | Portal | Shared module | Status |
@@ -233,6 +235,7 @@ between the two denominators.
 | **Public council demo + share cards** | — | `/api/council/public`, `/api/og/verdict/[ticker]`, `/verdict/[ticker]` (PR #43) | none (reuses `lib/openrouter.ts`) | ⬅️ Portal-only, unauthenticated growth surface |
 | **Backtest** | — | `/api/backtest`, `backtest.ts` ([[entity-backtest-engine]]) | — | ⬅️ Portal-only |
 | **Watchlist store** | (folded into `usePortfolio`) | `watchlist-store.ts` | — | ⬅️ Portal-only |
+| **Signal engine (Fibonacci, shadow)** | — | `lib/engine/`, `engine_*` tables, `/api/pipeline/engine-*`, flagged `/api/engine/[ticker]` ([[entity-signal-engine]]) | none — three portal-only shared modules | ⬅️ Portal-only |
 | **Onboarding** | `OnboardingScreen` | — | — | ➡️ Mobile-only |
 | **Analytics / Sentry** | `analytics.ts`, `sentry.ts` | — | — | ➡️ Mobile-only |
 | **Schwab health** | `schwab-health.ts` | — | — | ➡️ Mobile-only |

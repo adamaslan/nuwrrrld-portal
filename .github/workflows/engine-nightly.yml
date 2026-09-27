@@ -1,0 +1,109 @@
+name: Engine nightly
+
+# Signal engine (homebase harness/CLOUD-ENGINE.md, Phase 1): store the day's
+# bars, then compute fib structure and hits from them. Runs after the nightly
+# universe hydration so both read the same settled Alpaca bar. Its own file so
+# edits to hydrate-universe.yml do not conflict with it. Shadow mode by default:
+# writes only engine_* tables, nothing user-facing changes.
+on:
+  workflow_run:
+    workflows: ['Nightly universe hydration']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      backfillDays:
+        description: 'Backfill this many days of bars (blank = incremental)'
+        required: false
+        default: ''
+      feed:
+        description: 'Alpaca feed'
+        required: false
+        type: choice
+        options: ['iex', 'sip']
+        default: 'iex'
+      limit:
+        description: 'Cap symbols for the bar fetch (blank = all). Smoke test.'
+        required: false
+        default: ''
+      dryRun:
+        description: 'Fetch bars but store nothing, skip the engine run'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-nightly
+  cancel-in-progress: false
+
+jobs:
+  engine:
+    # A failed hydration run still leaves usable bars from the last night, but
+    # running the engine on a red hydration would hide that it is stale.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Store daily bars
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          IN_BACKFILL: ${{ github.event.inputs.backfillDays }}
+          IN_FEED: ${{ github.event.inputs.feed }}
+          IN_LIMIT: ${{ github.event.inputs.limit }}
+          IN_DRY_RUN: ${{ github.event.inputs.dryRun }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PORTAL_PUSH_SECRET}" ] || [ -z "${ALPACA_API_KEY}" ] || [ -z "${ALPACA_API_SECRET}" ]; then
+            echo "::error::PORTAL_PUSH_SECRET / ALPACA_API_KEY / ALPACA_API_SECRET must all be set — see scripts/sync-hydration-secrets.sh"
+            exit 1
+          fi
+          args=()
+          [ -n "${IN_BACKFILL}" ] && args+=("--backfill-days=${IN_BACKFILL}")
+          [ -n "${IN_FEED}" ] && args+=("--feed=${IN_FEED}")
+          [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}")
+          [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run")
+          node scripts/engine-bars.mjs "${args[@]}" 2>&1 | tee bars.log
+
+      - name: Run the engine (shadow)
+        if: github.event.inputs.dryRun != 'true'
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          IN_FEED: ${{ github.event.inputs.feed }}
+        run: |
+          set -euo pipefail
+          node scripts/engine-run.mjs --mode=shadow --feed="${IN_FEED:-iex}" 2>&1 | tee run.log
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "### Engine nightly"
+            for f in bars.log run.log; do
+              [ -f "$f" ] && { echo ""; echo "\`$f\`"; echo '```'; grep -E '^\[(done|start)\]' "$f" || echo "(no summary line — did not finish)"; echo '```'; }
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-logs
+          path: |
+            bars.log
+            run.log
+          retention-days: 7
+          if-no-files-found: ignore

@@ -685,8 +685,18 @@ CREATE TABLE IF NOT EXISTS paper_positions (
   high_water    numeric     NOT NULL,              -- enforces trailing stops
   thesis        text,                              -- the seat's own words, <=200 chars
   invalidation  text,                              -- carried from the council verdict
+  stop_price    numeric,                           -- engine account: level stop from the hit
+  target_price  numeric,                           -- engine account: leg-high target
+  exit_by       TEXT,                              -- engine account: time exit
+  engine_hit_id TEXT,                              -- engine account: the hit that opened it
   PRIMARY KEY (account, ticker)
 );
+
+-- Idempotent adds for deployments created before the engine account existed.
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 
 -- Append-only. The audit trail. Never updated, never deleted; a correction is
 -- a new compensating row.
@@ -708,8 +718,10 @@ CREATE TABLE IF NOT EXISTS paper_orders (
   decided_by   text        NOT NULL CHECK (decided_by IN ('rule', 'model')),
   model        text,                                -- when decided_by='model'
   card_score   real,
+  engine_hit_id TEXT,                              -- engine account: the hit behind the order
   created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 CREATE INDEX IF NOT EXISTS paper_orders_account_idx
   ON paper_orders (account, created_at DESC);
 
@@ -737,4 +749,108 @@ CREATE TABLE IF NOT EXISTS paper_nav (
   positions_n  int     NOT NULL,
   turnover     numeric NOT NULL DEFAULT 0,
   PRIMARY KEY (account, trade_date, slot)
+);
+
+-- ── Signal engine (lib/engine; homebase harness/CLOUD-ENGINE.md Phase 1) ────
+-- Written only by /api/pipeline/daily-bars, /api/pipeline/engine-run and
+-- /api/pipeline/engine-label. In `shadow` mode nothing user-facing reads the
+-- engine_* tables; they exist to be compared against signals-app first.
+
+-- Daily OHLCV, kept instead of discarded after each hydration run. No FK to
+-- ticker_universe on purpose: a delisted ticker's history stays (survivorship
+-- bias is worse than a few orphan rows). `feed` is part of the key because
+-- IEX and consolidated volume differ by an order of magnitude and must never
+-- be mixed inside one series.
+CREATE TABLE IF NOT EXISTS daily_bars (
+  ticker     text             NOT NULL,
+  bar_date   TEXT             NOT NULL,
+  open       double precision NOT NULL,
+  high       double precision NOT NULL,
+  low        double precision NOT NULL,
+  close      double precision NOT NULL,
+  volume     double precision NOT NULL,
+  feed       text             NOT NULL,   -- iex | sip
+  adjustment text             NOT NULL,   -- split | all | raw
+  source     text             NOT NULL,   -- alpaca | …
+  fetched_at TEXT      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (ticker, feed, bar_date)
+);
+CREATE INDEX IF NOT EXISTS daily_bars_date_idx ON daily_bars (bar_date DESC);
+
+-- One row per engine run; chunked route calls add to the same row.
+CREATE TABLE IF NOT EXISTS engine_runs (
+  id              text        PRIMARY KEY,
+  code_version    text        NOT NULL,
+  mode            text        NOT NULL CHECK (mode IN ('shadow', 'live')),
+  feed            text        NOT NULL,
+  bar_date        TEXT,
+  tickers_ok      int         NOT NULL DEFAULT 0,
+  tickers_skipped int         NOT NULL DEFAULT 0,
+  tickers_failed  int         NOT NULL DEFAULT 0,
+  degraded_n      int         NOT NULL DEFAULT 0,
+  hits_n          int         NOT NULL DEFAULT 0,
+  llm_calls       int         NOT NULL DEFAULT 0,
+  detail          TEXT       NOT NULL DEFAULT '{}',
+  started_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- The fib ladder per ticker per bar: legs, levels, zones and the nearest
+-- support/resistance. `levels` uses the FibLevel shape in
+-- lib/shared/fib-levels.ts so the existing ladder UI can render it unchanged.
+CREATE TABLE IF NOT EXISTS engine_structure (
+  ticker             text             NOT NULL,
+  bar_date           TEXT             NOT NULL,
+  code_version       text             NOT NULL,
+  close              double precision NOT NULL,
+  atr                double precision,
+  legs               TEXT            NOT NULL DEFAULT '[]',
+  levels             TEXT            NOT NULL DEFAULT '[]',
+  zones              TEXT            NOT NULL DEFAULT '[]',
+  nearest_support    double precision,
+  nearest_resistance double precision,
+  swing_anchor       text,            -- confirmed_pivots | null when no leg
+  swing_direction    text,            -- up | down
+  run_id             text,
+  computed_at        TEXT      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (ticker, bar_date, code_version)
+);
+CREATE INDEX IF NOT EXISTS engine_structure_latest_idx
+  ON engine_structure (ticker, bar_date DESC);
+
+-- Raw detector output, default and experimental, with every lever value the
+-- research loop needs in `features` (FIBONACCI.md §11.12), so a lever can be
+-- measured later without recomputing history.
+CREATE TABLE IF NOT EXISTS engine_detector_hits (
+  id           TEXT        NOT NULL,
+  ticker       text        NOT NULL,
+  bar_date     TEXT        NOT NULL,
+  detector     text        NOT NULL,
+  signal       text        NOT NULL,
+  category     text        NOT NULL,
+  strength     text        NOT NULL,
+  description  text        NOT NULL,
+  experimental INTEGER     NOT NULL,
+  features     TEXT       NOT NULL DEFAULT '{}',
+  code_version text        NOT NULL,
+  run_id       text,
+  created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (ticker, bar_date, detector, signal, code_version),
+  UNIQUE (id)
+);
+CREATE INDEX IF NOT EXISTS engine_detector_hits_date_idx
+  ON engine_detector_hits (bar_date DESC, detector);
+
+-- Outcomes, written once each hit's horizon has passed. `outcome` is the
+-- triple barrier (stop / target / time) when the hit defines a stop and a
+-- target; `hit` is direction-correct at the horizon close either way.
+CREATE TABLE IF NOT EXISTS engine_forward_returns (
+  hit_id       TEXT             NOT NULL,
+  horizon_days int              NOT NULL,
+  pct_return   double precision NOT NULL,
+  hit          INTEGER          NOT NULL,
+  outcome      text,            -- target | stop | time
+  r_multiple   double precision,
+  labeled_at   TEXT      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (hit_id, horizon_days)
 );
