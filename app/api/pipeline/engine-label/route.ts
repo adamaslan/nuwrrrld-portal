@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
     const pending = await pendingHits(horizon, limit);
     const labels: Array<{ hitId: string; label: HitLabel }> = [];
     for (const hit of pending) {
-      const future = await barsAfter(hit.ticker, hit.barDate, horizon);
-      const label = labelHit({ entry: hit.entry, stop: hit.stop, target: hit.target, futureBars: future, horizonDays: horizon });
+      const future = await barsAfter(hit.ticker, hit.feed, hit.barDate, horizon);
+      const label = labelHit({ entry: hit.entry, stop: hit.stop, target: hit.target, futureBars: future, horizonDays: horizon, side: hit.side });
       if (label) labels.push({ hitId: hit.id, label });
     }
     const written = await writeLabels(labels);

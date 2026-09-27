@@ -93,13 +93,45 @@ describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, 
     const pending = (await db.pendingHits(21, 50)).filter((h) => h.ticker === "ZZTEST");
     expect(pending).toHaveLength(1);
     expect(pending[0].stop).toBe(13.5);
-    const future = await db.barsAfter("ZZTEST", pending[0].barDate, 21);
+    expect(pending[0].feed).toBe("iex");
+    expect(pending[0].side).toBe(1);
+    const future = await db.barsAfter("ZZTEST", pending[0].feed, pending[0].barDate, 21);
     expect(future).toHaveLength(21);
     const { labelHit } = await import("@/lib/engine");
     const label = labelHit({ entry: pending[0].entry, stop: pending[0].stop, target: pending[0].target, futureBars: future })!;
     expect(await db.writeLabels([{ hitId: pending[0].id, label }])).toBe(1);
     await db.writeLabels([{ hitId: pending[0].id, label }]);
     expect((await db.pendingHits(21, 50)).filter((h) => h.ticker === "ZZTEST")).toHaveLength(0);
+  });
+
+  it("counts later bars in the hit's own feed, labels only directional hits, and reads the side", async () => {
+    const meta = { codeVersion: "test@0", runId: "zz-run" };
+    const snapshot = {
+      close: 15, atr: 1.5, legs: [], levels: [], zones: [], nearestSupport: null, nearestResistance: null,
+      swingAnchor: "confirmed_pivots" as const, swingDirection: "up" as const, hits: [], degraded: false, warnings: [],
+    };
+    const mk = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({
+      ticker: "ZZTWO", barDate: new Date(Date.UTC(2026, 8, from + i)).toISOString().slice(0, 10),
+      open: 15, high: 16, low: 14.5, close: 15.5, volume: 1000,
+    }));
+    await db.upsertBars(mk(5, 21), { feed: "iex", adjustment: "split", source: "test" });
+    await db.writeSnapshots([{ ticker: "ZZTWO", barDate: "2026-09-25", snapshot }], meta);
+    const hit = { ticker: "ZZTWO", barDate: "2026-09-25", detector: "fibonacci", category: "FIBONACCI", description: "d", experimental: true, features: {} };
+    await db.writeHits([
+      { ...hit, signal: "FIB 0.786 BREAK", strength: "BEARISH" },
+      { ...hit, signal: "FIB CONFLUENCE ZONE", strength: "SIGNIFICANT" },
+    ], meta);
+
+    // The sip feed alone has 21 later bars; the hit's own feed (iex) has none. The old count
+    // spanned feeds, so this hit was returned first every run and could never be labeled.
+    await db.upsertBars(mk(21, 26), { feed: "sip", adjustment: "split", source: "test" });
+    expect((await db.pendingHits(21, 50)).filter((h) => h.ticker === "ZZTWO")).toHaveLength(0);
+
+    await db.upsertBars(mk(21, 26), { feed: "iex", adjustment: "split", source: "test" });
+    const pending = (await db.pendingHits(21, 50)).filter((h) => h.ticker === "ZZTWO");
+    expect(pending).toHaveLength(1); // SIGNIFICANT has no direction, so it is never a label candidate
+    expect(pending[0]).toMatchObject({ feed: "iex", side: -1 });
+    expect(await db.barsAfter("ZZTWO", "iex", pending[0].barDate, 21)).toHaveLength(21);
   });
 
   it("pages the active universe by offset and limit", async () => {

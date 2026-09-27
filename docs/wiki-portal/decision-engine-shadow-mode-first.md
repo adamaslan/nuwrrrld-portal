@@ -44,8 +44,9 @@ against, and would do it on a data source the engine has not yet been run on.
   date, and every mismatch has to be explained by data or fixed.
 - Promotion is a human decision recorded in a checklist, not a config flip that
   drifts: backtest goal met, then months of paper trading in the same direction.
-- The paper `engine` account trades the same hits, so live behavior is measured
-  before anything is promoted.
+- Before promotion, the paper `engine` account must trade the same hits so its
+  live behavior can be measured. Only the pure decision core exists so far; the
+  run loop and route that connect it to the paper run are not written.
 - Retiring the older signal writers stays a separate, explicit decision because it
   removes working pipelines.
 

@@ -154,12 +154,15 @@ async function main() {
   let written = 0;
   let rejected = 0;
   let buffer = [];
+  // One Alpaca chunk can add ~17k rows on a 730-day backfill, so a buffer that
+  // crossed the threshold may exceed the route's per-call limit; post in slices.
   const flush = async () => {
-    if (buffer.length === 0) return;
     if (!DRY_RUN) {
-      const out = await post(buffer);
-      written += out.written;
-      rejected += out.rejectedCount ?? 0;
+      for (let j = 0; j < buffer.length; j += POST_BATCH_ROWS) {
+        const out = await post(buffer.slice(j, j + POST_BATCH_ROWS));
+        written += out.written;
+        rejected += out.rejectedCount ?? 0;
+      }
     }
     buffer = [];
   };

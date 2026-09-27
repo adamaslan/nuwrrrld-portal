@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import golden from "./fixtures/fib-golden.json";
-import { buildFrame, labelHit, sliceFrame, snapshotFrame, type Bar } from "@/lib/engine";
+import { buildFrame, labelHit, sideForStrength, sliceFrame, snapshotFrame, type Bar } from "@/lib/engine";
 
 type GoldenSeries = {
   name: string;
@@ -82,6 +82,44 @@ describe("labelHit", () => {
     const label = labelHit({ entry: 100, stop: 95, target: 110, futureBars: bars })!;
     expect(label.outcome).toBe("time");
     expect(label.pctReturn).toBeCloseTo(2);
+  });
+
+  it("labels a short target hit as +R and a hit", () => {
+    const bars = [...quiet(3), bar(101, 89, 90), ...quiet(20)];
+    const label = labelHit({ entry: 100, stop: 105, target: 90, futureBars: bars, side: -1 })!;
+    expect(label.outcome).toBe("target");
+    expect(label.pctReturn).toBeCloseTo(-10);
+    expect(label.rMultiple).toBeCloseTo(2);
+    expect(label.hit).toBe(true);
+  });
+
+  it("checks a short's stop first when one bar touches both barriers", () => {
+    const bars = [bar(106, 89, 100), ...quiet(25)];
+    const label = labelHit({ entry: 100, stop: 105, target: 90, futureBars: bars, side: -1 })!;
+    expect(label.outcome).toBe("stop");
+    expect(label.rMultiple).toBeCloseTo(-1);
+    expect(label.hit).toBe(false);
+  });
+
+  it("counts a fall as a miss for a long and a hit for a short at the horizon close", () => {
+    const falling = Array.from({ length: 21 }, () => bar(96, 94, 95));
+    expect(labelHit({ entry: 100, futureBars: falling })!.hit).toBe(false);
+    const short = labelHit({ entry: 100, futureBars: falling, side: -1 })!;
+    expect(short.hit).toBe(true);
+    expect(short.pctReturn).toBeCloseTo(-5);
+  });
+
+  it("ignores long-shaped barriers on a short", () => {
+    const label = labelHit({ entry: 100, stop: 95, target: 110, futureBars: quiet(21), side: -1 })!;
+    expect(label.outcome).toBeNull();
+    expect(label.rMultiple).toBeNull();
+  });
+
+  it("maps strengths to a side and leaves non-directional ones unlabeled", () => {
+    expect(sideForStrength("STRONG BULLISH")).toBe(1);
+    expect(sideForStrength("EXTREME BEARISH")).toBe(-1);
+    expect(sideForStrength("SIGNIFICANT")).toBeNull();
+    expect(sideForStrength("NEUTRAL")).toBeNull();
   });
 
   it("has no barrier outcome when the hit defines no stop or target", () => {

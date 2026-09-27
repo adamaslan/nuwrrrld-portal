@@ -7,7 +7,7 @@ import sql from "@/lib/db";
 import type { Bar } from "@/lib/engine";
 import type { BarAdjustment, BarFeed, BarRow } from "@/lib/shared/engine-bars";
 import type { SnapshotHit, TickerSnapshot } from "@/lib/engine/snapshot";
-import type { HitLabel } from "@/lib/engine/labels";
+import { DIRECTIONAL_STRENGTHS, sideForStrength, type HitLabel } from "@/lib/engine/labels";
 
 export interface StoredSeries {
   ticker: string;
@@ -196,18 +196,29 @@ export interface PendingHit {
   entry: number;
   stop: number | null;
   target: number | null;
+  /** Bar feed of the run that produced the hit; its later bars come from the same feed. */
+  feed: string;
+  side: 1 | -1;
 }
 
-/** Hits with no label at `horizon` whose entry bar is old enough to have `horizon` later bars. */
+/**
+ * Directional hits with no label at `horizon` whose entry bar is old enough to
+ * have `horizon` later bars **in the hit's own feed** (a ticker can hold both
+ * iex and sip rows, and counting across them would strand a hit unlabeled).
+ */
 export async function pendingHits(horizon: number, limit: number): Promise<PendingHit[]> {
   const rows = await sql`
     SELECT h.id, h.ticker, h.bar_date::text AS d, s.close AS entry,
-           (h.features->>'stop')::float8 AS stop, (h.features->>'target')::float8 AS target
+           (h.features->>'stop')::float8 AS stop, (h.features->>'target')::float8 AS target,
+           r.feed AS feed, h.strength AS strength
     FROM engine_detector_hits h
+    JOIN engine_runs r ON r.id = h.run_id
     JOIN engine_structure s ON s.ticker = h.ticker AND s.bar_date = h.bar_date AND s.code_version = h.code_version
     LEFT JOIN engine_forward_returns f ON f.hit_id = h.id AND f.horizon_days = ${horizon}
     WHERE f.hit_id IS NULL
-      AND (SELECT count(*) FROM daily_bars b WHERE b.ticker = h.ticker AND b.bar_date > h.bar_date) >= ${horizon}
+      AND h.strength = ANY(${DIRECTIONAL_STRENGTHS as readonly string[]})
+      AND (SELECT count(*) FROM daily_bars b
+           WHERE b.ticker = h.ticker AND b.feed = r.feed AND b.bar_date > h.bar_date) >= ${horizon}
     ORDER BY h.bar_date LIMIT ${limit}
   `;
   return rows.map((r) => ({
@@ -217,14 +228,15 @@ export async function pendingHits(horizon: number, limit: number): Promise<Pendi
     entry: r.entry as number,
     stop: (r.stop as number | null) ?? null,
     target: (r.target as number | null) ?? null,
+    feed: r.feed as string,
+    side: sideForStrength(r.strength as string) ?? 1,
   }));
 }
 
-export async function barsAfter(ticker: string, date: string, count: number): Promise<Bar[]> {
+export async function barsAfter(ticker: string, feed: string, date: string, count: number): Promise<Bar[]> {
   const rows = await sql`
     SELECT open, high, low, close, volume FROM daily_bars
-    WHERE ticker = ${ticker} AND bar_date > ${date}::date
-      AND feed = (SELECT feed FROM daily_bars WHERE ticker = ${ticker} AND bar_date = ${date}::date LIMIT 1)
+    WHERE ticker = ${ticker} AND feed = ${feed} AND bar_date > ${date}::date
     ORDER BY bar_date LIMIT ${count}
   `;
   return rows.map((r) => ({ open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume }) as Bar);

@@ -32,7 +32,7 @@ export type EngineOrderReason = "engine_entry" | "stop" | "target" | "time" | "v
 export interface EngineEntryHit {
   hitId: string;
   ticker: string;
-  /** Close of the hit's bar; the reference price for the buy. */
+  /** Close of the hit's bar. Informational: entries are judged at the live price, not this. */
   entry: number;
   stop: number;
   target: number;
@@ -85,6 +85,13 @@ export function addWeekdays(from: string, count: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Same slippage schedule as the council accounts: 5 bps large-cap, 15 bps otherwise. */
+const slippageBpsFor = (ticker: string): number => (isMegaOrLargeCap(ticker) ? 5 : 15);
+
+/** What a market order at `refPrice` actually fills at: buys pay up, sells give up. */
+const slippedPrice = (ticker: string, side: "buy" | "sell", refPrice: number): number =>
+  refPrice * (1 + ((side === "buy" ? 1 : -1) * slippageBpsFor(ticker)) / 10_000);
+
 const roundDown = (n: number): number => {
   const f = 10 ** QUANTITY_DECIMALS;
   return Math.floor(n * f) / f;
@@ -122,7 +129,7 @@ export function planEngineRun(input: EngineRunInput): EngineProposedOrder[] {
       ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason,
       hitId: null, stopPrice: null, targetPrice: null, exitBy: null,
     });
-    cash += p.quantity * price;
+    cash += p.quantity * slippedPrice(p.ticker, "sell", price);
     held.delete(p.ticker);
   }
 
@@ -133,33 +140,39 @@ export function planEngineRun(input: EngineRunInput): EngineProposedOrder[] {
     sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + (p.quantity * price) / nav);
   }
 
+  // Entries are judged at the price the buy will actually fill at, not at the
+  // hit bar's close: the stop and target are fixed levels, so a price that has
+  // drifted up eats reward and widens risk.
   const ranked = input.hits
-    .filter((h) => h.entry > h.stop && h.target > h.entry)
-    .map((h) => ({ h, rewardRisk: (h.target - h.entry) / (h.entry - h.stop) }))
-    .filter(({ rewardRisk }) => rewardRisk >= MIN_REWARD_RISK)
+    .flatMap((h) => {
+      const price = prices[h.ticker];
+      if (!(price > 0)) return [];
+      const buyPrice = slippedPrice(h.ticker, "buy", price);
+      if (!(buyPrice > h.stop && h.target > buyPrice)) return [];
+      const rewardRisk = (h.target - buyPrice) / (buyPrice - h.stop);
+      return rewardRisk >= MIN_REWARD_RISK ? [{ h, price, buyPrice, rewardRisk }] : [];
+    })
     .sort((a, b) => b.rewardRisk - a.rewardRisk || a.h.ticker.localeCompare(b.h.ticker));
 
   let opened = 0;
-  for (const { h } of ranked) {
+  for (const { h, price, buyPrice } of ranked) {
     if (opened >= MAX_NEW_POSITIONS_PER_RUN) break;
     if (held.has(h.ticker) || !input.activeWatchlist.has(h.ticker)) continue;
-    const price = prices[h.ticker];
-    if (!(price > 0)) continue;
 
-    const riskQuantity = (RISK_PER_TRADE * nav) / (h.entry - h.stop);
+    const riskQuantity = (RISK_PER_TRADE * nav) / (buyPrice - h.stop);
     const sector = sectorFor(h.ticker) ?? UNKNOWN_SECTOR;
-    const sectorRoom = ((SECTOR_CAP - (sectorWeight.get(sector) ?? 0)) * nav) / price;
-    const cashRoom = (cash - CASH_FLOOR * nav) / price;
-    const quantity = roundDown(Math.min(riskQuantity, (MAX_POSITION_WEIGHT * nav) / price, sectorRoom, cashRoom));
+    const sectorRoom = ((SECTOR_CAP - (sectorWeight.get(sector) ?? 0)) * nav) / buyPrice;
+    const cashRoom = (cash - CASH_FLOOR * nav) / buyPrice;
+    const quantity = roundDown(Math.min(riskQuantity, (MAX_POSITION_WEIGHT * nav) / buyPrice, sectorRoom, cashRoom));
     if (!(quantity > 0)) continue;
 
     orders.push({
       ticker: h.ticker, side: "buy", quantity, refPrice: price, reason: "engine_entry",
       hitId: h.hitId, stopPrice: h.stop, targetPrice: h.target, exitBy: addWeekdays(today, HOLD_WEEKDAYS),
     });
-    cash -= quantity * price;
-    sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + (quantity * price) / nav);
-    held.set(h.ticker, { ticker: h.ticker, quantity, avgCost: price, stopPrice: h.stop, targetPrice: h.target, exitBy: null });
+    cash -= quantity * buyPrice;
+    sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + (quantity * buyPrice) / nav);
+    held.set(h.ticker, { ticker: h.ticker, quantity, avgCost: buyPrice, stopPrice: h.stop, targetPrice: h.target, exitBy: null });
     opened += 1;
   }
   return orders;
@@ -172,20 +185,19 @@ export interface EngineFill extends EngineProposedOrder {
   realizedPnl: number | null;
 }
 
-/** Same slippage schedule as the council accounts: 5 bps large-cap, 15 bps otherwise. */
+/** A sell needs a cost basis to state P&L; a missing one is a caller bug, not a zero. */
 export function fillEngineOrders(
   orders: readonly EngineProposedOrder[],
   avgCostByTicker: ReadonlyMap<string, number>,
 ): EngineFill[] {
   return orders.map((o) => {
-    const slippageBps = isMegaOrLargeCap(o.ticker) ? 5 : 15;
-    const fillPrice = o.refPrice * (1 + ((o.side === "buy" ? 1 : -1) * slippageBps) / 10_000);
-    return {
-      ...o,
-      fillPrice,
-      slippageBps,
-      notional: o.quantity * fillPrice,
-      realizedPnl: o.side === "sell" ? o.quantity * (fillPrice - (avgCostByTicker.get(o.ticker) ?? o.refPrice)) : null,
-    };
+    const fillPrice = slippedPrice(o.ticker, o.side, o.refPrice);
+    let realizedPnl: number | null = null;
+    if (o.side === "sell") {
+      const avgCost = avgCostByTicker.get(o.ticker);
+      if (avgCost === undefined) throw new Error(`Missing average cost for ${o.ticker}`);
+      realizedPnl = o.quantity * (fillPrice - avgCost);
+    }
+    return { ...o, fillPrice, slippageBps: slippageBpsFor(o.ticker), notional: o.quantity * fillPrice, realizedPnl };
   });
 }

@@ -48,8 +48,11 @@ engine file that talks to the database.
 
 ## Where used
 
-- **Shadow mode is the only live mode today.** The run writes `engine_*` tables
-  only; nothing a user sees changes. See [[decision-engine-shadow-mode-first]].
+- **Shadow mode is the default.** Shadow runs write `engine_*` tables only, so
+  nothing a user sees changes. `mode: "live"` also merges the fib ladder into
+  `ticker_cards.numerics`, and the route refuses it with a 403 unless the same
+  `ENGINE_LADDER_ENABLED` flag that opens the ladder route is set. See
+  [[decision-engine-shadow-mode-first]].
 - **Ladder route** (`GET /api/engine/[ticker]`) maps stored structure into the
   existing `FibSummary` shape so the Hold/Fold ladder renders it unchanged. It
   returns 404 unless its flag is on, and is not wired into any UI yet.

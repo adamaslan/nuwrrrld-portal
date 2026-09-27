@@ -27,10 +27,11 @@ describe("addWeekdays", () => {
 });
 
 describe("planEngineRun entries", () => {
-  it("sizes so a stop-out loses 0.5% of NAV", () => {
+  it("sizes so a stop-out from the fill price loses 0.5% of NAV", () => {
     const [order] = planEngineRun(base({ hits: [hit("AAPL", 100, 90, 115)] }));
     expect(order.side).toBe("buy");
-    expect(order.quantity * (100 - 90)).toBeCloseTo(0.005 * NAV, 1);
+    const [fill] = fillEngineOrders([order], new Map());
+    expect(order.quantity * (fill.fillPrice - 90)).toBeCloseTo(0.005 * NAV, 1);
     expect(order.stopPrice).toBe(90);
     expect(order.targetPrice).toBe(115);
     expect(order.exitBy).toBe("2026-10-26");
@@ -39,7 +40,33 @@ describe("planEngineRun entries", () => {
 
   it("lets the 8% weight cap bind when the risk-based size is larger", () => {
     const [order] = planEngineRun(base({ hits: [hit("AAPL")] }));
-    expect(order.quantity * 100).toBeCloseTo(0.08 * NAV, 0);
+    const [fill] = fillEngineOrders([order], new Map());
+    expect(fill.notional).toBeCloseTo(0.08 * NAV, 0);
+  });
+
+  it("judges reward/risk at the live price, not the hit bar's close", () => {
+    // Hit bar closed at 100 (3:1 to the 115 target), but the stock has run to 110.
+    const drifted = base({ hits: [hit("AAPL", 100, 95, 115)], prices: { AAPL: 110 } });
+    expect(planEngineRun(drifted)).toEqual([]);
+  });
+
+  it("sizes risk from the live price when it has drifted but the trade still qualifies", () => {
+    const [order] = planEngineRun(base({ hits: [hit("AAPL", 100, 90, 140)], prices: { AAPL: 105 } }));
+    const [fill] = fillEngineOrders([order], new Map());
+    expect(order.refPrice).toBe(105);
+    expect(order.quantity * (fill.fillPrice - 90)).toBeCloseTo(0.005 * NAV, 1);
+  });
+
+  it("keeps cash at or above the floor after slipped fills, sales included", () => {
+    const positions = [held({ ticker: "AAPL", quantity: 20, stopPrice: 95 })];
+    const input = base({
+      cash: 2100, positions, hits: [hit("MSFT", 100, 90, 140)],
+      prices: { AAPL: 90, MSFT: 100 },
+    });
+    const fills = fillEngineOrders(planEngineRun(input), new Map([["AAPL", 100]]));
+    expect(fills.map((f) => f.side)).toEqual(["sell", "buy"]);
+    const cashAfter = fills.reduce((c, f) => c + (f.side === "sell" ? f.notional : -f.notional), input.cash);
+    expect(cashAfter).toBeGreaterThanOrEqual(0.02 * NAV - 1e-6);
   });
 
   it("caps a tight-stop position at 8% of NAV", () => {
@@ -119,5 +146,12 @@ describe("fillEngineOrders", () => {
     );
     expect(sell.fillPrice).toBeLessThan(110);
     expect(sell.realizedPnl).toBeCloseTo(10 * (sell.fillPrice - 100));
+  });
+});
+
+describe("fillEngineOrders cost basis", () => {
+  it("throws for a sell with no known cost basis instead of reporting a zero P&L", () => {
+    const sell = { ticker: "AAPL", side: "sell" as const, quantity: 10, refPrice: 100, reason: "stop" as const, hitId: null, stopPrice: null, targetPrice: null, exitBy: null };
+    expect(() => fillEngineOrders([sell], new Map())).toThrow(/Missing average cost for AAPL/);
   });
 });
