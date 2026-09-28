@@ -7,6 +7,28 @@ sources: [../../lib/engine, ../../lib/shared/engine-bars.ts, ../../lib/shared/en
 
 # Entity — Signal Engine (canonical Fibonacci, shadow mode)
 
+**Update (PR #196, 2026-09-28):** `lib/engine/indicators/ma.ts` and
+`indicators/ichimoku.ts` add a 50/200 SMA cross detector (`ma-cross`) and a
+Tenkan/Kijun cross detector (`ichimoku`), per
+`homebase/harness/FIB-ICHIMOKU-MA.md` §8 row 4. Both ship as `-experimental`
+in `SNAPSHOT_DETECTORS` (row 5) and bump `ENGINE_CODE_VERSION` to
+`nu-engine@0.2.0`. They fix the D1–D6 defects the doc documents against
+signals-app's *current* production trend detectors from the start rather
+than porting the bug then fixing it: one emission per cross via a shared
+sign-flip rule (D1/D4), states (cloud position/colour) never emit as a vote
+(D2/T5), Ichimoku's leading lines are unshifted and `Chikou_Diff` is a
+causal `Close[i] − Close[i-26]` rather than the traditional negative-shift
+lagging span (D5/T1), and both crosses grade `BULLISH`/`BEARISH` rather than
+`STRONG` (D3). **Not done in this PR:** the golden-fixture cross-language
+parity gate (T6, row 4's own "Done when") — that requires generating a
+fixture from signals-app's *own* fixed detectors (row 1, a separate PR in
+that repo) and diffing it against this TS port bar-by-bar. Unit tests here
+pin causality (T1), no-partial-window (T2), single-emission/no-tie-refire
+(T3/T4) and states-never-vote (T5) with hand-built series, the same style
+`entity-signal-engine`'s own fib tests use — but they are not a substitute
+for T6. Treat the MA/Ichimoku detectors as shadow-only until that fixture
+exists and the row 5 10-day hit-match gate has actually run.
+
 ## What it is
 
 A pure-TypeScript port of the canonical Fibonacci signal logic that lives in the
