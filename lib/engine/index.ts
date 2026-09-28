@@ -20,7 +20,11 @@ export {
   type ConfluenceZone,
 } from "./structure/fib";
 export { FibonacciDetector } from "./detectors/fibonacci";
+export { MaCrossDetector } from "./detectors/ma-cross";
+export { IchimokuDetector } from "./detectors/ichimoku";
 export type { Detector, EngineSignal, SignalStrength } from "./detectors/types";
+export { smaSeries, signCross, lastCross, buildMaColumns, type CrossEvent, type MaColumns } from "./indicators/ma";
+export { buildIchimokuColumns, type IchimokuColumns } from "./indicators/ichimoku";
 export { runDetectors, type DetectorRun } from "./run";
 export { snapshotFrame, holdExitLevels, SNAPSHOT_DETECTORS, type TickerSnapshot, type SnapshotHit } from "./snapshot";
 export { labelHit, sideForStrength, DEFAULT_HORIZON_DAYS, DIRECTIONAL_STRENGTHS, type HitLabel } from "./labels";
