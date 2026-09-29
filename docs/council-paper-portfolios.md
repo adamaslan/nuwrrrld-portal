@@ -8,11 +8,15 @@ real, provision + push `PAPER_CRON_SECRET`, provision
 `FIRESTORE_SERVICE_ACCOUNT_JSON`) still block a real end-to-end run — see
 `docs/manual-setup-todo.md`. See [[entity-paper-portfolios]] in
 `docs/wiki-portal/` for current build status.
+**Policy v4 (2026-09-29):** each of the six trading seats holds **at least 15–20
+names from its own persona starter book** (§2.2), not the shared Core 50. On
+2026-09-29 production held 0–4 names per account. See
+[`paper-trading-v3.md`](paper-trading-v3.md) §3.1 for the measurement and backtest.
 The **watchlists in §2.1 are final input, not a placeholder** — they are
 validated against the registered universe and are what the seed script reads.
 
 **Goal:** give every seat of the NuWrrrld AI Council its own **paper-money
-account** — $10,000, 50 holdings, no real dollars — and let each seat trade its
+account** — $10,000, at least 15–20 holdings chosen by its persona (§2.2), no real dollars — and let each seat trade its
 own book four times a trading day according to *its own stated preferences*, its
 **own pre-chosen watchlist** (§2.1 — the lists are in this document, not derived
 at runtime), and the signals the portal already computes. Persist every
@@ -53,14 +57,14 @@ could produce.
 Eight accounts total. Six are seats; two are controls, because a leaderboard
 without a baseline is a vanity metric.
 
-| Account | Seat | Mandate | Starting cash | Target holdings |
+| Account | Seat | Mandate | Starting cash | Holdings floor (v4, §2.2) |
 |---|---|---|---|---|
-| `t1` | T1 | Short-term tactical, 1–60 day holds | $10,000 | 50 |
-| `t2` | T2 | Long-horizon, 3–12 month theses | $10,000 | 50 |
-| `risk` | RISK | Survive-being-wrong construction; defensive tilt | $10,000 | 50 |
-| `macro` | MACRO | Rates / dollar / liquidity / sector rotation | $10,000 | 50 |
-| `quant` | QUANT | Numeric card score only, no narrative | $10,000 | 50 |
-| `chair` | CHAIR | Consensus of the five, weighted by agreement | $10,000 | 50 |
+| `t1` | T1 | Short-term tactical, 1–60 day holds | $10,000 | ≥ 16 |
+| `t2` | T2 | Long-horizon, 3–12 month theses | $10,000 | ≥ 20 |
+| `risk` | RISK | Survive-being-wrong construction; defensive tilt | $10,000 | ≥ 20 |
+| `macro` | MACRO | Rates / dollar / liquidity / sector rotation | $10,000 | ≥ 15 |
+| `quant` | QUANT | Numeric card score only, no narrative | $10,000 | ≥ 15 |
+| `chair` | CHAIR | Consensus of the five, weighted by agreement | $10,000 | ≥ 18 |
 | `equal` | — | **Control:** 50 names, equal weight, never rebalanced | $10,000 | 50 |
 | `spy` | — | **Control:** 100% `IVV` (S&P 500), buy and hold — see §2.1 | $10,000 | 1 |
 
@@ -83,9 +87,12 @@ Every symbol was checked against the registered `ticker_universe` catalog in
 
 Two structures per account:
 
-- **Seed book (50 names)** — what the account actually holds at $200/name on day
-  one. **Identical for all six seats and `equal`**, which settles §11 Q2: the
-  first month measures *construction*, not selection.
+- **Seed book (50 names)**: what the account holds at $200/name on day one.
+  **Now only `equal`'s.** *Superseded for the six trading seats by policy v4
+  (§2.2).* The seed was never bought (F1 in `paper-trading-v3.md`). An identical
+  book would also have measured sizing rules, not personas, so §11 Q2's
+  "construction, not selection" answer is reversed: each seat now starts from
+  its own selection.
 - **Watchlist (75 names)** — the seed book plus 25 persona-specific names the
   account may rotate into. An account can only ever hold what is in its own
   watchlist; `paper_watchlists` is checked on every buy (§5 — a trigger, since
@@ -212,6 +219,33 @@ without destroying its NAV history.
    and rejected.
 
 
+### 2.2 Persona starter books and the holdings floor (policy v4)
+
+Each trading seat has a **starter book**: 15–20 names from its own §2.1
+watchlist that express its mandate. It also has a **holdings floor**
+(`minHoldings`). While the seat holds fewer names than the floor, the planner
+buys the next starter-book name at `coreWeight` before any score-driven buy
+(order reason `core_fill`). Source of truth: `lib/shared/paper-core-books.ts` and
+`lib/shared/paper-policy.ts`. The invariants below are checked by
+`__tests__/paper-core-books.test.ts`: every book is inside the seat's watchlist,
+holds at least `minHoldings` names, and can be bought in full without breaching a
+sector cap or the cash floor.
+
+| Seat | Floor × weight | Starter book | Mandate it expresses |
+|---|---|---|---|
+| `t1` | 16 × 4% | NVDA AMD PLTR CRWD NET MU · COIN HOOD AFRM · TSLA DASH ABNB · UBER · META NFLX RBLX | high beta, catalysts; ~34% cash for event trades |
+| `t2` | 20 × 4.5% | MSFT ASML TSM TXN · V MA SPGI MCO BRK.B · LLY ISRG SYK TMO · WM ROP ADP ETN · COST PG · EQIX | toll booths and moats, fully invested |
+| `risk` | 20 × 3% | PG KO CL KMB · DUK SO ED AEP · JNJ MRK ABT · BRK.B CB AJG · VZ TMUS T · MCD · HON UNP | low vol, ≤ 4 names (12%) per sector |
+| `macro` | 15 × 4% | XLU XLE XLI SMH · TLT · GLD · EEM · RSP · XOM CCJ · FCX NUE · JPM · CAT · NEE | sectors, rates, metals, ex-US, breadth |
+| `quant` | 15 × 4% | *none*: top-scored cards on its watchlist | numbers only, no curated narrative |
+| `chair` | 18 × 4% | NVDA PLTR META · MSFT TSM SPGI ISRG · JNJ PG DUK VZ · XOM JPM CAT NEE · NOW LMT EOG | a seat-weighted sample of the council |
+
+Floor rules: never a bearish card (score < 0). Starter book first, then the rest
+of the watchlist only if the book runs out. Not gated by the turnover cap, but
+still bound by the cash floor, the sector caps and `minPositionWeight`. No refill
+of a name stopped out in the last 7 days. Floor buys are never counted as CHAIR
+votes.
+
 ---
 
 ## 3. Preference vectors — how a persona becomes a parameter set
@@ -236,6 +270,13 @@ model's job shrinks to breaking ties.
 | Sector cap | 25% | 30% | 15% | 35% (rotation is the thesis) | 25% | 25% |
 | Data-quality gate | ≥ 0.8 | ≥ 0.8 | ≥ 0.9 | ≥ 0.8 | ≥ 0.95 | ≥ 0.85 |
 | Model calls per run | ≤ 6 | ≤ 4 | ≤ 6 | ≤ 6 | **0** | ≤ 8 |
+| Holdings floor (v4) | 16 | 20 | 20 | 15 | 15 | 18 |
+| Floor position weight (v4) | 4% | 4.5% | 3% | 4% | 4% | 4% |
+
+> The thresholds in this table are the original v1 design. The live values are in
+> `lib/shared/paper-policy.ts`: v2 rescaled them to the card's [-100, 100] range,
+> v3 moved them off the score clusters, and v4 added the two rows above and moved
+> RISK's sell threshold to 0 (exit on a bearish card, not a neutral one).
 
 Notes on the ones that aren't arbitrary:
 

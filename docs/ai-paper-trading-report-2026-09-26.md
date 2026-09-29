@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-26, updated 2026-09-27 · **Repo:** `nuwrrrld-portal` · **Design doc:** [council-paper-portfolios.md](council-paper-portfolios.md) · **Tracker:** [paper-portfolios-remaining-todo.md](paper-portfolios-remaining-todo.md) · **Fix PR:** [#188](https://github.com/adamaslan/nuwrrrld-portal/pull/188)
 
+> **2026-09-29, policy v4:** this report describes a shared Core 50 seed book for every seat. That seed was never bought, and it has been replaced for the six trading seats by per-persona starter books with a 15–20 name holdings floor. See [paper-trading-v3.md](paper-trading-v3.md) §3.1 and [council-paper-portfolios.md](council-paper-portfolios.md) §2.2. The rest of this report is left as it was on its date.
+
 Everything below was read from the code, from `gh` state, and from **read-only** queries against the production Neon database on this date. The 10-trade verification in section 4b wrote nothing to any database. Items not verified are marked *unverified*.
 
 **2026-09-27 update:** two of the three blockers below are fixed and one policy decision is made, all in PR #188 (`fix/paper-workflow-alpaca-prices`, on top of `origin/main`, all required checks green, CodeRabbit reviewed with no open findings). **Not merged yet**, and one more manual step (a Neon account backfill) is required before or immediately after merge — see the new §9. Until that PR merges, every fact in sections 1–8 below that describes the *deployed* state (zero rows, workflow failing, thresholds on the wrong scale) is still accurate; the fixes exist only on the branch.

@@ -211,6 +211,81 @@ scores, and its own **voice** for explaining what it did.
 - **Today:** holds nothing (F1).
 - **v3:** buy it. Every bot's headline number becomes **excess return vs SPY**.
 
+### 3.1 Policy v4 — at least 15 names per bot, chosen by its persona
+
+**Why.** On 2026-09-29 production held **0–4 names per account** (T1 3, T2 1, RISK 4,
+MACRO 1, QUANT 3, CHAIR 2). Three tickers is one bet, not a strategy. Each bot's P&L was
+whatever its single best card did, and that card was the same for all six (UNH). The Core 50
+seed book (D1 below) was meant to prevent this, but it was never bought. It would also have
+given all six bots the *same* 50 names, which measures sizing rules and not personas.
+
+**What v4 changes** (`lib/shared/paper-policy.ts`, `PAPER_POLICY_VERSION = "v4"`):
+
+1. **Holdings floor.** `minHoldings` per bot (15–20). While a bot holds fewer, the planner
+   buys from its **starter book** at `coreWeight` each, before any score-driven buy. The order
+   reason is `core_fill`, so floor buys are never confused with signal buys.
+2. **A starter book per persona** (`lib/shared/paper-core-books.ts`). Each list is drawn from
+   the bot's own watchlist and says what the bot believes. It is not a shared seed.
+3. **RISK's sell threshold moves from 10 to 0.** 784 of 978 live cards score exactly 0
+   (neutral), so "exit below 10" made RISK sell every quiet staple and utility it exists to
+   own. It now exits when a card turns bearish. The 5% trailing stop, the 15% cash floor and
+   the 3% cap still do the defending.
+
+| Bot | Floor × weight | Invested core | Starter book (all from its own watchlist) | Why these |
+|---|---|---:|---|---|
+| **T1** Tactician | 16 × 4% | 64% | NVDA AMD PLTR CRWD NET MU · COIN HOOD AFRM · TSLA DASH ABNB · UBER · META NFLX RBLX | High beta and catalyst-rich, where a 1–60 day card actually moves. About 34% stays in cash for event trades. |
+| **T2** Compounder | 20 × 4.5% | 90% | MSFT ASML TSM TXN · V MA SPGI MCO BRK.B · LLY ISRG SYK TMO · WM ROP ADP ETN · COST PG · EQIX | Toll booths and wide moats. Fully invested (cash floor 0). It buys and waits. |
+| **RISK** Survivor | 20 × 3% | 60% | PG KO CL KMB · DUK SO ED AEP · JNJ MRK ABT · BRK.B CB AJG · VZ TMUS T · MCD · HON UNP | Low realized volatility. At most 4 names per sector (12% vs its 15% cap), so no one sector can sink it. |
+| **MACRO** Rotator | 15 × 4% | 60% | XLU XLE XLI SMH · TLT · GLD · EEM · RSP · XOM CCJ · FCX NUE · JPM · CAT · NEE | Views held through sectors, rates, metals, ex-US and breadth, plus one bellwether per cyclical sector. 8 ETFs = 32%, under the 35% ETF cap. |
+| **QUANT** Control | 15 × 4% | 60% | *no curated list*: the top-scored cards on its watchlist | Numbers only. A hand-picked list would be exactly the narrative QUANT exists to exclude. |
+| **CHAIR** Consensus | 18 × 4% | 72% | NVDA PLTR META · MSFT TSM SPGI ISRG · JNJ PG DUK VZ · XOM JPM CAT NEE · NOW LMT EOG | 3–4 names from each sibling's book (QUANT's from its own pool). Every name is one some seat would hold. |
+
+**Floor rules** (`fillHoldingsFloor` in `lib/shared/paper-engine-core.ts`):
+
+- It **never buys a bearish card** (score < 0). Neutral (0) qualifies.
+- It fills from the **starter book first**, ordered by card score, then the bot's persona
+  tie-break, then the date-seeded hash. It falls back to the rest of the bot's watchlist only
+  if too many book names are bearish that day. That fallback is why a bot can end up holding
+  names outside its book.
+- It is **not gated by `maxTurnoverPerRun`**. A bot below its floor hasn't become its persona
+  yet. Under T2's 6% cap, building 20 positions would take about three trading days. Floor
+  buys still count toward `turnoverUsed`, so that slot's score-driven buys wait for the next
+  run. It *does* respect the cash floor, the sector caps and `minPositionWeight`.
+- **Stop cooldown.** It won't refill a name the bot was stopped out of in the last
+  `STOP_COOLDOWN_DAYS = 7` calendar days (`getRecentlyStoppedTickers` in `lib/paper-db.ts`).
+  The first v4 backtest had no cooldown, and RISK re-bought 15 names within 5 trading days of
+  their trailing stop firing. That undid the stop a few days late: F13 again, just slower.
+- **Floor buys are not CHAIR votes.** `getSeatOrdersForSlot` excludes `core_fill`. Refilling a
+  starter book is construction, not a seat's view on the name.
+
+**What it did on real data** (`scripts/paper-backtest.ts`, the same 22 days as §7.6, real
+Alpaca daily bars, local SQLite only). IVV over the same window: **-0.69%**.
+
+| Bot | v3 return | **v4 return** | Holdings at end (v3 → v4) | Fewest held on any day | Stops |
+|---|---:|---:|---|---:|---:|
+| chair | -1.87% | **+0.67%** | few → 19 | 18 | 1 |
+| t1 | -3.49% | **-0.79%** | few → 19 | 16 | 12 |
+| risk | -0.12% | **-3.78%** | few → 22 | 20 | 21 |
+| macro | -3.10% | **-4.08%** | few → 19 | 15 | 1 |
+| t2 | -2.40% | **-4.58%** | few → 21 | 20 | 0 |
+| quant | -2.53% | **-4.64%** | few → 19 | 15 | 4 |
+
+Read it honestly:
+
+- **The floor holds.** Every bot stayed at or above its floor on all 22 days.
+- **More invested means more exposed.** In a month when the universe fell, bots that were 60–90%
+  invested lost more than v3 bots that were mostly cash. v3's small losses came from sitting in
+  cash, not from skill. v4 is the first version where returns reflect what the bots picked.
+- **RISK went from best to fourth.** v3's RISK held 1–4 names, so its -0.12% was mostly cash.
+  With 20 names, its 5% trailing stop fired 21 times in 22 days. That is whipsaw on a
+  defensive book in a falling month. **Open question D5:** is 5% trailing too tight for 20
+  low-vol names? That's a policy decision, not a bug, so v4 leaves it alone.
+- **CHAIR, the seat-weighted sample, was the only bot above IVV.** One month is one sample. It
+  is not evidence that consensus wins.
+- **Overlap is lower, but not gone.** UNH and UNP were still held by all six at some point. They
+  cleared every bot's own buy threshold on the day, which is the defensible kind of overlap
+  §7.6 describes.
+
 ---
 
 ## 4. The narrative layer (spec)
@@ -481,9 +556,10 @@ Expect rows matching §2, with every bot holding UNH. RISK should show 3 model c
 
 | # | Decision | Recommendation |
 |---|---|---|
-| D1 | How to fund the seed book (F1) | **Buy it now on top of the existing cash**, as a one-time `seed` run (Step 4). Trading accounts get `min($200, (cash − cashFloor × NAV) / 50)` per name, so RISK's 15% floor holds. `equal` gets 50 × $200. `spy` gets 100% IVV. A full reseed is blocked by design: `seed-paper-portfolios.mjs --force-reseed` refuses once run history exists, and `paper_orders` is append-only. |
+| D1 | How to fund the seed book (F1) | **Superseded for the six trading bots by policy v4 (§3.1).** Each bot's persona starter book is bought by the holdings floor on the first trading slot after v4 deploys. No seed script and no migration are needed. **Still open for the two controls:** `equal` needs 50 × $200 and `spy` needs 100% IVV, bought in a one-time `seed` run (Step 4). A full reseed is blocked by design: `seed-paper-portfolios.mjs --force-reseed` refuses once run history exists, and `paper_orders` is append-only. |
 | D2 | The 9/28 "v2" rows that really ran v1 | **Annotate, don't rewrite:** add `detail.actual_policy = 'v1'` plus a note (Step 5). History stays true to what was recorded, and readers see the correction. |
 | D3 | Move preopen to 09:45 ET | **Yes.** At 09:00 the "live" price is the prior close. |
+| D5 | RISK's 5% trailing stop on a 20-name book (§3.1) | Measure first. It fired 21 times in the 22-day v4 backtest. Try 8% in `paper-sim.ts` / `paper-backtest.ts` before changing policy. |
 | D4 | Narration models | Keep the free chain for arbitration. Consider one paid small model for diaries only (≈ 6 diaries/day × 150 tokens), since free models rotate and the voices would drift. |
 
 ### Step 4: ⚠️ fund the seed book (after D1, and after PR C lands)
@@ -507,7 +583,8 @@ merged, so stop here.
 ```bash
 cd ~/code/nuwrrrld-portal-paper-prices && node --env-file=../nuwrrrld-portal/.env.local scripts/seed-paper-book.mjs --dry-run
 ```
-Expect: 7 accounts × 50 buys plus `spy` × 1 IVV buy, each account's post-seed cash ≥ its `cashFloor`.
+Expect: `equal` × 50 buys plus `spy` × 1 IVV buy. Under policy v4 the six trading bots are
+not in the seed run. The holdings floor builds them (§3.1).
 
 **4c. ⚠️ For real (during market hours, so prices are fresh).**
 
@@ -524,7 +601,9 @@ const sql = neon(process.env.DATABASE_URL);
 console.table(await sql`SELECT a.account, round(a.cash::numeric,2) cash, count(p.ticker)::int positions FROM paper_accounts a LEFT JOIN paper_positions p USING (account) GROUP BY a.account, a.cash ORDER BY a.account`);
 '
 ```
-Expect: `equal` 50 positions and ≈ $0 cash, `spy` 1 position (IVV), the trading accounts ≥ 50 positions.
+Expect: `equal` 50 positions and ≈ $0 cash, `spy` 1 position (IVV). Each trading bot holds
+at least its `minHoldings` (t1 16, t2 20, risk 20, macro 15, quant 15, chair 18) once one
+v4 trading slot has run. See the §8 check.
 
 ### Step 5: ⚠️ annotate the v1-labeled rows (after D2)
 
@@ -874,7 +953,8 @@ for the full list.
 
 ## 8. What "done" looks like for v3
 
-- [ ] Every account holds its seed book, and `equal` / `spy` track the market (§6 Step 4).
+- [ ] Every trading bot holds at least its `minHoldings` (15–20) from its persona starter book (policy v4, §3.1).
+- [ ] `equal` holds the Core 50 and `spy` holds IVV (§6 Step 4).
 - [ ] 4 trading slots per day run with the correct label, or are recorded as mark-only with a reason (PR A).
 - [ ] No trade fills on a price older than 30 min (PR B).
 - [ ] No plan ever sells and re-buys the same ticker in one run — `paper-sim.ts` prints no
@@ -887,6 +967,20 @@ for the full list.
 - [ ] The dashboard has been clicked through signed-in against real data once (PR F).
 - [ ] `npx -y tsx scripts/paper-sim.ts --db=<fresh snapshot>` and `--neon` still agree (the
       parity check that says the local sandbox is trustworthy).
+
+Check the holdings floor any day (read-only):
+
+```bash
+cd ~/code/nuwrrrld-portal-paper-core-books && node --env-file=../nuwrrrld-portal/.env.local --input-type=module -e '
+import { neon } from "@neondatabase/serverless";
+const sql = neon(process.env.DATABASE_URL);
+console.table(await sql`SELECT a.account, count(p.ticker)::int holdings,
+  (SELECT r.policy_version FROM paper_runs r WHERE r.account = a.account ORDER BY r.started_at DESC LIMIT 1) last_run_policy
+  FROM paper_accounts a LEFT JOIN paper_positions p USING (account)
+  GROUP BY a.account ORDER BY a.account`);
+'
+```
+Healthy: `last_run_policy = v4` and t1 ≥ 16, t2 ≥ 20, risk ≥ 20, macro ≥ 15, quant ≥ 15, chair ≥ 18.
 
 Check the overlap criterion any day (read-only):
 
