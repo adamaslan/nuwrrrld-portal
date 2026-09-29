@@ -788,6 +788,52 @@ having before shipping it.
 - **The snapshot ages.** Re-run §7.1 Step 2 before trusting a plan; `bar_date` in the header
   line tells you which day's cards you're looking at.
 
+## 7.6 A real backtest — 22 real trading days, on real Alpaca data
+
+`scripts/paper-backtest.ts` (added alongside the PR B/D/E fixes) recomputes a
+card for every past day from real historical Alpaca daily bars — using the
+exact same indicator functions (`scripts/lib/hydrate-indicators.mjs`) and
+scorer (`lib/shared/card-policy.ts::buildCard`) production uses — then
+replays that sequence through the fixed `planRun`/`planChairConsensus` day by
+day. It writes only to a local SQLite file; nothing here touches Neon.
+
+```bash
+cd ~/code/nuwrrrld-portal-paper-prices && rm -f backups/paper-backtest.sqlite &&   npx -y tsx --env-file=../nuwrrrld-portal/.env.local scripts/paper-backtest.ts   --watchlists=backups/paper-local.sqlite --days=22 --out=backups/paper-backtest.sqlite
+```
+
+**What it actually produced** (2026-08-28 → 2026-09-29, real closes, no cherry-picking):
+
+| Account | Return | Fills (buy/sell) |
+|---|---:|---:|
+| risk | **-0.39%** | 10 / 7 |
+| t1 | -1.28% | 39 / 15 |
+| chair | -1.81% | 17 / 3 |
+| t2 | -2.53% | 20 / 0 |
+| quant | -2.83% | 34 / 18 |
+| macro | -3.06% | 28 / 4 |
+
+Every account lost money over this window — a genuinely mixed month for the
+universe, not a result to spin. RISK's defensive tilt produced the smallest
+loss, which is at least the right *ordering* even on a down month.
+
+**The honest finding: F3's overlap survives, partially.** TMO, SO, LIN, GE and
+COP were each bought by **all 6** accounts at some point in the 22 days —
+persona tie-breaks and v3 thresholds didn't eliminate cross-account
+convergence, because most of these weren't tie-break situations at all: a
+name that clears every account's own (different) threshold on its own
+horizon isn't a coincidence of alphabetization, it's several independent
+mandates agreeing a name looked good that day. That's a different, more
+defensible kind of overlap than the single-frozen-day 6/6 UNH result in §2,
+but it's still overlap, and the persona work in §3 doesn't fully solve it —
+only CHAIR's consensus mechanism is *supposed* to react to it, not prevent it.
+
+**Known limits of this run** (stated, not hidden): one decision per day, not
+four (Alpaca's free tier has no historical intraday feed); zero model
+arbitration calls (24 trades were flagged as tie/near-stop candidates and
+left CONFIRMed rather than spending real API budget on a historical replay);
+fills at the day's close, not an intraday print. See the script's own header
+for the full list.
+
 ## 8. What "done" looks like for v3
 
 - [ ] Every account holds its seed book, and `equal` / `spy` track the market (§6 Step 4).
