@@ -2,7 +2,7 @@
 date: 2026-09-13
 type: entity
 tags: [council, paper-trading, simulation, schema, policy, seed, engine]
-sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, ../../lib/paper-engine.ts, ../../lib/shared/paper-engine-core.ts, ../../lib/shared/paper-sectors.ts, PR#124, PR#127]
+sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, ../../lib/paper-engine.ts, ../../lib/shared/paper-engine-core.ts, ../../lib/shared/paper-sectors.ts, ../../lib/shared/paper-core-books.ts, ../paper-trading-v3.md, PR#124, PR#127, PR#204]
 ---
 
 # Entity: Council Paper Portfolios
@@ -21,10 +21,18 @@ tracks what's actually built against that 8-phase plan.
   `CouncilSeat`; `lib/shared/paper-policy.ts`'s `ACCOUNT_SEAT` maps between
   them). `spy` actually holds `IVV` (`SPY` itself isn't a registered
   `ticker_universe` symbol).
-- **Fixed watchlists** (`paper_watchlists`): a shared Core 50 seed book plus
+- **Fixed watchlists** (`paper_watchlists`): a shared Core 50 plus
   25 persona-specific extras per seat, chosen once in the design doc's §2.1 —
   never derived at runtime, so two accounts seeded a week apart stay
   comparable.
+- **Persona starter books + holdings floor** (policy v4,
+  `lib/shared/paper-core-books.ts`): each trading seat holds at least 15–20
+  names (`minHoldings`) chosen from its own watchlist to express its mandate —
+  T1 high-beta catalysts, T2 compounders, RISK low-vol defensives, MACRO
+  sector/rates/metals ETFs plus bellwethers, QUANT top-scored cards (no
+  curated list, by design), CHAIR a seat-weighted sample of the others.
+  Replaces the never-bought shared Core 50 seed for the six seats; `equal`
+  still holds the Core 50.
 - **Preference vectors** (`lib/shared/paper-policy.ts`'s `PAPER_POLICY`): buy/
   sell thresholds, position/sector caps, cash floor, turnover cap, stop rule,
   min holding period, model-call ceiling — one row per trading account,
@@ -247,6 +255,9 @@ Carried from the design doc's §11: reset cadence (leaning never); whether RISK
 needs shorts to be a fair test of its mandate. **CHAIR's book question is now
 resolved** — see the PR #204 section below: it reads a weighted consensus of
 the other five seats' own fills for the slot, not a fresh card pass.
+**New with policy v4 (D5):** is RISK's 5% trailing stop too tight for a
+20-name defensive book? It fired 21 times in the 22-day backtest. Measure 8%
+with `scripts/paper-backtest.ts` before changing the policy.
 
 ## PR #204 (2026-09-29) — engine correctness, personas, CHAIR consensus, real backtest
 
@@ -322,6 +333,47 @@ after this deploys, by design, until that happens); backfilling the local
 backtest's simulated history into production (`paper_runs`/`paper_orders` are
 append-only ground truth, and mixing in simulated dates would corrupt what
 the dashboard treats as real).
+
+## Policy v4 — holdings floor and persona starter books (2026-09-29)
+
+**Why:** production on 2026-09-29 held 0–4 names per trading account, and all
+six held UNH — each "book" was a single bet, and the six personas differed in
+position size only. The shared Core 50 seed that was meant to prevent this was
+never bought, and would have given all six seats the same names anyway.
+
+**What changed:** `PaperPolicy` gained `minHoldings` (t1 16, t2 20, risk 20,
+macro 15, quant 15, chair 18) and `coreWeight`. A new planner pass,
+`fillHoldingsFloor` (`lib/shared/paper-engine-core.ts`), runs after sells and
+before score-driven buys in both `planRun` and `planChairConsensus`, buying
+starter-book names at `coreWeight` with order reason `core_fill` until the
+floor is met. The pass:
+
+- never buys a bearish card (score < 0);
+- tries the starter book first and only then the rest of the watchlist;
+- is exempt from the turnover cap but not from the cash floor, the sector caps
+  or `minPositionWeight`;
+- skips names stopped out in the last 7 days
+  (`getRecentlyStoppedTickers`, `lib/paper-db.ts`).
+
+`core_fill` orders are excluded from CHAIR's consensus votes. RISK's sell
+threshold moved from 10 to 0, because 784 of 978 live cards score exactly 0 and
+"exit below 10" meant RISK sold every neutral defensive name it exists to own.
+No schema change: `paper_orders.reason` is free text.
+
+**Measured (local only):** `scripts/paper-sim.ts --neon` against production
+state forecasts every seat reaching its floor at the next trading slot with no
+name bought by more than 3 of 6 seats (the §8 health bar; the same slot under
+v3 was 6/6 on UNH). The 22-day real-Alpaca backtest held every seat at or above
+its floor on every day. Returns got more dispersed, not better: CHAIR +0.67%
+(the only seat above IVV's -0.69%), T1 -0.79%, RISK -3.78% (21 trailing-stop
+exits: whipsaw on a 20-name defensive book, open question D5), MACRO -4.08%,
+T2 -4.58%, QUANT -4.64%. v3's small losses came mostly from sitting in cash.
+The first backtest, run without the stop cooldown, showed RISK re-buying 15
+names within 5 days of their stop firing, which is why the cooldown exists.
+
+**Not done:** nothing was written to production. The floor takes effect on the
+first trading slot after the v4 deploy; `equal`/`spy` still need the one-time
+seed run (paper-trading-v3.md §6 Step 4).
 
 ## Engine account — decision core (PR #189, 2026-09-26)
 
