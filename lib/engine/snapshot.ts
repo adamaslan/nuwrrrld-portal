@@ -5,6 +5,8 @@
  */
 import { frameLength, type Frame } from "./frame";
 import { FibonacciDetector } from "./detectors/fibonacci";
+import { IchimokuDetector } from "./detectors/ichimoku";
+import { MaCrossDetector } from "./detectors/ma-cross";
 import type { Detector } from "./detectors/types";
 import { runDetectors } from "./run";
 import {
@@ -158,9 +160,14 @@ function hitFeatures(
 export const SNAPSHOT_DETECTORS: readonly Detector[] = [
   new FibonacciDetector(),
   new FibonacciDetector({ experimental: true }),
+  // MA/Ichimoku (FIB-ICHIMOKU-MA.md §8 row 5): shadow-only until the 10-day
+  // hit-match gate (row 5's own "Done when") is measured in production —
+  // that measurement has NOT happened yet, so these stay experimental.
+  new MaCrossDetector({ experimental: true }),
+  new IchimokuDetector({ experimental: true }),
 ];
 
-/** Snapshot of the frame's last bar. `detectors` defaults to default + experimental fib. */
+/** Snapshot of the frame's last bar. `detectors` defaults to default + experimental fib/MA/Ichimoku. */
 export function snapshotFrame(
   frame: Frame,
   detectors: readonly Detector[] = SNAPSHOT_DETECTORS,

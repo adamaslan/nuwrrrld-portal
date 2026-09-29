@@ -1427,6 +1427,26 @@ other than `.env.local` / the Vercel dashboard.
         reliably green instead of intermittently red depending on how much
         prior-run state has accumulated in the shared account
       - **Added**: 2026-09-12
+- [ ] **`portfolio-liveness.spec.ts`'s same flaky test also fails with
+      `unrecognized health source: undefined` before the AAPL-visibility
+      timeout.**
+      - **From**: `/wait-merge1` run on PR #196 — `e2e (4)` shard failed;
+        `main` itself failed the same "E2E Resiliency" workflow at
+        03:13:40Z the same day (run 36516203154), confirming this is the
+        same pre-existing flakiness as the 2026-09-12 entry above, not
+        something PR #196 introduced (its diff touches only `lib/engine/*`
+        detector files, never this spec or any health-source code).
+      - **Blocked on**: same test-isolation debt as above — the assertion
+        `expect(["upstream","local"]).toContain(source)` at
+        `e2e/frontend/portfolio-liveness.spec.ts:67` sees `source` as
+        `undefined`, most likely because the page hasn't finished loading
+        the health badge before the shared account's stale-row noise pushes
+        the test past its timeout budget.
+      - **Why it can't be code (right now)**: same reason as above — this
+        is a symptom of the same known flake, not a new defect to fix
+        inline in an unrelated detector PR.
+      - **Unblocks**: same as the 2026-09-12 entry
+      - **Added**: 2026-09-29
 - [ ] **`e2e/frontend/signal-timing.spec.ts` throws instead of skipping when
       `/api/signals/digest` returns an HTML error page.**
       - **From**: `/wait-merge1` run on PR #123 — same `[frontend]` shard,
