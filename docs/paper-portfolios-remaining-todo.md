@@ -327,3 +327,60 @@ rather than assuming success from the checklist alone.
   `docs/manual-setup-todo.md` and `docs/wiki-portal/index.md`/`log.md` — noted
   here for history; no longer a live overlap since it merged before this
   branch was cut.
+
+---
+
+## Policy v4 — holdings floor (added 2026-09-29)
+
+Each trading seat must hold at least its `minHoldings` (t1 16, t2 20, risk 20,
+macro 15, quant 15, chair 18) from its persona starter book
+(`lib/shared/paper-core-books.ts`; design in
+[`paper-trading-v3.md`](paper-trading-v3.md) §3.1). The planner builds the
+books itself on the first trading slot after v4 deploys. No seed script and no
+migration are needed.
+
+- [ ] **Verify the floor after the first v4 slot (read-only).**
+
+  ```bash
+  cd ~/code/nuwrrrld-portal && node --env-file=.env.local --input-type=module -e '
+  import { neon } from "@neondatabase/serverless";
+  const sql = neon(process.env.DATABASE_URL);
+  console.table(await sql`SELECT a.account, count(p.ticker)::int holdings,
+    (SELECT r.policy_version FROM paper_runs r WHERE r.account = a.account ORDER BY r.started_at DESC LIMIT 1) last_run_policy
+    FROM paper_accounts a LEFT JOIN paper_positions p USING (account)
+    GROUP BY a.account ORDER BY a.account`);
+  '
+  ```
+  Expect `last_run_policy = v4`, and t1 ≥ 16, t2 ≥ 20, risk ≥ 20, macro ≥ 15,
+  quant ≥ 15, chair ≥ 18. Before v4 deploys, this prints 0–4 holdings per
+  account (checked 2026-09-29).
+
+- [ ] **Confirm no floor fill re-bought a recently stopped name (read-only).**
+
+  ```bash
+  cd ~/code/nuwrrrld-portal && node --env-file=.env.local --input-type=module -e '
+  import { neon } from "@neondatabase/serverless";
+  const sql = neon(process.env.DATABASE_URL);
+  console.table(await sql`SELECT f.account, f.ticker, rf.trade_date filled, rs.trade_date stopped
+    FROM paper_orders f JOIN paper_runs rf ON rf.id = f.run_id
+    JOIN paper_orders s ON s.account = f.account AND s.ticker = f.ticker AND s.reason = ${"stop"}
+    JOIN paper_runs rs ON rs.id = s.run_id
+    WHERE f.reason = ${"core_fill"} AND rs.trade_date <= rf.trade_date AND rf.trade_date - rs.trade_date < 7`);
+  '
+  ```
+  Expect an empty table.
+
+- [ ] **`equal` and `spy` are still unfunded.** v4 covers only the six trading
+  seats. Fund the two controls with the seed run in
+  [`paper-trading-v3.md`](paper-trading-v3.md) §6 Step 4 (⚠️ migration, needs
+  confirmation first).
+
+- [ ] **Decide D5:** RISK's 5% trailing stop fired 21 times in the 22-day v4
+  backtest. Measure 8% locally before changing the policy:
+
+  ```bash
+  cd ~/code/nuwrrrld-portal-paper-core-books && rm -f backups/paper-backtest-v4.sqlite && npx -y tsx --env-file=../nuwrrrld-portal/.env.local scripts/paper-backtest.ts --watchlists=backups/paper-local.sqlite --days=22 --out=backups/paper-backtest-v4.sqlite && sqlite3 -header -column backups/paper-backtest-v4.sqlite "SELECT account, sum(reason='stop') stops FROM orders GROUP BY account"
+  ```
+  Expect RISK around 21 stops at 5%. Edit `stopRule.pct` for `risk` in
+  `lib/shared/paper-policy.ts`, rerun, and compare.
+
