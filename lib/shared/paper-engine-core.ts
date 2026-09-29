@@ -291,11 +291,24 @@ export function planRun(input: RunPlanInput): RunPlan {
 export function fillOrders(
   orders: ProposedOrder[],
   avgCostByTicker: ReadonlyMap<string, number>,
+  /** Optional per-ticker override for the price slippage is applied against,
+   *  in place of `order.refPrice`. Production has no use for this — the live
+   *  engine plans and fills against the same intraday `live_prices` read, so
+   *  refPrice already *is* the execution price. It exists for
+   *  scripts/paper-backtest.ts (CodeRabbit review, PR #204): a historical
+   *  replay that planned against day N's own close and then filled at that
+   *  same close had a lookahead problem — the "decision" already knew the
+   *  day's outcome. The backtest plans against the *prior* day's close
+   *  (passed to planRun as `refPrice`) and this override supplies the actual
+   *  trade-date close to fill at, so a real historical print — not the price
+   *  the decision was made from — is what slippage is computed against. */
+  executionPrices?: Readonly<Record<string, number>>,
 ): FilledOrder[] {
   return orders.map((o) => {
     const slippageBps = isMegaOrLargeCap(o.ticker) ? 5 : 15;
     const sign = o.side === "buy" ? 1 : -1;
-    const fillPrice = o.refPrice * (1 + (sign * slippageBps) / 10_000);
+    const basePrice = executionPrices?.[o.ticker] ?? o.refPrice;
+    const fillPrice = basePrice * (1 + (sign * slippageBps) / 10_000);
     const notional = o.quantity * fillPrice;
     const realizedPnl =
       o.side === "sell"

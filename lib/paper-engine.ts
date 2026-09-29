@@ -331,7 +331,24 @@ export async function runAccountSlot(
       const siblingSeats = TRADING_ACCOUNTS.filter((a): a is TradingAccount => a !== "chair");
       const siblingRuns = await Promise.all(siblingSeats.map((a) => getRun(a, tradeDate, slot)));
       const totalSeats = siblingRuns.filter((r) => r?.status === "ok").length;
-      const siblingOrders = await getSeatOrdersForSlot(tradeDate, slot, siblingSeats);
+      let siblingOrders: Awaited<ReturnType<typeof getSeatOrdersForSlot>>;
+      try {
+        siblingOrders = await getSeatOrdersForSlot(tradeDate, slot, siblingSeats);
+      } catch (err) {
+        // CodeRabbit review, PR #204 (F12 pattern): `totalSeats` above comes
+        // from getRun() and doesn't depend on this query, so a broken orders
+        // read would otherwise silently plan CHAIR with real totalSeats but
+        // zero votes — persisted as a normal `ok` run with no consensus
+        // trades and nothing recording why.
+        return persistSkippedRun(
+          runId,
+          account,
+          tradeDate,
+          slot,
+          dbAccount.policyVersion,
+          `votes_error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       const buyVotes = new Map<string, Set<PaperAccount>>();
       const sellVotes = new Map<string, Set<PaperAccount>>();
       for (const o of siblingOrders) {

@@ -654,9 +654,15 @@ export async function getScreenCandidates(
  * so in a normal full-account run all five have already committed by the time
  * this is called. A partial run (`?account=` filter, or a mid-run failure)
  * degrades gracefully to whatever subset has run — fewer votes, not a crash.
- * Degrades to `[]` on failure like this module's other reads: CHAIR falling
- * back to "no consensus, no trades" is the correct degraded behavior, not a
- * failure worth surfacing as a run-ending error.
+ *
+ * Deliberately rethrows on a genuine query failure rather than degrading to
+ * `[]` (CodeRabbit review, PR #204 — the same F12 pattern as
+ * `getScreenCandidates` above): `totalSeats` in the caller comes from a
+ * separate `getRun()` read that doesn't depend on this query, so a broken
+ * orders query would otherwise produce "5 seats reported, zero of them voted
+ * for anything" — persisted as a normal `ok` run with silent, wrong
+ * consensus, not a visible failure. The caller (lib/paper-engine.ts) catches
+ * this and persists a skipped run with reason `votes_error` instead.
  */
 export async function getSeatOrdersForSlot(
   tradeDate: string,
@@ -664,20 +670,16 @@ export async function getSeatOrdersForSlot(
   seats: PaperAccount[],
 ): Promise<{ account: PaperAccount; ticker: string; side: OrderSide }[]> {
   if (seats.length === 0) return [];
-  try {
-    const rows = await sql`
-      SELECT o.account, o.ticker, o.side
-      FROM paper_orders o
-      JOIN paper_runs r ON r.id = o.run_id
-      WHERE r.trade_date = ${tradeDate} AND r.slot = ${slot} AND r.status = 'ok'
-        AND o.account = ANY(${seats}::text[])
-    `;
-    return rows.map((r) => ({
-      account: r.account as PaperAccount,
-      ticker: r.ticker as string,
-      side: r.side as OrderSide,
-    }));
-  } catch {
-    return [];
-  }
+  const rows = await sql`
+    SELECT o.account, o.ticker, o.side
+    FROM paper_orders o
+    JOIN paper_runs r ON r.id = o.run_id
+    WHERE r.trade_date = ${tradeDate} AND r.slot = ${slot} AND r.status = 'ok'
+      AND o.account = ANY(${seats}::text[])
+  `;
+  return rows.map((r) => ({
+    account: r.account as PaperAccount,
+    ticker: r.ticker as string,
+    side: r.side as OrderSide,
+  }));
 }

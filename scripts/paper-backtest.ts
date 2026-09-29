@@ -325,10 +325,31 @@ async function main(): Promise<void> {
       const idx = bars.findIndex((b) => b.t.slice(0, 10) === tradeDate);
       if (idx >= 0) dayIndex.set(ticker, idx);
     }
-    const priceOf = new Map<string, number>();
-    for (const [ticker, idx] of dayIndex) priceOf.set(ticker, barsByTicker.get(ticker)![idx].c);
+    // CodeRabbit review, PR #204 (Major — lookahead): the original code
+    // computed each day's card from a window ending in that day's OWN bar,
+    // then used that same day's close as the price the plan traded against.
+    // That means the "signal" already knew the day's outcome before deciding
+    // to trade on it — not a realistic replay of a system that decides once
+    // and then executes. Planning (cards, MARK, sizing, stop checks, sector/
+    // turnover/cash-floor math — everything `prices` feeds into planRun/
+    // planChairConsensus) now uses the PRIOR day's close; only the actual
+    // fill (via fillOrders' executionPrices override) and the end-of-day
+    // mark-to-market use the trade-date's own close, matching how a
+    // real "decide after yesterday's close, execute today" system works.
+    // A ticker on its first available bar (idx === 0) has no prior close and
+    // is simply not planned that day — the same "no reference price" fallout
+    // planRun already has for any ticker with a missing price.
+    const executionPriceOf = new Map<string, number>();
+    const planningPriceOf = new Map<string, number>();
     const cardsOf = new Map<string, { t1: CardResult | null; t2: CardResult | null }>();
-    for (const [ticker, idx] of dayIndex) cardsOf.set(ticker, cardsAsOf(ticker, barsByTicker.get(ticker)!, idx));
+    for (const [ticker, idx] of dayIndex) {
+      const bars = barsByTicker.get(ticker)!;
+      executionPriceOf.set(ticker, bars[idx].c);
+      if (idx > 0) {
+        planningPriceOf.set(ticker, bars[idx - 1].c);
+        cardsOf.set(ticker, cardsAsOf(ticker, bars, idx - 1));
+      }
+    }
 
     // CHAIR reads the other five's fills for this exact day — computed after
     // this loop by re-deriving votes from the orders this day's loop writes.
@@ -341,9 +362,9 @@ async function main(): Promise<void> {
       const marked: EnginePosition[] = [...accountPositions.values()].map((p) => ({
         ...p,
         runsHeld: p.runsHeld + 1,
-        highWater: Math.max(p.highWater, priceOf.get(p.ticker) ?? p.avgCost),
+        highWater: Math.max(p.highWater, planningPriceOf.get(p.ticker) ?? p.avgCost),
       }));
-      const positionsMv = marked.reduce((s, p) => s + p.quantity * (priceOf.get(p.ticker) ?? p.avgCost), 0);
+      const positionsMv = marked.reduce((s, p) => s + p.quantity * (planningPriceOf.get(p.ticker) ?? p.avgCost), 0);
       const nav = cash.get(account)! + positionsMv;
       if (nav <= 0) continue;
 
@@ -351,7 +372,7 @@ async function main(): Promise<void> {
         .map((ticker) => ({ ticker, card: selectCard(cardsOf.get(ticker) ?? { t1: null, t2: null }, policy.cardHorizon) }))
         .filter((c) => c.card != null && c.card.dataQuality >= policy.dataQualityGate)
         .map((c) => ({ ticker: c.ticker, score: c.card!.score, tokens: c.card!.tokens, dataQuality: c.card!.dataQuality }));
-      const prices = Object.fromEntries(priceOf);
+      const prices = Object.fromEntries(planningPriceOf);
 
       let plan: { orders: ProposedOrder[]; turnoverUsed: number };
       if (account === "chair") {
@@ -398,7 +419,10 @@ async function main(): Promise<void> {
       const flagByTicker = new Map(flagged.map((f) => [f.order.ticker, f.flagReason]));
 
       const avgCostByTicker = new Map(marked.map((p) => [p.ticker, p.avgCost]));
-      const filled = fillOrders(plan.orders, avgCostByTicker); // no arbitration calls — see module doc
+      // executionPriceOf (trade-date close), not the planningPriceOf the plan
+      // was sized against — see the lookahead note above and fillOrders'
+      // own doc on this parameter. No arbitration calls — see module doc.
+      const filled = fillOrders(plan.orders, avgCostByTicker, Object.fromEntries(executionPriceOf));
 
       let newCash = cash.get(account)!;
       const newPositions = new Map(marked.map((p) => [p.ticker, { ...p }]));
@@ -440,7 +464,10 @@ async function main(): Promise<void> {
       for (const p of newPositions.values()) upsertPosition.run(account, p.ticker, p.quantity, p.avgCost, p.runsHeld, p.highWater);
       setCash.run(newCash, account);
 
-      const finalMv = [...newPositions.values()].reduce((s, p) => s + p.quantity * (priceOf.get(p.ticker) ?? p.avgCost), 0);
+      // End-of-day mark-to-market is an honest valuation snapshot taken
+      // AFTER today's move, not a planning input — the trade-date close is
+      // the correct number here, unlike everywhere above.
+      const finalMv = [...newPositions.values()].reduce((s, p) => s + p.quantity * (executionPriceOf.get(p.ticker) ?? p.avgCost), 0);
       const finalNav = newCash + finalMv;
       insertNav.run(tradeDate, account, newCash, finalMv, finalNav, nav > 0 ? finalNav / nav - 1 : null, finalNav / 10_000 - 1, plan.turnoverUsed);
     }

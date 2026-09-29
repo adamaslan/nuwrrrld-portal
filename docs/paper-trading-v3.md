@@ -802,20 +802,19 @@ cd ~/code/nuwrrrld-portal-paper-prices && rm -f backups/paper-backtest.sqlite &&
 ```
 
 **What it actually produced** (2026-08-28 → 2026-09-29, real closes, no cherry-picking).
-Re-run once after the CodeRabbit fixes below (§7.6.1) — the ranking and the
-overlap set are identical, the exact NAV figures moved by ~0.1-0.3 points
-because Alpaca's data for the still-open trading day changed between the two
-fetches (a live backtest is not perfectly reproducible run-to-run intraday;
-a fetch after the close would be):
+Re-run twice after review — see §7.6.1. The final numbers below are from the
+last run, after fixing a real lookahead bug review caught; the ranking
+changed more than cosmetically (T1 goes from best-turnover trader to worst,
+RISK stays clearly best):
 
 | Account | Return | Fills (buy/sell) |
 |---|---:|---:|
-| risk | **-0.35%** | 10 / 7 |
-| t1 | -0.98% | 40 / 16 |
-| chair | -1.67% | 17 / 2 |
-| t2 | -2.28% | 20 / 0 |
-| quant | -2.65% | 34 / 18 |
-| macro | -2.80% | 28 / 4 |
+| risk | **-0.12%** | 11 / 5 |
+| chair | -1.87% | 15 / 1 |
+| t2 | -2.40% | 20 / 0 |
+| quant | -2.53% | 37 / 19 |
+| macro | -3.10% | 26 / 5 |
+| t1 | -3.49% | 40 / 19 |
 
 Every account lost money over this window — a genuinely mixed month for the
 universe, not a result to spin. RISK's defensive tilt produced the smallest
@@ -823,7 +822,8 @@ loss, which is at least the right *ordering* even on a down month.
 
 ### 7.6.1 Fixed after CodeRabbit review on PR #204
 
-Two real bugs surfaced by review, fixed and re-verified before merge:
+Three real bugs surfaced by review, fixed and re-verified before merge — the
+third moved the numbers above:
 
 - **Every account was screening T1 scores, including T2/RISK/MACRO/QUANT/CHAIR.**
   `cardAsOf` hardcoded `buildCard(..., "t1", ...)` regardless of which horizon
@@ -840,6 +840,19 @@ Two real bugs surfaced by review, fixed and re-verified before merge:
   matters only for a partial run, which this backtest doesn't exercise. Fixed
   in `lib/shared/paper-engine-core.ts` for both the production engine and the
   backtest, which imports the same function.
+- **Lookahead: each day's card and plan were computed from a window ending in
+  that day's own bar, then filled at that same day's close.** The "signal"
+  already knew the day's outcome before deciding to trade on it. Fixed:
+  planning — the card, MARK, sizing, stop checks, sector/turnover/cash-floor
+  math — now uses the *prior* day's close; only the actual fill (a new
+  optional `executionPrices` parameter on `fillOrders`, unused by production,
+  where the live engine already plans and fills against the same intraday
+  read) and the end-of-day mark-to-market use the trade-date's own close.
+  **This one changed the results**, not just their precision: T1, the
+  highest-turnover trader, went from the best-performing account after RISK
+  (-0.98%) to the worst (-3.49%) — consistent with a fast-trading account
+  benefiting more than a patient one from unknowingly getting to peek at each
+  day's own close before deciding whether to trade on it.
 
 **The honest finding: F3's overlap survives, partially.** TMO, SO, LIN, GE and
 COP were each bought by **all 6** accounts at some point in the 22 days —
