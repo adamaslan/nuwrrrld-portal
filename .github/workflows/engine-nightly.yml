@@ -71,10 +71,10 @@ jobs:
             exit 1
           fi
           args=()
-          [ -n "${IN_BACKFILL}" ] && args+=("--backfill-days=${IN_BACKFILL}")
-          [ -n "${IN_FEED}" ] && args+=("--feed=${IN_FEED}")
-          [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}")
-          [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run")
+          [ -n "${IN_BACKFILL}" ] && args+=("--backfill-days=${IN_BACKFILL}") || true
+          [ -n "${IN_FEED}" ] && args+=("--feed=${IN_FEED}") || true
+          [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}") || true
+          [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run") || true
           node scripts/engine-bars.mjs "${args[@]}" 2>&1 | tee bars.log
 
       - name: Run the engine (shadow)
@@ -93,7 +93,9 @@ jobs:
           {
             echo "### Engine nightly"
             for f in bars.log run.log; do
-              [ -f "$f" ] && { echo ""; echo "\`$f\`"; echo '```'; grep -E '^\[(done|start)\]' "$f" || echo "(no summary line — did not finish)"; echo '```'; }
+              if [ -f "$f" ]; then
+                echo ""; echo "\`$f\`"; echo '```'; grep -E '^\[(done|start)\]' "$f" || echo "(no summary line — did not finish)"; echo '```'
+              fi
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
