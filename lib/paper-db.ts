@@ -664,6 +664,21 @@ export async function getScreenCandidates(
  * consensus, not a visible failure. The caller (lib/paper-engine.ts) catches
  * this and persists a skipped run with reason `votes_error` instead.
  */
+/**
+ * v4 stop cooldown (lib/shared/paper-engine-core.ts STOP_COOLDOWN_DAYS): the
+ * tickers `account` was stopped out of on or after `sinceTradeDate`. The
+ * holdings floor skips these so it can't quietly re-buy what a stop just sold.
+ */
+export async function getRecentlyStoppedTickers(account: PaperAccount, sinceTradeDate: string): Promise<Set<string>> {
+  const rows = await sql`
+    SELECT DISTINCT o.ticker
+    FROM paper_orders o
+    JOIN paper_runs r ON r.id = o.run_id
+    WHERE o.account = ${account} AND o.reason = 'stop' AND r.trade_date >= ${sinceTradeDate}
+  `;
+  return new Set(rows.map((r) => r.ticker as string));
+}
+
 export async function getSeatOrdersForSlot(
   tradeDate: string,
   slot: Slot,
@@ -676,6 +691,9 @@ export async function getSeatOrdersForSlot(
     JOIN paper_runs r ON r.id = o.run_id
     WHERE r.trade_date = ${tradeDate} AND r.slot = ${slot} AND r.status = 'ok'
       AND o.account = ANY(${seats}::text[])
+      -- v4: a floor fill restores a seat's starter book; it is construction,
+      -- not that seat's view on the name, so it never counts as a CHAIR vote.
+      AND o.reason <> 'core_fill'
   `;
   return rows.map((r) => ({
     account: r.account as PaperAccount,

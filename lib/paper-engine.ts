@@ -45,6 +45,7 @@ import {
   listActiveWatchlist,
   getScreenCandidates,
   getSeatOrdersForSlot,
+  getRecentlyStoppedTickers,
   updateRunDetail,
   countOrders,
   type Slot,
@@ -64,6 +65,7 @@ import {
 import {
   planRun,
   planChairConsensus,
+  stopCooldownStart,
   fillOrders,
   selectArbitrationCandidates,
   applyArbitrationResults,
@@ -73,6 +75,7 @@ import {
   type ConsensusVote,
 } from "@/lib/shared/paper-engine-core";
 import { buildTieBreak } from "@/lib/shared/paper-persona";
+import { coreBookFor } from "@/lib/shared/paper-core-books";
 import { arbitrateOne } from "@/lib/paper-arbitration";
 import { mirrorPaperAccount, mirrorWatchlistIfVersionChanged } from "@/lib/paper-firestore-mirror";
 import { reconcileAccount } from "@/lib/paper-reconcile";
@@ -293,11 +296,13 @@ export async function runAccountSlot(
   const nav = dbAccount.cash + positionsMv;
 
   let candidates: EngineCandidate[] = [];
+  let recentlyStopped = new Set<string>();
   if (tradingSlot && policy) {
     const horizons = horizonsFor(policy.cardHorizon);
     try {
       const screenRows = await getScreenCandidates(account, horizons, policy.dataQualityGate, barDate);
       candidates = reduceToScorePerTicker(screenRows);
+      recentlyStopped = await getRecentlyStoppedTickers(account, stopCooldownStart(tradeDate));
     } catch (err) {
       // F12 (docs/paper-trading-v3.md): a broken screen query must not look
       // like "nothing qualified this run" — that's a real, common outcome
@@ -363,7 +368,12 @@ export async function runAccountSlot(
         sellVotes: sellVotes.get(ticker)?.size ?? 0,
         totalSeats,
       }));
-      plan = planChairConsensus(policy, nav, dbAccount.cash, markedPositions, votes, activeWatchlist, tradeablePricesObj);
+      plan = planChairConsensus(policy, nav, dbAccount.cash, markedPositions, votes, activeWatchlist, tradeablePricesObj, {
+        coreBook: coreBookFor("chair"),
+        recentlyStopped,
+        candidates,
+        tieBreakSeed: tradeDate,
+      });
     } else {
       const tieBreak = buildTieBreak(account as TradingAccount, candidates);
       plan = planRun({
@@ -376,6 +386,7 @@ export async function runAccountSlot(
         prices: tradeablePricesObj,
         tieBreak,
         tieBreakSeed: tradeDate,
+        holdingsFloor: { coreBook: coreBookFor(account as TradingAccount), recentlyStopped },
       });
     }
   }
