@@ -45,10 +45,20 @@ Two instances of the same shell pattern in the workflow are fragile under
 
 Both are the same underlying hazard: a bare `cond && action` as a complete
 statement is not a safe idiom under `set -e` once the possibility of `cond`
-being false is real, because bash's exemption for commands inside `&&`/`||`
-lists does not reliably cover every position and shell version. This didn't
-surface in the "Store daily bars" step during the dry-run test only because
-that particular invocation happened to supply values for all four inputs.
+being false is real — but the two failed for different reasons tied to
+where each sits in the script, not to shell-version inconsistency. The
+Summarize step's `[ -f "$f" ] && { ...block... }` is the final statement
+the for-loop (and the script) executes; when `run.log` is absent, that
+AND-list's exit status becomes the last command's exit status, and that's
+what the loop, and then the step, reports. The four "Store daily bars"
+lines aren't the fatal path for a different reason: each is followed later
+in the same step by the `node ... | tee bars.log` pipeline, so it's that
+pipeline's exit status — not the optional-input tests' — that determines
+those steps' final result, whether or not any input was supplied. This
+didn't surface in the "Store daily bars" step during the dry-run test only
+because that particular invocation happened to supply values for all four
+inputs, but the fix was still correct: the unsafe idiom is there regardless
+of which run first exposes it.
 
 ## Resolution
 
