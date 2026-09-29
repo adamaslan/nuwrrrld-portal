@@ -257,8 +257,9 @@ whose max position weight exceeds its turnover cap (T2's 8% vs 3%); a
 stopped-out position immediately re-bought in the same run because the sell
 loop's `positionsByTicker.delete()` made the buy loop see it as unheld; a
 policy-version label that could read the account row's stamp instead of the
-code that actually ran (the 2026-09-26 trade executed v1 thresholds under a v2
-label, 2 seconds after a merge finished, before the Vercel alias had moved);
+code that actually ran (the trade_date=2026-09-28 order executed v1 thresholds
+under a v2 label — the route was hit 2026-09-29 UTC, 2 seconds after a merge
+finished, before the Vercel alias had moved);
 `live_prices` read with no staleness check at all; and every trading account
 converging on the same handful of names because ties broke alphabetically
 against a card distribution with only ~12 distinct score values.
@@ -286,7 +287,7 @@ cluster and flag every buy inside it as a "tie", not just a genuine one.
 wall-clock time at whatever moment GHA got around to starting the job — the
 old window-match gate mislabeled 6 of 8 runs as `settle` on 2026-09-28 alone.
 A new `GET /api/paper/version` route plus a deploy-wait step closes the exact
-gap that caused the mislabeled 2026-09-26 trade. Failure issues now
+gap that caused that mislabeled order. Failure issues now
 find-or-comment on an existing open issue instead of opening a new one every
 time — 35 open near-duplicates had accumulated by 2026-09-29, all the same
 pre-#188 defect.

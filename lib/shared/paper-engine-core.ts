@@ -535,8 +535,13 @@ export function planChairConsensus(
 
   for (const v of buyCandidates) {
     const price = prices[v.ticker]!;
-    // §3: 5% of NAV, scaled by how many of the (up to) 5 seats agreed.
-    const votedWeight = 0.05 * (v.buyVotes / 5);
+    // §3: 5% of NAV, scaled by the agreement fraction. CodeRabbit review, PR
+    // #204: dividing by a hard-coded 5 disagreed with the consensus filter
+    // above, which uses v.totalSeats — under a partial run (fewer than 5
+    // seats reported), 3-of-3 agreement passed the filter as 100% consensus
+    // but sized as if only 3 of 5 had agreed (3%, not 5%). Same denominator
+    // as the filter now.
+    const votedWeight = 0.05 * (v.buyVotes / v.totalSeats);
     const addWeight = Math.min(votedWeight, policy.maxPositionWeight - positionWeight(v.ticker));
     if (addWeight <= 0) continue;
     let notional = addWeight * nav;

@@ -37,8 +37,10 @@
 import { DatabaseSync } from "node:sqlite";
 import {
   planRun,
+  planChairConsensus,
   fillOrders,
   selectArbitrationCandidates,
+  type ConsensusVote,
   type EngineCandidate,
   type EnginePosition,
   type ProposedOrder,
@@ -50,6 +52,7 @@ import {
   type PaperPolicy,
   type TradingAccount,
 } from "../lib/shared/paper-policy";
+import { buildTieBreak } from "../lib/shared/paper-persona";
 import { sectorFor } from "../lib/shared/paper-sectors";
 
 /** `TRADING_ACCOUNTS` is declared `PaperAccount[]` (it lives alongside the
@@ -387,7 +390,13 @@ function hoursOld(tradedAt: string | undefined, now: number): number | null {
   return Number.isFinite(ms) ? (now - ms) / 3_600_000 : null;
 }
 
-function planFor(state: AccountState, source: Source, mode: "current" | "v3", now: number): BotPlan {
+function planFor(
+  state: AccountState,
+  source: Source,
+  mode: "current" | "v3",
+  now: number,
+  chairVotes?: ConsensusVote[],
+): BotPlan {
   const policy = policyFor(state.account, mode);
   const activeWatchlist = new Set(state.watchlist);
   const prices: Record<string, number> = {};
@@ -399,7 +408,7 @@ function planFor(state: AccountState, source: Source, mode: "current" | "v3", no
   const candidates: EngineCandidate[] = state.watchlist
     .map((ticker) => ({ ticker, card: state.cards.get(ticker) }))
     .filter((c) => c.card != null && c.card.dataQuality >= policy.dataQualityGate)
-    .map((c) => ({ ticker: c.ticker, score: c.card!.score }));
+    .map((c) => ({ ticker: c.ticker, score: c.card!.score, tokens: c.card!.tokens, dataQuality: c.card!.dataQuality }));
 
   // MARK, as lib/paper-engine.ts does it before planning.
   const marked: EnginePosition[] = state.positions.map((p) => ({
@@ -410,15 +419,27 @@ function planFor(state: AccountState, source: Source, mode: "current" | "v3", no
   const positionsMv = marked.reduce((sum, p) => sum + p.quantity * (prices[p.ticker] ?? p.avgCost), 0);
   const nav = state.cash + positionsMv;
 
-  const plan = planRun({
-    policy,
-    nav,
-    cash: state.cash,
-    positions: marked,
-    candidates,
-    activeWatchlist,
-    prices,
-  });
+  // CodeRabbit review, PR #204: CHAIR is planned through planChairConsensus in
+  // production, never planRun — its buyThreshold field is unused for
+  // decisions (lib/shared/paper-policy.ts's own comment on it). Printing a
+  // planRun-with-threshold result for CHAIR was not the engine's actual plan.
+  // Every other account gets its persona tie-break (lib/shared/paper-persona.ts)
+  // and the same trade_date-seeded hash fallback production uses, instead of
+  // the plain alphabetical order this script fell back to before.
+  const plan =
+    state.account === "chair"
+      ? planChairConsensus(policy, nav, state.cash, marked, chairVotes ?? [], activeWatchlist, prices)
+      : planRun({
+          policy,
+          nav,
+          cash: state.cash,
+          positions: marked,
+          candidates,
+          activeWatchlist,
+          prices,
+          tieBreak: buildTieBreak(state.account, candidates),
+          tieBreakSeed: source.barDate,
+        });
 
   const scores = new Map(candidates.map((c) => [c.ticker, c.score]));
   const arbitration = selectArbitrationCandidates(
@@ -502,7 +523,7 @@ function ticketText(account: TradingAccount, t: Ticket, policy: PaperPolicy): st
             : card;
   const tie =
     t.tiedWith.length > 0
-      ? `Picked over ${t.tiedWith.length} name(s) tied at ${t.score}: ${t.tiedWith.slice(0, 6).join(", ")}${t.tiedWith.length > 6 ? "…" : ""} — tie-break: alphabetical (v3: persona rule).`
+      ? `Picked over ${t.tiedWith.length} name(s) tied at ${t.score}: ${t.tiedWith.slice(0, 6).join(", ")}${t.tiedWith.length > 6 ? "…" : ""} — tie-break: this seat's persona rule, then a trade_date-seeded hash (lib/shared/paper-persona.ts).`
       : "No tie at this score.";
   return [
     `${account.toUpperCase()} ${t.side}s ${t.ticker} — ${t.pctNav.toFixed(1)}% of NAV at $${t.fillPrice.toFixed(2)} (${t.slippageBps} bps).`,
@@ -520,14 +541,14 @@ function ticketText(account: TradingAccount, t: Ticket, policy: PaperPolicy): st
 
 /** §4.3/§4.2: a paste-into-Claude bundle. Facts only — the chat supplies the
  *  voice, and the number lint in §4.3 is what keeps it honest. */
-function promptBundle(kind: "diary" | "arbitration", plans: BotPlan[], source: Source): string {
+function promptBundle(kind: "diary" | "arbitration", plans: BotPlan[], source: Source, args: Args): string {
   const out: string[] = [];
   out.push(`# paper-sim facts — source ${source.label}, bar_date ${source.barDate}`);
   out.push(
     `\nThese are the ONLY numbers you may use. Do not introduce any number that does not appear below.\n`,
   );
   for (const p of plans) {
-    const policy = PAPER_POLICY[p.account];
+    const policy = policyFor(p.account, args.policy);
     out.push(`\n## ${p.account.toUpperCase()}  (NAV $${p.nav.toFixed(2)}, cash $${p.cash.toFixed(2)})`);
     out.push(
       `- buy threshold ${p.buyThreshold}; ${p.eligible.length} names eligible; turnover ${p.turnoverPct.toFixed(1)}% of a ${(policy.maxTurnoverPerRun * 100).toFixed(0)}% cap`,
@@ -558,13 +579,48 @@ async function main(): Promise<void> {
 
     const now = Date.now();
     const wanted = args.account ? [args.account] : TRADING;
-    const plans = wanted
+
+    // CHAIR always reads the other five seats' own fills (planChairConsensus
+    // in lib/shared/paper-engine-core.ts) — production gets this from
+    // committed orders for the exact slot; this simulator has no run to read
+    // back, so it computes the five siblings' plans first, regardless of
+    // `wanted`, the same way production always has all five committed by the
+    // time CHAIR's turn comes in PAPER_ACCOUNTS order.
+    const siblingAccounts = TRADING.filter((a) => a !== "chair");
+    const siblingPlans = siblingAccounts
       .map((a) => source.accounts.get(a))
       .filter((s): s is AccountState => s != null)
       .map((s) => planFor(s, source, args.policy, now));
+    const buyVotes = new Map<string, Set<string>>();
+    const sellVotes = new Map<string, Set<string>>();
+    for (const sp of siblingPlans) {
+      for (const t of sp.tickets) {
+        const bucket = t.side === "buy" ? buyVotes : sellVotes;
+        if (!bucket.has(t.ticker)) bucket.set(t.ticker, new Set());
+        bucket.get(t.ticker)!.add(sp.account);
+      }
+    }
+    const chairTickers = new Set([...buyVotes.keys(), ...sellVotes.keys()]);
+    const chairVotes: ConsensusVote[] = [...chairTickers].map((ticker) => ({
+      ticker,
+      buyVotes: buyVotes.get(ticker)?.size ?? 0,
+      sellVotes: sellVotes.get(ticker)?.size ?? 0,
+      totalSeats: siblingAccounts.length,
+    }));
+
+    const plans = wanted
+      .map((a) => {
+        if (a === "chair") {
+          const chairState = source.accounts.get(a);
+          return chairState ? planFor(chairState, source, args.policy, now, chairVotes) : undefined;
+        }
+        // Reuse the already-computed sibling plan instead of recomputing it.
+        return siblingPlans.find((sp) => sp.account === a);
+      })
+      .filter((p): p is BotPlan => p != null);
 
     if (args.prompt) {
-      process.stdout.write(promptBundle(args.prompt, plans, source) + "\n");
+      process.stdout.write(promptBundle(args.prompt, plans, source, args) + "\n");
       return;
     }
     if (args.json) {
@@ -615,7 +671,7 @@ async function main(): Promise<void> {
       process.stdout.write(`\n── trade tickets ──\n`);
       for (const p of plans) {
         for (const t of p.tickets) {
-          process.stdout.write(`\n  ${ticketText(p.account, t, PAPER_POLICY[p.account])}\n`);
+          process.stdout.write(`\n  ${ticketText(p.account, t, policyFor(p.account, args.policy))}\n`);
         }
       }
     }

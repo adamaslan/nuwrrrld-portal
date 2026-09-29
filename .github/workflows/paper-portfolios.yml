@@ -117,11 +117,31 @@ jobs:
             # runs as `settle` on 2026-09-28 alone — every one of them fired
             # inside a *different* slot's own cron but landed after that
             # slot's window had already rolled into the next one.
+            #
+            # CodeRabbit review, PR #204: matching EITHER cron in a pair to
+            # the same slot regardless of season reintroduced the exact bug
+            # this fix was meant to close, in the other direction — every
+            # slot would now fire TWICE a day (once at the correct NY time,
+            # once an hour off), because both the EST and EDT cron for a slot
+            # match year-round and there was nothing left to reject the
+            # off-season one. `paper_runs`' idempotency absorbed the second
+            # fire as `alreadyRan` rather than double-trading, but it still
+            # doubled the GHA runs and API calls every slot, every day — the
+            # exact "off-season entry is a no-op" behavior the original
+            # wall-clock gate provided and this rewrite dropped. Fixed by
+            # validating the cron against NY's *currently active* UTC offset:
+            # only the cron matching today's real DST state resolves to a
+            # slot; the other one now correctly falls through to SLOT="".
+            NY_OFFSET=$(TZ="America/New_York" date +%z)  # "-0500" (EST) or "-0400" (EDT)
             case "$FIRED_CRON" in
-              '0 14 * * 1-5'|'0 13 * * 1-5')   SLOT="preopen"  ;;
-              '30 17 * * 1-5'|'30 16 * * 1-5') SLOT="midday"   ;;
-              '45 20 * * 1-5'|'45 19 * * 1-5') SLOT="preclose" ;;
-              '30 21 * * 1-5'|'30 20 * * 1-5') SLOT="settle"   ;;
+              '0 14 * * 1-5')   [[ "$NY_OFFSET" == "-0500" ]] && SLOT="preopen"  ;;
+              '0 13 * * 1-5')   [[ "$NY_OFFSET" == "-0400" ]] && SLOT="preopen"  ;;
+              '30 17 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="midday"   ;;
+              '30 16 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="midday"   ;;
+              '45 20 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="preclose" ;;
+              '45 19 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="preclose" ;;
+              '30 21 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="settle"   ;;
+              '30 20 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="settle"   ;;
               *) SLOT="" ;;
             esac
           else
@@ -162,9 +182,15 @@ jobs:
             declare -A SLOT_START=( [preopen]=$((9*60)) [midday]=$((12*60+30)) [preclose]=$((15*60+45)) [settle]=$((16*60+30)) )
             START=${SLOT_START[$SLOT]}
             LATE_MINUTES=$(( NY_MIN - START ))
-            if (( LATE_MINUTES > 60 )); then
+            # CodeRabbit review, PR #204: an explicit manual dispatch BEFORE a
+            # slot's own start (e.g. "midday" fired at 09:00 ET) produced a
+            # negative LATE_MINUTES, which is not > 60 and so was reported as
+            # on-time — the opposite of what the comment above promises. Both
+            # directions count as outside the intended window; only a
+            # same-side-or-later dispatch within 60 minutes stays on-time.
+            if (( LATE_MINUTES > 60 || LATE_MINUTES < 0 )); then
               echo "late=true" >> "$GITHUB_OUTPUT"
-              echo "Slot '${SLOT}' is ${LATE_MINUTES} minutes past its intended start — flagging as late."
+              echo "Slot '${SLOT}' is ${LATE_MINUTES} minutes from its intended start — flagging as outside the window."
             else
               echo "late=false" >> "$GITHUB_OUTPUT"
             fi
@@ -222,7 +248,17 @@ jobs:
             fi
             sleep 10
           done
-          echo "::warning::Deployed commit (${LIVE_SHA:-unknown}) still doesn't match ${{ github.sha }} after 5 minutes — proceeding anyway; the run's policy_version_mismatch detail will record whichever version actually served this request."
+          # CodeRabbit review, PR #204: this step exists specifically to
+          # prevent a run executing against a still-rolling-out deploy (F2 —
+          # the exact failure this poll was added to close). Warning and
+          # proceeding anyway permits that failure whenever a deploy is
+          # unusually slow or stuck; failing the job is the correct default
+          # for a scheduled job that writes real (paper) capital state — an
+          # operator can re-dispatch this exact slot once the deploy catches
+          # up (paper_runs' idempotency makes that safe: a slot that never
+          # ran has nothing to double-run).
+          echo "::error::Deployed commit (${LIVE_SHA:-unknown}) still doesn't match ${{ github.sha }} after 5 minutes — refusing to run against a deploy that may not have finished rolling out. Re-dispatch this slot once the deploy is live."
+          exit 1
 
       - name: Refresh live_prices from Alpaca (IEX latest trades)
         continue-on-error: true

@@ -194,13 +194,22 @@ async function fetchDailyBars(tickers: string[]): Promise<Map<string, Bar[]>> {
 
 // ── card computation for one ticker as of one historical day ───────────────
 
-function cardAsOf(
-  ticker: string,
-  bars: Bar[],
-  asOfIndex: number, // inclusive — bars[0..asOfIndex] is all the history "known" that day
-): { score: number; dataQuality: number; tokens: Record<string, string>; action: string } | null {
+type CardResult = { score: number; dataQuality: number; tokens: Record<string, string>; action: string };
+
+/**
+ * Cards for BOTH horizons as of one historical day. CodeRabbit review, PR
+ * #204: this used to hardcode "t1" regardless of which horizon the calling
+ * account actually reads, silently making every account screen on T1 scores
+ * — removing the one structural difference between, say, T1 and T2 that this
+ * backtest could have shown. (In this codebase's current scoring, `horizon`
+ * only labels the card's tokens/state-key — scoreCard() itself never reads
+ * it, so t1Card and t2Card are numerically identical today; that is F4, a
+ * separate documented production gap, not something to paper over here by
+ * only ever computing one of them.)
+ */
+function cardsAsOf(ticker: string, bars: Bar[], asOfIndex: number): { t1: CardResult | null; t2: CardResult | null } {
   const window = bars.slice(0, asOfIndex + 1);
-  if (window.length < 60) return null; // MIN_USEFUL_BARS from card-policy.ts
+  if (window.length < 60) return { t1: null, t2: null }; // MIN_USEFUL_BARS from card-policy.ts
   const close = window.map((b) => b.c);
   const high = window.map((b) => b.h);
   const low = window.map((b) => b.l);
@@ -223,8 +232,21 @@ function cardAsOf(
     direction: confluenceResult.direction,
   };
   const frameStats: FrameStats = { barCount: window.length, nanRatio: 0, staleTradingDays: 0 };
-  const card = buildCard(ticker, "stock", input, "t1", frameStats);
-  return { score: card.score, dataQuality: card.dataQuality, tokens: card.tokens as unknown as Record<string, string>, action: card.action };
+  const toResult = (horizon: "t1" | "t2"): CardResult => {
+    const card = buildCard(ticker, "stock", input, horizon, frameStats);
+    return { score: card.score, dataQuality: card.dataQuality, tokens: card.tokens as unknown as Record<string, string>, action: card.action };
+  };
+  return { t1: toResult("t1"), t2: toResult("t2") };
+}
+
+/** Select the score an account's own `cardHorizon` would actually read —
+ *  same "both -> higher of the two" convention as
+ *  lib/paper-engine.ts's reduceToScorePerTicker in production. */
+function selectCard(cards: { t1: CardResult | null; t2: CardResult | null }, horizon: "t1" | "t2" | "both"): CardResult | null {
+  if (horizon === "t1") return cards.t1;
+  if (horizon === "t2") return cards.t2;
+  if (cards.t1 && cards.t2) return cards.t1.score >= cards.t2.score ? cards.t1 : cards.t2;
+  return cards.t1 ?? cards.t2;
 }
 
 // ── local sqlite output ──────────────────────────────────────────────────────
@@ -305,8 +327,8 @@ async function main(): Promise<void> {
     }
     const priceOf = new Map<string, number>();
     for (const [ticker, idx] of dayIndex) priceOf.set(ticker, barsByTicker.get(ticker)![idx].c);
-    const cardOf = new Map<string, ReturnType<typeof cardAsOf>>();
-    for (const [ticker, idx] of dayIndex) cardOf.set(ticker, cardAsOf(ticker, barsByTicker.get(ticker)!, idx));
+    const cardsOf = new Map<string, { t1: CardResult | null; t2: CardResult | null }>();
+    for (const [ticker, idx] of dayIndex) cardsOf.set(ticker, cardsAsOf(ticker, barsByTicker.get(ticker)!, idx));
 
     // CHAIR reads the other five's fills for this exact day — computed after
     // this loop by re-deriving votes from the orders this day's loop writes.
@@ -326,7 +348,7 @@ async function main(): Promise<void> {
       if (nav <= 0) continue;
 
       const candidates: EngineCandidate[] = [...watchlist]
-        .map((ticker) => ({ ticker, card: cardOf.get(ticker) }))
+        .map((ticker) => ({ ticker, card: selectCard(cardsOf.get(ticker) ?? { t1: null, t2: null }, policy.cardHorizon) }))
         .filter((c) => c.card != null && c.card.dataQuality >= policy.dataQualityGate)
         .map((c) => ({ ticker: c.ticker, score: c.card!.score, tokens: c.card!.tokens, dataQuality: c.card!.dataQuality }));
       const prices = Object.fromEntries(priceOf);

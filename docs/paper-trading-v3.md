@@ -801,20 +801,45 @@ day. It writes only to a local SQLite file; nothing here touches Neon.
 cd ~/code/nuwrrrld-portal-paper-prices && rm -f backups/paper-backtest.sqlite &&   npx -y tsx --env-file=../nuwrrrld-portal/.env.local scripts/paper-backtest.ts   --watchlists=backups/paper-local.sqlite --days=22 --out=backups/paper-backtest.sqlite
 ```
 
-**What it actually produced** (2026-08-28 → 2026-09-29, real closes, no cherry-picking):
+**What it actually produced** (2026-08-28 → 2026-09-29, real closes, no cherry-picking).
+Re-run once after the CodeRabbit fixes below (§7.6.1) — the ranking and the
+overlap set are identical, the exact NAV figures moved by ~0.1-0.3 points
+because Alpaca's data for the still-open trading day changed between the two
+fetches (a live backtest is not perfectly reproducible run-to-run intraday;
+a fetch after the close would be):
 
 | Account | Return | Fills (buy/sell) |
 |---|---:|---:|
-| risk | **-0.39%** | 10 / 7 |
-| t1 | -1.28% | 39 / 15 |
-| chair | -1.81% | 17 / 3 |
-| t2 | -2.53% | 20 / 0 |
-| quant | -2.83% | 34 / 18 |
-| macro | -3.06% | 28 / 4 |
+| risk | **-0.35%** | 10 / 7 |
+| t1 | -0.98% | 40 / 16 |
+| chair | -1.67% | 17 / 2 |
+| t2 | -2.28% | 20 / 0 |
+| quant | -2.65% | 34 / 18 |
+| macro | -2.80% | 28 / 4 |
 
 Every account lost money over this window — a genuinely mixed month for the
 universe, not a result to spin. RISK's defensive tilt produced the smallest
 loss, which is at least the right *ordering* even on a down month.
+
+### 7.6.1 Fixed after CodeRabbit review on PR #204
+
+Two real bugs surfaced by review, fixed and re-verified before merge:
+
+- **Every account was screening T1 scores, including T2/RISK/MACRO/QUANT/CHAIR.**
+  `cardAsOf` hardcoded `buildCard(..., "t1", ...)` regardless of which horizon
+  the calling account's policy actually reads. Fixed: `cardsAsOf` now computes
+  both horizons and each account selects via its own `cardHorizon`, matching
+  `lib/paper-engine.ts`'s production selection exactly (`"both"` takes the
+  higher of the two). This makes **no numeric difference today** — F4 already
+  established that `t1` and `t2` cards are token-for-token identical in this
+  codebase's current scoring — but the backtest no longer silently assumes
+  that will always stay true.
+- **CHAIR's consensus sizing used a hard-coded /5 instead of the actual number
+  of seats that reported.** Under a full 6-account run this never showed up
+  (5 siblings always report), so it didn't move any of the numbers above; it
+  matters only for a partial run, which this backtest doesn't exercise. Fixed
+  in `lib/shared/paper-engine-core.ts` for both the production engine and the
+  backtest, which imports the same function.
 
 **The honest finding: F3's overlap survives, partially.** TMO, SO, LIN, GE and
 COP were each bought by **all 6** accounts at some point in the 22 days —
