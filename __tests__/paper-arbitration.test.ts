@@ -33,3 +33,38 @@ describe("parseArbitrationResponse", () => {
     expect(parseArbitrationResponse(raw)).toEqual({ action: "confirm" });
   });
 });
+
+describe("parseArbitrationResponse — why (docs/paper-trading-v3.md §4.2/F8)", () => {
+  it("extracts why alongside the action", () => {
+    const raw = '{"action":"veto","why":"correlated with two names already held"}';
+    expect(parseArbitrationResponse(raw)).toEqual({
+      action: "veto",
+      why: "correlated with two names already held",
+    });
+  });
+
+  it("extracts why on a downsize too", () => {
+    const raw = '{"action":"downsize","downsize_pct":0.5,"why":"toss-up, size cut for safety"}';
+    expect(parseArbitrationResponse(raw)).toEqual({
+      action: "downsize",
+      downsizePct: 0.5,
+      why: "toss-up, size cut for safety",
+    });
+  });
+
+  it("omits why when absent, rather than inventing a placeholder", () => {
+    const result = parseArbitrationResponse('{"action":"confirm"}');
+    expect(result.why).toBeUndefined();
+  });
+
+  it("truncates a why that ignores the length instruction rather than trusting it", () => {
+    const longWhy = "x".repeat(500);
+    const result = parseArbitrationResponse(`{"action":"confirm","why":"${longWhy}"}`);
+    expect(result.why?.length).toBeLessThanOrEqual(240);
+  });
+
+  it("ignores a non-string why", () => {
+    const result = parseArbitrationResponse('{"action":"confirm","why":12345}');
+    expect(result.why).toBeUndefined();
+  });
+});

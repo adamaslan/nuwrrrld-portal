@@ -590,14 +590,6 @@ export async function getModelCallsToday(tradeDate: string): Promise<number> {
 
 // ── Screening (SCREEN, §4.2 step 3) ─────────────────────────────────────────
 
-export interface ScreenRow {
-  ticker: string;
-  horizon: Horizon;
-  score: number;
-  dataQuality: number;
-  barDate: string;
-}
-
 /**
  * `ticker_cards` for one account's active watchlist, restricted to the
  * horizon(s) its policy reads and the fresh `bar_date` the caller already
@@ -610,28 +602,80 @@ export interface ScreenRow {
  * reduces them to one score (this module has no opinion on how — that's
  * RANK's job in lib/shared/paper-engine-core.ts's caller).
  */
+export interface ScreenRow {
+  ticker: string;
+  horizon: Horizon;
+  score: number;
+  dataQuality: number;
+  barDate: string;
+  tokens: Record<string, string>;
+}
+
+/**
+ * Deliberately rethrows rather than degrading to `[]` (docs/paper-trading-v3.md
+ * F12): an empty candidate list from a broken query and an empty list from a
+ * genuinely quiet screen are the same shape to every caller downstream, and
+ * only the query itself knows which one happened. This is the one read in the
+ * module with exactly one caller (lib/paper-engine.ts), which wraps it and
+ * turns a thrown error into an explicit `skip_reason: 'screen_error'` instead
+ * of silently proceeding as if nothing qualified.
+ */
 export async function getScreenCandidates(
   account: PaperAccount,
   horizons: Horizon[],
   dataQualityGate: number,
   barDate: string,
 ): Promise<ScreenRow[]> {
+  const rows = await sql`
+    SELECT c.ticker, c.horizon, c.score, c.data_quality, c.bar_date, c.tokens
+    FROM ticker_cards c
+    JOIN paper_watchlists w
+      ON w.account = ${account} AND w.ticker = c.ticker AND w.active
+    WHERE c.horizon = ANY(${horizons}::text[])
+      AND c.data_quality >= ${dataQualityGate}
+      AND c.bar_date = ${barDate}
+  `;
+  return rows.map((r) => ({
+    ticker: r.ticker as string,
+    horizon: r.horizon as Horizon,
+    score: Number(r.score),
+    dataQuality: Number(r.data_quality),
+    barDate: String(r.bar_date),
+    tokens: (r.tokens as Record<string, string>) ?? {},
+  }));
+}
+
+/**
+ * The other five trading seats' fills for one (trade_date, slot) — the input
+ * to CHAIR's consensus rule (docs/paper-trading-v3.md §3: "buys when >=3 of 5
+ * seats proposed it"). Reads committed orders only, so it only ever sees a
+ * seat's decision once that seat's own transaction has landed; CHAIR is run
+ * last among the trading accounts (PAPER_ACCOUNTS order in paper-policy.ts),
+ * so in a normal full-account run all five have already committed by the time
+ * this is called. A partial run (`?account=` filter, or a mid-run failure)
+ * degrades gracefully to whatever subset has run — fewer votes, not a crash.
+ * Degrades to `[]` on failure like this module's other reads: CHAIR falling
+ * back to "no consensus, no trades" is the correct degraded behavior, not a
+ * failure worth surfacing as a run-ending error.
+ */
+export async function getSeatOrdersForSlot(
+  tradeDate: string,
+  slot: Slot,
+  seats: PaperAccount[],
+): Promise<{ account: PaperAccount; ticker: string; side: OrderSide }[]> {
+  if (seats.length === 0) return [];
   try {
     const rows = await sql`
-      SELECT c.ticker, c.horizon, c.score, c.data_quality, c.bar_date
-      FROM ticker_cards c
-      JOIN paper_watchlists w
-        ON w.account = ${account} AND w.ticker = c.ticker AND w.active
-      WHERE c.horizon = ANY(${horizons}::text[])
-        AND c.data_quality >= ${dataQualityGate}
-        AND c.bar_date = ${barDate}
+      SELECT o.account, o.ticker, o.side
+      FROM paper_orders o
+      JOIN paper_runs r ON r.id = o.run_id
+      WHERE r.trade_date = ${tradeDate} AND r.slot = ${slot} AND r.status = 'ok'
+        AND o.account = ANY(${seats}::text[])
     `;
     return rows.map((r) => ({
+      account: r.account as PaperAccount,
       ticker: r.ticker as string,
-      horizon: r.horizon as Horizon,
-      score: Number(r.score),
-      dataQuality: Number(r.data_quality),
-      barDate: String(r.bar_date),
+      side: r.side as OrderSide,
     }));
   } catch {
     return [];

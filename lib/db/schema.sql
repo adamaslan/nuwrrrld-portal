@@ -759,6 +759,38 @@ CREATE TABLE IF NOT EXISTS paper_nav (
   PRIMARY KEY (account, trade_date, slot)
 );
 
+-- paper_journal (docs/paper-trading-v3.md §4.3/§4.4, PR F) — one settle-slot
+-- diary per account per day, plus CHAIR's weekly letter. Written by facts
+-- computed deterministically from paper_runs/paper_orders/paper_nav; the
+-- model only supplies `body`'s prose, and only from those facts (§4.3's
+-- "number lint": nothing in `body` may cite a number that isn't in `facts`).
+-- `body` is NULL when the lint fails, and the page falls back to rendering
+-- `facts` directly rather than showing an unverified number.
+--
+-- NOT YET WRITTEN TO IN PRODUCTION as of this migration: the automation that
+-- calls a model and populates this table (§4.3/§4.4) is scoped but not
+-- shipped in this PR — see scripts/paper-sim.ts --prompt=diary for the
+-- interim, manual way to produce the same facts bundle today. This table
+-- exists now so that follow-up can land as an additive PR against a schema
+-- that already has it, rather than bundling a schema change with the
+-- automation itself.
+CREATE TABLE IF NOT EXISTS paper_journal (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  account      text        NOT NULL REFERENCES paper_accounts (account) ON DELETE CASCADE,
+  trade_date   date        NOT NULL,
+  kind         text        NOT NULL CHECK (kind IN ('diary', 'weekly_letter')),
+  facts        jsonb       NOT NULL,             -- the deterministic numbers `body` may cite
+  body         text,                              -- the model's prose; NULL if the number lint failed
+  model        text,                              -- which model wrote `body`, null if lint failed before storage
+  lint_failed  boolean     NOT NULL DEFAULT false,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  -- One diary per account per day; CHAIR's weekly_letter also keys off
+  -- trade_date (the settle trade_date it was written on), so the same uniqueness
+  -- shape covers both kinds without a separate table.
+  UNIQUE (account, trade_date, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_paper_journal_account_date ON paper_journal (account, trade_date DESC);
+
 -- ── Signal engine (lib/engine; homebase harness/CLOUD-ENGINE.md Phase 1) ────
 -- Written only by /api/pipeline/daily-bars, /api/pipeline/engine-run and
 -- /api/pipeline/engine-label. In `shadow` mode nothing user-facing reads the

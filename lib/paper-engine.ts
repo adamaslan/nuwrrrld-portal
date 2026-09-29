@@ -37,13 +37,14 @@
 import { randomUUID } from "node:crypto";
 import sql from "@/lib/db";
 import { latestCardBarDate } from "@/lib/ticker-cards-db";
-import { getLivePrices } from "@/lib/live-price-db";
+import { getLivePricesWithAge } from "@/lib/live-price-db";
 import {
   getAccount,
   getPositions,
   getRun,
   listActiveWatchlist,
   getScreenCandidates,
+  getSeatOrdersForSlot,
   updateRunDetail,
   countOrders,
   type Slot,
@@ -54,23 +55,37 @@ import {
   isTradingAccount,
   policyFor,
   ACCOUNT_SEAT,
+  PAPER_POLICY_VERSION,
+  TRADING_ACCOUNTS,
   type PaperAccount,
+  type PaperPolicy,
   type TradingAccount,
 } from "@/lib/shared/paper-policy";
 import {
   planRun,
+  planChairConsensus,
   fillOrders,
   selectArbitrationCandidates,
   applyArbitrationResults,
   type EngineCandidate,
   type EnginePosition,
   type ArbitrationResult,
+  type ConsensusVote,
 } from "@/lib/shared/paper-engine-core";
+import { buildTieBreak } from "@/lib/shared/paper-persona";
 import { arbitrateOne } from "@/lib/paper-arbitration";
 import { mirrorPaperAccount, mirrorWatchlistIfVersionChanged } from "@/lib/paper-firestore-mirror";
 import { reconcileAccount } from "@/lib/paper-reconcile";
 import { computeMetricsForAccount } from "@/lib/paper-metrics";
 import type { Horizon } from "@/lib/grounding/taxonomy";
+
+/** A reference price older than this is not trusted for a fill
+ *  (docs/paper-trading-v3.md F7/§5.1.2). 30 minutes for the four trading
+ *  slots — long enough to absorb the price-push step's own latency, short
+ *  enough that a genuinely stale feed (a missed refresh, a dead cron) is
+ *  caught before it fills at yesterday's number. Settle never trades, so it
+ *  has no analogous risk and is not gated by this at all. */
+const MAX_PRICE_AGE_MINUTES = 30;
 
 /** Shared, mutable across every account in one route call — the
  *  ≤36-calls-per-run-across-all-accounts ceiling (§4.2) has to be enforced
@@ -86,6 +101,12 @@ export interface RunAccountSlotOptions {
    *  degrades to deterministic-only rather than failing (guardrail #4). */
   apiKey?: string;
   globalBudget?: ModelCallBudget;
+  /** Set by the caller (app/api/pipeline/paper-portfolios/route.ts's `?late=`)
+   *  when this slot is starting well past its intended window
+   *  (docs/paper-trading-v3.md F6/§5.2). Recorded on the run's detail;
+   *  see this option's own doc on the route for what it does and doesn't
+   *  change about trading behavior yet. */
+  late?: boolean;
 }
 
 export interface RunResult {
@@ -110,14 +131,50 @@ function horizonsFor(cardHorizon: "t1" | "t2" | "both"): Horizon[] {
 /** Reduce possibly-two-horizon screen rows to one score per ticker. For
  *  `'both'` accounts (quant, chair) this takes the higher of the two —
  *  documented simplification (module doc header) rather than a designed
- *  blending function, since §3 doesn't specify one. */
-function reduceToScorePerTicker(rows: { ticker: string; score: number }[]): EngineCandidate[] {
-  const best = new Map<string, number>();
+ *  blending function, since §3 doesn't specify one. Carries the winning row's
+ *  tokens/dataQuality along too, so persona tie-breaks (lib/shared/paper-persona.ts)
+ *  have something to read beyond the bare score. */
+function reduceToScorePerTicker(
+  rows: { ticker: string; score: number; dataQuality: number; tokens: Record<string, string> }[],
+): EngineCandidate[] {
+  const best = new Map<string, { score: number; dataQuality: number; tokens: Record<string, string> }>();
   for (const r of rows) {
     const cur = best.get(r.ticker);
-    if (cur == null || r.score > cur) best.set(r.ticker, r.score);
+    if (cur == null || r.score > cur.score) {
+      best.set(r.ticker, { score: r.score, dataQuality: r.dataQuality, tokens: r.tokens });
+    }
   }
-  return [...best.entries()].map(([ticker, score]) => ({ ticker, score }));
+  return [...best.entries()].map(([ticker, v]) => ({ ticker, ...v }));
+}
+
+/**
+ * Deterministic trade-ticket text (docs/paper-trading-v3.md §4.1) — no model
+ * call, built entirely from the card tokens, the score, and the account's own
+ * policy. Written once per buy onto `paper_positions.thesis`/`invalidation`
+ * so an open position always carries *why* it was opened and *what* would
+ * change that, instead of the two columns sitting NULL forever (F9).
+ */
+function ticketText(
+  ticker: string,
+  score: number | undefined,
+  tokens: Record<string, string> | undefined,
+  policy: PaperPolicy,
+): { thesis: string; invalidation: string } {
+  const why =
+    score == null || !tokens
+      ? `card score ${score ?? "n/a"}`
+      : `card ${score} (${tokens.direction ?? "?"}/${tokens.confluence ?? "?"} confluence; ` +
+        `MACD ${tokens.macd ?? "?"}; RSI ${tokens.rsi ?? "?"}; ADX ${tokens.adx ?? "?"}; vol ${tokens.vol ?? "?"})`;
+  const stopDesc =
+    policy.stopRule.kind === "fixed"
+      ? `fixed ${(policy.stopRule.pct * 100).toFixed(0)}% from entry`
+      : `trailing ${(policy.stopRule.pct * 100).toFixed(0)}% from high-water`;
+  return {
+    thesis: `Bought on ${why}.`.slice(0, 200),
+    invalidation:
+      `Exit on signal if card falls below ${policy.sellThreshold} after ` +
+      `${policy.minHoldingPeriodRuns} run(s) held, or on a ${stopDesc} stop.`,
+  };
 }
 
 /**
@@ -180,7 +237,41 @@ export async function runAccountSlot(
   }
 
   const allTickers = [...new Set([...positions.map((p) => p.ticker), ...activeWatchlist])];
-  const prices = await getLivePrices(allTickers);
+
+  // F7 (docs/paper-trading-v3.md): getLivePrices() ignored traded_at
+  // entirely, so a missed refresh could fill at a stale price with nothing
+  // recording it. Rethrows on a genuine query failure (paper-db.ts's F12
+  // convention) rather than degrading to "no prices" silently.
+  let pricesWithAge: Map<string, { price: number; tradedAt: string }>;
+  try {
+    pricesWithAge = await getLivePricesWithAge(allTickers);
+  } catch (err) {
+    return persistSkippedRun(
+      runId,
+      account,
+      tradeDate,
+      slot,
+      dbAccount.policyVersion,
+      `price_error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const now = Date.now();
+  const isFresh = (tradedAt: string): boolean => now - Date.parse(tradedAt) <= MAX_PRICE_AGE_MINUTES * 60_000;
+  // Used for MARK/valuation (every price this run knows about, stale or not —
+  // valuing an existing position against its last known price is still more
+  // accurate than falling back to avgCost). `prices` keeps the original
+  // Map<string, number> shape every downstream call below already expects.
+  const prices = new Map<string, number>([...pricesWithAge].map(([t, v]) => [t, v.price]));
+  // Used for trading (planRun's `prices` input) — only prices fresh enough to
+  // trust for a fill. A stale price must mean "no reference price this slot"
+  // to the planner, same as a genuinely missing one, never a real fill price.
+  const tradeablePrices = new Map<string, number>(
+    [...pricesWithAge].filter(([, v]) => isFresh(v.tradedAt)).map(([t, v]) => [t, v.price]),
+  );
+  const stalePrices = allTickers.filter((t) => {
+    const row = pricesWithAge.get(t);
+    return row == null || !isFresh(row.tradedAt);
+  });
 
   // MARK — update each held position's high-water mark against this slot's
   // reference price before CLIP reads it for the trailing-stop check.
@@ -204,22 +295,73 @@ export async function runAccountSlot(
   let candidates: EngineCandidate[] = [];
   if (tradingSlot && policy) {
     const horizons = horizonsFor(policy.cardHorizon);
-    const screenRows = await getScreenCandidates(account, horizons, policy.dataQualityGate, barDate);
-    candidates = reduceToScorePerTicker(screenRows);
+    try {
+      const screenRows = await getScreenCandidates(account, horizons, policy.dataQualityGate, barDate);
+      candidates = reduceToScorePerTicker(screenRows);
+    } catch (err) {
+      // F12 (docs/paper-trading-v3.md): a broken screen query must not look
+      // like "nothing qualified this run" — that's a real, common outcome
+      // (a quiet market) and must stay distinguishable from a query failure.
+      return persistSkippedRun(
+        runId,
+        account,
+        tradeDate,
+        slot,
+        dbAccount.policyVersion,
+        `screen_error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
-  const plan =
-    tradingSlot && policy
-      ? planRun({
-          policy,
-          nav,
-          cash: dbAccount.cash,
-          positions: markedPositions,
-          candidates,
-          activeWatchlist,
-          prices: Object.fromEntries(prices),
-        })
-      : { orders: [], turnoverUsed: 0 };
+  const tradeablePricesObj = Object.fromEntries(tradeablePrices);
+
+  // CHAIR reads the other five seats' decisions instead of a fresh score
+  // (docs/paper-trading-v3.md §3, §2/§11 Q1's "consensus of the five" design
+  // intent) — its own screen above still runs so card_score stays populated
+  // on its orders for provenance, but the *plan* comes from votes, not
+  // thresholds. Every other trading account keeps planRun with a persona
+  // tie-break (lib/shared/paper-persona.ts) instead of the old alphabetical
+  // default (F3: alphabetical ties meant every bot bought the same A-D name).
+  let plan: { orders: import("@/lib/shared/paper-engine-core").ProposedOrder[]; turnoverUsed: number } = {
+    orders: [],
+    turnoverUsed: 0,
+  };
+  if (tradingSlot && policy) {
+    if (account === "chair") {
+      const siblingSeats = TRADING_ACCOUNTS.filter((a): a is TradingAccount => a !== "chair");
+      const siblingRuns = await Promise.all(siblingSeats.map((a) => getRun(a, tradeDate, slot)));
+      const totalSeats = siblingRuns.filter((r) => r?.status === "ok").length;
+      const siblingOrders = await getSeatOrdersForSlot(tradeDate, slot, siblingSeats);
+      const buyVotes = new Map<string, Set<PaperAccount>>();
+      const sellVotes = new Map<string, Set<PaperAccount>>();
+      for (const o of siblingOrders) {
+        const bucket = o.side === "buy" ? buyVotes : sellVotes;
+        if (!bucket.has(o.ticker)) bucket.set(o.ticker, new Set());
+        bucket.get(o.ticker)!.add(o.account);
+      }
+      const tickers = new Set([...buyVotes.keys(), ...sellVotes.keys()]);
+      const votes: ConsensusVote[] = [...tickers].map((ticker) => ({
+        ticker,
+        buyVotes: buyVotes.get(ticker)?.size ?? 0,
+        sellVotes: sellVotes.get(ticker)?.size ?? 0,
+        totalSeats,
+      }));
+      plan = planChairConsensus(policy, nav, dbAccount.cash, markedPositions, votes, activeWatchlist, tradeablePricesObj);
+    } else {
+      const tieBreak = buildTieBreak(account as TradingAccount, candidates);
+      plan = planRun({
+        policy,
+        nav,
+        cash: dbAccount.cash,
+        positions: markedPositions,
+        candidates,
+        activeWatchlist,
+        prices: tradeablePricesObj,
+        tieBreak,
+        tieBreakSeed: tradeDate,
+      });
+    }
+  }
 
   const cardScoreByTicker = new Map(candidates.map((c) => [c.ticker, c.score]));
 
@@ -268,6 +410,12 @@ export async function runAccountSlot(
   const avgCostByTicker = new Map(markedPositions.map((p) => [p.ticker, p.avgCost]));
   const filled = fillOrders(arbitratedOrders, avgCostByTicker);
 
+  // F12 (docs/paper-trading-v3.md): a veto/downsize shrinks the order list
+  // after planRun already computed turnoverUsed, so the stored figure could
+  // read e.g. "3% turnover, 0 orders" once a lone flagged buy was vetoed.
+  // Recomputed from the orders that actually filled.
+  const turnoverUsedActual = nav > 0 ? filled.reduce((sum, o) => sum + o.notional, 0) / nav : 0;
+
   // Apply fills to the in-memory book so PERSIST writes the post-run state.
   const finalPositions = new Map(markedPositions.map((p) => [p.ticker, { ...p }]));
   let finalCash = dbAccount.cash;
@@ -306,13 +454,37 @@ export async function runAccountSlot(
   // Ids assigned here (not left to filled.map(() => sql`...randomUUID()...`))
   // so the mirror step below can reference the exact rows just inserted,
   // matching §5.1's "order_id is the Neon uuid" idempotency requirement.
+  const tokensByTicker = new Map(candidates.map((c) => [c.ticker, c.tokens]));
+  // Only buys get a fresh ticket — a sell deletes the position outright, and
+  // a topped-up existing position gets its thesis re-stated against the new
+  // fill rather than kept stale from whenever it first opened.
+  const ticketByTicker = new Map(
+    policy
+      ? filled
+          .filter((o) => o.side === "buy")
+          .map((o) => [o.ticker, ticketText(o.ticker, cardScoreByTicker.get(o.ticker), tokensByTicker.get(o.ticker), policy)])
+      : [],
+  );
+
   const filledWithIds = filled.map((o) => ({ ...o, id: randomUUID() }));
   const arbitrationDetail = [...arbitrationResults.values()].map((r) => ({
     ticker: r.ticker,
     action: r.action,
     downsizePct: r.downsizePct ?? null,
     model: r.model,
+    why: r.why ?? null,
   }));
+  const runDetail: Record<string, unknown> = { turnoverUsed: turnoverUsedActual, arbitration: arbitrationDetail };
+  // F2 (docs/paper-trading-v3.md): the code's own PAPER_POLICY_VERSION is
+  // what actually ran, not whatever paper_accounts.policy_version happens to
+  // say — the 2026-09-29 "first v2 trade" ran v1 thresholds under a v2 label
+  // because the stamp was read from the account row, not the deployed code.
+  if (dbAccount.policyVersion !== PAPER_POLICY_VERSION) {
+    runDetail.account_policy_version = dbAccount.policyVersion;
+    runDetail.policy_version_mismatch = true;
+  }
+  if (stalePrices.length > 0) runDetail.stale_prices = stalePrices;
+  if (options.late) runDetail.late = true;
 
   const queries = [
     sql`
@@ -321,8 +493,8 @@ export async function runAccountSlot(
          model_calls, policy_version, detail, finished_at)
       VALUES (
         ${runId}, ${account}, ${tradeDate}, ${slot}, 'ok', null, ${candidates.length},
-        ${filled.length}, ${modelCallsUsed}, ${dbAccount.policyVersion},
-        ${JSON.stringify({ turnoverUsed: plan.turnoverUsed, arbitration: arbitrationDetail })}, now()
+        ${filled.length}, ${modelCallsUsed}, ${PAPER_POLICY_VERSION},
+        ${JSON.stringify(runDetail)}, now()
       )
       ON CONFLICT (account, trade_date, slot) DO NOTHING
     `,
@@ -340,19 +512,28 @@ export async function runAccountSlot(
         )
       `;
     }),
-    ...[...finalPositions.values()].map(
-      (p) => sql`
+    ...[...finalPositions.values()].map((p) => {
+      const ticket = ticketByTicker.get(p.ticker) ?? null;
+      return sql`
         INSERT INTO paper_positions
-          (account, ticker, quantity, avg_cost, opened_at, last_trade_at, runs_held, high_water)
-        VALUES (${account}, ${p.ticker}, ${p.quantity}, ${p.avgCost}, now(), now(), ${p.runsHeld}, ${p.highWater})
+          (account, ticker, quantity, avg_cost, opened_at, last_trade_at, runs_held, high_water, thesis, invalidation)
+        VALUES (
+          ${account}, ${p.ticker}, ${p.quantity}, ${p.avgCost}, now(), now(), ${p.runsHeld}, ${p.highWater},
+          ${ticket?.thesis ?? null}, ${ticket?.invalidation ?? null}
+        )
         ON CONFLICT (account, ticker) DO UPDATE SET
           quantity      = EXCLUDED.quantity,
           avg_cost      = EXCLUDED.avg_cost,
           last_trade_at = now(),
           runs_held     = EXCLUDED.runs_held,
-          high_water    = EXCLUDED.high_water
-      `,
-    ),
+          high_water    = EXCLUDED.high_water,
+          -- A run that only marks this position (no new buy) sends a null
+          -- ticket; COALESCE keeps the existing thesis instead of blanking
+          -- it every time the position is merely revalued.
+          thesis        = COALESCE(EXCLUDED.thesis, paper_positions.thesis),
+          invalidation  = COALESCE(EXCLUDED.invalidation, paper_positions.invalidation)
+      `;
+    }),
     ...[...deletedTickers].map(
       (ticker) => sql`DELETE FROM paper_positions WHERE account = ${account} AND ticker = ${ticker}`,
     ),
@@ -362,7 +543,7 @@ export async function runAccountSlot(
         (account, trade_date, slot, cash, positions_mv, nav, day_return, total_return, positions_n, turnover)
       VALUES (
         ${account}, ${tradeDate}, ${slot}, ${finalCash}, ${finalPositionsMv}, ${finalNav},
-        ${dayReturn}, ${totalReturn}, ${finalPositions.size}, ${plan.turnoverUsed}
+        ${dayReturn}, ${totalReturn}, ${finalPositions.size}, ${turnoverUsedActual}
       )
       ON CONFLICT (account, trade_date, slot) DO UPDATE SET
         cash         = EXCLUDED.cash,
@@ -471,7 +652,7 @@ export async function runAccountSlot(
       dayReturn,
       totalReturn,
       positionsN: finalPositions.size,
-      turnover: plan.turnoverUsed,
+      turnover: turnoverUsedActual,
     },
   });
   if (!accountMirror.ok && accountMirror.error !== "not_configured") {

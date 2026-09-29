@@ -43,6 +43,14 @@ export interface EngineCandidate {
   /** ticker_cards.score for the account's card horizon, already resolved by
    *  the caller (t1/t2/both -> whichever score the SCREEN step selected). */
   score: number;
+  /** The card's state-key tokens (rsi/macd/adx/vol/confluence/direction), when
+   *  the caller has them — persona tie-breaks (docs/paper-trading-v3.md §3)
+   *  read these to choose among equal-score candidates. Optional so existing
+   *  callers/tests that only care about score keep working unchanged. */
+  tokens?: Record<string, string>;
+  /** ticker_cards.data_quality for whichever row the score came from — QUANT's
+   *  tie-break reads this (§3: "tie-break on data_quality desc"). */
+  dataQuality?: number;
 }
 
 export interface EnginePosition {
@@ -87,6 +95,16 @@ export interface RunPlanInput {
   /** Reference price per ticker for this slot. A ticker with no entry here
    *  cannot be traded this run (no price to fill at). */
   prices: Readonly<Record<string, number>>;
+  /** Persona tie-break (docs/paper-trading-v3.md §3): a comparator applied
+   *  between candidates at an equal score, before the deterministic hash
+   *  fallback. Return 0 to defer to the hash — a persona comparator only
+   *  needs to say what it has an opinion about. Omitted entirely, buys sort
+   *  on score then the hash alone. */
+  tieBreak?: (a: EngineCandidate, b: EngineCandidate) => number;
+  /** Seeds the hash tie-break so it changes by trade_date (deterministic per
+   *  day, not fixed forever) — see `hashTicker`. Defaults to "" so existing
+   *  callers/tests that don't care about tie-break stability keep working. */
+  tieBreakSeed?: string;
 }
 
 export interface RunPlan {
@@ -101,6 +119,26 @@ function isStopTriggered(policy: PaperPolicy, position: EnginePosition, price: n
 }
 
 /**
+ * Deterministic 32-bit FNV-1a hash of `ticker:seed`, mapped to [0, 1). The
+ * final tie-break (docs/paper-trading-v3.md §3, §5.1.6): every earlier tie
+ * on this codebase's data clustered around a handful of card scores (12
+ * distinct values across 978 tickers on 2026-09-29), and breaking those ties
+ * alphabetically meant the same few names (those starting with A–D) won every
+ * tie, every day — not a persona difference, a spelling accident. Seeding by
+ * `tieBreakSeed` (the trade_date) means the winner changes day to day instead
+ * of being fixed forever, without needing real randomness in something that
+ * must replay identically for the same inputs.
+ */
+export function hashTicker(ticker: string, seed: string): number {
+  let h = 0x811c9dc5;
+  for (const ch of `${ticker}:${seed}`) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) / 0xffffffff;
+}
+
+/**
  * RANK + PROPOSE + CLIP (§4.2 steps 4–7), as one pure pass over the account's
  * current state. Sells are evaluated first (they free cash, turnover, and
  * sector headroom for the buys that follow), then buys are ranked by score
@@ -110,13 +148,21 @@ function isStopTriggered(policy: PaperPolicy, position: EnginePosition, price: n
  * partially filled past the check that stopped it short of its target size.
  */
 export function planRun(input: RunPlanInput): RunPlan {
-  const { policy, nav, candidates, activeWatchlist, prices } = input;
+  const { policy, nav, candidates, activeWatchlist, prices, tieBreak, tieBreakSeed = "" } = input;
   if (nav <= 0) return { orders: [], turnoverUsed: 0 };
 
   const scoreByTicker = new Map(candidates.map((c) => [c.ticker, c.score]));
   const positionsByTicker = new Map(input.positions.map((p) => [p.ticker, { ...p }]));
   const turnoverCapNotional = policy.maxTurnoverPerRun * nav;
   const cashFloorAmount = policy.cashFloor * nav;
+  // F13 (docs/paper-trading-v3.md): a ticker sold this run — for any reason —
+  // is removed from `positionsByTicker` below, which makes the buys loop see
+  // it as unheld (zero weight) and free to re-enter at full size. That
+  // silently undoes a stop-loss in the same run it fired, at the cost of a
+  // second lot of slippage. Tracking exits here and excluding them from the
+  // buy candidates (see buyCandidates' filter) closes that loop: an exit ends
+  // the position for the rest of this run, full stop.
+  const soldThisRun = new Set<string>();
 
   const sectorWeight = new Map<PaperSector, number>();
   for (const p of input.positions) {
@@ -158,12 +204,20 @@ export function planRun(input: RunPlanInput): RunPlan {
     if (!reason) continue;
 
     const notional = p.quantity * price;
-    if (turnoverUsed + notional > turnoverCapNotional) continue; // clipped by turnover cap
+    // F5 (docs/paper-trading-v3.md): the turnover cap gates a *discretionary*
+    // exit (score_exit) — an account is allowed to decide "not this run,
+    // budget's spent" about a signal-driven sell. It must never gate a stop
+    // or a forced void exit: those aren't discretionary, and a position
+    // above the turnover-cap-as-fraction-of-NAV (e.g. T2's 8% max position
+    // against a 3% turnover cap) could otherwise never exit on its own stop,
+    // no matter how far it fell.
+    if (reason === "score_exit" && turnoverUsed + notional > turnoverCapNotional) continue;
 
     orders.push({ ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason });
     turnoverUsed += notional;
     cash += notional;
     positionsByTicker.delete(p.ticker);
+    soldThisRun.add(p.ticker);
     const sector = sectorFor(p.ticker);
     if (sector) {
       sectorWeight.set(sector, Math.max(0, (sectorWeight.get(sector) ?? 0) - notional / nav));
@@ -176,7 +230,13 @@ export function planRun(input: RunPlanInput): RunPlan {
     .filter((c) => activeWatchlist.has(c.ticker))
     .filter((c) => prices[c.ticker] != null)
     .filter((c) => positionWeight(c.ticker) < policy.maxPositionWeight - 1e-9)
-    .sort((a, b) => b.score - a.score || a.ticker.localeCompare(b.ticker));
+    .filter((c) => !soldThisRun.has(c.ticker)) // F13 — an exit ends the position for this run
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        tieBreak?.(a, b) ||
+        hashTicker(a.ticker, tieBreakSeed) - hashTicker(b.ticker, tieBreakSeed),
+    );
 
   for (const c of buyCandidates) {
     const price = prices[c.ticker]!;
@@ -252,8 +312,17 @@ export function fillOrders(
  *  not a fraction — thresholds in PaperPolicy are already on the card-score
  *  scale (§3's table), so this stays on the same scale rather than inventing
  *  a normalized one. Chosen, not derived: the design doc names the *category*
- *  ("genuinely tied") without a number. */
-const BUY_TIE_BAND = 5;
+ *  ("genuinely tied") without a number.
+ *
+ *  Narrowed from 5 to 3 (docs/paper-trading-v3.md §5.3): this codebase's real
+ *  card distribution clusters into a handful of discrete values with gaps of
+ *  4-8 points between them (e.g. 54 then 60), so a band of 5 could straddle
+ *  an entire cluster and flag every buy in it as a tie — RISK's buyThreshold
+ *  of 60 against the 54/60 clusters spent its whole arbitration budget on
+ *  score ties that were never close calls, just landed on the wrong side of a
+ *  5-wide window. 3 still catches a genuine near-miss without catching a
+ *  whole cluster one step below the line. */
+const BUY_TIE_BAND = 3;
 
 /** How far a not-yet-stopped `score_exit` sell has to have closed the
  *  distance toward its stop, as a fraction of the stop's own pct, before it
@@ -325,6 +394,11 @@ export interface ArbitrationResult {
    *  when action === "downsize". */
   downsizePct?: number;
   model: string;
+  /** The model's own one-line reasoning (docs/paper-trading-v3.md §4.2, F8).
+   *  Absent when the model's response was unparseable — see
+   *  lib/paper-arbitration.ts's parseArbitrationResponse for why that case is
+   *  `undefined`, not an empty string. */
+  why?: string;
 }
 
 /**
@@ -348,4 +422,159 @@ export function applyArbitrationResults(
     // action === "veto" (or a downsize with no usable pct): drop the order.
   }
   return out;
+}
+
+// ── CHAIR consensus (docs/paper-trading-v3.md §3) ───────────────────────────
+
+/** One ticker's vote tally among the five seats that ran this exact
+ *  (trade_date, slot) before CHAIR — see lib/paper-db.ts's `getSeatOrdersForSlot`
+ *  for how these are gathered. `totalSeats` lets the threshold be expressed
+ *  as a fraction even when fewer than 5 seats have reported (a partial run). */
+export interface ConsensusVote {
+  ticker: string;
+  buyVotes: number;
+  sellVotes: number;
+  totalSeats: number;
+}
+
+/** Fraction of reporting seats that must agree before CHAIR acts on a name —
+ *  "consensus of the five, weighted by agreement" (design doc §2), made
+ *  concrete as 3 of 5. Expressed as a fraction, not a fixed count, so a
+ *  partial run (fewer than 5 seats reported) still means something: 3 of 5
+ *  reporting and agreeing still clears >=60%, but 3 of 3 and 3 of 4 do too. */
+const CONSENSUS_FRACTION = 0.6;
+
+/**
+ * CHAIR's own plan: not scored against `buyThreshold`/`sellThreshold` at all
+ * (§2/§11 Q1's design intent — CHAIR reads the *other seats' decisions*, not
+ * a fresh card read), but still subject to CHAIR's own risk caps (position,
+ * sector, turnover, cash floor) and its own stop, using the same CLIP
+ * mechanics as `planRun`. A tied vote (exactly at the threshold with an odd
+ * seat count) counts as consensus, matching `selectArbitrationCandidates`'
+ * own >= convention elsewhere in this module.
+ *
+ * Sizing follows docs/paper-trading-v3.md §3: `5% * votes/5` of NAV, capped
+ * by the account's own `maxPositionWeight` the same way a normal buy is.
+ */
+export function planChairConsensus(
+  policy: PaperPolicy,
+  nav: number,
+  cash: number,
+  positions: EnginePosition[],
+  votes: ConsensusVote[],
+  activeWatchlist: ReadonlySet<string>,
+  prices: Readonly<Record<string, number>>,
+): RunPlan {
+  if (nav <= 0) return { orders: [], turnoverUsed: 0 };
+
+  const voteByTicker = new Map(votes.map((v) => [v.ticker, v]));
+  const positionsByTicker = new Map(positions.map((p) => [p.ticker, { ...p }]));
+  const turnoverCapNotional = policy.maxTurnoverPerRun * nav;
+  const cashFloorAmount = policy.cashFloor * nav;
+
+  const sectorWeight = new Map<PaperSector, number>();
+  for (const p of positions) {
+    const price = prices[p.ticker] ?? p.avgCost;
+    const sector = sectorFor(p.ticker);
+    if (sector) sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + (p.quantity * price) / nav);
+  }
+
+  const orders: ProposedOrder[] = [];
+  let turnoverUsed = 0;
+  let cashLeft = cash;
+  const soldThisRun = new Set<string>();
+
+  function positionWeight(ticker: string): number {
+    const p = positionsByTicker.get(ticker);
+    if (!p) return 0;
+    const price = prices[ticker] ?? p.avgCost;
+    return (p.quantity * price) / nav;
+  }
+  function hasConsensus(v: ConsensusVote | undefined, votesField: "buyVotes" | "sellVotes"): boolean {
+    if (!v || v.totalSeats <= 0) return false;
+    return v[votesField] / v.totalSeats >= CONSENSUS_FRACTION;
+  }
+
+  // ── Sells: CHAIR's own stop/void still fire regardless of consensus, since
+  // consensus governs entries/exits on *signal*, not risk management CHAIR
+  // owns itself; a seat-consensus sell is the fourth reason, checked last. ──
+  for (const p of [...positionsByTicker.values()]) {
+    const price = prices[p.ticker];
+    if (price == null) continue;
+
+    const forced = !activeWatchlist.has(p.ticker);
+    const stopHit = isStopTriggered(policy, p, price);
+    const consensusSell = hasConsensus(voteByTicker.get(p.ticker), "sellVotes");
+
+    let reason: OrderReason | null = null;
+    if (forced) reason = "void";
+    else if (stopHit) reason = "stop";
+    else if (consensusSell) reason = "score_exit"; // consensus-driven exit, same reason taxonomy
+
+    if (!reason) continue;
+    const notional = p.quantity * price;
+    if (reason === "score_exit" && turnoverUsed + notional > turnoverCapNotional) continue;
+
+    orders.push({ ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason });
+    turnoverUsed += notional;
+    cashLeft += notional;
+    positionsByTicker.delete(p.ticker);
+    soldThisRun.add(p.ticker);
+    const sector = sectorFor(p.ticker);
+    if (sector) sectorWeight.set(sector, Math.max(0, (sectorWeight.get(sector) ?? 0) - notional / nav));
+  }
+
+  // ── Buys: consensus-agreed names only, sized by how many seats agreed. ──
+  const buyCandidates = votes
+    .filter((v) => hasConsensus(v, "buyVotes"))
+    .filter((v) => activeWatchlist.has(v.ticker))
+    .filter((v) => prices[v.ticker] != null)
+    .filter((v) => positionWeight(v.ticker) < policy.maxPositionWeight - 1e-9)
+    .filter((v) => !soldThisRun.has(v.ticker))
+    .sort((a, b) => b.buyVotes / b.totalSeats - a.buyVotes / a.totalSeats || a.ticker.localeCompare(b.ticker));
+
+  for (const v of buyCandidates) {
+    const price = prices[v.ticker]!;
+    // §3: 5% of NAV, scaled by how many of the (up to) 5 seats agreed.
+    const votedWeight = 0.05 * (v.buyVotes / 5);
+    const addWeight = Math.min(votedWeight, policy.maxPositionWeight - positionWeight(v.ticker));
+    if (addWeight <= 0) continue;
+    let notional = addWeight * nav;
+
+    const sector = sectorFor(v.ticker);
+    if (sector) {
+      const room = policy.sectorCapPct - (sectorWeight.get(sector) ?? 0);
+      if (room <= 0) continue;
+      notional = Math.min(notional, room * nav);
+    }
+
+    const turnoverRoom = turnoverCapNotional - turnoverUsed;
+    if (turnoverRoom <= 0) break;
+    notional = Math.min(notional, turnoverRoom);
+
+    const cashRoom = cashLeft - cashFloorAmount;
+    if (cashRoom <= 0) continue;
+    notional = Math.min(notional, cashRoom);
+
+    const minNotional = policy.minPositionWeight * nav;
+    if (notional < minNotional) continue;
+
+    const quantity = notional / price;
+    if (quantity <= 0) continue;
+
+    orders.push({ ticker: v.ticker, side: "buy", quantity, refPrice: price, reason: "score_entry" });
+    turnoverUsed += notional;
+    cashLeft -= notional;
+    if (sector) sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + notional / nav);
+
+    const existing = positionsByTicker.get(v.ticker);
+    if (existing) {
+      existing.avgCost = (existing.avgCost * existing.quantity + notional) / (existing.quantity + quantity);
+      existing.quantity += quantity;
+    } else {
+      positionsByTicker.set(v.ticker, { ticker: v.ticker, quantity, avgCost: price, runsHeld: 0, highWater: price });
+    }
+  }
+
+  return { orders, turnoverUsed: turnoverUsed / nav };
 }

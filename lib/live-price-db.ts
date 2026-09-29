@@ -85,3 +85,31 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, numb
     return new Map();
   }
 }
+
+export interface PriceWithAge {
+  price: number;
+  tradedAt: string;
+}
+
+/**
+ * Same lookup as `getLivePrices`, plus `traded_at` — the input to the paper
+ * engine's price-freshness check (docs/paper-trading-v3.md §5.1.2, F7). A
+ * fill made on a price that is hours old is indistinguishable from a fresh
+ * one to `getLivePrices`'s callers, so the engine needs the timestamp to
+ * decide whether to trust it. Rethrows on failure rather than degrading to an
+ * empty map: the caller (paper-engine.ts) must be able to tell "no prices
+ * exist yet" apart from "the price query itself is broken", per the F12 fix —
+ * a swallowed error here previously looked identical to a quiet market.
+ */
+export async function getLivePricesWithAge(tickers: string[]): Promise<Map<string, PriceWithAge>> {
+  if (tickers.length === 0) return new Map();
+  const rows = await sql`
+    SELECT ticker, price, traded_at FROM live_prices WHERE ticker = ANY(${tickers}::text[])
+  `;
+  return new Map(
+    rows.map((r) => [
+      r.ticker as string,
+      { price: Number(r.price), tradedAt: new Date(r.traded_at as string).toISOString() },
+    ]),
+  );
+}

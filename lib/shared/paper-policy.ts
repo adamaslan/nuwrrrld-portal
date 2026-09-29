@@ -17,8 +17,29 @@ import type { CouncilSeat } from "../openrouter";
  *
  *  v2 (2026-09-26): buy/sell thresholds re-expressed on scoreCard's [-100, 100]
  *  scale via x -> 2x - 100. v1 read like a 0-100 scale, and against real cards
- *  (watchlist max 60, mean 4.5) it could never trigger a buy. */
-export const PAPER_POLICY_VERSION = "v2";
+ *  (watchlist max 60, mean 4.5) it could never trigger a buy.
+ *
+ *  v3 (docs/paper-trading-v3.md §5.3, 2026-09-29): thresholds moved off the
+ *  actual score clusters they landed on. The real distribution on 2026-09-29
+ *  (978 cards) clustered at {..., 45, 46, 50, 51, 54, 60, 100} — v2's
+ *  thresholds (40/20/60/30/50/40) sat exactly on top of several of those
+ *  clusters, which is why every trading account either bought the same
+ *  cluster or bought nothing at all (F3). Every number below is *chosen*
+ *  against that specific distribution, not derived — restated here so a
+ *  future distribution shift doesn't get inherited silently. Paired with
+ *  the persona tie-breaks (lib/shared/paper-persona.ts): raising a threshold
+ *  alone does not diverge the six books' *picks* (verified with
+ *  scripts/paper-sim.ts --policy=v3 before this bump — still 6/6 on the same
+ *  name), only the tie-break rule does that; this bump exists for the second
+ *  half of §5.3's argument — moving buy/sell bands off the score clusters so
+ *  a threshold actually discriminates instead of landing on a cliff edge —
+ *  and for T2's turnover/hold-period fixes below, which are unrelated to
+ *  tie-breaking. RISK's threshold is intentionally left at v2's 60, not the
+ *  doc's originally-floated 55: measurement (§5.3's own table) showed 55
+ *  still falls inside the (now-narrowed) BUY_TIE_BAND and clears the same 4
+ *  names as 60 — the real fix for RISK's arbitration load was narrowing
+ *  BUY_TIE_BAND (paper-engine-core.ts), not moving this number. */
+export const PAPER_POLICY_VERSION = "v3";
 
 /**
  * `paper_accounts.account`'s own values (schema §5) — lowercase, distinct
@@ -88,7 +109,7 @@ export interface PaperPolicy {
 export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   t1: {
     cardHorizon: "t1",
-    buyThreshold: 40,
+    buyThreshold: 45, // v2: 40 — sat on the 45/46 cluster's low edge
     sellThreshold: -10,
     maxPositionWeight: 0.06,
     minPositionWeight: 0.005,
@@ -102,13 +123,19 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   t2: {
     cardHorizon: "t2",
-    buyThreshold: 20,
-    sellThreshold: -40,
+    buyThreshold: 45, // v2: 20 — "buy anything bullish" against the real distribution
+    sellThreshold: -35, // v2: -40
     maxPositionWeight: 0.08,
     minPositionWeight: 0.01,
     cashFloor: 0,
-    maxTurnoverPerRun: 0.03,
-    minHoldingPeriodRuns: 20,
+    // v2: 0.03 — smaller than maxPositionWeight, which is exactly the shape
+    // F5's fixed stop bug needed (a full 8% position could never exit under
+    // a 3% cap). The engine fix (paper-engine-core.ts) means a stop now
+    // bypasses this cap regardless, but 6% still reduces how often a
+    // deliberate signal exit gets clipped for a reason that was never about
+    // risk, just an accidental policy-shape collision.
+    maxTurnoverPerRun: 0.06,
+    minHoldingPeriodRuns: 20, // ~5 trading days at 4 runs/day, not "20 runs ~ months" as the label implied
     stopRule: { kind: "fixed", pct: 0.25 },
     sectorCapPct: 0.3,
     dataQualityGate: 0.8,
@@ -116,7 +143,7 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   risk: {
     cardHorizon: "t2",
-    buyThreshold: 60,
+    buyThreshold: 60, // unchanged — see the version-doc comment above for why
     sellThreshold: 10,
     maxPositionWeight: 0.03,
     minPositionWeight: 0.01,
@@ -130,12 +157,12 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   macro: {
     cardHorizon: "t2",
-    buyThreshold: 30,
+    buyThreshold: 45, // v2: 30 — below the 45/46 cluster, so ETF rotation names barely cleared it
     sellThreshold: -20,
     maxPositionWeight: 0.06,
     minPositionWeight: 0.005,
     cashFloor: 0.05,
-    maxTurnoverPerRun: 0.06,
+    maxTurnoverPerRun: 0.1, // v2: 0.06 — one buy exhausted the whole run's budget every time
     minHoldingPeriodRuns: 8,
     stopRule: { kind: "fixed", pct: 0.15 },
     // Rotation is the thesis — the widest sector cap on purpose.
@@ -162,7 +189,12 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   chair: {
     cardHorizon: "both",
-    buyThreshold: 40,
+    buyThreshold: 45, // v2: 40 — CHAIR's own plan always comes from
+    // planChairConsensus (paper-engine-core.ts), never planRun, so this
+    // field is unused for entry/exit decisions; kept at the same shape as
+    // every other trading account's policy (cash floor, turnover, sector cap
+    // etc. below are all real and still enforced on chair's consensus buys)
+    // rather than special-casing PaperPolicy's type for one account.
     sellThreshold: -10,
     maxPositionWeight: 0.05,
     minPositionWeight: 0.01,
