@@ -12,7 +12,7 @@ import {
   type RunPlanInput,
 } from "@/lib/shared/paper-engine-core";
 
-const QUANT = PAPER_POLICY.quant; // buyThreshold 75, sellThreshold 50, maxWeight 0.04, cashFloor 0
+const QUANT = PAPER_POLICY.quant; // buyThreshold 50, sellThreshold 0, maxWeight 0.04, cashFloor 0
 
 function baseInput(overrides: Partial<RunPlanInput> = {}): RunPlanInput {
   return {
@@ -29,7 +29,7 @@ function baseInput(overrides: Partial<RunPlanInput> = {}): RunPlanInput {
 
 describe("planRun — buys", () => {
   it("opens no position for a candidate under the buy threshold", () => {
-    const candidates: EngineCandidate[] = [{ ticker: "AAPL", score: 74 }];
+    const candidates: EngineCandidate[] = [{ ticker: "AAPL", score: 49 }];
     const plan = planRun(baseInput({ candidates }));
     expect(plan.orders).toHaveLength(0);
   });
@@ -113,7 +113,7 @@ describe("planRun — sells", () => {
     const positions: EnginePosition[] = [
       { ticker: "AAPL", quantity: 2, avgCost: 200, runsHeld: 5, highWater: 220 },
     ];
-    const candidates: EngineCandidate[] = [{ ticker: "AAPL", score: 20 }]; // < 50 sellThreshold
+    const candidates: EngineCandidate[] = [{ ticker: "AAPL", score: -20 }]; // < 0 sellThreshold
     const plan = planRun(baseInput({ positions, candidates, cash: 9_600, nav: 10_000 }));
     expect(plan.orders).toHaveLength(1);
     expect(plan.orders[0]).toMatchObject({ ticker: "AAPL", side: "sell", reason: "score_exit" });
@@ -124,7 +124,7 @@ describe("planRun — sells", () => {
     const positions: EnginePosition[] = [
       { ticker: "AAPL", quantity: 2, avgCost: 200, runsHeld: 1, highWater: 200 },
     ];
-    const candidates: EngineCandidate[] = [{ ticker: "AAPL", score: 20 }];
+    const candidates: EngineCandidate[] = [{ ticker: "AAPL", score: -20 }];
     const plan = planRun(baseInput({ positions, candidates, policy: holdPolicy, cash: 9_600, nav: 10_000 }));
     expect(plan.orders).toHaveLength(0);
   });
@@ -223,13 +223,13 @@ describe("fillOrders", () => {
 });
 
 describe("selectArbitrationCandidates", () => {
-  const T1 = PAPER_POLICY.t1; // buyThreshold 70, stopRule fixed 8%
+  const T1 = PAPER_POLICY.t1; // buyThreshold 40, stopRule fixed 8%
 
   it("flags a buy whose score is within the tie band above the threshold", () => {
     const orders: ProposedOrder[] = [
       { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 200, reason: "score_entry" },
     ];
-    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 72]]), {}, 5);
+    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 42]]), {}, 5);
     expect(flagged).toHaveLength(1);
     expect(flagged[0].flagReason).toBe("score_tie");
   });
@@ -273,8 +273,8 @@ describe("selectArbitrationCandidates", () => {
       { ticker: "MSFT", side: "buy", quantity: 1, refPrice: 100, reason: "score_entry" },
     ];
     const scores = new Map([
-      ["AAPL", 74], // margin 4
-      ["MSFT", 71], // margin 1 — closer to the boundary
+      ["AAPL", 44], // margin 4
+      ["MSFT", 41], // margin 1 — closer to the boundary
     ]);
     const flagged = selectArbitrationCandidates(orders, T1, new Map(), scores, {}, 1);
     expect(flagged).toHaveLength(1);

@@ -13,8 +13,12 @@ import type { CouncilSeat } from "../openrouter";
 
 /** Bump on any change to the vectors below — carried onto paper_accounts.policy_version
  *  and paper_runs.policy_version so a NAV series can always be read against the
- *  policy that produced it. */
-export const PAPER_POLICY_VERSION = "v1";
+ *  policy that produced it.
+ *
+ *  v2 (2026-09-26): buy/sell thresholds re-expressed on scoreCard's [-100, 100]
+ *  scale via x -> 2x - 100. v1 read like a 0-100 scale, and against real cards
+ *  (watchlist max 60, mean 4.5) it could never trigger a buy. */
+export const PAPER_POLICY_VERSION = "v2";
 
 /**
  * `paper_accounts.account`'s own values (schema §5) — lowercase, distinct
@@ -84,8 +88,8 @@ export interface PaperPolicy {
 export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   t1: {
     cardHorizon: "t1",
-    buyThreshold: 70,
-    sellThreshold: 45,
+    buyThreshold: 40,
+    sellThreshold: -10,
     maxPositionWeight: 0.06,
     minPositionWeight: 0.005,
     cashFloor: 0.02,
@@ -98,8 +102,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   t2: {
     cardHorizon: "t2",
-    buyThreshold: 60,
-    sellThreshold: 30,
+    buyThreshold: 20,
+    sellThreshold: -40,
     maxPositionWeight: 0.08,
     minPositionWeight: 0.01,
     cashFloor: 0,
@@ -112,8 +116,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   risk: {
     cardHorizon: "t2",
-    buyThreshold: 80,
-    sellThreshold: 55,
+    buyThreshold: 60,
+    sellThreshold: 10,
     maxPositionWeight: 0.03,
     minPositionWeight: 0.01,
     cashFloor: 0.15,
@@ -126,8 +130,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   macro: {
     cardHorizon: "t2",
-    buyThreshold: 65,
-    sellThreshold: 40,
+    buyThreshold: 30,
+    sellThreshold: -20,
     maxPositionWeight: 0.06,
     minPositionWeight: 0.005,
     cashFloor: 0.05,
@@ -141,8 +145,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   quant: {
     cardHorizon: "both",
-    buyThreshold: 75,
-    sellThreshold: 50,
+    buyThreshold: 50,
+    sellThreshold: 0,
     maxPositionWeight: 0.04,
     minPositionWeight: 0.01,
     cashFloor: 0,
@@ -158,8 +162,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
   },
   chair: {
     cardHorizon: "both",
-    buyThreshold: 70,
-    sellThreshold: 45,
+    buyThreshold: 40,
+    sellThreshold: -10,
     maxPositionWeight: 0.05,
     minPositionWeight: 0.01,
     cashFloor: 0.05,

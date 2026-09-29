@@ -16,12 +16,9 @@ name: Council Paper Portfolios (4x daily)
 # seven. This workflow only gates on market hours, resolves which slot fired,
 # calls that route once, and reports.
 #
-# MANUAL STEP STILL BLOCKING: PAPER_CRON_SECRET is not yet a GitHub Actions
-# secret (docs/paper-portfolios-remaining-todo.md Phase 4) — every run below
-# fails the "Verify required secrets exist" step until it's set via the
-# secrets-sync skill. Separately, paper_accounts has 0 rows in the current dev
-# DB until scripts/seed-paper-portfolios.mjs is run for real (Phase 3's own
-# blocker) — even an authenticated run would process zero accounts until then.
+# MANUAL STEPS: PAPER_CRON_SECRET, PORTAL_PUSH_SECRET, ALPACA_API_KEY and
+# ALPACA_API_SECRET must be GitHub Actions secrets (secrets-sync skill), and
+# paper_accounts must be seeded (scripts/seed-paper-portfolios.mjs).
 
 on:
   schedule:
@@ -134,16 +131,34 @@ jobs:
     outputs:
       run_status: ${{ steps.run.outputs.status }}
     steps:
+      # `gh secret list` needs a token with secrets scope, which the default
+      # GITHUB_TOKEN never has (HTTP 403 "Resource not accessible by
+      # integration"), so the old check failed every run before the route was
+      # called. Check the values the next steps actually receive instead.
       - name: Verify required secrets exist
         env:
-          GH_TOKEN: ${{ github.token }}
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          PAPER_CRON_SECRET: ${{ secrets.PAPER_CRON_SECRET }}
         run: |
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'PORTAL_URL' || { echo "PORTAL_URL secret missing"; exit 1; }
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'PAPER_CRON_SECRET' || { echo "PAPER_CRON_SECRET secret missing — see docs/paper-portfolios-remaining-todo.md Phase 4"; exit 1; }
+          [ -n "$PORTAL_URL" ] || { echo "::error::PORTAL_URL secret missing"; exit 1; }
+          [ -n "$PAPER_CRON_SECRET" ] || { echo "::error::PAPER_CRON_SECRET secret missing — see docs/paper-portfolios-remaining-todo.md Phase 4"; exit 1; }
+
+      # The engine only fills at a live_prices row and that table has no other
+      # writer running. Non-fatal: a missing price already means "no trade", so a
+      # price outage must not block the run's mark-to-market and reconcile.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Refresh live_prices from Alpaca (IEX latest trades)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: node scripts/push-alpaca-live-prices.mjs
 
       - name: Run ${{ needs.gate.outputs.slot }} slot across all accounts
         id: run

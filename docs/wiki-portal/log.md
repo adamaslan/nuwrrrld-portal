@@ -949,3 +949,4 @@ watchlist route.
 ## [2026-09-22] ingest | PR #158 feat(hydrate-universe): wire the busiest pipeline into pipeline_run_log | pages touched: 2
 ## [2026-09-22] ingest | PR #152 feat(nulogdash): deluxe HTML report — charts + live filter | pages touched: 1
 ## [2026-09-26] ingest | PR #189 feat(engine): canonical Fibonacci signal engine, bar store and shadow run | pages touched: 7
+## [2026-09-26] ingest | PR #188 fix(paper): unblock scheduled runs, feed live_prices from Alpaca | pages touched: 3

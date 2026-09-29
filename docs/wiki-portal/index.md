@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-15 (portal PR — paper-portfolios Phase 7, API + dashboard)_
+_Last updated: 2026-09-26 (paper-portfolios workflow fix + Alpaca live prices)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 

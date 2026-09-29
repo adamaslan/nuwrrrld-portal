@@ -211,6 +211,36 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
   was "done on this branch" / "in progress" after PR #128 had already merged
   it — the merge didn't update either header. Both now reflect actual state.
 
+## Scheduled-run blockers found 2026-09-26 (and what the fix PR changes)
+
+Read-only checks against production showed the feature had never traded: every
+paper table empty. Two of three independent blockers are addressed in code:
+
+- **Secrets pre-check.** The workflow's "verify secrets" step listed Actions
+  secrets with the default token, which has no secrets scope, so every trading
+  run failed before calling the route. It now checks the env values the run
+  step receives. Four sibling workflows (`afternoon-pipeline`,
+  `judge-followed-tickers`, `select-followed-tickers`, `track-followed-tickers`)
+  carry the same defect and are unfixed.
+- **No reference prices.** The engine fills only at a `live_prices` row and the
+  Finnhub WebSocket writer is not running. A runner step now pushes Alpaca IEX
+  latest trades for the active watchlist union to
+  [[entity-live-price-tier]]'s POST route before each slot. It is
+  non-fatal, so a vendor outage degrades to "no trade", not a failed run. A
+  dry run priced all 176 watchlist names.
+- **Threshold scale (policy v2).** v1 thresholds read as a 0-100 scale while
+  card scores span -100..100, so no ticker could clear a buy threshold. v2
+  re-expresses every buy/sell threshold through x -> 2x - 100 (for example T1
+  buy 70 -> 40, QUANT sell 50 -> 0). The map is a linear rescale, not a tuned
+  policy; nothing has yet shown these levels trade well. Existing
+  `paper_accounts` rows stay stamped `v1` until updated, and runs stamp the
+  account row's version, so a run under v2 code would be labelled v1 until the
+  rows are re-stamped.
+- **Checked, not a blocker:** the production-DB guard is opt-in and
+  `PRODUCTION_DB_HOST` is unset in production, so the route is not rejected.
+  The Actions secrets the workflow needs already exist.
+
+
 ## Open questions
 
 Carried from the design doc's §11, unresolved: whether CHAIR's book reads a
