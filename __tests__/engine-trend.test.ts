@@ -142,6 +142,16 @@ describe("T3/T4 — one emission per cross, ties don't re-fire", () => {
 });
 
 describe("T5 — states never vote", () => {
+  it("emits a TK cross before the 52-bar cloud window is full", () => {
+    // Kijun (26) is ready well before SenkouB (52). A cross that completes
+    // by bar 44 must still fire — MIN_BARS was wrongly gated on the cloud
+    // window instead of Kijun's own period, silently dropping early crosses.
+    const bars = [...flat(100, 26), ...flat(80, 9), ...flat(100, 9)];
+    const hits = new IchimokuDetector().detect(buildFrame(bars));
+
+    expect(hits.map((hit) => hit.signal)).toEqual(["TK CROSS BULLISH"]);
+  });
+
   it("IchimokuDetector emits only TK-cross events, never a cloud-position/colour signal", () => {
     const bars = flat(100, 200);
     const detector = new IchimokuDetector();

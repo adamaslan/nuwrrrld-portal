@@ -14,12 +14,12 @@
  * *features* (e.g. regime sizing, PO7 row) — just never as a vote here.
  */
 import { frameLength, sliceFrame, type Frame } from "../frame";
-import { buildIchimokuColumns } from "../indicators/ichimoku";
+import { buildIchimokuColumns, KIJUN_PERIOD } from "../indicators/ichimoku";
 import { lastCross } from "../indicators/ma";
 import type { Detector, EngineSignal } from "./types";
 
 export const ICHIMOKU_CATEGORY = "ICHIMOKU";
-export const MIN_BARS = 52;
+export const MIN_BARS = KIJUN_PERIOD;
 
 export class IchimokuDetector implements Detector {
   readonly name: string;
