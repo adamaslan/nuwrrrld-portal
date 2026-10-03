@@ -953,3 +953,4 @@ watchlist route.
 ## [2026-09-27] ingest | PR #191 fix(engine): guard set -e exits in engine-nightly.yml | pages touched: 3
 ## [2026-09-28] ingest | PR #196 feat(engine): TS port of MA-cross and Ichimoku TK-cross detectors | pages touched: 1
 ## [2026-09-29] ingest | PR #204 fix(paper): v3 engine correctness, scheduling, personas + real backtest | pages touched: 1
+## [2026-10-03] ingest | PR #213 feat(paper): policy v4 — 15+ name holdings floor from persona starter books | pages touched: 3
