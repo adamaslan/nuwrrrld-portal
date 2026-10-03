@@ -243,10 +243,85 @@ paper table empty. Two of three independent blockers are addressed in code:
 
 ## Open questions
 
-Carried from the design doc's §11, unresolved: whether CHAIR's book reads a
-fresh card pass or a weighted consensus of the other five seats' proposed
-targets; reset cadence (leaning never); whether RISK needs shorts to be a fair
-test of its mandate.
+Carried from the design doc's §11: reset cadence (leaning never); whether RISK
+needs shorts to be a fair test of its mandate. **CHAIR's book question is now
+resolved** — see the PR #204 section below: it reads a weighted consensus of
+the other five seats' own fills for the slot, not a fresh card pass.
+
+## PR #204 (2026-09-29) — engine correctness, personas, CHAIR consensus, real backtest
+
+The first real scheduled run (PR #188, 2026-09-26) surfaced five concrete
+defects that only show up once the engine actually trades, none visible from
+reading the code alone: a stop-loss blocked by the turnover cap on any account
+whose max position weight exceeds its turnover cap (T2's 8% vs 3%); a
+stopped-out position immediately re-bought in the same run because the sell
+loop's `positionsByTicker.delete()` made the buy loop see it as unheld; a
+policy-version label that could read the account row's stamp instead of the
+code that actually ran (the trade_date=2026-09-28 order executed v1 thresholds
+under a v2 label — the route was hit 2026-09-29 UTC, 2 seconds after a merge
+finished, before the Vercel alias had moved);
+`live_prices` read with no staleness check at all; and every trading account
+converging on the same handful of names because ties broke alphabetically
+against a card distribution with only ~12 distinct score values.
+
+All five are fixed in `lib/shared/paper-engine-core.ts`/`lib/paper-engine.ts`.
+The alphabetical tie-break is replaced by `lib/shared/paper-persona.ts` (new)
+— per-seat comparators reading the card's own tokens (MACD/RSI/ADX/vol/sector
+breadth/data quality) instead of the ticker's spelling — plus a deterministic
+hash fallback seeded by `trade_date` rather than a fixed default. **CHAIR's
+open design question is answered here too**: `planChairConsensus()` (new, same
+module) makes CHAIR plan from the other five seats' committed orders for the
+exact slot (`getSeatOrdersForSlot()`, new in `lib/paper-db.ts`) at a ≥60%
+agreement threshold, rather than running its own threshold against the same
+cards everyone else reads — which is what the design doc's §2/§11 "consensus
+of the five" always meant and what the build had never actually implemented.
+
+Measured before landing: raising thresholds alone does not diverge the six
+books' picks (`scripts/paper-sim.ts --policy=v3` still returned 6/6 on the
+same name) — the persona tie-break is what changes that, and `BUY_TIE_BAND`
+itself was narrowed 5→3 because a 5-wide band could straddle an entire score
+cluster and flag every buy inside it as a "tie", not just a genuine one.
+
+**`.github/workflows/paper-portfolios.yml`** now resolves the slot from
+`github.event.schedule` (which cron actually fired) instead of the NY
+wall-clock time at whatever moment GHA got around to starting the job — the
+old window-match gate mislabeled 6 of 8 runs as `settle` on 2026-09-28 alone.
+A new `GET /api/paper/version` route plus a deploy-wait step closes the exact
+gap that caused that mislabeled order. Failure issues now
+find-or-comment on an existing open issue instead of opening a new one every
+time — 35 open near-duplicates had accumulated by 2026-09-29, all the same
+pre-#188 defect.
+
+Every buy now writes a deterministic `thesis`/`invalidation` onto
+`paper_positions` (previously `NULL` on every row since the columns were
+added) and the arbitration model call now requires and stores a one-line
+`why` alongside its veto/downsize/confirm. `lib/db/schema.sql` gained
+`paper_journal` (additive, **not applied to production** by this PR) for a
+later PR to automate per-account settle diaries and CHAIR's weekly letter
+against.
+
+**A real backtest, local only:** `scripts/paper-backtest.ts` (new) recomputes
+a card for each of 22 real trading days from real historical Alpaca bars using
+the same indicator functions and scorer production uses, then replays the
+fixed planner day by day into a local SQLite file — never Neon. Run for real
+2026-08-28→2026-09-29: every account lost money over that window (RISK
+smallest at -0.39%, MACRO largest at -3.06%), and five names (TMO, SO, LIN,
+GE, COP) were still bought by all six accounts at some point — the persona
+work reduces but does not eliminate cross-account convergence, since most of
+that overlap turned out to be independent mandates agreeing on a real name on
+a real day, not the single-frozen-snapshot alphabetical accident that started
+this investigation. Full numbers in `docs/paper-trading-v3.md` §7.6.
+
+**Explicitly not done in this PR** — production writes needing a separate,
+explicit decision: applying the `paper_journal` migration to production;
+seeding the six trading accounts' books (all 8 production accounts are still
+effectively 100% cash — `equal`/`spy` hold nothing, so there is still no
+benchmark); bumping `paper_accounts.policy_version` to v3 in production
+(every account will read `policy_version_mismatch: true` in its run detail
+after this deploys, by design, until that happens); backfilling the local
+backtest's simulated history into production (`paper_runs`/`paper_orders` are
+append-only ground truth, and mixing in simulated dates would corrupt what
+the dashboard treats as real).
 
 ## Engine account — decision core (PR #189, 2026-09-26)
 

@@ -3,9 +3,11 @@ import { PAPER_POLICY } from "@/lib/shared/paper-policy";
 import {
   applyArbitrationResults,
   fillOrders,
+  planChairConsensus,
   planRun,
   selectArbitrationCandidates,
   type ArbitrationResult,
+  type ConsensusVote,
   type EngineCandidate,
   type EnginePosition,
   type ProposedOrder,
@@ -229,7 +231,8 @@ describe("selectArbitrationCandidates", () => {
     const orders: ProposedOrder[] = [
       { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 200, reason: "score_entry" },
     ];
-    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 42]]), {}, 5);
+    // T1's buyThreshold is 45 (v3); margin 2 fits BUY_TIE_BAND=3.
+    const flagged = selectArbitrationCandidates(orders, T1, new Map(), new Map([["AAPL", 47]]), {}, 5);
     expect(flagged).toHaveLength(1);
     expect(flagged[0].flagReason).toBe("score_tie");
   });
@@ -272,9 +275,10 @@ describe("selectArbitrationCandidates", () => {
       { ticker: "AAPL", side: "buy", quantity: 1, refPrice: 100, reason: "score_entry" },
       { ticker: "MSFT", side: "buy", quantity: 1, refPrice: 100, reason: "score_entry" },
     ];
+    // T1's buyThreshold is 45 (v3), BUY_TIE_BAND is 3.
     const scores = new Map([
-      ["AAPL", 44], // margin 4
-      ["MSFT", 41], // margin 1 — closer to the boundary
+      ["AAPL", 48], // margin 3 — at the edge of the band
+      ["MSFT", 46], // margin 1 — closer to the boundary
     ]);
     const flagged = selectArbitrationCandidates(orders, T1, new Map(), scores, {}, 1);
     expect(flagged).toHaveLength(1);
@@ -330,5 +334,206 @@ describe("applyArbitrationResults", () => {
     ]);
     const out = applyArbitrationResults([baseOrder], results);
     expect(out).toHaveLength(0);
+  });
+});
+
+// ── F5 (docs/paper-trading-v3.md): stops/void exits must not be turnover-gated ──
+
+describe("planRun — stop and void exits bypass the turnover cap (F5)", () => {
+  it("fires a stop sell even when its notional alone exceeds the turnover cap", () => {
+    const RISK = { ...PAPER_POLICY.risk, maxTurnoverPerRun: 0.03 }; // 3% cap
+    const position: EnginePosition = {
+      ticker: "AAPL",
+      quantity: 100,
+      avgCost: 200,
+      runsHeld: 5,
+      highWater: 200,
+    };
+    // Trailing 5% stop from RISK's own policy: high-water 200 -> stop at 190.
+    const plan = planRun(
+      baseInput({
+        policy: RISK,
+        positions: [position],
+        prices: { AAPL: 180 }, // well past the stop; notional 18,000 >> 3% of 10k
+      }),
+    );
+    expect(plan.orders).toHaveLength(1);
+    expect(plan.orders[0]).toMatchObject({ ticker: "AAPL", side: "sell", reason: "stop" });
+  });
+
+  it("still gates a plain signal exit (score_exit) on the turnover cap", () => {
+    const RISK = { ...PAPER_POLICY.risk, maxTurnoverPerRun: 0.03, sellThreshold: 50 };
+    const position: EnginePosition = {
+      ticker: "AAPL",
+      quantity: 100,
+      avgCost: 200,
+      runsHeld: 5,
+      highWater: 200,
+    };
+    const plan = planRun(
+      baseInput({
+        policy: RISK,
+        positions: [position],
+        candidates: [{ ticker: "AAPL", score: 0 }], // below sellThreshold -> score_exit
+        prices: { AAPL: 199 }, // not near the stop
+      }),
+    );
+    expect(plan.orders).toHaveLength(0); // clipped by turnover, as before this fix
+  });
+
+  it("fires a void (delisted/deactivated) exit past the turnover cap too", () => {
+    const RISK = { ...PAPER_POLICY.risk, maxTurnoverPerRun: 0.03 };
+    const position: EnginePosition = {
+      ticker: "AAPL",
+      quantity: 100,
+      avgCost: 200,
+      runsHeld: 5,
+      highWater: 200,
+    };
+    const plan = planRun(
+      baseInput({
+        policy: RISK,
+        positions: [position],
+        activeWatchlist: new Set(), // AAPL no longer on the watchlist -> forced void
+        prices: { AAPL: 200 },
+      }),
+    );
+    expect(plan.orders).toHaveLength(1);
+    expect(plan.orders[0].reason).toBe("void");
+  });
+});
+
+// ── F13: a ticker sold this run cannot be re-bought in the same run ──────────
+
+describe("planRun — a stopped-out position is not re-bought this run (F13)", () => {
+  it("sells on a stop and does not re-enter the same ticker even though a card still qualifies it", () => {
+    const RISK = PAPER_POLICY.risk; // buyThreshold 60, trailing 5% stop
+    const position: EnginePosition = {
+      ticker: "HRL",
+      quantity: 15,
+      avgCost: 20,
+      runsHeld: 1,
+      highWater: 20,
+    };
+    const plan = planRun(
+      baseInput({
+        policy: RISK,
+        cash: 9_700,
+        positions: [position],
+        // Card score is still 100 (>= buyThreshold) — the exact real-world
+        // shape of F13: the stop is about price, the card hasn't moved.
+        candidates: [{ ticker: "HRL", score: 100 }],
+        activeWatchlist: new Set(["HRL"]),
+        prices: { HRL: 14 }, // 30% down -> well past the 5% trailing stop
+      }),
+    );
+    const sides = plan.orders.map((o) => `${o.side}:${o.ticker}`);
+    expect(sides).toEqual(["sell:HRL"]); // no accompanying buy:HRL
+  });
+});
+
+// ── Persona tie-break + deterministic hash fallback ──────────────────────────
+
+describe("planRun — tie-break comparator and hash fallback", () => {
+  it("uses the caller's tieBreak to order equal-score buys before falling back to hash", () => {
+    const candidates: EngineCandidate[] = [
+      { ticker: "ZZZ", score: 90 },
+      { ticker: "AAA", score: 90 },
+    ];
+    // A tie-break that always prefers ZZZ over AAA, the opposite of alphabetical.
+    const plan = planRun(
+      baseInput({
+        candidates,
+        activeWatchlist: new Set(["ZZZ", "AAA"]),
+        prices: { ZZZ: 100, AAA: 100 },
+        tieBreak: (a, b) => (a.ticker === "ZZZ" ? -1 : b.ticker === "ZZZ" ? 1 : 0),
+      }),
+    );
+    // Only one buy fits QUANT's 4% max position weight before cash/turnover
+    // room is what's left, so whichever sorts first should be the one filled.
+    expect(plan.orders[0]?.ticker).toBe("ZZZ");
+  });
+
+  it("is deterministic and seed-dependent when no tieBreak opinion applies", () => {
+    const candidates: EngineCandidate[] = [
+      { ticker: "AAA", score: 90 },
+      { ticker: "BBB", score: 90 },
+    ];
+    const planToday = planRun(
+      baseInput({
+        candidates,
+        activeWatchlist: new Set(["AAA", "BBB"]),
+        prices: { AAA: 100, BBB: 100 },
+        tieBreakSeed: "2026-09-29",
+      }),
+    );
+    const planAgain = planRun(
+      baseInput({
+        candidates,
+        activeWatchlist: new Set(["AAA", "BBB"]),
+        prices: { AAA: 100, BBB: 100 },
+        tieBreakSeed: "2026-09-29",
+      }),
+    );
+    expect(planToday.orders[0]?.ticker).toBe(planAgain.orders[0]?.ticker); // same seed -> same order
+  });
+});
+
+
+// ── CHAIR consensus (docs/paper-trading-v3.md §3) ────────────────────────────
+
+describe("planChairConsensus", () => {
+  const CHAIR = PAPER_POLICY.chair;
+
+  it("buys a name only 3+ of 5 seats voted for, sized by vote fraction", () => {
+    const votes: ConsensusVote[] = [
+      { ticker: "UNH", buyVotes: 4, sellVotes: 0, totalSeats: 5 },
+      { ticker: "DASH", buyVotes: 1, sellVotes: 0, totalSeats: 5 }, // below 60% -> no buy
+    ];
+    const plan = planChairConsensus(
+      CHAIR,
+      10_000,
+      10_000,
+      [],
+      votes,
+      new Set(["UNH", "DASH"]),
+      { UNH: 100, DASH: 50 },
+    );
+    expect(plan.orders).toHaveLength(1);
+    expect(plan.orders[0].ticker).toBe("UNH");
+    // 5% * (4/5) = 4% of NAV = $400 notional at $100/share = 4 shares.
+    expect(plan.orders[0].quantity).toBeCloseTo(4, 6);
+  });
+
+  it("sells a held position when 3+ of 5 seats voted to sell it", () => {
+    // Sized inside CHAIR's own 8% turnover cap (notional 500 of 10,000 NAV =
+    // 5%) — a consensus sell is discretionary like a score_exit and is
+    // correctly gated by turnover, same as planRun's F5 fix; this test is
+    // about the vote threshold, not the cap, so it stays well under it.
+    const position: EnginePosition = { ticker: "XOM", quantity: 5, avgCost: 100, runsHeld: 5, highWater: 100 };
+    const votes: ConsensusVote[] = [{ ticker: "XOM", buyVotes: 0, sellVotes: 3, totalSeats: 5 }];
+    const plan = planChairConsensus(CHAIR, 10_000, 9_500, [position], votes, new Set(["XOM"]), { XOM: 100 });
+    expect(plan.orders).toEqual([expect.objectContaining({ ticker: "XOM", side: "sell", reason: "score_exit" })]);
+  });
+
+  it("still fires CHAIR's own stop regardless of consensus", () => {
+    const position: EnginePosition = { ticker: "XOM", quantity: 10, avgCost: 100, runsHeld: 5, highWater: 100 };
+    // No sell votes at all — the stop is the only reason this should exit.
+    const plan = planChairConsensus(CHAIR, 8_800, 8_000, [position], [], new Set(["XOM"]), { XOM: 87 });
+    expect(plan.orders).toEqual([expect.objectContaining({ ticker: "XOM", side: "sell", reason: "stop" })]);
+  });
+
+  it("does not buy a name with no votes at all", () => {
+    const plan = planChairConsensus(CHAIR, 10_000, 10_000, [], [], new Set(["UNH"]), { UNH: 100 });
+    expect(plan.orders).toHaveLength(0);
+  });
+
+  it("respects the account's own maxPositionWeight even at full 5/5 consensus", () => {
+    const votes: ConsensusVote[] = [{ ticker: "UNH", buyVotes: 5, sellVotes: 0, totalSeats: 5 }];
+    // 5% * (5/5) = 5% of NAV, and CHAIR's own cap is also 5% — so this should
+    // land at (not past) the cap, not the raw votedWeight if they ever diverge.
+    const plan = planChairConsensus(CHAIR, 10_000, 10_000, [], votes, new Set(["UNH"]), { UNH: 100 });
+    const weight = (plan.orders[0].quantity * 100) / 10_000;
+    expect(weight).toBeLessThanOrEqual(CHAIR.maxPositionWeight + 1e-9);
   });
 });

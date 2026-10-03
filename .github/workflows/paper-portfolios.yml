@@ -19,6 +19,26 @@ name: Council Paper Portfolios (4x daily)
 # MANUAL STEPS: PAPER_CRON_SECRET, PORTAL_PUSH_SECRET, ALPACA_API_KEY and
 # ALPACA_API_SECRET must be GitHub Actions secrets (secrets-sync skill), and
 # paper_accounts must be seeded (scripts/seed-paper-portfolios.mjs).
+#
+# docs/paper-trading-v3.md §5.2 fixes applied here:
+#   1. The slot is resolved from which `github.event.schedule` cron actually
+#      fired, not the wall clock at whatever time GHA got around to starting
+#      the job — GHA commonly starts 30-90 min late, and the wall-clock gate
+#      mislabeled 6 of 8 runs as `settle` on 2026-09-28 (F6). The original
+#      wall-clock window logic is kept ONLY for a manual `workflow_dispatch`
+#      with no `slot` input, where there is no cron event to read.
+#   2. A trading slot that starts well outside its intended window (this
+#      workflow, however triggered) still runs, but flags itself `late=true`
+#      via the ?late= query param so the route can decide how to treat it
+#      rather than silently trading at a stale mark.
+#   3. Before calling the run route, poll GET /api/paper/version until its
+#      `sha` matches this workflow's own `github.sha` — closes F2 (a run
+#      executing 2 seconds after a merge finished, before the new deploy had
+#      actually rolled out, and getting labeled with the new policy version
+#      anyway).
+#   4. The failure-issue step finds-or-comments on an existing open issue for
+#      this failure signature instead of opening a new one every time (F11 —
+#      35 open near-duplicate issues on 2026-09-29, all the same root cause).
 
 on:
   schedule:
@@ -66,12 +86,19 @@ jobs:
     outputs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
       slot: ${{ steps.check.outputs.slot }}
+      late: ${{ steps.check.outputs.late }}
     steps:
       - id: check
-        name: Weekday + NY-wall-clock slot check
+        name: Slot resolution (from the cron that fired) + weekday gate
+        env:
+          # github.event.schedule is only set on a `schedule` trigger; empty
+          # on workflow_dispatch, which is exactly when the fallback below
+          # (an explicit input, or the wall-clock window) is needed instead.
+          FIRED_CRON: ${{ github.event.schedule }}
         run: |
           DAY=$(date -u +%u)   # 1=Mon … 7=Sun
           NY_TIME=$(TZ="America/New_York" date +%H:%M)
+          NY_MIN=$(( 10#$(TZ="America/New_York" date +%H) * 60 + 10#$(TZ="America/New_York" date +%M) ))
           echo "NY local time: ${NY_TIME}"
 
           if [[ "$DAY" -ge 6 && "${{ inputs.skip_market_check }}" != "true" ]]; then
@@ -82,22 +109,51 @@ jobs:
 
           if [[ -n "${{ inputs.slot }}" ]]; then
             SLOT="${{ inputs.slot }}"
+          elif [[ -n "$FIRED_CRON" ]]; then
+            # docs/paper-trading-v3.md F6/§5.2 item 1: resolve from which cron
+            # entry actually fired, not the wall clock at whenever GHA got
+            # around to starting the job. GHA commonly starts 30-90 minutes
+            # late, and the wall-clock window this replaced mislabeled 6 of 8
+            # runs as `settle` on 2026-09-28 alone — every one of them fired
+            # inside a *different* slot's own cron but landed after that
+            # slot's window had already rolled into the next one.
+            #
+            # CodeRabbit review, PR #204: matching EITHER cron in a pair to
+            # the same slot regardless of season reintroduced the exact bug
+            # this fix was meant to close, in the other direction — every
+            # slot would now fire TWICE a day (once at the correct NY time,
+            # once an hour off), because both the EST and EDT cron for a slot
+            # match year-round and there was nothing left to reject the
+            # off-season one. `paper_runs`' idempotency absorbed the second
+            # fire as `alreadyRan` rather than double-trading, but it still
+            # doubled the GHA runs and API calls every slot, every day — the
+            # exact "off-season entry is a no-op" behavior the original
+            # wall-clock gate provided and this rewrite dropped. Fixed by
+            # validating the cron against NY's *currently active* UTC offset:
+            # only the cron matching today's real DST state resolves to a
+            # slot; the other one now correctly falls through to SLOT="".
+            NY_OFFSET=$(TZ="America/New_York" date +%z)  # "-0500" (EST) or "-0400" (EDT)
+            case "$FIRED_CRON" in
+              '0 14 * * 1-5')   [[ "$NY_OFFSET" == "-0500" ]] && SLOT="preopen"  ;;
+              '0 13 * * 1-5')   [[ "$NY_OFFSET" == "-0400" ]] && SLOT="preopen"  ;;
+              '30 17 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="midday"   ;;
+              '30 16 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="midday"   ;;
+              '45 20 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="preclose" ;;
+              '45 19 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="preclose" ;;
+              '30 21 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="settle"   ;;
+              '30 20 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="settle"   ;;
+              *) SLOT="" ;;
+            esac
           else
-            # Two cron entries (EST/EDT) fire for every slot, year-round; only
-            # one is close to the slot's actual NY local time on any given
-            # day. GitHub Actions scheduled runs commonly start 30-90 minutes
-            # late (documented GHA behavior under load), so this must be a
-            # window match, not exact-minute equality — an exact match never
-            # fires reliably and left every one of the 38 runs recorded
-            # 2026-09-15..2026-09-22 as `run=skipped` (see
-            # docs/modal-pipeline-status.md "Why paper portfolios have never
-            # run"). Each slot claims the window up to the next slot's start;
-            # `settle` extends to end-of-day. Re-running the same slot within
-            # its window is safe: the route's own idempotency (unique
-            # constraint on paper_runs(account, trade_date, slot) + an early
-            # getRun() check in lib/paper-engine.ts::runAccountSlot) absorbs a
-            # duplicate trigger without double-running.
-            NY_MIN=$(( 10#$(TZ="America/New_York" date +%H) * 60 + 10#$(TZ="America/New_York" date +%M) ))
+            # Manual dispatch, no explicit slot — fall back to the wall-clock
+            # window (unchanged from before this fix), since there is no cron
+            # event to read. Each slot claims the window up to the next
+            # slot's start; `settle` extends to end-of-day. Re-running the
+            # same slot within its window is safe: the route's own
+            # idempotency (unique constraint on paper_runs(account,
+            # trade_date, slot) + an early getRun() check in
+            # lib/paper-engine.ts::runAccountSlot) absorbs a duplicate
+            # trigger without double-running.
             PREOPEN=$((9 * 60))
             MIDDAY=$((12 * 60 + 30))
             PRECLOSE=$((15 * 60 + 45))
@@ -112,11 +168,32 @@ jobs:
 
           if [[ -z "$SLOT" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NY local time ${NY_TIME} matches no slot — off-season cron entry, skipping."
+            echo "NY local time ${NY_TIME}, cron '${FIRED_CRON:-none}' matches no slot — off-season cron entry, skipping."
           else
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
             echo "slot=${SLOT}" >> "$GITHUB_OUTPUT"
-            echo "Resolved slot: ${SLOT}"
+            echo "Resolved slot: ${SLOT} (from ${FIRED_CRON:+cron}${FIRED_CRON:-wall-clock/manual})"
+
+            # docs/paper-trading-v3.md §5.2 item 2: a trading slot starting
+            # well outside its own window (late GHA start, or a manual
+            # dispatch at an odd hour) still runs, but is flagged so the
+            # sanity-check step downstream reads a real trade as "late",
+            # never as invisible.
+            declare -A SLOT_START=( [preopen]=$((9*60)) [midday]=$((12*60+30)) [preclose]=$((15*60+45)) [settle]=$((16*60+30)) )
+            START=${SLOT_START[$SLOT]}
+            LATE_MINUTES=$(( NY_MIN - START ))
+            # CodeRabbit review, PR #204: an explicit manual dispatch BEFORE a
+            # slot's own start (e.g. "midday" fired at 09:00 ET) produced a
+            # negative LATE_MINUTES, which is not > 60 and so was reported as
+            # on-time — the opposite of what the comment above promises. Both
+            # directions count as outside the intended window; only a
+            # same-side-or-later dispatch within 60 minutes stays on-time.
+            if (( LATE_MINUTES > 60 || LATE_MINUTES < 0 )); then
+              echo "late=true" >> "$GITHUB_OUTPUT"
+              echo "Slot '${SLOT}' is ${LATE_MINUTES} minutes from its intended start — flagging as outside the window."
+            else
+              echo "late=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
   # ── Run ─────────────────────────────────────────────────────────────────
@@ -150,6 +227,39 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # docs/paper-trading-v3.md F2/§5.2 item 3: a run must never execute
+      # against a Vercel deployment that hasn't finished rolling out yet. On
+      # 2026-09-29 the manual trigger for the first real v2 slot hit the
+      # route 2 seconds after Vercel's build finished, not after the alias
+      # had actually moved — every result that run produced matched v1's
+      # thresholds while being stamped v2. Polls up to 5 minutes; on timeout,
+      # proceeds anyway and records the mismatch (`::warning`) rather than
+      # blocking every run on a slow or genuinely stuck deploy.
+      - name: Wait for the deployed commit to match this run's commit
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+        run: |
+          for i in $(seq 1 30); do
+            LIVE_SHA=$(curl -sS --max-time 10 "$PORTAL_URL/api/paper/version" | jq -r '.sha // empty')
+            if [[ "$LIVE_SHA" == "${{ github.sha }}" ]]; then
+              echo "Deployed commit matches (${LIVE_SHA:0:7}) after $(( (i - 1) * 10 ))s."
+              exit 0
+            fi
+            sleep 10
+          done
+          # CodeRabbit review, PR #204: this step exists specifically to
+          # prevent a run executing against a still-rolling-out deploy (F2 —
+          # the exact failure this poll was added to close). Warning and
+          # proceeding anyway permits that failure whenever a deploy is
+          # unusually slow or stuck; failing the job is the correct default
+          # for a scheduled job that writes real (paper) capital state — an
+          # operator can re-dispatch this exact slot once the deploy catches
+          # up (paper_runs' idempotency makes that safe: a slot that never
+          # ran has nothing to double-run).
+          echo "::error::Deployed commit (${LIVE_SHA:-unknown}) still doesn't match ${{ github.sha }} after 5 minutes — refusing to run against a deploy that may not have finished rolling out. Re-dispatch this slot once the deploy is live."
+          exit 1
+
       - name: Refresh live_prices from Alpaca (IEX latest trades)
         continue-on-error: true
         timeout-minutes: 5
@@ -172,6 +282,9 @@ jobs:
           URL="$PORTAL_URL/api/pipeline/paper-portfolios?slot=$SLOT"
           if [[ -n "${ACCOUNT:-}" ]]; then
             URL="${URL}&account=${ACCOUNT}"
+          fi
+          if [[ "${{ needs.gate.outputs.late }}" == "true" ]]; then
+            URL="${URL}&late=true"
           fi
           STATUS=$(curl -sS -o /tmp/paper-run.json -w '%{http_code}' \
             -X POST "$URL" \
@@ -237,20 +350,38 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: Open failure issue
+      # docs/paper-trading-v3.md F11/§5.2 item 5: every failure used to open a
+      # brand-new issue, even when the previous one for the exact same slot
+      # was still open from an hour ago — 35 open near-duplicate issues by
+      # 2026-09-29, all the pre-#188 `gh secret list` defect. Comments on an
+      # existing open issue for this slot instead of opening a new one.
+      - name: Open or update failure issue
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          gh issue create \
-            --repo "${{ github.repository }}" \
-            --title "Paper portfolios (${{ needs.gate.outputs.slot || 'unresolved slot' }}) failed $(date -u '+%Y-%m-%d')" \
-            --body "**Run:** ${RUN_URL}
+          SLOT="${{ needs.gate.outputs.slot || 'unresolved slot' }}"
+          BODY="**Run:** ${RUN_URL}
 
           **Slot:** ${{ needs.gate.outputs.slot || 'unresolved' }}
           **Run status:** ${{ needs.run-slot.outputs.run_status || 'did not reach run step' }}
 
           Likely cause if this is the first failure: \`PAPER_CRON_SECRET\` not yet
           set as a GitHub Actions secret, or \`paper_accounts\` still empty in the
-          target DB — see docs/paper-portfolios-remaining-todo.md Phase 4." \
-            --label "pipeline-failure"
+          target DB — see docs/paper-portfolios-remaining-todo.md Phase 4."
+
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --label "pipeline-failure" \
+            --state open --search "\"Paper portfolios ($SLOT)\" in:title" \
+            --json number --jq '.[0].number')
+
+          if [[ -n "$EXISTING" ]]; then
+            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body "Failed again:
+
+          $BODY"
+          else
+            gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "Paper portfolios (${SLOT}) failed $(date -u '+%Y-%m-%d')" \
+              --body "$BODY" \
+              --label "pipeline-failure"
+          fi
