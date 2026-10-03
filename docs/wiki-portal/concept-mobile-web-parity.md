@@ -303,6 +303,8 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 
 > ℹ️ **Portal PR #211 (2026-10-02) assessed — portal-only fixes, headline unchanged.** Switches `/api/brief` and `/api/nuai` to the checked model fallback, repoints dead free-model ids in `lib/openrouter.ts`, and fixes `/api/analyze` timeout plus the holdfold trade-plan field mapping. No `lib/shared/` module touched, so single-source parity is unchanged, and no feature domain is added or removed. Mobile has its own AI-call path and no `/api/analyze` consumer, so nothing to port; the dead-id audit lesson is already captured in [[entity-openrouter-client]].
 
+> ℹ️ **Portal PR #213 (2026-10-03) assessed — portal-only paper-trading policy, headline unchanged at ~62%.** Policy v4 gives each of the six trading council seats a holdings floor of 15–20 names, filled from a persona starter book (`lib/shared/paper-core-books.ts`), plus a `fillHoldingsFloor` pass in `lib/shared/paper-engine-core.ts` and a 7-day stop cooldown in `lib/paper-db.ts`. **One new `lib/shared/` module (`paper-core-books.ts`) and two edited (`paper-engine-core.ts`, `paper-policy.ts`), all portal-only.** Mobile has no paper-trading code at all (`paper-policy`, `paper_accounts` and `PAPER_POLICY` are absent from `gcp3-mobile`), so there is no drift and no counterpart to port. Feature-domain parity is unchanged: the paper dashboard is still a portal surface and nothing user-visible moved on mobile. Same shape as portal PR #189 and the paper-engine PR #204 before it — neither denominator moves.
+
 ## Where it appears
 
 - Shared backbone: `lib/shared/` in both repos (only `sse.ts` is truly shared today)
