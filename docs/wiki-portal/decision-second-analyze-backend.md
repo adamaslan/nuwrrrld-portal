@@ -58,6 +58,11 @@ verdict with trade plan, Fibonacci levels, and options Greeks — none of which
   `(symbol, period, asset_type, risk_profile)` — see
   [[entity-holdfold-cache]]) from the batch `holdfold_cache`, since they're
   answering different questions with different staleness tolerances.
+- Cold start is part of the contract. The service takes ~18s to wake, so
+  `/api/analyze` now allows 25s upstream with `maxDuration = 60` (PR #211); the
+  earlier 8s budget turned every cold hit into a 504. The panel also reads the
+  backend's flat `entry/stop/target/risk_reward` fields, falling back to a nested
+  `trade_plan`, because the nested shape the UI first assumed was never returned.
 - Option B remains open. If per-ticker analysis proves popular, the next step
   is porting the trade-plan/Fibonacci/options logic into `gcp3-backend` and
   retiring `MCP_ANALYZE_URL`, not merging the services outright.

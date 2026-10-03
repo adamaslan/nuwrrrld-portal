@@ -126,6 +126,8 @@ invalidate every caller again. As of PR #115 **all six seat primaries are `:free
     `SPECIALIST_MODEL_PATTERNS` now excludes code / classifier / media ids from
     chain candidacy.
 
+13. **`/api/brief` and `/api/nuai` used the unchecked fallback, and the chain held dead ids (found and fixed 2026-10-02, PR #211).** Both routes called `fetchWithModelFallback`, which treats any HTTP 200 as success. A chain model that opens a stream and never emits a content token therefore ended the loop and surfaced as "Brief returned empty", even though `fetchWithModelFallbackChecked` (which buffers until a real content token arrives) existed for exactly this. Both now use the checked variant. The brief's market-overview upstream timeout moved 8s to 15s to cover a ~13s cold start. In the same pass `FREE_MODEL_CHAIN`'s last entry (a finance-tuned id that now 404s) was replaced with `qwen/qwen3.8-27b:free`, and the T1 and RISK seats were repointed off ids that 404. Only the qwen replacement was verified end to end; RISK's replacement answered 429 on the probe, so it is existence-checked but not reachability-checked. This is failure #6's recurrence again: the seat list rots between audits, and an unchecked 200 hides it.
+
 ## Open questions
 
 - ❓ `SEAT_MODELS` primary assignments predate the §10 residual-difficulty analysis. Should T1/T2/MACRO be re-tuned once Layer-B flag-rate telemetry exists? (mirrors an open question on [[entity-ai-council]])
