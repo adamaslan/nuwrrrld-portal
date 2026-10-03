@@ -127,7 +127,7 @@ export const EXTRAS = {
  *  See §2.1's "spy — control, one name, and it is not SPY". */
 export const SPY_HOLDING = "IVV";
 
-export const PAPER_POLICY_VERSION = "v3"; // must track lib/shared/paper-policy.ts's export
+export const PAPER_POLICY_VERSION = "v4"; // must track lib/shared/paper-policy.ts's export
 export const STARTING_CASH = 10000;
 
 /** account -> { seat, label, tickers } — the full seed plan. `equal`'s

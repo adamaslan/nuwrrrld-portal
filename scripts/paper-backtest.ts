@@ -76,6 +76,7 @@ import type { SignalStateInput } from "../lib/grounding/taxonomy";
 import {
   planRun,
   planChairConsensus,
+  stopCooldownStart,
   fillOrders,
   selectArbitrationCandidates,
   type EngineCandidate,
@@ -91,6 +92,7 @@ import { PAPER_POLICY, TRADING_ACCOUNTS, PAPER_POLICY_VERSION, type TradingAccou
 // here rather than cast at each use site (same fix as scripts/paper-sim.ts).
 const TRADING: TradingAccount[] = TRADING_ACCOUNTS as TradingAccount[];
 import { buildTieBreak } from "../lib/shared/paper-persona";
+import { coreBookFor } from "../lib/shared/paper-core-books";
 
 // ── args ────────────────────────────────────────────────────────────────────
 
@@ -316,6 +318,13 @@ async function main(): Promise<void> {
   const positions = new Map<TradingAccount, Map<string, EnginePosition>>(TRADING.map((a) => [a, new Map()]));
   let flaggedTotal = 0;
   let orderTotal = 0;
+  // v4 stop cooldown — ticker -> last trade_date it was stopped out, per
+  // account; mirrors lib/paper-db.ts getRecentlyStoppedTickers.
+  const lastStop = new Map<TradingAccount, Map<string, string>>(TRADING.map((a) => [a, new Map()]));
+  const recentlyStoppedFor = (account: TradingAccount, tradeDate: string): Set<string> => {
+    const since = stopCooldownStart(tradeDate);
+    return new Set([...lastStop.get(account)!].filter(([, d]) => d >= since).map(([t]) => t));
+  };
 
   for (const tradeDate of tradingDays) {
     // Prices + cards for every ticker as of this day, computed once and
@@ -390,7 +399,12 @@ async function main(): Promise<void> {
           sellVotes: sellVotes.get(ticker)?.size ?? 0,
           totalSeats: TRADING.length - 1,
         }));
-        plan = planChairConsensus(policy, nav, cash.get(account)!, marked, votes, watchlist, prices);
+        plan = planChairConsensus(policy, nav, cash.get(account)!, marked, votes, watchlist, prices, {
+          coreBook: coreBookFor("chair"),
+          recentlyStopped: recentlyStoppedFor(account, tradeDate),
+          candidates,
+          tieBreakSeed: tradeDate,
+        });
       } else {
         const tieBreak = buildTieBreak(account, candidates);
         plan = planRun({
@@ -403,6 +417,7 @@ async function main(): Promise<void> {
           prices,
           tieBreak,
           tieBreakSeed: tradeDate,
+          holdingsFloor: { coreBook: coreBookFor(account), recentlyStopped: recentlyStoppedFor(account, tradeDate) },
         });
       }
 
@@ -443,7 +458,9 @@ async function main(): Promise<void> {
           scores.get(o.ticker) ?? null,
           flagByTicker.get(o.ticker) ?? null,
         );
-        dayOrdersBySibling.push({ account, ticker: o.ticker, side: o.side });
+        // v4: a floor fill is construction, not a vote (lib/paper-db.ts getSeatOrdersForSlot)
+        if (o.reason !== "core_fill") dayOrdersBySibling.push({ account, ticker: o.ticker, side: o.side });
+        if (o.reason === "stop") lastStop.get(account)!.set(o.ticker, tradeDate);
         if (o.side === "sell") {
           newCash += o.notional;
           newPositions.delete(o.ticker);

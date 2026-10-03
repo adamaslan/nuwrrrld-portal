@@ -28,6 +28,7 @@
  * later phase rather than invented here.
  */
 import type { PaperPolicy } from "./paper-policy";
+import { BY_SCORE, type CoreBook } from "./paper-core-books";
 import { isMegaOrLargeCap, sectorFor, type PaperSector } from "./paper-sectors";
 
 export type OrderReason =
@@ -36,7 +37,10 @@ export type OrderReason =
   | "stop"
   | "void"
   | "cap_clip"
-  | "seat_downsize";
+  | "seat_downsize"
+  /** v4: a buy that restores the account's holdings floor from its persona
+   *  starter book (`fillHoldingsFloor`), not a score-threshold entry. */
+  | "core_fill";
 
 export interface EngineCandidate {
   ticker: string;
@@ -105,12 +109,143 @@ export interface RunPlanInput {
    *  day, not fixed forever) — see `hashTicker`. Defaults to "" so existing
    *  callers/tests that don't care about tie-break stability keep working. */
   tieBreakSeed?: string;
+  /** v4 holdings floor: when set, positions below `policy.minHoldings` are
+   *  refilled from this starter book before any score-driven buy. Omitted,
+   *  the planner behaves exactly as v3 — kept opt-in so callers that don't
+   *  plan a real account (unit tests of the threshold logic) are unaffected. */
+  holdingsFloor?: HoldingsFloor;
+}
+
+/** v4 holdings-floor input: the persona starter book, plus the names this
+ *  account was stopped out of within `STOP_COOLDOWN_DAYS` (caller-supplied —
+ *  the planner is pure and has no order history). */
+export interface HoldingsFloor {
+  coreBook: CoreBook;
+  recentlyStopped?: ReadonlySet<string>;
+}
+
+/** A floor fill never re-buys a name the account was stopped out of in the
+ *  last week. Without it, the 22-day backtest (docs/paper-trading-v3.md §3.1)
+ *  showed RISK re-entering 15 names within 5 trading days of their trailing
+ *  stop firing — the floor quietly undoing the stop a few days late, the same
+ *  failure F13 fixed inside a single run. Score-driven entries are unaffected:
+ *  a name that re-clears its buy threshold is a new signal, not a refill. */
+export const STOP_COOLDOWN_DAYS = 7;
+
+/** First trade_date (YYYY-MM-DD) inside the stop cooldown ending at `tradeDate`. */
+export function stopCooldownStart(tradeDate: string): string {
+  const d = new Date(`${tradeDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - STOP_COOLDOWN_DAYS);
+  return d.toISOString().slice(0, 10);
 }
 
 export interface RunPlan {
   orders: ProposedOrder[];
-  /** Fraction of NAV committed to orders this run — always <= policy.maxTurnoverPerRun. */
+  /** Fraction of NAV committed to orders this run. Discretionary orders stay
+   *  within policy.maxTurnoverPerRun; stops, void exits and floor fills are
+   *  deliberately not gated by it, so this figure can exceed the cap. */
   turnoverUsed: number;
+}
+
+/** A floor fill never buys a bearish card: below this, the name would be a
+ *  score_exit candidate for every account whose sellThreshold is >= 0, and
+ *  buying it to satisfy a count would be churn by construction. Neutral (0)
+ *  qualifies — 784 of 978 live cards on 2026-09-29 scored exactly 0. */
+const FLOOR_MIN_SCORE = 0;
+
+/** Mutable planner state shared by `fillHoldingsFloor` and its callers. */
+interface PlanState {
+  positionsByTicker: Map<string, EnginePosition>;
+  sectorWeight: Map<PaperSector, number>;
+  orders: ProposedOrder[];
+  cash: number;
+}
+
+/**
+ * v4 holdings floor (docs/paper-trading-v3.md §3.1). Runs after sells and
+ * before score-driven buys: while the account holds fewer than
+ * `policy.minHoldings` names, buy the next eligible name at
+ * `policy.coreWeight`, clipped by sector cap, cash floor and
+ * `minPositionWeight` exactly as a normal buy is.
+ *
+ * Deliberately *not* gated by `maxTurnoverPerRun`. The turnover cap bounds
+ * discretionary trading; a book below its floor is not yet the persona at
+ * all (production held 0–4 names on 2026-09-29), and gating construction by
+ * a 6% cap would take T2 three trading days to become the account it claims
+ * to be. The notional still counts toward `turnoverUsed`, so the same run's
+ * score-driven buys see no budget left and wait for the next slot.
+ *
+ * Eligible: has a price, is on the active watchlist, isn't held, wasn't sold
+ * earlier in this run (F13) or stopped out within STOP_COOLDOWN_DAYS, and
+ * its card is not bearish (FLOOR_MIN_SCORE).
+ * Tier 1 is the persona starter book (or, for `BY_SCORE`, the whole
+ * watchlist); tier 2 — only if tier 1 runs out — is the rest of the
+ * watchlist, so the floor still holds when too many starter names are
+ * bearish on the same day. Within a tier: score desc, persona tie-break,
+ * date-seeded hash.
+ *
+ * Returns the notional committed, for the caller's turnover accounting.
+ */
+function fillHoldingsFloor(
+  policy: PaperPolicy,
+  nav: number,
+  state: PlanState,
+  floor: HoldingsFloor,
+  candidates: readonly EngineCandidate[],
+  activeWatchlist: ReadonlySet<string>,
+  prices: Readonly<Record<string, number>>,
+  soldThisRun: ReadonlySet<string>,
+  tieBreak: ((a: EngineCandidate, b: EngineCandidate) => number) | undefined,
+  tieBreakSeed: string,
+): number {
+  let needed = policy.minHoldings - state.positionsByTicker.size;
+  if (needed <= 0) return 0;
+
+  const { coreBook, recentlyStopped } = floor;
+  const inBook = coreBook === BY_SCORE ? () => true : (t: string) => coreBook.includes(t);
+  const order = (a: EngineCandidate, b: EngineCandidate) =>
+    b.score - a.score ||
+    tieBreak?.(a, b) ||
+    hashTicker(a.ticker, tieBreakSeed) - hashTicker(b.ticker, tieBreakSeed);
+  const eligible = candidates.filter(
+    (c) =>
+      c.score >= FLOOR_MIN_SCORE &&
+      activeWatchlist.has(c.ticker) &&
+      prices[c.ticker] != null &&
+      !state.positionsByTicker.has(c.ticker) &&
+      !soldThisRun.has(c.ticker) &&
+      !recentlyStopped?.has(c.ticker),
+  );
+  const tiers = [
+    eligible.filter((c) => inBook(c.ticker)).sort(order),
+    eligible.filter((c) => !inBook(c.ticker)).sort(order),
+  ];
+
+  const cashFloorAmount = policy.cashFloor * nav;
+  const minNotional = policy.minPositionWeight * nav;
+  let spent = 0;
+  for (const c of tiers.flat()) {
+    if (needed <= 0) break;
+    const price = prices[c.ticker]!;
+    let notional = policy.coreWeight * nav;
+
+    const sector = sectorFor(c.ticker);
+    if (sector) {
+      const room = policy.sectorCapPct - (state.sectorWeight.get(sector) ?? 0);
+      notional = Math.min(notional, room * nav);
+    }
+    notional = Math.min(notional, state.cash - cashFloorAmount);
+    if (notional < minNotional) continue; // sector full or out of cash — try the next name
+
+    const quantity = notional / price;
+    state.orders.push({ ticker: c.ticker, side: "buy", quantity, refPrice: price, reason: "core_fill" });
+    state.cash -= notional;
+    spent += notional;
+    if (sector) state.sectorWeight.set(sector, (state.sectorWeight.get(sector) ?? 0) + notional / nav);
+    state.positionsByTicker.set(c.ticker, { ticker: c.ticker, quantity, avgCost: price, runsHeld: 0, highWater: price });
+    needed--;
+  }
+  return spent;
 }
 
 function isStopTriggered(policy: PaperPolicy, position: EnginePosition, price: number): boolean {
@@ -222,6 +357,24 @@ export function planRun(input: RunPlanInput): RunPlan {
     if (sector) {
       sectorWeight.set(sector, Math.max(0, (sectorWeight.get(sector) ?? 0) - notional / nav));
     }
+  }
+
+  // ── Holdings floor (v4) ────────────────────────────────────────────────
+  if (input.holdingsFloor) {
+    const state: PlanState = { positionsByTicker, sectorWeight, orders, cash };
+    turnoverUsed += fillHoldingsFloor(
+      policy,
+      nav,
+      state,
+      input.holdingsFloor,
+      candidates,
+      activeWatchlist,
+      prices,
+      soldThisRun,
+      tieBreak,
+      tieBreakSeed,
+    );
+    cash = state.cash;
   }
 
   // ── Buys ───────────────────────────────────────────────────────────────
@@ -477,6 +630,10 @@ export function planChairConsensus(
   votes: ConsensusVote[],
   activeWatchlist: ReadonlySet<string>,
   prices: Readonly<Record<string, number>>,
+  /** v4 holdings floor — CHAIR's own screened cards and starter book. The
+   *  vote logic never reads a card score; only the floor does, to avoid
+   *  filling with a name the cards call bearish. Omitted, behaves as v3. */
+  holdingsFloor?: HoldingsFloor & { candidates: readonly EngineCandidate[]; tieBreakSeed?: string },
 ): RunPlan {
   if (nav <= 0) return { orders: [], turnoverUsed: 0 };
 
@@ -535,6 +692,24 @@ export function planChairConsensus(
     soldThisRun.add(p.ticker);
     const sector = sectorFor(p.ticker);
     if (sector) sectorWeight.set(sector, Math.max(0, (sectorWeight.get(sector) ?? 0) - notional / nav));
+  }
+
+  // ── Holdings floor (v4) — before consensus buys, same as planRun. ──
+  if (holdingsFloor) {
+    const state: PlanState = { positionsByTicker, sectorWeight, orders, cash: cashLeft };
+    turnoverUsed += fillHoldingsFloor(
+      policy,
+      nav,
+      state,
+      holdingsFloor,
+      holdingsFloor.candidates,
+      activeWatchlist,
+      prices,
+      soldThisRun,
+      undefined, // CHAIR has no persona tie-break (paper-persona.ts)
+      holdingsFloor.tieBreakSeed ?? "",
+    );
+    cashLeft = state.cash;
   }
 
   // ── Buys: consensus-agreed names only, sized by how many seats agreed. ──

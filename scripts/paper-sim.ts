@@ -53,6 +53,7 @@ import {
   type TradingAccount,
 } from "../lib/shared/paper-policy";
 import { buildTieBreak } from "../lib/shared/paper-persona";
+import { coreBookFor } from "../lib/shared/paper-core-books";
 import { sectorFor } from "../lib/shared/paper-sectors";
 
 /** `TRADING_ACCOUNTS` is declared `PaperAccount[]` (it lives alongside the
@@ -428,7 +429,11 @@ function planFor(
   // the plain alphabetical order this script fell back to before.
   const plan =
     state.account === "chair"
-      ? planChairConsensus(policy, nav, state.cash, marked, chairVotes ?? [], activeWatchlist, prices)
+      ? planChairConsensus(policy, nav, state.cash, marked, chairVotes ?? [], activeWatchlist, prices, {
+          coreBook: coreBookFor("chair"),
+          candidates,
+          tieBreakSeed: source.barDate,
+        })
       : planRun({
           policy,
           nav,
@@ -439,6 +444,7 @@ function planFor(
           prices,
           tieBreak: buildTieBreak(state.account, candidates),
           tieBreakSeed: source.barDate,
+          holdingsFloor: { coreBook: coreBookFor(state.account) },
         });
 
   const scores = new Map(candidates.map((c) => [c.ticker, c.score]));
@@ -518,6 +524,8 @@ function ticketText(account: TradingAccount, t: Ticket, policy: PaperPolicy): st
         ? "forced exit — no longer on the active watchlist"
         : t.reason === "score_exit"
           ? `signal exit — ${card}`
+          : t.reason === "core_fill"
+            ? `holdings floor — starter-book fill below ${policy.minHoldings} names (${card})`
           : t.score == null
             ? "no card"
             : card;
@@ -595,6 +603,7 @@ async function main(): Promise<void> {
     const sellVotes = new Map<string, Set<string>>();
     for (const sp of siblingPlans) {
       for (const t of sp.tickets) {
+        if (t.reason === "core_fill") continue; // construction, not a vote (lib/paper-db.ts)
         const bucket = t.side === "buy" ? buyVotes : sellVotes;
         if (!bucket.has(t.ticker)) bucket.set(t.ticker, new Set());
         bucket.get(t.ticker)!.add(sp.account);

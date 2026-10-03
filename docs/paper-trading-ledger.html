@@ -1,0 +1,551 @@
+<title>Council Trading Ledger</title>
+<meta name="description" content="Live production state, the policy v4 persona starter books (15+ names per bot), and a 22-day real-data backtest for the eight NuWrrrld paper-trading accounts.">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --surface: #fcfcfb;
+    --surface-raised: #ffffff;
+    --border: #e4e2db;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #83817a;
+    --accent: #2a78d6;
+    --good: #0b8a0b;
+    --good-bg: #e4f6e2;
+    --critical: #c43535;
+    --critical-bg: #fbe9e7;
+    --grid: #e9e7e0;
+    --ivv: #52514e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #131311; --surface: #1a1a19; --surface-raised: #201f1d; --border: #322f2a;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8980;
+      --accent: #3987e5; --good: #3fcf3f; --good-bg: #163a16; --critical: #e66767;
+      --critical-bg: #3d1c1a; --grid: #2a2926; --ivv: #c3c2b7;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #131311; --surface: #1a1a19; --surface-raised: #201f1d; --border: #322f2a;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8980;
+    --accent: #3987e5; --good: #3fcf3f; --good-bg: #163a16; --critical: #e66767;
+    --critical-bg: #3d1c1a; --grid: #2a2926; --ivv: #c3c2b7;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text-primary);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    padding-inline: 16px; padding-block: 28px 48px;
+    max-width: 1000px; margin-inline: auto; line-height: 1.5;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--text-muted); }
+
+  header.page-head { margin-bottom: 24px; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px var(--good-bg); }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; margin: 6px 0 4px; text-wrap: balance; }
+  .subhead { color: var(--text-secondary); font-size: 15px; max-width: 66ch; margin: 0; }
+  h2 { font-size: 20px; font-weight: 600; margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; text-wrap: balance; }
+  h2 .section-note { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+  h3.sub { font-size: 14px; margin: 24px 0 8px; color: var(--text-secondary); font-weight: 600; }
+  section { margin-top: 44px; }
+  .lede { color: var(--text-secondary); font-size: 14.5px; max-width: 70ch; margin: 6px 0 16px; }
+
+  /* verdict strip */
+  .verdict {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 18px;
+  }
+  @media (max-width: 700px) { .verdict { grid-template-columns: 1fr; } }
+  .verdict div { background: var(--surface-raised); padding: 12px 14px; }
+  .verdict .k { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+  .verdict .v { font-size: 15px; font-weight: 600; margin-top: 2px; }
+
+  /* hero account grid */
+  .hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+  @media (max-width: 760px) { .hero-grid { grid-template-columns: repeat(2, 1fr); } }
+  .acct-card {
+    background: var(--surface-raised); border: 1px solid var(--border); border-top: 3px solid var(--c);
+    border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  }
+  .acct-name { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .acct-nav { font-size: 19px; font-weight: 600; }
+  .acct-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .acct-pos { font-size: 12px; color: var(--text-secondary); }
+  .meter { height: 6px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+  .meter-fill { height: 100%; background: var(--c); border-radius: 4px; }
+
+  .pill { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 100px; white-space: nowrap; }
+  .pill.good { color: var(--good); background: var(--good-bg); }
+  .pill.critical { color: var(--critical); background: var(--critical-bg); }
+  .chip {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; color: var(--c);
+    background: color-mix(in srgb, var(--c) 14%, transparent); padding: 2px 8px; border-radius: 5px;
+  }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); border: 1.5px solid var(--surface-raised); margin-left: -3px; }
+  .dot:first-child { margin-left: 0; }
+
+  /* persona books */
+  .persona-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 760px) { .persona-grid { grid-template-columns: 1fr; } }
+  .persona {
+    background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  }
+  .persona header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .persona h3 { margin: 0; font-size: 15px; color: var(--c); }
+  .floor-tag { font-size: 12px; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; }
+  .ethos { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+  .book-row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: start; }
+  .book-label { font-size: 11.5px; color: var(--text-muted); padding-top: 3px; }
+  .book-note { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tk {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500;
+    padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--border));
+    color: var(--text-primary);
+  }
+  .tk.held { background: var(--c); border-color: var(--c); color: #fff; }
+  .key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-bottom: 12px; align-items: center; }
+  .key .tk { --c: var(--text-secondary); }
+
+  /* tables */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 9px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  td.buys { white-space: normal; min-width: 260px; font-size: 12px; color: var(--text-secondary); }
+  thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; background: var(--surface); }
+  th.num { text-align: right; }
+  tbody tr:last-child td { border-bottom: none; }
+  tr.bench td { background: var(--surface); color: var(--text-secondary); }
+
+  .overlap-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .overlap-row {
+    display: grid; grid-template-columns: 64px auto 1fr; align-items: center; gap: 12px;
+    background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px;
+  }
+  .overlap-ticker { font-weight: 600; font-size: 13.5px; }
+  .overlap-dots { display: flex; }
+  .overlap-count { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--text-muted); }
+
+  .reason-row { display: grid; grid-template-columns: 150px 1fr 40px; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .reason-label { font-size: 13px; color: var(--text-secondary); }
+  .reason-bar-track { height: 10px; background: var(--grid); border-radius: 6px; overflow: hidden; }
+  .reason-bar { height: 100%; background: var(--accent); border-radius: 6px; }
+  .reason-n { font-size: 13px; text-align: right; color: var(--text-secondary); }
+
+  /* chart */
+  .chart-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 12px; color: var(--text-secondary); }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-family: "IBM Plex Mono", monospace; }
+  .legend-item .dot { margin-left: 0; }
+  .dash { width: 16px; border-top: 2px dashed var(--ivv); }
+  .chart-svg-wrap { position: relative; }
+  svg.nav-chart { width: 100%; height: auto; display: block; }
+  .nav-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+  .ivv-line { stroke: var(--ivv); stroke-dasharray: 5 4; stroke-width: 1.75; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .base-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
+  .axis-label { font-family: "IBM Plex Mono", monospace; font-size: 10px; fill: var(--text-muted); }
+  .hover-col { fill: transparent; }
+  .crosshair { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; pointer-events: none; }
+  .tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.08s;
+    background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); min-width: 160px; z-index: 5;
+  }
+  .tooltip-date { font-family: "IBM Plex Mono", monospace; font-weight: 600; margin-bottom: 5px; }
+  .tooltip-row { display: flex; justify-content: space-between; gap: 12px; font-family: "IBM Plex Mono", monospace; }
+  @media (prefers-reduced-motion: reduce) { .tooltip { transition: none; } }
+
+  .caveat-box {
+    background: var(--surface-raised); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 12px 14px; font-size: 13.5px; color: var(--text-secondary); margin-top: 14px;
+  }
+  .caveat-box.warn { border-left-color: var(--critical); }
+  .caveat-box ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; font-size: 13.5px; color: var(--accent); font-weight: 500; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  details .table-wrap { margin-top: 10px; }
+
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted); }
+  footer p { margin: 4px 0; }
+</style>
+
+<header class="page-head">
+  <div class="eyebrow"><span class="live-dot"></span>NuWrrrld Financial · production read-only (Neon) · 2026-09-29 settle · policy v4 on branch <span class="mono">feat/paper-core-books</span></div>
+  <h1>Council Trading Ledger</h1>
+  <p class="subhead">Eight paper-trading accounts: six AI seats and two buy-and-hold controls. In production today each seat holds 1–4 names. Policy v4 gives every seat a floor of at least 15 names from a starter book that matches its mandate.</p>
+  <div class="verdict">
+    <div><div class="k">Production today</div><div class="v">1–4 names per seat, 6/6 bought UNH</div></div>
+    <div><div class="k">Next slot under v4 (forecast)</div><div class="v">every seat at its floor, max overlap 3/6</div></div>
+    <div><div class="k">22-day backtest, v4</div><div class="v">floor held every day; 1 of 6 above IVV</div></div>
+  </div>
+</header>
+
+<section id="accounts">
+  <h2>All eight accounts <span class="section-note">production · 2026-09-29 settle · $10,000 start each</span></h2>
+  <p class="lede">The bar under each card shows holdings against the v4 floor. <span class="mono">equal</span> and <span class="mono">spy</span> are measured against their design (Core 50, and IVV) and are still unfunded.</p>
+  <div class="hero-grid">
+<div class="acct-card" style="--c:#2a78d6">
+  <div class="acct-name">T1 · The Tactician</div>
+  <div class="acct-nav mono">$10,003.24</div>
+  <div class="acct-meta"><span class="pill good">+0.032%</span><span class="acct-pos mono">3 / 16 floor</span></div>
+  <div class="meter" role="img" aria-label="3 of 16 holdings"><div class="meter-fill" style="width:18.8%"></div></div>
+</div>
+<div class="acct-card" style="--c:#eb6834">
+  <div class="acct-name">T2 · The Compounder</div>
+  <div class="acct-nav mono">$10,001.31</div>
+  <div class="acct-meta"><span class="pill good">+0.013%</span><span class="acct-pos mono">1 / 20 floor</span></div>
+  <div class="meter" role="img" aria-label="1 of 20 holdings"><div class="meter-fill" style="width:5.0%"></div></div>
+</div>
+<div class="acct-card" style="--c:#1baf7a">
+  <div class="acct-name">RISK · The Survivor</div>
+  <div class="acct-nav mono">$9,999.97</div>
+  <div class="acct-meta"><span class="pill critical">-0.000%</span><span class="acct-pos mono">4 / 20 floor</span></div>
+  <div class="meter" role="img" aria-label="4 of 20 holdings"><div class="meter-fill" style="width:20.0%"></div></div>
+</div>
+<div class="acct-card" style="--c:#eda100">
+  <div class="acct-name">MACRO · The Rotator</div>
+  <div class="acct-nav mono">$10,002.61</div>
+  <div class="acct-meta"><span class="pill good">+0.026%</span><span class="acct-pos mono">1 / 15 floor</span></div>
+  <div class="meter" role="img" aria-label="1 of 15 holdings"><div class="meter-fill" style="width:6.7%"></div></div>
+</div>
+<div class="acct-card" style="--c:#e87ba4">
+  <div class="acct-name">QUANT · The Control</div>
+  <div class="acct-nav mono">$10,000.77</div>
+  <div class="acct-meta"><span class="pill good">+0.008%</span><span class="acct-pos mono">3 / 15 floor</span></div>
+  <div class="meter" role="img" aria-label="3 of 15 holdings"><div class="meter-fill" style="width:20.0%"></div></div>
+</div>
+<div class="acct-card" style="--c:#008300">
+  <div class="acct-name">CHAIR · The Consensus</div>
+  <div class="acct-nav mono">$10,002.50</div>
+  <div class="acct-meta"><span class="pill good">+0.025%</span><span class="acct-pos mono">2 / 18 floor</span></div>
+  <div class="meter" role="img" aria-label="2 of 18 holdings"><div class="meter-fill" style="width:11.1%"></div></div>
+</div>
+<div class="acct-card" style="--c:#4a3aa7">
+  <div class="acct-name">EQUAL · Core-50 Control</div>
+  <div class="acct-nav mono">$10,000.00</div>
+  <div class="acct-meta"><span class="pill good">+0.000%</span><span class="acct-pos mono">0 / 50 design</span></div>
+  <div class="meter" role="img" aria-label="0 of 50 holdings"><div class="meter-fill" style="width:0.0%"></div></div>
+</div>
+<div class="acct-card" style="--c:#e34948">
+  <div class="acct-name">SPY · Buy-and-Hold (IVV)</div>
+  <div class="acct-nav mono">$10,000.00</div>
+  <div class="acct-meta"><span class="pill good">+0.000%</span><span class="acct-pos mono">0 / 1 design</span></div>
+  <div class="meter" role="img" aria-label="0 of 1 holdings"><div class="meter-fill" style="width:0.0%"></div></div>
+</div>
+  </div>
+</section>
+
+<section id="books">
+  <h2>Starter books <span class="section-note">policy v4 · lib/shared/paper-core-books.ts</span></h2>
+  <p class="lede">Each list comes from that seat's own watchlist and says what the seat believes. While a seat holds fewer names than its floor, the planner buys the next book name at the floor weight before any score-driven buy. It never buys a bearish card. It refills from the rest of the watchlist only if the book runs out. It skips any name that was stopped out in the last 7 days.</p>
+  <div class="key"><span><span class="tk held" style="--c:var(--text-secondary)">UNH</span> held in production now</span><span><span class="tk">UNH</span> in the book, not held yet</span></div>
+  <div class="persona-grid">
+<article class="persona" style="--c:#2a78d6">
+  <header><h3>T1 · The Tactician</h3><span class="mono floor-tag">16 × 4% = 64%</span></header>
+  <p class="ethos">High beta and catalyst-rich, where a 1–60 day card actually moves. About a third stays in cash for event trades.</p>
+  <div class="book-row"><span class="book-label">Technology</span><div class="chips"><span class="tk">NVDA</span><span class="tk">AMD</span><span class="tk">PLTR</span><span class="tk">CRWD</span><span class="tk">NET</span><span class="tk">MU</span></div></div><div class="book-row"><span class="book-label">Fintech</span><div class="chips"><span class="tk">COIN</span><span class="tk">HOOD</span><span class="tk">AFRM</span></div></div><div class="book-row"><span class="book-label">Consumer</span><div class="chips"><span class="tk">TSLA</span><span class="tk held">DASH</span><span class="tk">ABNB</span></div></div><div class="book-row"><span class="book-label">Industrials</span><div class="chips"><span class="tk">UBER</span></div></div><div class="book-row"><span class="book-label">Media</span><div class="chips"><span class="tk">META</span><span class="tk">NFLX</span><span class="tk">RBLX</span></div></div>
+</article>
+<article class="persona" style="--c:#eb6834">
+  <header><h3>T2 · The Compounder</h3><span class="mono floor-tag">20 × 4.5% = 90%</span></header>
+  <p class="ethos">Toll booths and wide moats with multi-year theses. Fully invested, rarely trades.</p>
+  <div class="book-row"><span class="book-label">Technology</span><div class="chips"><span class="tk">MSFT</span><span class="tk">ASML</span><span class="tk">TSM</span><span class="tk">TXN</span></div></div><div class="book-row"><span class="book-label">Financials</span><div class="chips"><span class="tk">V</span><span class="tk">MA</span><span class="tk">SPGI</span><span class="tk">MCO</span><span class="tk">BRK.B</span></div></div><div class="book-row"><span class="book-label">Healthcare</span><div class="chips"><span class="tk">LLY</span><span class="tk">ISRG</span><span class="tk">SYK</span><span class="tk">TMO</span></div></div><div class="book-row"><span class="book-label">Industrials</span><div class="chips"><span class="tk">WM</span><span class="tk">ROP</span><span class="tk">ADP</span><span class="tk">ETN</span></div></div><div class="book-row"><span class="book-label">Staples</span><div class="chips"><span class="tk">COST</span><span class="tk">PG</span></div></div><div class="book-row"><span class="book-label">Real estate</span><div class="chips"><span class="tk">EQIX</span></div></div>
+</article>
+<article class="persona" style="--c:#1baf7a">
+  <header><h3>RISK · The Survivor</h3><span class="mono floor-tag">20 × 3% = 60%</span></header>
+  <p class="ethos">Low realized volatility. At most four names per sector, so no one sector can sink the book.</p>
+  <div class="book-row"><span class="book-label">Staples</span><div class="chips"><span class="tk">PG</span><span class="tk">KO</span><span class="tk">CL</span><span class="tk held">KMB</span></div></div><div class="book-row"><span class="book-label">Utilities</span><div class="chips"><span class="tk">DUK</span><span class="tk">SO</span><span class="tk">ED</span><span class="tk">AEP</span></div></div><div class="book-row"><span class="book-label">Healthcare</span><div class="chips"><span class="tk">JNJ</span><span class="tk">MRK</span><span class="tk">ABT</span></div></div><div class="book-row"><span class="book-label">Insurers</span><div class="chips"><span class="tk">BRK.B</span><span class="tk">CB</span><span class="tk">AJG</span></div></div><div class="book-row"><span class="book-label">Telecom</span><div class="chips"><span class="tk">VZ</span><span class="tk">TMUS</span><span class="tk">T</span></div></div><div class="book-row"><span class="book-label">Franchise</span><div class="chips"><span class="tk">MCD</span></div></div><div class="book-row"><span class="book-label">Industrials</span><div class="chips"><span class="tk">HON</span><span class="tk">UNP</span></div></div>
+</article>
+<article class="persona" style="--c:#eda100">
+  <header><h3>MACRO · The Rotator</h3><span class="mono floor-tag">15 × 4% = 60%</span></header>
+  <p class="ethos">Views held through sectors, rates, metals, ex-US and breadth, plus one bellwether per cyclical sector.</p>
+  <div class="book-row"><span class="book-label">Sector ETFs</span><div class="chips"><span class="tk">XLU</span><span class="tk">XLE</span><span class="tk">XLI</span><span class="tk">SMH</span></div></div><div class="book-row"><span class="book-label">Rates</span><div class="chips"><span class="tk">TLT</span></div></div><div class="book-row"><span class="book-label">Metals</span><div class="chips"><span class="tk">GLD</span></div></div><div class="book-row"><span class="book-label">Ex-US</span><div class="chips"><span class="tk">EEM</span></div></div><div class="book-row"><span class="book-label">Breadth</span><div class="chips"><span class="tk">RSP</span></div></div><div class="book-row"><span class="book-label">Energy</span><div class="chips"><span class="tk">XOM</span><span class="tk">CCJ</span></div></div><div class="book-row"><span class="book-label">Materials</span><div class="chips"><span class="tk">FCX</span><span class="tk">NUE</span></div></div><div class="book-row"><span class="book-label">Bellwethers</span><div class="chips"><span class="tk">JPM</span><span class="tk">CAT</span><span class="tk">NEE</span></div></div>
+</article>
+<article class="persona" style="--c:#e87ba4">
+  <header><h3>QUANT · The Control</h3><span class="mono floor-tag">15 × 4% = 60%</span></header>
+  <p class="ethos">Numbers only. No curated list: the floor fills with the top-scored cards on its watchlist.</p>
+  <p class="book-note">Next slot's floor fill, ranked by card score alone:</p>
+<div class="chips"><span class="tk held">DUK</span><span class="tk held">HD</span><span class="tk held">UNH</span><span class="tk">PEP</span><span class="tk">RTX</span><span class="tk">SO</span><span class="tk">NEE</span><span class="tk">BAC</span><span class="tk">MCD</span><span class="tk">INTU</span><span class="tk">V</span><span class="tk">META</span><span class="tk">ABT</span><span class="tk">BRK.B</span><span class="tk">COST</span></div>
+</article>
+<article class="persona" style="--c:#008300">
+  <header><h3>CHAIR · The Consensus</h3><span class="mono floor-tag">18 × 4% = 72%</span></header>
+  <p class="ethos">A seat-weighted sample: three or four names from each sibling&#x27;s book.</p>
+  <div class="book-row"><span class="book-label">from T1</span><div class="chips"><span class="tk">NVDA</span><span class="tk">PLTR</span><span class="tk">META</span></div></div><div class="book-row"><span class="book-label">from T2</span><div class="chips"><span class="tk">MSFT</span><span class="tk">TSM</span><span class="tk">SPGI</span><span class="tk">ISRG</span></div></div><div class="book-row"><span class="book-label">from RISK</span><div class="chips"><span class="tk">JNJ</span><span class="tk">PG</span><span class="tk held">DUK</span><span class="tk">VZ</span></div></div><div class="book-row"><span class="book-label">from MACRO</span><div class="chips"><span class="tk">XOM</span><span class="tk">JPM</span><span class="tk">CAT</span><span class="tk">NEE</span></div></div><div class="book-row"><span class="book-label">from QUANT&#x27;s pool</span><div class="chips"><span class="tk">NOW</span><span class="tk">LMT</span><span class="tk">EOG</span></div></div>
+</article>
+  </div>
+</section>
+
+<section id="forecast">
+  <h2>Next slot under v4 <span class="section-note">scripts/paper-sim.ts --neon · read-only, nothing written</span></h2>
+  <p class="lede">The repo's own planner, run against today's production positions, cards and prices with policy v4. Floor fills aren't limited by the turnover cap, so every seat reaches its floor in one slot.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Seat</th><th class="num">Holds now</th><th class="num">After slot</th><th class="num">Floor</th><th>Status</th><th class="num">Turnover</th><th>Buys, in fill order</th></tr></thead>
+      <tbody>
+<tr><td><span class="chip" style="--c:#2a78d6">t1</span></td>
+<td class="mono num">3</td><td class="mono num"><strong>16</strong></td>
+<td class="mono num">16</td>
+<td><span class="pill good">meets floor</span></td>
+<td class="mono num">52%</td>
+<td class="buys mono">ABNB, META, COIN, CRWD, NET, NFLX, AMD, PLTR, MU, UBER, NVDA, PEP, HD</td></tr>
+<tr><td><span class="chip" style="--c:#eb6834">t2</span></td>
+<td class="mono num">1</td><td class="mono num"><strong>20</strong></td>
+<td class="mono num">20</td>
+<td><span class="pill good">meets floor</span></td>
+<td class="mono num">86%</td>
+<td class="buys mono">ROP, SYK, WM, ADP, V, BRK.B, COST, MA, TSM, PG, TXN, LLY, MCO, MSFT, ASML, SPGI, ISRG, ETN, PEP</td></tr>
+<tr><td><span class="chip" style="--c:#1baf7a">risk</span></td>
+<td class="mono num">4</td><td class="mono num"><strong>20</strong></td>
+<td class="mono num">20</td>
+<td><span class="pill good">meets floor</span></td>
+<td class="mono num">48%</td>
+<td class="buys mono">DUK, SO, MCD, ABT, BRK.B, AEP, PG, HON, KO, MRK, JNJ, ED, CL, CB, T, VZ</td></tr>
+<tr><td><span class="chip" style="--c:#eda100">macro</span></td>
+<td class="mono num">1</td><td class="mono num"><strong>15</strong></td>
+<td class="mono num">15</td>
+<td><span class="pill good">meets floor</span></td>
+<td class="mono num">56%</td>
+<td class="buys mono">NEE, XLU, TLT, CAT, JPM, XLI, RSP, SMH, XLE, GLD, NUE, XOM, FCX, CCJ</td></tr>
+<tr><td><span class="chip" style="--c:#e87ba4">quant</span></td>
+<td class="mono num">3</td><td class="mono num"><strong>15</strong></td>
+<td class="mono num">15</td>
+<td><span class="pill good">meets floor</span></td>
+<td class="mono num">48%</td>
+<td class="buys mono">PEP, RTX, SO, NEE, BAC, MCD, INTU, V, META, ABT, BRK.B, COST</td></tr>
+<tr><td><span class="chip" style="--c:#008300">chair</span></td>
+<td class="mono num">2</td><td class="mono num"><strong>18</strong></td>
+<td class="mono num">18</td>
+<td><span class="pill good">meets floor</span></td>
+<td class="mono num">64%</td>
+<td class="buys mono">NEE, VZ, META, NOW, XOM, TSM, PG, PLTR, CAT, SPGI, EOG, JNJ, ISRG, MSFT, NVDA, LMT</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 class="sub">Most-shared names in that slot</h3>
+  <div class="overlap-list"><div class="overlap-row"><span class="mono overlap-ticker">META</span>
+<span class="overlap-dots"><span class="dot" style="--c:#2a78d6" title="t1"></span><span class="dot" style="--c:#e87ba4" title="quant"></span><span class="dot" style="--c:#008300" title="chair"></span></span>
+<span class="overlap-count">3/6 · t1, quant, chair</span></div><div class="overlap-row"><span class="mono overlap-ticker">PEP</span>
+<span class="overlap-dots"><span class="dot" style="--c:#2a78d6" title="t1"></span><span class="dot" style="--c:#eb6834" title="t2"></span><span class="dot" style="--c:#e87ba4" title="quant"></span></span>
+<span class="overlap-count">3/6 · t1, t2, quant</span></div><div class="overlap-row"><span class="mono overlap-ticker">BRK.B</span>
+<span class="overlap-dots"><span class="dot" style="--c:#eb6834" title="t2"></span><span class="dot" style="--c:#1baf7a" title="risk"></span><span class="dot" style="--c:#e87ba4" title="quant"></span></span>
+<span class="overlap-count">3/6 · t2, risk, quant</span></div><div class="overlap-row"><span class="mono overlap-ticker">PG</span>
+<span class="overlap-dots"><span class="dot" style="--c:#eb6834" title="t2"></span><span class="dot" style="--c:#1baf7a" title="risk"></span><span class="dot" style="--c:#008300" title="chair"></span></span>
+<span class="overlap-count">3/6 · t2, risk, chair</span></div><div class="overlap-row"><span class="mono overlap-ticker">NEE</span>
+<span class="overlap-dots"><span class="dot" style="--c:#eda100" title="macro"></span><span class="dot" style="--c:#e87ba4" title="quant"></span><span class="dot" style="--c:#008300" title="chair"></span></span>
+<span class="overlap-count">3/6 · macro, quant, chair</span></div></div>
+  <p class="lede" style="margin-top:10px">The v3 health bar (paper-trading-v3.md §8) allows at most 3 of 6 seats buying the same name on one day. Today's real slot was 6/6 on UNH.</p>
+</section>
+
+<section id="backtest">
+  <h2>22-day backtest, policy v4 <span class="section-note">2026-08-28 → 2026-09-29 · real Alpaca daily bars · local SQLite only</span></h2>
+  <p class="lede">Each day's card is recomputed from real historical prices with production's indicator math and scorer. It's planned on the prior close and filled at that day's close. Dashed line: IVV, normalised to $10,000.</p>
+  <div class="chart-card">
+    <div class="legend"><span class="legend-item"><span class="dot" style="--c:#2a78d6"></span>t1</span><span class="legend-item"><span class="dot" style="--c:#eb6834"></span>t2</span><span class="legend-item"><span class="dot" style="--c:#1baf7a"></span>risk</span><span class="legend-item"><span class="dot" style="--c:#eda100"></span>macro</span><span class="legend-item"><span class="dot" style="--c:#e87ba4"></span>quant</span><span class="legend-item"><span class="dot" style="--c:#008300"></span>chair</span><span class="legend-item"><span class="dash"></span>IVV</span></div>
+    <div class="chart-svg-wrap">
+      <svg class="nav-chart" viewBox="0 0 720 290" id="navChart" role="img" aria-label="Net asset value of six seats and IVV over 22 trading days">
+<line class="grid-line" x1="50" x2="704" y1="248.3" y2="248.3"/><text class="axis-label" x="42" y="252.3" text-anchor="end">$9,500</text>
+<line class="grid-line" x1="50" x2="704" y1="217.3" y2="217.3"/><text class="axis-label" x="42" y="221.3" text-anchor="end">$9,600</text>
+<line class="grid-line" x1="50" x2="704" y1="186.3" y2="186.3"/><text class="axis-label" x="42" y="190.3" text-anchor="end">$9,700</text>
+<line class="grid-line" x1="50" x2="704" y1="155.3" y2="155.3"/><text class="axis-label" x="42" y="159.3" text-anchor="end">$9,800</text>
+<line class="grid-line" x1="50" x2="704" y1="124.4" y2="124.4"/><text class="axis-label" x="42" y="128.4" text-anchor="end">$9,900</text>
+<line class="grid-line" x1="50" x2="704" y1="93.4" y2="93.4"/><text class="axis-label" x="42" y="97.4" text-anchor="end">$10,000</text>
+<line class="grid-line" x1="50" x2="704" y1="62.4" y2="62.4"/><text class="axis-label" x="42" y="66.4" text-anchor="end">$10,100</text>
+<line class="grid-line" x1="50" x2="704" y1="31.4" y2="31.4"/><text class="axis-label" x="42" y="35.4" text-anchor="end">$10,200</text>
+<line class="base-line" x1="50" x2="704" y1="93.4" y2="93.4"/>
+<text class="axis-label" x="50.0" y="276" text-anchor="start">08-28</text>
+<text class="axis-label" x="392.6" y="276" text-anchor="middle">09-15</text>
+<text class="axis-label" x="704.0" y="276" text-anchor="end">09-29</text>
+<path class="nav-line" d="M 50.00,95.71 L 81.14,74.41 L 112.29,120.62 L 143.43,124.26 L 174.57,64.98 L 205.71,79.12 L 236.86,76.62 L 268.00,94.12 L 299.14,142.55 L 330.29,119.89 L 361.43,116.85 L 392.57,157.39 L 423.71,170.99 L 454.86,132.46 L 486.00,115.82 L 517.14,43.06 L 548.29,28.96 L 579.43,47.99 L 610.57,59.33 L 641.71,73.71 L 672.86,126.16 L 704.00,118.00" stroke="#2a78d6"/>
+<circle cx="704.00" cy="118.00" r="3" fill="#2a78d6"/>
+<path class="nav-line" d="M 50.00,96.58 L 81.14,112.69 L 112.29,146.73 L 143.43,153.30 L 174.57,133.43 L 205.71,155.86 L 236.86,192.31 L 268.00,219.12 L 299.14,240.58 L 330.29,217.76 L 361.43,217.50 L 392.57,235.39 L 423.71,245.04 L 454.86,237.37 L 486.00,229.88 L 517.14,218.86 L 548.29,221.18 L 579.43,235.68 L 610.57,240.72 L 641.71,236.96 L 672.86,240.25 L 704.00,235.26" stroke="#eb6834"/>
+<circle cx="704.00" cy="235.26" r="3" fill="#eb6834"/>
+<path class="nav-line" d="M 50.00,95.16 L 81.14,109.03 L 112.29,108.72 L 143.43,98.58 L 174.57,92.23 L 205.71,115.12 L 236.86,125.08 L 268.00,145.83 L 299.14,154.53 L 330.29,157.02 L 361.43,151.18 L 392.57,159.14 L 423.71,176.28 L 454.86,174.30 L 486.00,180.78 L 517.14,193.20 L 548.29,185.31 L 579.43,204.50 L 610.57,214.75 L 641.71,206.61 L 672.86,209.69 L 704.00,210.46" stroke="#1baf7a"/>
+<circle cx="704.00" cy="210.46" r="3" fill="#1baf7a"/>
+<path class="nav-line" d="M 50.00,94.66 L 81.14,98.85 L 112.29,112.36 L 143.43,99.02 L 174.57,85.69 L 205.71,87.81 L 236.86,75.39 L 268.00,89.88 L 299.14,132.22 L 330.29,123.29 L 361.43,168.17 L 392.57,169.02 L 423.71,187.45 L 454.86,164.59 L 486.00,177.36 L 517.14,169.30 L 548.29,162.08 L 579.43,191.17 L 610.57,215.20 L 641.71,198.76 L 672.86,227.04 L 704.00,219.63" stroke="#eda100"/>
+<circle cx="704.00" cy="219.63" r="3" fill="#eda100"/>
+<path class="nav-line" d="M 50.00,95.05 L 81.14,103.04 L 112.29,131.09 L 143.43,135.68 L 174.57,116.02 L 205.71,122.36 L 236.86,132.18 L 268.00,155.18 L 299.14,175.86 L 330.29,178.02 L 361.43,215.66 L 392.57,226.78 L 423.71,234.91 L 454.86,231.98 L 486.00,233.61 L 517.14,222.37 L 548.29,225.76 L 579.43,232.28 L 610.57,242.69 L 641.71,227.99 L 672.86,238.22 L 704.00,237.22" stroke="#e87ba4"/>
+<circle cx="704.00" cy="237.22" r="3" fill="#e87ba4"/>
+<path class="nav-line" d="M 50.00,95.49 L 81.14,90.14 L 112.29,100.57 L 143.43,104.60 L 174.57,70.21 L 205.71,81.13 L 236.86,86.99 L 268.00,93.01 L 299.14,114.31 L 330.29,102.99 L 361.43,103.04 L 392.57,95.90 L 423.71,106.85 L 454.86,83.49 L 486.00,84.73 L 517.14,44.77 L 548.29,51.63 L 579.43,50.00 L 610.57,44.84 L 641.71,53.38 L 672.86,67.89 L 704.00,72.56" stroke="#008300"/>
+<circle cx="704.00" cy="72.56" r="3" fill="#008300"/>
+<path class="nav-line ivv-line" d="M 50.00,93.38 L 81.14,103.00 L 112.29,123.92 L 143.43,110.49 L 174.57,78.23 L 205.71,90.43 L 236.86,107.02 L 268.00,121.35 L 299.14,139.06 L 330.29,114.10 L 361.43,127.56 L 392.57,150.22 L 423.71,163.39 L 454.86,128.84 L 486.00,125.70 L 517.14,78.05 L 548.29,78.55 L 579.43,100.27 L 610.57,102.40 L 641.71,86.05 L 672.86,109.73 L 704.00,114.66"/>
+        <line class="crosshair" id="crosshair" x1="0" x2="0" y1="16" y2="258"></line>
+<rect class="hover-col" x="34.43" y="16" width="31.14" height="242"/><rect class="hover-col" x="65.57" y="16" width="31.14" height="242"/><rect class="hover-col" x="96.71" y="16" width="31.14" height="242"/><rect class="hover-col" x="127.86" y="16" width="31.14" height="242"/><rect class="hover-col" x="159.00" y="16" width="31.14" height="242"/><rect class="hover-col" x="190.14" y="16" width="31.14" height="242"/><rect class="hover-col" x="221.29" y="16" width="31.14" height="242"/><rect class="hover-col" x="252.43" y="16" width="31.14" height="242"/><rect class="hover-col" x="283.57" y="16" width="31.14" height="242"/><rect class="hover-col" x="314.71" y="16" width="31.14" height="242"/><rect class="hover-col" x="345.86" y="16" width="31.14" height="242"/><rect class="hover-col" x="377.00" y="16" width="31.14" height="242"/><rect class="hover-col" x="408.14" y="16" width="31.14" height="242"/><rect class="hover-col" x="439.29" y="16" width="31.14" height="242"/><rect class="hover-col" x="470.43" y="16" width="31.14" height="242"/><rect class="hover-col" x="501.57" y="16" width="31.14" height="242"/><rect class="hover-col" x="532.71" y="16" width="31.14" height="242"/><rect class="hover-col" x="563.86" y="16" width="31.14" height="242"/><rect class="hover-col" x="595.00" y="16" width="31.14" height="242"/><rect class="hover-col" x="626.14" y="16" width="31.14" height="242"/><rect class="hover-col" x="657.29" y="16" width="31.14" height="242"/><rect class="hover-col" x="688.43" y="16" width="31.14" height="242"/>
+      </svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+  </div>
+
+  <h3 class="sub">Return by seat: v3 (1–4 names) vs v4 (15+ names)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Seat</th><th class="num">v3 return</th><th class="num">v4 return</th><th class="num">v4 vs IVV</th><th class="num">Held at end</th><th class="num">Fewest held</th><th class="num">Stops</th></tr></thead>
+      <tbody>
+<tr><td><span class="chip" style="--c:#008300">chair</span></td>
+<td class="mono num">-1.87%</td><td class="num"><span class="pill good">+0.67%</span></td>
+<td class="mono num">+1.36%</td>
+<td class="mono num">19</td><td class="mono num">18 <span class="muted">/ 18</span></td>
+<td class="mono num">1</td></tr>
+<tr><td><span class="chip" style="--c:#2a78d6">t1</span></td>
+<td class="mono num">-3.49%</td><td class="num"><span class="pill critical">-0.79%</span></td>
+<td class="mono num">-0.11%</td>
+<td class="mono num">19</td><td class="mono num">16 <span class="muted">/ 16</span></td>
+<td class="mono num">12</td></tr>
+<tr><td><span class="chip" style="--c:#1baf7a">risk</span></td>
+<td class="mono num">-0.12%</td><td class="num"><span class="pill critical">-3.78%</span></td>
+<td class="mono num">-3.09%</td>
+<td class="mono num">22</td><td class="mono num">20 <span class="muted">/ 20</span></td>
+<td class="mono num">21</td></tr>
+<tr><td><span class="chip" style="--c:#eda100">macro</span></td>
+<td class="mono num">-3.10%</td><td class="num"><span class="pill critical">-4.08%</span></td>
+<td class="mono num">-3.39%</td>
+<td class="mono num">19</td><td class="mono num">15 <span class="muted">/ 15</span></td>
+<td class="mono num">1</td></tr>
+<tr><td><span class="chip" style="--c:#eb6834">t2</span></td>
+<td class="mono num">-2.40%</td><td class="num"><span class="pill critical">-4.58%</span></td>
+<td class="mono num">-3.89%</td>
+<td class="mono num">21</td><td class="mono num">20 <span class="muted">/ 20</span></td>
+<td class="mono num">0</td></tr>
+<tr><td><span class="chip" style="--c:#e87ba4">quant</span></td>
+<td class="mono num">-2.53%</td><td class="num"><span class="pill critical">-4.64%</span></td>
+<td class="mono num">-3.96%</td>
+<td class="mono num">19</td><td class="mono num">15 <span class="muted">/ 15</span></td>
+<td class="mono num">4</td></tr>
+        <tr class="bench"><td class="mono">IVV</td><td></td><td class="mono num">-0.69%</td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub">Every v4 fill, by reason</h3>
+  <div><div class="reason-row"><span class="reason-label">Floor fill (buy)</span>
+<div class="reason-bar-track"><div class="reason-bar" style="width:100.0%"></div></div>
+<span class="mono reason-n">174</span></div><div class="reason-row"><span class="reason-label">Score entry (buy)</span>
+<div class="reason-bar-track"><div class="reason-bar" style="width:41.4%"></div></div>
+<span class="mono reason-n">72</span></div><div class="reason-row"><span class="reason-label">Score exit (sell)</span>
+<div class="reason-bar-track"><div class="reason-bar" style="width:42.5%"></div></div>
+<span class="mono reason-n">74</span></div><div class="reason-row"><span class="reason-label">Stop-loss (sell)</span>
+<div class="reason-bar-track"><div class="reason-bar" style="width:22.4%"></div></div>
+<span class="mono reason-n">39</span></div></div>
+
+  <div class="caveat-box warn">
+    <strong>How to read this.</strong>
+    <ul>
+      <li>v3's small losses came mostly from sitting in cash. v4 seats are 60–90% invested, so in a month when their names fell they lost more. This is the first version where the returns reflect what the seats picked.</li>
+      <li>RISK's 5% trailing stop fired 21 times on a 20-name defensive book. Open question D5: try 8% before changing the policy.</li>
+      <li>Without the 7-day stop cooldown, RISK re-bought 15 names within five days of their stop. The cooldown now blocks that.</li>
+      <li>Limits: one decision a day, not four. No model arbitration calls. Fills at the daily close. One month is one sample.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="today">
+  <h2>What production did today <span class="section-note">2026-09-29 · policy v2 still deployed</span></h2>
+  <div class="caveat-box">
+    <strong>UNH was bought by 6 of 6 trading seats.</strong> Card scores cluster on a handful of values, so seats with different mandates clear their own thresholds on the same ticker on the same day. With 1–4 names per book, that one ticker drives most of every seat's P&amp;L. That problem is the reason for v4.
+  </div>
+  <details>
+    <summary>Every fill today (13)</summary>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time</th><th>Seat</th><th>Order</th><th class="num">Qty</th><th class="num">Fill</th><th class="num">Notional</th><th class="num">Card</th><th>Decided by</th></tr></thead>
+        <tbody>
+<tr><td class="mono">18:29 UTC</td><td><span class="chip" style="--c:#2a78d6">t1</span></td>
+<td class="mono">buy UNH</td><td class="mono num">1.608</td><td class="mono num">$373.36</td>
+<td class="mono num">$600.30</td><td class="mono num">60</td><td>rule</td></tr>
+<tr><td class="mono">18:29 UTC</td><td><span class="chip" style="--c:#2a78d6">t1</span></td>
+<td class="mono">buy DASH</td><td class="mono num">3.214</td><td class="mono num">$186.94</td>
+<td class="mono num">$600.90</td><td class="mono num">54</td><td>rule</td></tr>
+<tr><td class="mono">18:29 UTC</td><td><span class="chip" style="--c:#2a78d6">t1</span></td>
+<td class="mono">buy DUK</td><td class="mono num">2.631</td><td class="mono num">$114.08</td>
+<td class="mono num">$300.15</td><td class="mono num">54</td><td>rule</td></tr>
+<tr><td class="mono">18:29 UTC</td><td><span class="chip" style="--c:#eb6834">t2</span></td>
+<td class="mono">buy UNH</td><td class="mono num">0.804</td><td class="mono num">$373.36</td>
+<td class="mono num">$300.15</td><td class="mono num">60</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#1baf7a">risk</span></td>
+<td class="mono">buy KMB</td><td class="mono num">3.037</td><td class="mono num">$98.89</td>
+<td class="mono num">$300.34</td><td class="mono num">60</td><td>model (nemotron-3-super-120b-a12b)</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#1baf7a">risk</span></td>
+<td class="mono">buy PFE</td><td class="mono num">10.491</td><td class="mono num">$28.63</td>
+<td class="mono num">$300.34</td><td class="mono num">60</td><td>model (nemotron-3-super-120b-a12b)</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#1baf7a">risk</span></td>
+<td class="mono">buy UNH</td><td class="mono num">0.536</td><td class="mono num">$373.36</td>
+<td class="mono num">$200.03</td><td class="mono num">60</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#eda100">macro</span></td>
+<td class="mono">buy UNH</td><td class="mono num">1.608</td><td class="mono num">$373.36</td>
+<td class="mono num">$600.30</td><td class="mono num">60</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#e87ba4">quant</span></td>
+<td class="mono">buy UNH</td><td class="mono num">1.072</td><td class="mono num">$373.36</td>
+<td class="mono num">$400.20</td><td class="mono num">60</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#e87ba4">quant</span></td>
+<td class="mono">buy DUK</td><td class="mono num">3.508</td><td class="mono num">$114.08</td>
+<td class="mono num">$400.20</td><td class="mono num">54</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#e87ba4">quant</span></td>
+<td class="mono">buy HD</td><td class="mono num">1.384</td><td class="mono num">$289.18</td>
+<td class="mono num">$400.20</td><td class="mono num">54</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#008300">chair</span></td>
+<td class="mono">buy UNH</td><td class="mono num">1.340</td><td class="mono num">$373.36</td>
+<td class="mono num">$500.25</td><td class="mono num">60</td><td>rule</td></tr>
+<tr><td class="mono">18:30 UTC</td><td><span class="chip" style="--c:#008300">chair</span></td>
+<td class="mono">buy DUK</td><td class="mono num">2.631</td><td class="mono num">$114.08</td>
+<td class="mono num">$300.15</td><td class="mono num">54</td><td>rule</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<footer>
+  <p><strong>Sources:</strong> production figures read from Neon (read-only) on 2026-09-29 after the settle slot. The forecast is from <span class="mono">scripts/paper-sim.ts --neon</span>. Backtests are from <span class="mono">scripts/paper-backtest.ts</span> on real Alpaca data, written to local SQLite only. Nothing on this page wrote to production.</p>
+  <p>Methodology, floor rules and open questions: <span class="mono">docs/paper-trading-v3.md</span> §3.1 and <span class="mono">docs/council-paper-portfolios.md</span> §2.2 in <span class="mono">nuwrrrld-portal</span>.</p>
+</footer>
+
+<script>
+(function () {
+  var D = {"dates": ["2026-08-28", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-28", "2026-09-29"], "series": {"t1": [9992.49, 10061.24, 9912.06, 9900.31, 10091.67, 10046.04, 10054.09, 9997.61, 9841.25, 9914.42, 9924.23, 9793.37, 9749.45, 9873.84, 9927.57, 10162.45, 10207.95, 10146.53, 10109.91, 10063.49, 9894.19, 9920.51], "t2": [9989.67, 9937.66, 9827.78, 9806.55, 9870.7, 9798.29, 9680.63, 9594.09, 9524.81, 9598.48, 9599.32, 9541.55, 9510.41, 9535.17, 9559.34, 9594.92, 9587.41, 9540.61, 9524.33, 9536.5, 9525.86, 9541.98], "risk": [9994.27, 9949.46, 9950.48, 9983.23, 10003.71, 9929.82, 9897.66, 9830.66, 9802.58, 9794.54, 9813.41, 9787.71, 9732.39, 9738.77, 9717.84, 9677.76, 9703.23, 9641.28, 9608.18, 9634.45, 9624.53, 9622.02], "macro": [9995.88, 9982.33, 9938.73, 9981.79, 10024.84, 10017.97, 10058.09, 10011.3, 9874.62, 9903.46, 9758.54, 9755.8, 9696.31, 9770.13, 9728.88, 9754.92, 9778.22, 9684.29, 9606.74, 9659.81, 9568.51, 9592.43], "quant": [9994.6, 9968.83, 9878.27, 9863.45, 9926.92, 9906.46, 9874.73, 9800.49, 9733.74, 9726.76, 9605.25, 9569.33, 9543.11, 9552.55, 9547.31, 9583.59, 9572.63, 9551.6, 9517.98, 9565.43, 9532.4, 9535.63], "chair": [9993.19, 10010.47, 9976.8, 9963.77, 10074.79, 10039.55, 10020.64, 10001.2, 9932.44, 9968.98, 9968.81, 9991.86, 9956.52, 10031.94, 10027.93, 10156.92, 10134.79, 10140.05, 10156.71, 10129.13, 10082.28, 10067.21]}, "ivv": [10000.0, 9968.95, 9901.42, 9944.76, 10048.9, 10009.51, 9955.95, 9909.7, 9852.52, 9933.12, 9889.65, 9816.5, 9774.0, 9885.51, 9895.67, 10049.48, 10047.86, 9977.75, 9970.89, 10023.67, 9947.22, 9931.31], "xs": [50.0, 81.14, 112.29, 143.43, 174.57, 205.71, 236.86, 268.0, 299.14, 330.29, 361.43, 392.57, 423.71, 454.86, 486.0, 517.14, 548.29, 579.43, 610.57, 641.71, 672.86, 704.0], "colors": {"t1": "#2a78d6", "t2": "#eb6834", "risk": "#1baf7a", "macro": "#eda100", "quant": "#e87ba4", "chair": "#008300", "equal": "#4a3aa7", "spy": "#e34948"}, "W": 720};
+  var accounts = ["t1", "t2", "risk", "macro", "quant", "chair"];
+  var svg = document.getElementById("navChart");
+  var tooltip = document.getElementById("tooltip");
+  var crosshair = document.getElementById("crosshair");
+  var wrap = svg.parentElement;
+  function money(v) { return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function nearest(clientX) {
+    var r = svg.getBoundingClientRect();
+    var x = (clientX - r.left) * (D.W / r.width);
+    var best = 0, dist = Infinity;
+    for (var i = 0; i < D.xs.length; i++) { var d = Math.abs(D.xs[i] - x); if (d < dist) { dist = d; best = i; } }
+    return best;
+  }
+  function show(i, clientX) {
+    var rows = accounts.map(function (a) { return { a: a, v: D.series[a][i], c: D.colors[a] }; })
+      .sort(function (p, q) { return q.v - p.v; })
+      .map(function (r) { return '<div class="tooltip-row"><span style="color:' + r.c + '">' + r.a + '</span><span>' + money(r.v) + '</span></div>'; });
+    rows.push('<div class="tooltip-row"><span>IVV</span><span>' + money(D.ivv[i]) + '</span></div>');
+    tooltip.innerHTML = '<div class="tooltip-date">' + D.dates[i] + '</div>' + rows.join("");
+    tooltip.style.opacity = 1;
+    var w = wrap.getBoundingClientRect();
+    var left = clientX - w.left + 12;
+    if (left + 175 > w.width) left = clientX - w.left - 187;
+    tooltip.style.left = Math.max(0, left) + "px";
+    tooltip.style.top = "4px";
+    crosshair.setAttribute("x1", D.xs[i]); crosshair.setAttribute("x2", D.xs[i]);
+    crosshair.style.opacity = 1;
+  }
+  function hide() { tooltip.style.opacity = 0; crosshair.style.opacity = 0; }
+  svg.querySelectorAll(".hover-col").forEach(function (col) {
+    col.addEventListener("mousemove", function (e) { show(nearest(e.clientX), e.clientX); });
+    col.addEventListener("mouseleave", hide);
+  });
+})();
+</script>
