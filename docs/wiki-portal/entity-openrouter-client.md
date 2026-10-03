@@ -30,16 +30,14 @@ look it up in the catalog:
 
 | Seat | Primary model | Size | Vendor | Rationale |
 |---|---|---|---|---|
-| T1 | `nex-agi/nex-n2.5-mini:free` | mini | nex-agi | tactical 1-60 day read → small, fast model. Was `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
+| T1 | `qwen/qwen3.8-27b:free` | 27B | qwen | tactical 1-60 day read → small, fast model. Was `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
 | T2 | `poolside/laguna-s-2.1:free` | s | poolside | secular thesis reasoning. Was `google/gemma-4-31b-it:free`, which **429s on every call including the retry** (failure #11) |
-| RISK | `inclusionai/ling-3.0-flash-fin:free` | 5.1B active / 124B | inclusionai | adversarial framing; finance-tuned (was dead `z-ai/glm-5.2:free` until PR #115) |
+| RISK | `poolside/laguna-xs-2.1:free` | xs | poolside | adversarial framing. Was `inclusionai/ling-3.0-flash-fin:free`, which now 404s (PR #211); before that dead `z-ai/glm-5.2:free` (PR #115) |
 | MACRO | `dots-studio/dots-3-note-preview:free` | preview | dots-studio | rotation/rates narrative; 512k context suits macro grounding. Was `google/gemma-4-26b-a4b-it:free` — same 429 as T2 (failure #11) |
 | QUANT | `liquid/lfm-2.5-2.6b:free` | 2.6B | liquid | numbers-only → smallest model (updated PR #97, was `nvidia/nemotron-nano-9b-v2:free`) |
 | CHAIR | `nvidia/nemotron-3-ultra-550b-a55b:free` | 550B | nvidia | synthesis (hardest job) |
 
-**Six seats, six distinct vendors** (nex-agi / poolside / inclusionai /
-dots-studio / liquid / nvidia) as of 2026-09-11 — up from five, two of which were
-unreachable, so real spread went from four working vendors to six.
+**Six seats, five distinct vendors** (qwen / poolside x2 / dots-studio / liquid / nvidia) as of 2026-10-02. T2 and RISK share poolside after PR #211 retired two 404ing ids, so one poolside outage now degrades two seats.
 
 The **Vendor** column is load-bearing, not decoration. `FREE_MODEL_CHAIN` is nvidia-heavy (failure #6), so if the seats were too, one account-tier outage would remove every primary *and* its entire fallback simultaneously. Distinct vendors across every seat mean such an outage degrades some seats to the chain rather than all of them at once.
 

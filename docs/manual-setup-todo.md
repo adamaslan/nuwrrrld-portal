@@ -1654,3 +1654,28 @@ resolved in code.
   itself), and the mobile app has nothing to read from `paper/*` in
   Firestore regardless of how many runs execute against Neon.
 - **Added**: 2026-09-15
+
+### Upgrade the Vercel project Node.js version from 20.x to 24.x
+
+- **From**: PR #211 — Vercel preview deploy failure (not caused by the PR).
+- **Blocked on**: a Vercel project setting change (Project → Settings →
+  General → Node.js Version → 24.x). The build is rejected with "Node.js
+  Version 20.x is discontinued"; every new deploy on the project fails until
+  it is changed.
+- **Why it can't be code**: the setting lives in the Vercel project, not in
+  the repo. Check `package.json` `engines` for a conflicting `20.x` pin once
+  the dashboard value is changed.
+- **Unblocks**: all preview and production deploys, including the
+  `ENGINE_LIVE_ENABLED` / `ENGINE_LADDER_ENABLED` / `MCP_ANALYZE_URL`
+  rollout.
+- **Added**: 2026-10-02
+
+  🖱 **Dashboard:** open the project's General settings, set Node.js Version
+  to 24.x, then redeploy.
+
+  Verify afterwards:
+
+  ```bash
+  grep -n '"engines"' -A3 package.json
+  gh pr checks 211 | grep -i vercel
+  ```

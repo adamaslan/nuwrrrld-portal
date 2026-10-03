@@ -93,9 +93,12 @@ export const FREE_MODEL_CHAIN = [
 //     Repointed at poolside/laguna-s-2.1 (T2, strategic) and
 //     dots-studio/dots-3-note-preview (MACRO, 512k context for macro
 //     grounding).
-//   - Net effect on constraint 2: the six seats now draw from six distinct
-//     vendors (nex-agi, poolside, inclusionai, dots-studio, liquid, nvidia),
-//     up from four, two of which were unreachable.
+//   - Net effect on constraint 2: the six seats drew from six distinct vendors.
+//
+// 2026-10-02: inclusionai's Ling 3.0 Flash Fin and nex-agi's n2.5-mini now 404.
+//   T1 moved to qwen/qwen3.8-27b:free and RISK to poolside/laguna-xs-2.1:free
+//   (both probed 200 with content). T2 and RISK now share a vendor, so the spread
+//   is five vendors (qwen, poolside, dots-studio, liquid, nvidia) not six.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
   T1: 'qwen/qwen3.8-27b:free',
   T2: 'poolside/laguna-s-2.1:free',
@@ -373,11 +376,25 @@ export async function fetchWithModelFallbackChecked(
   let anyEmptyModel = false;
 
   for (const model of FREE_MODEL_CHAIN) {
+    // Per-candidate budget covering the request and the wait for the first
+    // content token, so one stalled model cannot consume the caller's whole
+    // budget. Cleared once content arrives; the caller's signal still governs
+    // the rest of the stream.
+    const attempt = new AbortController();
+    const onCallerAbort = () => attempt.abort();
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    signal?.addEventListener('abort', onCallerAbort, { once: true });
+    const attemptTimer = setTimeout(() => attempt.abort(), MODEL_ATTEMPT_TIMEOUT_MS);
+    const endAttempt = () => {
+      clearTimeout(attemptTimer);
+      signal?.removeEventListener('abort', onCallerAbort);
+    };
+
     let response: Response;
     try {
       response = await fetch(`${OR_BASE}/chat/completions`, {
         method: 'POST',
-        signal,
+        signal: attempt.signal,
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
@@ -387,11 +404,13 @@ export async function fetchWithModelFallbackChecked(
         body: JSON.stringify({ ...baseBody, model }),
       });
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') throw err;
+      endAttempt();
+      if (signal?.aborted) throw err;
       continue;
     }
 
     if (!response.ok) {
+      endAttempt();
       lastStatus = response.status;
       await response.body?.cancel().catch(() => {});
       if (response.status !== 402 && response.status !== 429 && response.status < 500) break;
@@ -399,7 +418,7 @@ export async function fetchWithModelFallbackChecked(
     }
 
     const reader = response.body?.getReader();
-    if (!reader) { continue; }
+    if (!reader) { endAttempt(); continue; }
     const decoder = new TextDecoder();
     let bufferedRaw = '';
     let sawContent = false;
@@ -409,7 +428,14 @@ export async function fetchWithModelFallbackChecked(
     let streamEnded = false;
 
     while (!sawContent && !streamEnded) {
-      const { done, value } = await reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch (err) {
+        if (signal?.aborted) { endAttempt(); throw err; }
+        break;
+      }
+      const { done, value } = chunk;
       if (done) { streamEnded = true; bufferedRaw += decoder.decode(); break; }
       bufferedRaw += decoder.decode(value, { stream: true });
       const scan = scanSSEChunk(bufferedRaw);
@@ -425,9 +451,13 @@ export async function fetchWithModelFallbackChecked(
       `parsedLines=${parsedLines} emptyLines=${emptyLines} sawDone=${sawDone} streamEnded=${streamEnded}`,
     );
 
+    clearTimeout(attemptTimer);
+
     if (!sawContent) {
-      // This model produced zero usable tokens — advance to the next one
-      // instead of handing the caller a "successful" empty stream.
+      // This model produced zero usable tokens (or timed out waiting for one) —
+      // advance to the next one instead of handing the caller a "successful"
+      // empty stream.
+      endAttempt();
       anyEmptyModel = true;
       reader.cancel().catch(() => {});
       continue;
