@@ -97,7 +97,8 @@ export const FREE_MODEL_CHAIN = [
 //
 // 2026-10-02: inclusionai's Ling 3.0 Flash Fin and nex-agi's n2.5-mini now 404.
 //   T1 moved to qwen/qwen3.8-27b:free and RISK to poolside/laguna-xs-2.1:free
-//   (both probed 200 with content). T2 and RISK now share a vendor, so the spread
+//   (both probed 200 with content; RISK's xs id intermittently 429s and then
+//   falls through to the chain). T2 and RISK now share a vendor, so the spread
 //   is five vendors (qwen, poolside, dots-studio, liquid, nvidia) not six.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
   T1: 'qwen/qwen3.8-27b:free',

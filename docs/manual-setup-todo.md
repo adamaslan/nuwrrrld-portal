@@ -1659,7 +1659,7 @@ resolved in code.
 
 - **From**: PR #211 — Vercel preview deploy failure (not caused by the PR).
 - **Blocked on**: a Vercel project setting change (Project → Settings →
-  General → Node.js Version → 24.x). The build is rejected with "Node.js
+  Build and Deployment → Node.js Version → 24.x). The build is rejected with "Node.js
   Version 20.x is discontinued"; every new deploy on the project fails until
   it is changed.
 - **Why it can't be code**: the setting lives in the Vercel project, not in
@@ -1670,8 +1670,8 @@ resolved in code.
   rollout.
 - **Added**: 2026-10-02
 
-  🖱 **Dashboard:** open the project's General settings, set Node.js Version
-  to 24.x, then redeploy.
+  🖱 **Dashboard:** open the project's Settings → Build and Deployment, set
+  Node.js Version to 24.x, then redeploy.
 
   Verify afterwards:
 
@@ -1679,6 +1679,10 @@ resolved in code.
   grep -n '"engines"' -A3 package.json
   gh pr checks 211 | grep -i vercel
   ```
+
+  **Resolved 2026-10-03:** the project now reports Node 24.x and a redeploy of
+  PR #211's preview built to Ready. The PR's Vercel status still shows the old
+  failed deployment until a new push or a re-run replaces it.
 
 ### Vercel connection is read-only: it cannot change the Node.js version or set env vars
 
