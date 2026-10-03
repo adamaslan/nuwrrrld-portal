@@ -15,8 +15,10 @@ import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { analyzeCacheKey, isGenericAnalyzeRequest } from "@/lib/shared/analyze-policy";
 import { getCachedAnalysis, saveAnalysis } from "@/lib/analyze-cache-db";
 
+export const maxDuration = 60;
+
 const BACKEND = process.env.MCP_ANALYZE_URL;
-const TIMEOUT_MS = 8_000;
+const TIMEOUT_MS = 25_000;
 
 const requestSchema = z.object({
   symbol: z.string().min(1).max(10),

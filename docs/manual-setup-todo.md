@@ -1654,3 +1654,86 @@ resolved in code.
   itself), and the mobile app has nothing to read from `paper/*` in
   Firestore regardless of how many runs execute against Neon.
 - **Added**: 2026-09-15
+
+### Upgrade the Vercel project Node.js version from 20.x to 24.x
+
+- **From**: PR #211 — Vercel preview deploy failure (not caused by the PR).
+- **Blocked on**: a Vercel project setting change (Project → Settings →
+  Build and Deployment → Node.js Version → 24.x). The build is rejected with "Node.js
+  Version 20.x is discontinued"; every new deploy on the project fails until
+  it is changed.
+- **Why it can't be code**: the setting lives in the Vercel project, not in
+  the repo. Check `package.json` `engines` for a conflicting `20.x` pin once
+  the dashboard value is changed.
+- **Unblocks**: all preview and production deploys, including the
+  `ENGINE_LIVE_ENABLED` / `ENGINE_LADDER_ENABLED` / `MCP_ANALYZE_URL`
+  rollout.
+- **Added**: 2026-10-02
+
+  🖱 **Dashboard:** open the project's Settings → Build and Deployment, set
+  Node.js Version to 24.x, then redeploy.
+
+  Verify afterwards:
+
+  ```bash
+  grep -n '"engines"' -A3 package.json
+  gh pr checks 211 | grep -i vercel
+  ```
+
+  **Resolved 2026-10-03:** the project now reports Node 24.x and a redeploy of
+  PR #211's preview built to Ready. The PR's Vercel status still shows the old
+  failed deployment until a new push or a re-run replaces it.
+
+### Vercel connection is read-only: it cannot change the Node.js version or set env vars
+
+- **From**: PR #211 — attempt to apply the Node 20.x → 24.x entry above.
+- **Blocked on**: either the dashboard change in the entry above, or write
+  access for the Vercel connector. `update_project` returned 403 Forbidden, so
+  the connector can read projects and deployments but not change them (setting
+  `ENGINE_LIVE_ENABLED`, `ENGINE_LADDER_ENABLED` and `MCP_ANALYZE_URL` will
+  hit the same wall).
+- **Why it can't be code**: it is a permission on the connector, not repo
+  state. There is no other credential to fall back on, and none should be
+  substituted.
+- **Unblocks**: the Node version change, the production flag rollout, and the
+  production redeploy, without a person clicking through the dashboard.
+- **Added**: 2026-10-03
+
+  🖱 **Dashboard:** re-authorize the Vercel connection with write scope for the
+  `adam-aslans-projects` team, or do the Node change by hand per the entry
+  above.
+
+  Verify afterwards (`package.json` has no `engines` pin, so the project
+  setting is the only source):
+
+  ```bash
+  gh pr checks 211 | grep -i vercel
+  ```
+
+### Brief e2e spec depends on live free OpenRouter models and is red on `main`
+
+- **From**: PR #206 / PR #211 — `e2e (1)` failing on both, and on `main` since
+  the #204 merge (also red on 2026-09-29).
+- **Blocked on**: an owner decision. `e2e/frontend/dashboard-brief-fault-injection.spec.ts`
+  (the "real /api/brief call" test) makes a real model call and allows 30s. In
+  CI on 2026-10-03 every model in `FREE_MODEL_CHAIN` returned an empty
+  completion and the route gave up after ~47s, past the spec's limit. The same
+  chain answered from the second model in ~5s from a laptop, so this is
+  free-tier availability from the CI runner, not a code defect.
+- **Why it can't be code**: the choices are to keep a live-vendor assertion in
+  required CI (and accept flakes), gate it behind a non-required job, or point
+  CI at a paid model. That is a cost and policy call, not a bug fix.
+- **Unblocks**: a green `e2e (1)` on every PR.
+- **Added**: 2026-10-03
+
+  Reproduce the chain locally (read-only, never prints the key):
+
+  ```bash
+  cd ~/code/nuwrrrld-portal && npx tsx --env-file=.env.local -e 'import("./lib/openrouter").then(async m=>{const t=Date.now();const r=await m.fetchWithModelFallbackChecked(process.env.OPENROUTER_API_KEY,{max_tokens:64,stream:true,messages:[{role:"user",content:"hi"}]},"probe",AbortSignal.timeout(130000));console.log(r.model,Date.now()-t+"ms");r.response.body?.cancel()})'
+  ```
+
+  Expect a model name and a time in ms. Check CI state:
+
+  ```bash
+  gh run list --branch main --workflow e2e --limit 5
+  ```

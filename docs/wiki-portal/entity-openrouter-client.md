@@ -30,16 +30,14 @@ look it up in the catalog:
 
 | Seat | Primary model | Size | Vendor | Rationale |
 |---|---|---|---|---|
-| T1 | `nex-agi/nex-n2.5-mini:free` | mini | nex-agi | tactical 1-60 day read → small, fast model. Was `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
+| T1 | `qwen/qwen3.8-27b:free` | 27B | qwen | tactical 1-60 day read → small, fast model. Was `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
 | T2 | `poolside/laguna-s-2.1:free` | s | poolside | secular thesis reasoning. Was `google/gemma-4-31b-it:free`, which **429s on every call including the retry** (failure #11) |
-| RISK | `inclusionai/ling-3.0-flash-fin:free` | 5.1B active / 124B | inclusionai | adversarial framing; finance-tuned (was dead `z-ai/glm-5.2:free` until PR #115) |
+| RISK | `poolside/laguna-xs-2.1:free` | xs | poolside | adversarial framing. Was `inclusionai/ling-3.0-flash-fin:free`, which now 404s (PR #211); before that dead `z-ai/glm-5.2:free` (PR #115) |
 | MACRO | `dots-studio/dots-3-note-preview:free` | preview | dots-studio | rotation/rates narrative; 512k context suits macro grounding. Was `google/gemma-4-26b-a4b-it:free` — same 429 as T2 (failure #11) |
 | QUANT | `liquid/lfm-2.5-2.6b:free` | 2.6B | liquid | numbers-only → smallest model (updated PR #97, was `nvidia/nemotron-nano-9b-v2:free`) |
 | CHAIR | `nvidia/nemotron-3-ultra-550b-a55b:free` | 550B | nvidia | synthesis (hardest job) |
 
-**Six seats, six distinct vendors** (nex-agi / poolside / inclusionai /
-dots-studio / liquid / nvidia) as of 2026-09-11 — up from five, two of which were
-unreachable, so real spread went from four working vendors to six.
+**Six seats, five distinct vendors** (qwen / poolside x2 / dots-studio / liquid / nvidia) as of 2026-10-02. T2 and RISK share poolside after PR #211 retired two 404ing ids, so one poolside outage now degrades two seats.
 
 The **Vendor** column is load-bearing, not decoration. `FREE_MODEL_CHAIN` is nvidia-heavy (failure #6), so if the seats were too, one account-tier outage would remove every primary *and* its entire fallback simultaneously. Distinct vendors across every seat mean such an outage degrades some seats to the chain rather than all of them at once.
 
@@ -125,6 +123,8 @@ invalidate every caller again. As of PR #115 **all six seat primaries are `:free
     and audio-preview ids, both equally ping-clean.
     `SPECIALIST_MODEL_PATTERNS` now excludes code / classifier / media ids from
     chain candidacy.
+
+13. **`/api/brief` and `/api/nuai` used the unchecked fallback, and the chain held dead ids (found and fixed 2026-10-02, PR #211).** Both routes called `fetchWithModelFallback`, which treats any HTTP 200 as success. A chain model that opens a stream and never emits a content token therefore ended the loop and surfaced as "Brief returned empty", even though `fetchWithModelFallbackChecked` (which buffers until a real content token arrives) existed for exactly this. Both now use the checked variant. The brief's market-overview upstream timeout moved 8s to 15s to cover a ~13s cold start. In the same pass `FREE_MODEL_CHAIN`'s last entry (a finance-tuned id that now 404s) was replaced with `qwen/qwen3.8-27b:free`, and the T1 and RISK seats were repointed off ids that 404. Only the qwen replacement was verified end to end; RISK's replacement (`poolside/laguna-xs-2.1:free`) is intermittent: a re-probe on 2026-10-03 returned 200 then 429, while T2's `laguna-s-2.1` returned 200 twice. A 429 on a seat primary falls through to the chain, so RISK degrades to a different vendor rather than failing. This is failure #6's recurrence again: the seat list rots between audits, and an unchecked 200 hides it.
 
 ## Open questions
 

@@ -4,7 +4,7 @@ import { hasEntitlement } from "@/lib/subscription";
 import { parseSubscriptionMetadataWithAdmin } from "@/lib/subscription-admin";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
-import { fetchWithModelFallback } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
 import { getUsedTokensToday, addTokenUsage } from "@/lib/nuai-db";
 import { getWatchlist } from "@/lib/watchlist-store";
 import { getOrFetchDigest } from "@/lib/digest-cache";
@@ -154,10 +154,10 @@ export async function POST(req: NextRequest) {
   ].join("\n");
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  let timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const { response } = await fetchWithModelFallback(
+    const { response } = await fetchWithModelFallbackChecked(
       apiKey,
       {
         max_tokens: 1024,
@@ -173,6 +173,10 @@ export async function POST(req: NextRequest) {
       "NuWrrrld Financial Nu AI",
       controller.signal,
     );
+
+    // Model selection has its own budget; give the stream a fresh one.
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), 30_000);
 
     // Content-negotiate: stream SSE to clients that ask for it,
     // return buffered JSON to legacy clients (shipped mobile builds) that don't.
