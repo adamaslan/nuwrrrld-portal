@@ -440,6 +440,26 @@ writes only its own tables.
 > ❓ Open question: the feed choice for stored bars (free vs consolidated volume)
 > is still undecided and affects the engine's volume gate, not card coverage.
 
+## Explicit-basket watchlist seeding (PR #206, 2026-09-30)
+
+`scripts/seed-watchlist-tickers.mjs` joins `seed-watchlist-universe.mjs` as a
+second `watchlist_items` seeder, for the case where the basket isn't "the
+whole universe" but an explicit, named ticker list. It upserts any
+not-yet-registered tickers into `ticker_universe` first, then writes the
+watchlist rows, with the same dry-run/undo-manifest pattern.
+
+This surfaced a real gap: `watchlist_items` is keyed by `user_id` with no
+Clerk foreign key, so it already supports a synthetic id as a basket name —
+but there is still no first-class "multiple named watchlists per owner"
+feature. A synthetic `user_id` per basket is the workaround in use today, not
+a designed feature; a real feature would need a `list_id`/`name` column and a
+changed primary key. `paper_watchlists` ([[concept-followed-tickers-tracking]])
+is the closest existing precedent for an account-scoped, non-Clerk-keyed list.
+
+> ❓ Open question: should multi-named-watchlist-per-owner become a real
+> schema feature, or does the synthetic-`user_id` convention stay the
+> supported pattern?
+
 ## See also
 
 - [[decision-precompute-ai-at-quota-reset]] — the sibling route this shares
