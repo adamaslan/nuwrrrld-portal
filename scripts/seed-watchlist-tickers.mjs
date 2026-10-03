@@ -49,6 +49,27 @@ const url = process.env.DATABASE_URL;
 if (!url) die("DATABASE_URL is not set (put it in .env.local for local dev).");
 const sql = neon(url);
 
+// Quote-aware split (same shape as seed-signals-universe.mjs): a name column
+// like "Apple, Inc." must not shift the ticker column.
+function parseCsvLine(line) {
+  const out = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ",") { out.push(field); field = ""; }
+    else field += ch;
+  }
+  out.push(field);
+  return out.map((f) => f.trim());
+}
+
 const DRY_RUN = flag("dry-run") === true;
 const UNDO = flag("undo");
 
@@ -92,10 +113,13 @@ let tickers = [];
 if (typeof csvPath === "string") {
   const text = readFileSync(csvPath, "utf8");
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
   const tickerIdx = header.indexOf("ticker");
   if (tickerIdx === -1) die(`"${csvPath}" has no \`ticker\` column.`);
-  tickers = lines.slice(1).map((l) => l.split(",")[tickerIdx].trim().toUpperCase());
+  tickers = lines
+    .slice(1)
+    .map((l) => (parseCsvLine(l)[tickerIdx] ?? "").toUpperCase())
+    .filter(Boolean);
 } else if (typeof tickersFlag === "string") {
   tickers = tickersFlag.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean);
 } else {
@@ -147,27 +171,39 @@ if (unregistered.length > 0) {
   }
 }
 
-let inserted = 0;
-const insertedTickers = [];
-for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
-  const chunk = toAdd.slice(i, i + BATCH_SIZE);
-  const rows = await sql`
-    INSERT INTO watchlist_items (user_id, ticker)
-    SELECT ${userId}, t FROM unnest(${chunk}::text[]) AS t
-    ON CONFLICT (user_id, ticker) DO NOTHING
-    RETURNING ticker
-  `;
-  inserted += rows.length;
-  insertedTickers.push(...rows.map((r) => r.ticker));
-}
-console.log(`✓ Inserted ${inserted} watchlist rows.`);
-
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const manifestPath = join(MANIFEST_DIR, `${userId}-${stamp}.json`);
+const seededAt = new Date().toISOString();
 mkdirSync(dirname(manifestPath), { recursive: true });
-writeFileSync(
-  manifestPath,
-  `${JSON.stringify({ userId, seededAt: new Date().toISOString(), tickers: insertedTickers }, null, 2)}\n`,
-);
+const undoHint = `node --env-file=.env.local scripts/seed-watchlist-tickers.mjs --undo=${manifestPath}`;
+
+// Rewritten after every batch so a failure in batch N still leaves an undo
+// record covering batches 1..N-1.
+const writeManifest = (tickers) =>
+  writeFileSync(manifestPath, `${JSON.stringify({ userId, seededAt, tickers }, null, 2)}\n`);
+
+let inserted = 0;
+const insertedTickers = [];
+writeManifest(insertedTickers);
+try {
+  for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
+    const chunk = toAdd.slice(i, i + BATCH_SIZE);
+    const rows = await sql`
+      INSERT INTO watchlist_items (user_id, ticker)
+      SELECT ${userId}, t FROM unnest(${chunk}::text[]) AS t
+      ON CONFLICT (user_id, ticker) DO NOTHING
+      RETURNING ticker
+    `;
+    inserted += rows.length;
+    insertedTickers.push(...rows.map((r) => r.ticker));
+    writeManifest(insertedTickers);
+  }
+} catch (err) {
+  console.error(`\n✖ Seeding failed after ${inserted} inserted row(s): ${err.message}`);
+  console.error(`  Partial manifest: ${manifestPath}`);
+  console.error(`  Undo with: ${undoHint}`);
+  process.exit(1);
+}
+console.log(`✓ Inserted ${inserted} watchlist rows.`);
 console.log(`✓ Manifest: ${manifestPath}`);
-console.log(`  Undo with: node --env-file=.env.local scripts/seed-watchlist-tickers.mjs --undo=${manifestPath}`);
+console.log(`  Undo with: ${undoHint}`);
