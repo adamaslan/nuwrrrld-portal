@@ -18,7 +18,22 @@ interface AnalyzeResult extends FibSummary {
   verdict?: string;
   confidence?: number;
   trade_plan?: TradePlan;
+  entry?: number | null;
+  stop?: number | null;
+  target?: number | null;
+  risk_reward?: number | null;
   [key: string]: unknown;
+}
+
+/** The backend returns trade-plan fields flat; accept a nested `trade_plan` too. */
+function resolveTradePlan(r: AnalyzeResult): TradePlan | null {
+  const plan: TradePlan = {
+    entry: r.entry ?? r.trade_plan?.entry ?? undefined,
+    stop: r.stop ?? r.trade_plan?.stop ?? undefined,
+    target: r.target ?? r.trade_plan?.target ?? undefined,
+    risk_reward: r.risk_reward ?? r.trade_plan?.risk_reward ?? undefined,
+  };
+  return Object.values(plan).some(v => v != null) ? plan : null;
 }
 
 const PERIODS = ["1mo", "3mo", "6mo", "1y"];
@@ -68,6 +83,8 @@ export function AnalyzeLivePanel({ ticker }: Props) {
       setLoading(false);
     }
   }
+
+  const tradePlan = result ? resolveTradePlan(result) : null;
 
   return (
     <div className="hf-live-panel">
@@ -122,12 +139,12 @@ export function AnalyzeLivePanel({ ticker }: Props) {
             <div className="hf-ind-cell"><span className="hf-ind-label">VERDICT</span><span className="hf-ind-val">{result.verdict ?? "—"}</span></div>
             <div className="hf-ind-cell"><span className="hf-ind-label">CONFIDENCE</span><span className="hf-ind-val">{result.confidence ?? "—"}</span></div>
           </div>
-          {result.trade_plan && (
+          {tradePlan && (
             <div className="hf-ind-grid">
-              <div className="hf-ind-cell"><span className="hf-ind-label">ENTRY</span><span className="hf-ind-val">{result.trade_plan.entry ?? "—"}</span></div>
-              <div className="hf-ind-cell"><span className="hf-ind-label">STOP</span><span className="hf-ind-val">{result.trade_plan.stop ?? "—"}</span></div>
-              <div className="hf-ind-cell"><span className="hf-ind-label">TARGET</span><span className="hf-ind-val">{result.trade_plan.target ?? "—"}</span></div>
-              <div className="hf-ind-cell"><span className="hf-ind-label">R:R</span><span className="hf-ind-val">{result.trade_plan.risk_reward ?? "—"}</span></div>
+              <div className="hf-ind-cell"><span className="hf-ind-label">ENTRY</span><span className="hf-ind-val">{tradePlan.entry ?? "—"}</span></div>
+              <div className="hf-ind-cell"><span className="hf-ind-label">STOP</span><span className="hf-ind-val">{tradePlan.stop ?? "—"}</span></div>
+              <div className="hf-ind-cell"><span className="hf-ind-label">TARGET</span><span className="hf-ind-val">{tradePlan.target ?? "—"}</span></div>
+              <div className="hf-ind-cell"><span className="hf-ind-label">R:R</span><span className="hf-ind-val">{tradePlan.risk_reward ?? "—"}</span></div>
             </div>
           )}
           <FibLadder summary={result} />

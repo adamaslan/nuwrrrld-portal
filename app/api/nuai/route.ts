@@ -4,7 +4,7 @@ import { hasEntitlement } from "@/lib/subscription";
 import { parseSubscriptionMetadataWithAdmin } from "@/lib/subscription-admin";
 import { isRefusedQuery, NU_AI_DISCLAIMER, NU_AI_DAILY_TOKEN_BUDGET } from "@/lib/nuai";
 import type { ChatRequest } from "@/lib/nuai";
-import { fetchWithModelFallback } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked } from "@/lib/openrouter";
 import { getUsedTokensToday, addTokenUsage } from "@/lib/nuai-db";
 import { getWatchlist } from "@/lib/watchlist-store";
 import { getOrFetchDigest } from "@/lib/digest-cache";
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const { response } = await fetchWithModelFallback(
+    const { response } = await fetchWithModelFallbackChecked(
       apiKey,
       {
         max_tokens: 1024,

@@ -39,7 +39,7 @@ export const FREE_MODEL_CHAIN = [
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
   'liquid/lfm-2.5-2.6b:free',
   'dots-studio/dots-3-note-preview:free',
-  'inclusionai/ling-3.0-flash-fin:free',
+  'qwen/qwen3.8-27b:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
@@ -97,9 +97,9 @@ export const FREE_MODEL_CHAIN = [
 //     vendors (nex-agi, poolside, inclusionai, dots-studio, liquid, nvidia),
 //     up from four, two of which were unreachable.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
-  T1: 'nex-agi/nex-n2.5-mini:free',
+  T1: 'qwen/qwen3.8-27b:free',
   T2: 'poolside/laguna-s-2.1:free',
-  RISK: 'inclusionai/ling-3.0-flash-fin:free',
+  RISK: 'poolside/laguna-xs-2.1:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's

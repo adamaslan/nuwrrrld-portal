@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { fetchWithModelFallback, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWithIdleTimeout } from "@/lib/openrouter";
+import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWithIdleTimeout } from "@/lib/openrouter";
 import { mapSignalsToHoldFold } from "@/lib/shared/holdfold-map";
 import type { HoldFoldVerdict } from "@/lib/shared/holdfold-map";
 
@@ -14,7 +14,7 @@ interface MarketOverview {
   brief?: { summary?: string; market_tone?: string; indices?: Record<string, IndexEntry> }
 }
 
-const UPSTREAM_TIMEOUT_MS = 8_000;
+const UPSTREAM_TIMEOUT_MS = 15_000;
 const MAX_BRIEF_VERDICTS = 5;
 
 async function fetchJSON(path: string): Promise<unknown | null> {
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const prompt = buildBriefPrompt(tier, market, verdicts);
-    const { response } = await fetchWithModelFallback(
+    const { response } = await fetchWithModelFallbackChecked(
       apiKey,
       { max_tokens: 350, stream: true, messages: [{ role: "user", content: prompt }], temperature: 0.3 },
       "NuWrrrld Financial Daily Brief",
