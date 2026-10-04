@@ -71,6 +71,8 @@ const DROP_STATEMENT_PATTERNS = [
   /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS exit_by date;/i,
   /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS engine_hit_id uuid;/i,
   /ALTER TABLE paper_orders ADD COLUMN IF NOT EXISTS engine_hit_id uuid;/i,
+  /ALTER TABLE followed_ticker_picks ADD COLUMN IF NOT EXISTS price_source text;/i,
+  /ALTER TABLE followed_ticker_observations ADD COLUMN IF NOT EXISTS price_source text;/i,
   // paper_orders' watchlist-membership guard: SQLite triggers use different
   // syntax (no PL/pgSQL, no RAISE EXCEPTION with this form) and the read-only
   // backup mirror never receives live INSERTs that need validating, so the
