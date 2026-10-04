@@ -955,3 +955,4 @@ watchlist route.
 ## [2026-09-29] ingest | PR #204 fix(paper): v3 engine correctness, scheduling, personas + real backtest | pages touched: 1
 ## [2026-09-30] ingest | PR #206 feat(scripts): seed-watchlist-tickers.mjs for explicit ticker baskets | pages touched: 1
 ## [2026-10-02] ingest | PR #211 fix(ai): checked fallback for brief/nuai, analyze timeout + trade plan, dead models | pages touched: 3
+## [2026-10-04] ingest | PR #217 fix(followed-tickers): unblock the benchmark pipeline and fix horizon/price correctness | pages touched: 7

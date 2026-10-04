@@ -47,15 +47,14 @@ jobs:
       judge_status: ${{ steps.judge.outputs.status }}
     steps:
       - name: Verify required secrets exist
+        # The secrets API needs a token with secrets scope; the default
+        # GITHUB_TOKEN gets HTTP 403, so check the values this job receives.
         env:
-          GH_TOKEN: ${{ github.token }}
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'PORTAL_URL'  || { echo "PORTAL_URL secret missing"; exit 1; }
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'CRON_SECRET' || { echo "CRON_SECRET secret missing"; exit 1; }
+          [ -n "$PORTAL_URL" ] || { echo "::error::PORTAL_URL secret missing"; exit 1; }
+          [ -n "$CRON_SECRET" ] || { echo "::error::CRON_SECRET secret missing"; exit 1; }
 
       - name: Run the weekly judge
         id: judge

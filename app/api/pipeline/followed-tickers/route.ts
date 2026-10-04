@@ -2,17 +2,20 @@
  * POST /api/pipeline/followed-tickers — the daily observer.
  *
  * docs/tickers-followed.md §"What runs against them (daily)", follow-up item 3.
- * Called by .github/workflows/track-followed-tickers.yml every trading day at
- * 3:30 PM ET.
+ * Called by .github/workflows/track-followed-tickers.yml every trading day after
+ * the 4:00 PM ET close (GitHub's cron fires about 7:00 PM ET).
  *
  * For each live pick:
- *   1. Append one `followed_ticker_observations` row — close price (from
- *      live_prices), today's signal direction, the backtest hit-rate for the
- *      firing category, and one grounded council verdict (best-effort, free-tier
- *      only). The observation row is the one write that must not be missed; a
- *      gap in the price series makes every horizon crossing it unresolvable.
+ *   1. Append one `followed_ticker_observations` row — close price (from the
+ *      followed-tickers price chain), today's signal direction, the backtest
+ *      hit-rate for the firing category, and one grounded council verdict
+ *      (best-effort, free-tier only). The observation row is the one write that
+ *      must not be missed; a gap in the price series makes every horizon
+ *      crossing it unresolvable. A pick already observed today is skipped, so a
+ *      second fire of the track window makes no duplicate council calls.
  *   2. Resolve any fixed-offset horizon that has come due, plus `ytd` (which
- *      re-resolves daily until Dec 31), into `followed_ticker_scores`.
+ *      re-resolves daily until Dec 31), into `followed_ticker_scores`. Each
+ *      horizon exits on its own trading-day offset, never on the latest close.
  *
  * Auth: Bearer CRON_SECRET.
  */
@@ -27,17 +30,19 @@ import {
 import { validateStructuredVerdict } from "@/lib/council-validate";
 import { runSeat, seatSystemPrompt, seatPrimaryModel } from "@/lib/openrouter";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
-import { getLivePrice } from "@/lib/live-price-db";
+import { resolveFollowedPrice, nyDateOf } from "@/lib/followed-tickers-price";
 import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
 import { scorePick, type Horizon } from "@/lib/eval-scoring";
 import {
   dueHorizons,
+  horizonExit,
   tradingDaysBetween,
   ytdIsFinal,
 } from "@/lib/shared/followed-tickers-policy";
 import {
   getLivePicks,
   getObservations,
+  getPickIdsObservedOn,
   getResolvedHorizons,
   upsertObservation,
   upsertScore,
@@ -172,39 +177,55 @@ async function resolveDueHorizons(
     // Skip write-once horizons already done; for ytd, keep re-resolving until final.
     if (alreadyResolved.has(key) && (horizon !== "ytd" || ytdFinal)) continue;
 
-    // The horizon's close is the last observation at or before its due date.
-    // For fixed-offset horizons we approximate the due date by trading-day
-    // count from entry; for ytd it's the latest observation of the entry year
-    // (or the final one on/after Dec 31).
-    const exitObs =
-      horizon === "ytd"
-        ? [...observations]
-            .reverse()
-            .find((o) => new Date(o.observedOn).getUTCFullYear() === entryDate.getUTCFullYear()) ??
-          observations[observations.length - 1]
-        : observations[observations.length - 1];
-    if (!exitObs) continue;
+    if (horizon === "ytd") {
+      const exitObs =
+        [...observations]
+          .reverse()
+          .find((o) => new Date(o.observedOn).getUTCFullYear() === entryDate.getUTCFullYear()) ??
+        observations[observations.length - 1];
+      await writeScore(pick, horizon, exitObs);
+      resolved.push(horizon);
+      continue;
+    }
 
-    const scored = scorePick({
-      direction: pick.direction,
-      entryPrice: pick.entryPrice,
-      exitPrice: exitObs.closePrice,
-      horizon,
-      void: pick.droppedAt != null,
-    });
-
-    await upsertScore({
-      pickId: pick.id,
-      horizon,
-      resolvedOn: exitObs.observedOn,
-      exitPrice: exitObs.closePrice,
-      returnPct: scored.returnPct,
-      directional: scored.directional,
-      outcome: scored.outcome,
-    });
+    const exit = horizonExit(observations, entryDate, horizon);
+    if (exit.kind === "pending") continue;
+    if (exit.kind === "void") {
+      // The horizon's own close is missing. Score it void against the last
+      // observation date, never against a later close.
+      await writeScore(pick, horizon, observations[observations.length - 1], { isVoid: true });
+    } else {
+      await writeScore(pick, horizon, exit.observation);
+    }
     resolved.push(horizon);
   }
   return resolved;
+}
+
+/** Score one pick at one horizon against an exit observation, or void it. */
+async function writeScore(
+  pick: Pick,
+  horizon: Horizon,
+  exitObs: { observedOn: string; closePrice: number },
+  { isVoid = false }: { isVoid?: boolean } = {},
+): Promise<void> {
+  const scored = scorePick({
+    direction: pick.direction,
+    entryPrice: pick.entryPrice,
+    exitPrice: exitObs.closePrice,
+    horizon,
+    void: isVoid || pick.droppedAt != null,
+  });
+  const voided = scored.outcome === "void";
+  await upsertScore({
+    pickId: pick.id,
+    horizon,
+    resolvedOn: exitObs.observedOn,
+    exitPrice: voided ? null : exitObs.closePrice,
+    returnPct: voided ? null : scored.returnPct,
+    directional: voided ? null : scored.directional,
+    outcome: scored.outcome,
+  });
 }
 
 /**
@@ -254,15 +275,26 @@ export async function POST(req: NextRequest) {
 
   const alreadyResolved = await getResolvedHorizons();
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
+  // The observer is keyed by NY trading day. A UTC date would run a day ahead
+  // after the 19:00 ET track run and stamp observations onto the next day.
+  const today = nyDateOf(now);
+  const observedToday = await getPickIdsObservedOn(today);
   const readings: Reading[] = [];
   const runItems: RunItem[] = [];
   let missedObservations = 0;
   let councilDegraded = 0;
+  let alreadyObserved = 0;
 
   for (const pick of picks) {
-    const lp = await getLivePrice(pick.ticker);
-    const close = lp && lp.price > 0 ? lp.price : null;
+    if (observedToday.has(pick.id)) {
+      alreadyObserved++;
+      continue;
+    }
+
+    // The observer runs after the close: a pre-close print must never become
+    // the day's close, because the same-day skip would then keep it.
+    const price = await resolveFollowedPrice(pick.ticker, { freshSince: today, closedOn: today });
+    const close = price?.price ?? null;
 
     // Today's signal direction, for the days_held count and the thesis-flip check.
     const liveEntry = await fetchTickerEntry(pick.ticker);
@@ -310,13 +342,14 @@ export async function POST(req: NextRequest) {
         : null;
     const thesisHolding = normLive == null ? null : normLive === pick.direction;
 
-    if (close == null) {
+    if (price == null) {
       missedObservations++;
     } else if (!dryRun) {
       await upsertObservation({
         pickId: pick.id,
         observedOn: today,
-        closePrice: close,
+        closePrice: price.price,
+        priceSource: price.source,
         signalDir: normLive,
         backtestRate,
         councilJson: council?.raw ?? null,
@@ -354,6 +387,7 @@ export async function POST(req: NextRequest) {
     summary: {
       cohortSize: picks.length,
       missedObservations,
+      alreadyObserved,
       councilDegraded,
       backtestAvailable,
       horizonsResolved,
@@ -368,6 +402,7 @@ export async function POST(req: NextRequest) {
     meta: {
       cohortSize: picks.length,
       missedObservations,
+      alreadyObserved,
       degraded: councilDegraded,
       backtest_available: backtestAvailable,
       horizonsResolved,

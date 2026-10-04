@@ -28,11 +28,16 @@ export interface Pick {
   dropReason: string | null;
 }
 
+/** Where a stored price came from. Recorded on every pick and observation so a
+ *  vendor switch is visible in the data, not just in logs. */
+export type PriceSource = "live_prices" | "alpaca_iex" | "daily_bars";
+
 export interface NewPick {
   cohortMonth: string;
   ticker: string;
   direction: Direction;
   entryPrice: number;
+  priceSource?: PriceSource | null;
   strength?: number | null;
   signalCategory?: string | null;
   invalidation?: string | null;
@@ -65,17 +70,18 @@ export async function insertCohort(picks: readonly NewPick[]): Promise<Pick[]> {
   if (picks.length === 0) return [];
   const rows = await sql`
     INSERT INTO followed_ticker_picks
-      (cohort_month, ticker, direction, entry_price, strength, signal_category, invalidation, confidence)
+      (cohort_month, ticker, direction, entry_price, price_source, strength, signal_category, invalidation, confidence)
     SELECT * FROM unnest(
       ${picks.map((p) => p.cohortMonth)}::date[],
       ${picks.map((p) => p.ticker)}::text[],
       ${picks.map((p) => p.direction)}::text[],
       ${picks.map((p) => p.entryPrice)}::numeric[],
+      ${picks.map((p) => p.priceSource ?? null)}::text[],
       ${picks.map((p) => p.strength ?? null)}::real[],
       ${picks.map((p) => p.signalCategory ?? null)}::text[],
       ${picks.map((p) => p.invalidation ?? null)}::text[],
       ${picks.map((p) => p.confidence ?? null)}::text[]
-    ) AS t(cohort_month, ticker, direction, entry_price, strength, signal_category, invalidation, confidence)
+    ) AS t(cohort_month, ticker, direction, entry_price, price_source, strength, signal_category, invalidation, confidence)
     ON CONFLICT (cohort_month, ticker) DO NOTHING
     RETURNING *
   `;
@@ -83,13 +89,20 @@ export async function insertCohort(picks: readonly NewPick[]): Promise<Pick[]> {
 }
 
 /** All picks still live (not dropped) whose longest horizon has not yet
- *  resolved. The daily observer iterates these. */
+ *  resolved. The daily observer iterates these. `y1` is the longest fixed
+ *  horizon and the last one to resolve; `ytd` finalises on Dec 31 of the entry
+ *  year, which is always earlier, so a pick with a `y1` score needs no more
+ *  council calls. */
 export async function getLivePicks(): Promise<Pick[]> {
   try {
     const rows = await sql`
-      SELECT * FROM followed_ticker_picks
-      WHERE dropped_at IS NULL
-      ORDER BY cohort_month DESC, direction, ticker
+      SELECT p.* FROM followed_ticker_picks p
+      WHERE p.dropped_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM followed_ticker_scores s
+          WHERE s.pick_id = p.id AND s.horizon = 'y1'
+        )
+      ORDER BY p.cohort_month DESC, p.direction, p.ticker
     `;
     return rows.map(rowToPick);
   } catch {
@@ -140,6 +153,7 @@ export interface Observation {
   pickId: string;
   observedOn: string;
   closePrice: number;
+  priceSource: PriceSource;
   signalDir: string | null;
   backtestRate: number | null;
   councilJson: unknown;
@@ -154,18 +168,34 @@ export interface Observation {
 export async function upsertObservation(obs: Observation): Promise<void> {
   await sql`
     INSERT INTO followed_ticker_observations
-      (pick_id, observed_on, close_price, signal_dir, backtest_rate, council_json)
+      (pick_id, observed_on, close_price, price_source, signal_dir, backtest_rate, council_json)
     VALUES (
-      ${obs.pickId}, ${obs.observedOn}, ${obs.closePrice},
+      ${obs.pickId}, ${obs.observedOn}, ${obs.closePrice}, ${obs.priceSource},
       ${obs.signalDir}, ${obs.backtestRate},
       ${obs.councilJson == null ? null : JSON.stringify(obs.councilJson)}
     )
     ON CONFLICT (pick_id, observed_on) DO UPDATE SET
       close_price   = EXCLUDED.close_price,
+      price_source  = EXCLUDED.price_source,
       signal_dir    = EXCLUDED.signal_dir,
       backtest_rate = EXCLUDED.backtest_rate,
       council_json  = EXCLUDED.council_json
   `;
+}
+
+/** Pick IDs that already have an observation on `observedOn`. The observer uses
+ *  this to skip a pick on a second run the same day (the track gate accepts a
+ *  whole afternoon window, so a double fire is expected). */
+export async function getPickIdsObservedOn(observedOn: string): Promise<Set<string>> {
+  try {
+    const rows = await sql`
+      SELECT pick_id FROM followed_ticker_observations
+      WHERE observed_on = ${observedOn}
+    `;
+    return new Set(rows.map((r) => r.pick_id as string));
+  } catch {
+    return new Set();
+  }
 }
 
 /** All observations for a pick, oldest first — the price series outcome
@@ -187,6 +217,29 @@ export async function getObservations(pickId: string): Promise<
     }));
   } catch {
     return [];
+  }
+}
+
+/** Most recent daily bar for a ticker (IEX, split-adjusted: the observer's
+ *  basis), or null. The caller decides whether it is fresh enough to use. */
+export async function getLatestDailyBar(
+  ticker: string,
+): Promise<{ barDate: string; close: number } | null> {
+  try {
+    const rows = await sql`
+      SELECT bar_date, close FROM daily_bars
+      WHERE ticker = ${ticker} AND feed = 'iex' AND adjustment = 'split'
+      ORDER BY bar_date DESC
+      LIMIT 1
+    `;
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      barDate: new Date(r.bar_date as string).toISOString().slice(0, 10),
+      close: Number(r.close),
+    };
+  } catch {
+    return null;
   }
 }
 

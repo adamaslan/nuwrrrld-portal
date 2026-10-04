@@ -14,6 +14,7 @@ import sql from "@/lib/db";
 
 export type PipelineName =
   | "followed-tickers"
+  | "followed-tickers-select"
   | "followed-tickers-judge"
   | "precompute-ai"
   | "hydrate-universe"
