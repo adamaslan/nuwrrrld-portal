@@ -53,7 +53,7 @@ describe("resolveFollowedPrice", () => {
       tradedAt: TRADED_THU,
       updatedAt: TRADED_THU,
     });
-    const out = await resolveFollowedPrice("AAPL", FRESH_SINCE);
+    const out = await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE });
     expect(out).toEqual({ price: 210, source: "live_prices", asOf: "2026-06-03" });
     expect(mockAlpaca).not.toHaveBeenCalled();
     expect(mockBar).not.toHaveBeenCalled();
@@ -68,22 +68,61 @@ describe("resolveFollowedPrice", () => {
       updatedAt: TRADED_LAST_MONTH,
     });
     mockAlpaca.mockResolvedValue({ price: 211, tradedAt: TRADED_THU });
-    const out = await resolveFollowedPrice("AAPL", FRESH_SINCE);
+    const out = await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE });
     expect(out).toEqual({ price: 211, source: "alpaca_iex", asOf: "2026-06-03" });
   });
 
   it("falls through to the latest daily_bars close when both live sources are empty", async () => {
     mockBar.mockResolvedValue({ barDate: "2026-06-02", close: 208.5 });
-    const out = await resolveFollowedPrice("AAPL", FRESH_SINCE);
+    const out = await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE });
     expect(out).toEqual({ price: 208.5, source: "daily_bars", asOf: "2026-06-02" });
   });
 
   it("rejects a daily_bars close older than the freshness bound", async () => {
     mockBar.mockResolvedValue({ barDate: "2026-05-29", close: 200 });
-    expect(await resolveFollowedPrice("AAPL", FRESH_SINCE)).toBeNull();
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toBeNull();
   });
 
   it("returns null only when every source is empty or stale", async () => {
-    expect(await resolveFollowedPrice("ZZZZ", FRESH_SINCE)).toBeNull();
+    expect(await resolveFollowedPrice("ZZZZ", { freshSince: FRESH_SINCE })).toBeNull();
+  });
+});
+
+describe("resolveFollowedPrice with closedOn (track runs)", () => {
+  const CLOSED_ON = "2026-06-03";
+  /** 2026-06-03 17:00 ET, after the 16:00 close. */
+  const TRADED_AFTER_CLOSE = "2026-06-03T21:00:00Z";
+
+  it("rejects a pre-close live print from the same day", async () => {
+    // TRADED_THU is 15:00 ET, before the close, so it must not become the close.
+    mockLive.mockResolvedValue({
+      ticker: "AAPL",
+      price: 210,
+      volume: null,
+      tradedAt: TRADED_THU,
+      updatedAt: TRADED_THU,
+    });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON })).toBeNull();
+  });
+
+  it("accepts a live print traded after the close", async () => {
+    mockLive.mockResolvedValue({
+      ticker: "AAPL",
+      price: 212,
+      volume: null,
+      tradedAt: TRADED_AFTER_CLOSE,
+      updatedAt: TRADED_AFTER_CLOSE,
+    });
+    const out = await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON });
+    expect(out).toEqual({ price: 212, source: "live_prices", asOf: CLOSED_ON });
+  });
+
+  it("uses only the closed day's own daily bar", async () => {
+    mockBar.mockResolvedValue({ barDate: "2026-06-02", close: 208.5 });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON })).toBeNull();
+
+    mockBar.mockResolvedValue({ barDate: CLOSED_ON, close: 209.1 });
+    const out = await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON });
+    expect(out).toEqual({ price: 209.1, source: "daily_bars", asOf: CLOSED_ON });
   });
 });

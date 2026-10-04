@@ -2,8 +2,8 @@
  * POST /api/pipeline/followed-tickers — the daily observer.
  *
  * docs/tickers-followed.md §"What runs against them (daily)", follow-up item 3.
- * Called by .github/workflows/track-followed-tickers.yml every trading day at
- * 3:30 PM ET.
+ * Called by .github/workflows/track-followed-tickers.yml every trading day after
+ * the 4:00 PM ET close (GitHub's cron fires about 7:00 PM ET).
  *
  * For each live pick:
  *   1. Append one `followed_ticker_observations` row — close price (from the
@@ -291,7 +291,9 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const price = await resolveFollowedPrice(pick.ticker, today);
+    // The observer runs after the close: a pre-close print must never become
+    // the day's close, because the same-day skip would then keep it.
+    const price = await resolveFollowedPrice(pick.ticker, { freshSince: today, closedOn: today });
     const close = price?.price ?? null;
 
     // Today's signal direction, for the days_held count and the thesis-flip check.

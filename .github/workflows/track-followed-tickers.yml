@@ -62,16 +62,17 @@ jobs:
           # clock so the off-season entry is a no-op, not a duplicate live run
           # an hour apart.
           # GitHub's cron fires late (observed ~19:00 ET), so the window is
-          # 15:00–23:59 ET, not one hour. The route skips picks already observed
-          # today, so a double fire from the EST/EDT entries makes no duplicate
-          # council calls.
+          # 16:00–23:59 ET (after the close), not one hour. The route only
+          # records prices traded after 16:00 ET, and it skips picks already
+          # observed today, so a double fire from the EST/EDT entries makes no
+          # duplicate council calls.
           NY_HOUR=$(TZ="America/New_York" date +%H)
           if [[ "$DAY" -ge 6 ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping."
-          elif (( 10#$NY_HOUR < 15 )) && [[ "${{ inputs.skip_market_check }}" != "true" ]]; then
+          elif (( 10#$NY_HOUR < 16 )) && [[ "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NY local hour is ${NY_HOUR}, before the 15:00 ET window — skipping."
+            echo "NY local hour is ${NY_HOUR}, before the 16:00 ET close — skipping."
           else
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
           fi

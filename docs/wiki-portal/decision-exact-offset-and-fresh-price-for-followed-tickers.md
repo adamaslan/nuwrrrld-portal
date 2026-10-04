@@ -33,8 +33,10 @@ recent observation. Entry prices came from `live_prices` with no date check.
 4. **Entry freshness is 7 calendar days.** Selection runs on the 1st, so the
    honest entry is the prior close, one to four days old. A week covers a long
    weekend.
-5. **Track freshness is the current NY date.** The daily close must belong to
-   today. A stale quote is recorded as a missed observation, never as a close.
+5. **Track runs are post-close.** The daily close must belong to today, and a
+   live or Alpaca print must have traded at or after 16:00 ET. A pre-close print
+   is never recorded as the close, because the same-day skip would keep it. A
+   stale or pre-close quote is recorded as a missed observation.
 6. **Every accepted price records its source** (`price_source` on picks and
    observations), so a vendor switch appears in the data.
 

@@ -53,8 +53,9 @@ Fixed in the unblock-and-correctness PR (branch `fix/followed-tickers-unblock`):
 
 - Secret prechecks now test the values the job receives (`env:` plus `[ -n ... ]`),
   not the secrets API. The same fix applies to the judge and afternoon workflows.
-- The track window accepts 15:00–23:59 ET. A second fire the same day is a no-op
-  for council calls: the observer skips picks already observed on that NY date.
+- The track window accepts 16:00–23:59 ET, after the close, and records only
+  prices traded after 16:00 ET. A second fire the same day is a no-op for
+  council calls: the observer skips picks already observed on that NY date.
 - The flip check reads `thesisHolding`.
 - Entry and daily-close prices follow the fallback chain
   (`live_prices` → Alpaca latest trade → `daily_bars`), with a freshness bound

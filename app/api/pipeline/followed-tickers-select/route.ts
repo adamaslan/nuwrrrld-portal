@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
   const skipped: string[] = [];
   const freshSince = nyDateDaysAgo(new Date(), ENTRY_PRICE_MAX_AGE_DAYS);
   for (const pick of chosen) {
-    const entry = await resolveFollowedPrice(pick.ticker, freshSince);
+    const entry = await resolveFollowedPrice(pick.ticker, { freshSince });
     if (!entry) {
       skipped.push(pick.ticker);
       continue;
