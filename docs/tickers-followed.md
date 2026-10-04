@@ -319,21 +319,37 @@ The two tables below are rewritten in place between the `FT:COHORT` markers by
 `app/api/pipeline/followed-tickers-select/route.ts`.
 
 <!-- FT:COHORT:START -->
-**Selection run:** _not yet executed_ — this table is populated by the first
-monthly run of `select-followed-tickers.yml` (see *Automation*). Until then
-the rows are the shape the run will fill, not real picks.
+**Selection run:** 2026-10-01 (20 picks)
 
 ### Bulls (10)
 
 | Ticker | Direction | Added | Entry | Latest signal | Backtest | Council | Judge /10 | Days held | Thesis holding? |
 |---|---|---|---|---|---|---|---|---|---|
-| _pending selection run_ | bull | — | — | — | — | — | — | — | — |
+| ITA | bull | 2026-10-01 | 207.78 | — | — | — | — | — | yes |
+| MGPI | bull | 2026-10-01 | 12.84 | — | — | — | — | — | yes |
+| ATO | bull | 2026-10-01 | 157.22 | — | — | — | — | — | yes |
+| BKNG | bull | 2026-10-01 | 159.02 | — | — | — | — | — | yes |
+| CMS | bull | 2026-10-01 | 63.74 | — | — | — | — | — | yes |
+| CNP | bull | 2026-10-01 | 37.8 | — | — | — | — | — | yes |
+| DTE | bull | 2026-10-01 | 124.435 | — | — | — | — | — | yes |
+| ESTC | bull | 2026-10-01 | 93.94 | — | — | — | — | — | yes |
+| ETR | bull | 2026-10-01 | 100.95 | — | — | — | — | — | yes |
+| EVRG | bull | 2026-10-01 | 79.17 | — | — | — | — | — | yes |
 
 ### Bears (10)
 
 | Ticker | Direction | Added | Entry | Latest signal | Backtest | Council | Judge /10 | Days held | Thesis holding? |
 |---|---|---|---|---|---|---|---|---|---|
-| _pending selection run_ | bear | — | — | — | — | — | — | — | — |
+| BSOL | bear | 2026-10-01 | 16.265 | — | — | — | — | — | yes |
+| DHR | bear | 2026-10-01 | 214.01 | — | — | — | — | — | yes |
+| JD | bear | 2026-10-01 | 25.77 | — | — | — | — | — | yes |
+| MRNA | bear | 2026-10-01 | 189.97 | — | — | — | — | — | yes |
+| SOLT | bear | 2026-10-01 | 74.855 | — | — | — | — | — | yes |
+| SOLZ | bear | 2026-10-01 | 11.72 | — | — | — | — | — | yes |
+| VEEV | bear | 2026-10-01 | 273.325 | — | — | — | — | — | yes |
+| WAT | bear | 2026-10-01 | 425.22 | — | — | — | — | — | yes |
+| WST | bear | 2026-10-01 | 365.52 | — | — | — | — | — | yes |
+| ADI | bear | 2026-10-01 | 417.32 | — | — | — | — | — | yes |
 <!-- FT:COHORT:END -->
 
 ---
