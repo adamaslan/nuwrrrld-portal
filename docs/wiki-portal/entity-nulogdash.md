@@ -58,7 +58,12 @@ what sits behind the second gate.
 - `/dashboard/nulogdash` — the sweep console; `notFound()` for a non-admin,
   `MfaNotice` for an allowlisted admin without a second factor.
 - `/dashboard/nulogdash/pipelines` — the run-log tab and the trigger controls
-  ([[decision-nulogdash-browser-trigger-handshake]]).
+  ([[decision-nulogdash-browser-trigger-handshake]]). Four category sections sit
+  above the run table: **model pipelines** (`pipeline_run_log`), **paper trading**
+  (per-account, per-slot latest `paper_runs` and latest `paper_nav`), **GitHub
+  Actions** and **Modal** (both from `lib/nulogdash-catalog.ts`, which the drift
+  test checks against `.github/workflows/`). Modal has no run log of its own, so
+  an app shows run evidence only where it writes `pipeline_run_log`.
 - `e2e/frontend/nulogdash-admin.spec.ts` — the browser-level proof that both
   gates are actually *reached* (added PR #118, see below).
 - `/nulogdash` — the Claude Code command wrapper ([[entity-dev-command-suite]]).
