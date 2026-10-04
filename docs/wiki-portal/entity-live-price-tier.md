@@ -80,3 +80,13 @@ Related: [[entity-paper-portfolios]].
 - [[entity-portfolio-intelligence]] — watchlists that should drive the WS symbol set
 - [[concept-cache-then-degrade]] — best-effort writes; live price is an enhancement, never a hard dep
 - `homebase/modal_finnhub_ws.py`, `homebase/modal_drain.py` — the external workers (separate repo)
+
+## Coverage limit for the benchmark (2026-10-04)
+
+`live_prices` holds only the paper-watchlist tickers (about 176), so it can't
+price the full ranked universe. The followed-tickers benchmark was the first
+consumer to hit this: it skipped about 85% of its picks. Its price chain now
+falls back to Alpaca's latest trade and then to the latest `daily_bars` close,
+and it accepts a price only when that price is dated fresh enough. See
+[[decision-exact-offset-and-fresh-price-for-followed-tickers]] and
+[[incident-2026-10-04-followed-tickers-never-produced-data]].

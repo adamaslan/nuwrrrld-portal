@@ -20,6 +20,15 @@ council's reasoning graded separately by an outcome-blind LLM judge.
 
 The human-readable face is `docs/tickers-followed.md`. This page is the *why*.
 
+> **Status (2026-10-04):** the pipeline had never written a production row.
+> Three blockers (a secrets precheck the default token can't pass, a
+> one-hour track gate that the late cron always missed, and a `live_prices`-only
+> price source) plus four latent bugs are fixed in the unblock PR. See
+> [[incident-2026-10-04-followed-tickers-never-produced-data]]. Horizons now
+> exit on their trading-day offset and prices must be fresh:
+> [[decision-exact-offset-and-fresh-price-for-followed-tickers]]. The first
+> cohort freeze is still a human-run, one-way step.
+
 ## The pattern
 
 **Freeze the app's loudest calls, then check them against reality.**
