@@ -516,6 +516,7 @@ CREATE TABLE IF NOT EXISTS followed_ticker_picks (
   ticker          text        NOT NULL,
   direction       text        NOT NULL CHECK (direction IN ('bull', 'bear')),
   entry_price     numeric     NOT NULL,
+  price_source    text,                       -- live_prices | alpaca_iex | daily_bars
   strength        real,
   signal_category text,
   invalidation    text,                       -- from the council verdict
@@ -535,6 +536,7 @@ CREATE TABLE IF NOT EXISTS followed_ticker_observations (
   pick_id       TEXT        NOT NULL REFERENCES followed_ticker_picks(id) ON DELETE CASCADE,
   observed_on   TEXT        NOT NULL,
   close_price   numeric     NOT NULL,
+  price_source  text,                         -- live_prices | alpaca_iex | daily_bars
   signal_dir    text,                         -- today's direction, for days_held
   backtest_rate real,
   council_json  TEXT,                        -- the structured verdict, verbatim

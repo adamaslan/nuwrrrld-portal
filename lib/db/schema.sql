@@ -554,6 +554,10 @@ CREATE TABLE IF NOT EXISTS followed_ticker_scores (
 );
 CREATE INDEX IF NOT EXISTS followed_ticker_scores_horizon_idx
   ON followed_ticker_scores (horizon, resolved_on DESC);
+-- Where entry_price / close_price came from: live_prices | alpaca_iex | daily_bars.
+-- Null on rows written before the fallback chain existed.
+ALTER TABLE followed_ticker_picks ADD COLUMN IF NOT EXISTS price_source text;
+ALTER TABLE followed_ticker_observations ADD COLUMN IF NOT EXISTS price_source text;
 
 -- ── Per-run log of every model-calling pipeline (docs/model-usage/) ──────────
 -- One append-only row per invocation of a pipeline route that spends model

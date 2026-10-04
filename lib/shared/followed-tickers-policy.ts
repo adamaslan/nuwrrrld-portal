@@ -100,6 +100,43 @@ export function dueHorizons(tradingDaysElapsed: number): Exclude<Horizon, "ytd">
   );
 }
 
+/**
+ * Trading days by which the exit observation may trail its due date before the
+ * horizon is voided. `tradingDaysBetween` counts weekdays and doesn't know about
+ * market holidays, so a holiday on the due date leaves no observation there. One
+ * weekday of slack absorbs a single holiday. A longer gap is a missed run, and
+ * scoring it against a later close would be the bug this rule exists to prevent.
+ */
+export const MAX_EXIT_LAG_TRADING_DAYS = 1;
+
+export type HorizonExit<O extends { observedOn: string }> =
+  | { kind: "pending" }
+  | { kind: "exit"; observation: O }
+  | { kind: "void" };
+
+/**
+ * Where a fixed-offset horizon exits, given the pick's observation series
+ * (oldest first).
+ *   - `pending`: no observation has reached the horizon's trading-day offset yet.
+ *   - `exit`: the first observation at or after the offset, within the allowed lag.
+ *   - `void`: the first observation at or after the offset is further past it
+ *     than the allowed lag, so the horizon's own close is missing.
+ */
+export function horizonExit<O extends { observedOn: string }>(
+  observations: readonly O[],
+  entryDate: Date,
+  horizon: Exclude<Horizon, "ytd">,
+): HorizonExit<O> {
+  const offset = HORIZON_TRADING_DAYS[horizon];
+  const due = observations.find(
+    (o) => tradingDaysBetween(entryDate, new Date(o.observedOn)) >= offset,
+  );
+  if (!due) return { kind: "pending" };
+  const lag = tradingDaysBetween(entryDate, new Date(due.observedOn)) - offset;
+  if (lag > MAX_EXIT_LAG_TRADING_DAYS) return { kind: "void" };
+  return { kind: "exit", observation: due };
+}
+
 /** True once the current date is on or past Dec 31 of the pick's entry year —
  *  i.e. the `ytd` horizon has reached its final resolution and stops
  *  re-resolving. Before that, `ytd` is partial and re-stated daily. */

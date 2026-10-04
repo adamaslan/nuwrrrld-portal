@@ -61,13 +61,17 @@ jobs:
           # correct local hour on any given day. Gate on the actual NY wall
           # clock so the off-season entry is a no-op, not a duplicate live run
           # an hour apart.
+          # GitHub's cron fires late (observed ~19:00 ET), so the window is
+          # 15:00–23:59 ET, not one hour. The route skips picks already observed
+          # today, so a double fire from the EST/EDT entries makes no duplicate
+          # council calls.
           NY_HOUR=$(TZ="America/New_York" date +%H)
           if [[ "$DAY" -ge 6 ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping."
-          elif [[ "$NY_HOUR" != "15" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+          elif (( 10#$NY_HOUR < 15 )) && [[ "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NY local hour is ${NY_HOUR}, not 15 — off-season cron entry, skipping."
+            echo "NY local hour is ${NY_HOUR}, before the 15:00 ET window — skipping."
           else
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
           fi
@@ -85,15 +89,14 @@ jobs:
       track_status: ${{ steps.track.outputs.status }}
     steps:
       - name: Verify required secrets exist
+        # The secrets API needs a token with secrets scope; the default
+        # GITHUB_TOKEN gets HTTP 403, so check the values this job receives.
         env:
-          GH_TOKEN: ${{ github.token }}
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'PORTAL_URL'  || { echo "PORTAL_URL secret missing"; exit 1; }
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'CRON_SECRET' || { echo "CRON_SECRET secret missing"; exit 1; }
+          [ -n "$PORTAL_URL" ] || { echo "::error::PORTAL_URL secret missing"; exit 1; }
+          [ -n "$CRON_SECRET" ] || { echo "::error::CRON_SECRET secret missing"; exit 1; }
 
       - name: Run the daily cohort scoring
         id: track
@@ -131,7 +134,8 @@ jobs:
           # grounded call degraded to a non-answer for the whole list — the
           # same uniform-output regression class as issue #12. Warn loudly;
           # do not fail the run (the backtest + signal columns are still real).
-          FLIPPED=$(jq -r '[.readings[]? | select(.thesis_holding == false)] | length' /tmp/track.json 2>/dev/null || echo 0)
+          # Route emits camelCase `thesisHolding`; the old snake_case key never matched.
+          FLIPPED=$(jq -r '[.readings[]? | select(.thesisHolding == false)] | length' /tmp/track.json 2>/dev/null || echo 0)
           NEUTRAL=$(jq -r '[.readings[]? | select(.council.direction == "neutral")] | length' /tmp/track.json 2>/dev/null || echo 0)
           TOTAL=$(jq -r '(.readings // []) | length' /tmp/track.json 2>/dev/null || echo 0)
           echo "flipped=$FLIPPED neutral=$NEUTRAL total=$TOTAL"

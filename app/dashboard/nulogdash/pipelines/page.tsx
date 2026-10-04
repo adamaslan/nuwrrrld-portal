@@ -17,7 +17,12 @@ export const metadata: Metadata = {
 // a pipeline, so a cached list would show the run that came before.
 export const dynamic = "force-dynamic";
 
-const PIPELINES = ["followed-tickers", "followed-tickers-judge", "precompute-ai"] as const;
+const PIPELINES = [
+  "followed-tickers",
+  "followed-tickers-select",
+  "followed-tickers-judge",
+  "precompute-ai",
+] as const;
 
 /** Human labels for the pipelines this page knows how to render.
  * Partial rather than a full `Record<PipelineName, string>`: `PipelineName`
@@ -26,6 +31,7 @@ const PIPELINES = ["followed-tickers", "followed-tickers-judge", "precompute-ai"
  * fallback already covers the raw name until its label is added here. */
 const PIPELINE_LABEL: Partial<Record<PipelineName, string>> = {
   "followed-tickers": "Followed tickers",
+  "followed-tickers-select": "Followed tickers · select",
   "followed-tickers-judge": "Followed tickers · judge",
   "precompute-ai": "Precompute AI",
 };

@@ -10,7 +10,8 @@
  * universe is large — splits by direction, takes the
  * 10 strongest bulls + 10 strongest bears (deterministic tie-breaks in
  * lib/shared/followed-tickers-policy.ts), stamps each with an entry price from
- * live_prices, and freezes them into `followed_ticker_picks`. The pick tuple —
+ * the followed-tickers price chain (live_prices → Alpaca → daily_bars, recorded
+ * per pick as `price_source`), and freezes them into `followed_ticker_picks`. The pick tuple —
  * (ticker, direction, entry_price, strength, signal_category) — is the
  * benchmark item and is never updated after this.
  *
@@ -19,8 +20,9 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
-import { getLivePrice } from "@/lib/live-price-db";
 import { bipolarCards } from "@/lib/ticker-cards-db";
+import { logPipelineRun } from "@/lib/pipeline-run-log-db";
+import { nyDateDaysAgo, resolveFollowedPrice } from "@/lib/followed-tickers-price";
 import {
   resolveHorizon,
   resolveUniverseScope,
@@ -58,6 +60,37 @@ export const maxDuration = 300;
  * bound memory if the universe grows by an order of magnitude.
  */
 const RANK_PER_SIDE = 1000;
+
+/**
+ * Oldest entry price the selection will accept, in calendar days. The run fires
+ * on the 1st, so the newest honest close is the prior trading day, typically one
+ * to four calendar days old. Seven covers a long weekend plus a holiday. Anything
+ * older is a stale quote, and it would freeze a wrong entry for the whole month.
+ */
+const ENTRY_PRICE_MAX_AGE_DAYS = 7;
+
+/** Log one selection attempt to the pipelines console (a dry run is logged too). */
+function logSelection(
+  dryRun: boolean,
+  cohortMonth: string,
+  attempted: number,
+  priced: NewPick[],
+  skipped: string[],
+) {
+  const priceSources = priced.reduce<Record<string, number>>((counts, p) => {
+    const source = p.priceSource ?? "none";
+    counts[source] = (counts[source] ?? 0) + 1;
+    return counts;
+  }, {});
+  return logPipelineRun({
+    pipeline: "followed-tickers-select",
+    dryRun,
+    session: null,
+    itemsTotal: attempted,
+    items: [],
+    summary: { cohortMonth, frozen: priced.length, skippedNoPrice: skipped, priceSources },
+  });
+}
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -117,9 +150,10 @@ export async function POST(req: NextRequest) {
   // for every horizon and cannot be reconstructed later.
   const priced: NewPick[] = [];
   const skipped: string[] = [];
+  const freshSince = nyDateDaysAgo(new Date(), ENTRY_PRICE_MAX_AGE_DAYS);
   for (const pick of chosen) {
-    const lp = await getLivePrice(pick.ticker);
-    if (!lp || !(lp.price > 0)) {
+    const entry = await resolveFollowedPrice(pick.ticker, freshSince);
+    if (!entry) {
       skipped.push(pick.ticker);
       continue;
     }
@@ -128,7 +162,8 @@ export async function POST(req: NextRequest) {
       cohortMonth,
       ticker: pick.ticker,
       direction: pick.direction,
-      entryPrice: lp.price,
+      entryPrice: entry.price,
+      priceSource: entry.source,
       strength: pick.strength,
       signalCategory: card?.stateKey ?? card?.tokens?.direction ?? null,
       invalidation: null, // filled by the first daily council run
@@ -137,6 +172,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (dryRun) {
+    await logSelection(true, cohortMonth, chosen.length, priced, skipped);
     return NextResponse.json({
       ok: true,
       cohortMonth,
@@ -148,6 +184,7 @@ export async function POST(req: NextRequest) {
   }
 
   const inserted = await insertCohort(priced);
+  const runLogged = await logSelection(false, cohortMonth, chosen.length, priced, skipped);
 
   // The route runs on a read-only serverless FS and cannot edit the doc itself.
   // It returns the rendered *Current cohort* section so the workflow's commit
@@ -174,6 +211,7 @@ export async function POST(req: NextRequest) {
     bulls: inserted.filter((p) => p.direction === "bull").map((p) => p.ticker),
     bears: inserted.filter((p) => p.direction === "bear").map((p) => p.ticker),
     skippedNoPrice: skipped,
+    runLogged,
     renderedCohort: renderCohort(cohortRows, `${cohortMonth} (${inserted.length} picks)`),
   });
 }

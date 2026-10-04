@@ -69,17 +69,15 @@ jobs:
       council_status:  ${{ steps.council.outputs.status }}
     steps:
       - name: Verify required secrets exist
+        # Fails fast if a secret was never set rather than silently sending
+        # an empty Authorization header to the portal. The secrets API needs a
+        # token with secrets scope; the default GITHUB_TOKEN gets HTTP 403.
         env:
-          GH_TOKEN: ${{ github.token }}
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          # Fails fast if a secret was never set rather than silently sending
-          # an empty Authorization header to the portal.
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'PORTAL_URL'   || { echo "PORTAL_URL secret missing"; exit 1; }
-          gh secret list --repo "${{ github.repository }}" --json name \
-            | jq -r '.[].name' \
-            | grep -qx 'CRON_SECRET'  || { echo "CRON_SECRET secret missing"; exit 1; }
+          [ -n "$PORTAL_URL" ] || { echo "::error::PORTAL_URL secret missing"; exit 1; }
+          [ -n "$CRON_SECRET" ] || { echo "::error::CRON_SECRET secret missing"; exit 1; }
 
       # NOTE: these 4 routes live under /api/pipeline/* — deliberately NOT
       # /api/signals/refresh, which already exists and does something else
