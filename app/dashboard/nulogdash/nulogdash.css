@@ -113,3 +113,47 @@
 .nld-trigger-msg { font-size: .78rem; margin-top: .4rem; }
 .nld-trigger-msg--ok { color: var(--bull, #22c55e); }
 .nld-trigger-msg--err { color: var(--bear, #ef4444); }
+
+/* ── pipeline categories (paper trading, GHA, Modal) ────────────────────── */
+
+/* Jump links to each category. Wraps onto several lines on a phone rather
+   than running off the edge. */
+.nld-jump { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.5rem; }
+.nld-jump .nld-tab { text-decoration: none; }
+
+/* Wide tables scroll inside their own box instead of widening the page. */
+.nld-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.nld-table-wrap .nld-table { min-width: 36rem; }
+
+.nld-cards--accounts,
+.nld-cards--work {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+.nld-card-sub { overflow-wrap: anywhere; }
+
+.nld-account-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .6rem; }
+.nld-account-key { font-size: .75rem; color: var(--text-dim); }
+
+.nld-slots { list-style: none; margin: .5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.nld-slot {
+  display: grid; grid-template-columns: 5.5rem auto; align-items: center; gap: .15rem .5rem;
+  font-size: .8rem; color: var(--text);
+}
+.nld-slot .nld-card-sub { grid-column: 1 / -1; }
+.nld-slot-name { color: var(--text-dim); }
+
+.nld-subfeatures { margin-top: .4rem; font-size: .8rem; color: var(--text-dim); }
+.nld-subfeatures summary { cursor: pointer; }
+.nld-subfeatures ul { margin: .4rem 0 0; padding-left: 1rem; display: flex; flex-direction: column; gap: .3rem; }
+.nld-subfeatures code { color: var(--text); }
+
+.nld-source { font-size: .7rem; color: var(--text-dim); overflow-wrap: anywhere; margin-top: auto; padding-top: .4rem; }
+
+@media (max-width: 600px) {
+  .nld-page { padding: 1.5rem 1rem 3rem; }
+  .nld-page h1 { font-size: 1.35rem; }
+  .nld-headline { padding: 1rem; }
+  .nld-cards, .nld-cards--accounts, .nld-cards--work { grid-template-columns: 1fr; }
+  .nld-card { padding: .75rem .85rem; }
+  .nld-trigger-btn { min-height: 2.25rem; }
+}
