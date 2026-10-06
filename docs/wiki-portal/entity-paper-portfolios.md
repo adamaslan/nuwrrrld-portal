@@ -396,3 +396,7 @@ existing production-database guard for paper runs applies to it unchanged.
 - [[entity-openrouter-client]] — `runSeat()`, reused as-is for Phase 5's arbitration calls
 - [[entity-db-parity-suite]] — the SQLite/Neon contract-test harness this feature's `lib/paper-db.ts` is covered by
 - [[entity-sqlite-backup]] — the mirror `gen-sqlite-schema.mjs`'s new trigger-drop pattern keeps valid
+
+## Mirror visibility (2026-10-05)
+
+The Firestore mirror and settle-slot reconcile were found never to have written: the service-account secret is absent on every host, so the `paper/*` collections do not exist. Run detail now records a `not_configured` mirror state in `mirror_error` instead of leaving it blank, so a missing credential no longer looks like a healthy run. Provisioning is tracked in the manual setup todo.

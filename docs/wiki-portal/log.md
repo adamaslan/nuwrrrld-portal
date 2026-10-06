@@ -958,3 +958,4 @@ watchlist route.
 ## [2026-10-04] ingest | PR #217 fix(followed-tickers): unblock the benchmark pipeline and fix horizon/price correctness | pages touched: 7
 ## [2026-10-03] ingest | PR #215 feat(nulogdash): pipeline categories for paper trading, GHA and Modal | pages touched: 2
 ## [2026-10-03] ingest | PR #213 feat(paper): policy v4 — 15+ name holdings floor from persona starter books | pages touched: 3
+## [2026-10-05] ingest | PR fix(paper): record not_configured Firestore mirror state in run detail | pages touched: 1
