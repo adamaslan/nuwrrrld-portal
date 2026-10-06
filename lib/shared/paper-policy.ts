@@ -38,8 +38,22 @@ import type { CouncilSeat } from "../openrouter";
  *  doc's originally-floated 55: measurement (§5.3's own table) showed 55
  *  still falls inside the (now-narrowed) BUY_TIE_BAND and clears the same 4
  *  names as 60 — the real fix for RISK's arbitration load was narrowing
- *  BUY_TIE_BAND (paper-engine-core.ts), not moving this number. */
-export const PAPER_POLICY_VERSION = "v3";
+ *  BUY_TIE_BAND (paper-engine-core.ts), not moving this number.
+ *
+ *  v4 (docs/paper-trading-v3.md §3.1, 2026-09-29): every trading account
+ *  gets a holdings floor (`minHoldings`, 15+) filled from its own persona
+ *  starter book (lib/shared/paper-core-books.ts) at `coreWeight` each.
+ *  Production on 2026-09-29 held 0–4 names per account — a "book" of three
+ *  tickers is a single bet, not a strategy, and it made every account's P&L
+ *  a function of whichever one name crossed its threshold (6/6 on UNH).
+ *  RISK's sellThreshold moves 10 -> 0 in the same bump: 784 of 978 live
+ *  cards score exactly 0 (neutral), so "exit below 10" meant RISK dumped
+ *  every neutral staple and utility it is *supposed* to own, and could
+ *  never hold more than the ~16 watchlist names scoring >= 10. Survive-
+ *  being-wrong is enforced by its 5% trailing stop, 15% cash floor and 3%
+ *  cap — not by selling a name for being quiet. It now exits the moment a
+ *  card turns bearish (< 0). */
+export const PAPER_POLICY_VERSION = "v4";
 
 /**
  * `paper_accounts.account`'s own values (schema §5) — lowercase, distinct
@@ -100,6 +114,15 @@ export interface PaperPolicy {
   dataQualityGate: number;
   /** Ceiling on arbitration-layer model calls in a single run (§4.2). */
   maxModelCallsPerRun: number;
+  /** v4: the fewest distinct positions the account may hold after a run.
+   *  Below it, the planner fills from the account's persona starter book
+   *  (lib/shared/paper-core-books.ts) before any score-driven buy — see
+   *  `fillHoldingsFloor` in paper-engine-core.ts. */
+  minHoldings: number;
+  /** v4: target weight (fraction of NAV) of each floor-fill position.
+   *  `minHoldings * coreWeight` is the account's invested core; the rest of
+   *  NAV above `cashFloor` is dry powder for score-driven trades. */
+  coreWeight: number;
 }
 
 /**
@@ -120,6 +143,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
     sectorCapPct: 0.25,
     dataQualityGate: 0.8,
     maxModelCallsPerRun: 6,
+    minHoldings: 16, // v4 — 16 x 4% = 64% core, ~34% dry powder for catalysts
+    coreWeight: 0.04,
   },
   t2: {
     cardHorizon: "t2",
@@ -140,11 +165,13 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
     sectorCapPct: 0.3,
     dataQualityGate: 0.8,
     maxModelCallsPerRun: 4,
+    minHoldings: 20, // v4 — 20 x 4.5% = 90% — a compounder is fully invested and waits
+    coreWeight: 0.045,
   },
   risk: {
     cardHorizon: "t2",
     buyThreshold: 60, // unchanged — see the version-doc comment above for why
-    sellThreshold: 10,
+    sellThreshold: 0, // v4: 10 — see the v4 note on PAPER_POLICY_VERSION
     maxPositionWeight: 0.03,
     minPositionWeight: 0.01,
     cashFloor: 0.15,
@@ -154,6 +181,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
     sectorCapPct: 0.15,
     dataQualityGate: 0.9,
     maxModelCallsPerRun: 6,
+    minHoldings: 20, // v4 — 20 x 3% = 60% core + 15% floor: many small bets, none fatal
+    coreWeight: 0.03,
   },
   macro: {
     cardHorizon: "t2",
@@ -169,6 +198,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
     sectorCapPct: 0.35,
     dataQualityGate: 0.8,
     maxModelCallsPerRun: 6,
+    minHoldings: 15, // v4 — 15 x 4% = 60%; 8 ETFs = 32%, under the 35% ETF bucket cap
+    coreWeight: 0.04,
   },
   quant: {
     cardHorizon: "both",
@@ -186,6 +217,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
     // the numeric DATA," so it is the deterministic control inside the
     // council and never reaches the arbitration step.
     maxModelCallsPerRun: 0,
+    minHoldings: 15, // v4 — 15 x 4% = 60%, filled by score alone (no curated list)
+    coreWeight: 0.04,
   },
   chair: {
     cardHorizon: "both",
@@ -205,6 +238,8 @@ export const PAPER_POLICY: Record<TradingAccount, PaperPolicy> = {
     sectorCapPct: 0.25,
     dataQualityGate: 0.85,
     maxModelCallsPerRun: 8,
+    minHoldings: 18, // v4 — 18 x 4% = 72% — a seat-weighted sample of the council
+    coreWeight: 0.04,
   },
 };
 
