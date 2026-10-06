@@ -212,3 +212,7 @@ off-season entry is a no-op, not a duplicate live run an hour apart.
 - [[concept-three-state-signal]] — why a flipped thesis is kept, not pruned
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser
 - [[concept-global-automation-layer]] — the broader scheduler posture
+
+## Run time budget (2026-10-05)
+
+Once the track job's gate was fixed and it ran for real, the route's serial per-pick council calls exceeded the function's 300s limit and every run returned a gateway timeout. The route now processes picks a few at a time and stops starting new ones after a time budget; picks left over are simply observed on the next fire, because the same-day skip already makes the route resumable. The response reports how many picks were deferred.
