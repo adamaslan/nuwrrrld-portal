@@ -59,6 +59,10 @@ const PICK_CONCURRENCY = 4;
  *  of maxDuration for in-flight calls and the run log. Unstarted picks are not
  *  observed today and the next fire picks them up (observedToday skip). */
 const PICK_START_BUDGET_MS = 210_000;
+/** Hard stop for optional council calls, measured from handler start. Past it
+ *  the council is skipped (or abandoned) so in-flight picks cannot hold
+ *  Promise.all past maxDuration; the observation is already written by then. */
+const COUNCIL_DEADLINE_MS = 270_000;
 
 interface Reading {
   ticker: string;
@@ -309,7 +313,35 @@ export async function POST(req: NextRequest) {
     const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
-    const councilResult = apiKey ? await councilVerdictFor(pick.ticker, apiKey) : null;
+
+    // Required observation first: council work below is optional and bounded.
+    const liveDir = liveSignalDir
+      ? liveSignalDir.toLowerCase().includes("buy")
+        ? "bull"
+        : liveSignalDir.toLowerCase().includes("sell")
+          ? "bear"
+          : null
+      : null;
+    if (price != null && !dryRun) {
+      await upsertObservation({
+        pickId: pick.id,
+        observedOn: today,
+        closePrice: price.price,
+        priceSource: price.source,
+        signalDir: liveDir,
+        backtestRate,
+        councilJson: null,
+      });
+    }
+
+    const councilMsLeft = COUNCIL_DEADLINE_MS - (Date.now() - startedAt);
+    const councilResult =
+      apiKey && councilMsLeft > 0
+        ? await Promise.race([
+            councilVerdictFor(pick.ticker, apiKey),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), councilMsLeft)),
+          ])
+        : null;
     const council = councilResult?.ok ? councilResult.verdict : null;
     if (apiKey && !council) councilDegraded++;
 
@@ -352,7 +384,7 @@ export async function POST(req: NextRequest) {
 
     if (price == null) {
       missedObservations++;
-    } else if (!dryRun) {
+    } else if (!dryRun && (council || normLive !== liveDir)) {
       await upsertObservation({
         pickId: pick.id,
         observedOn: today,
