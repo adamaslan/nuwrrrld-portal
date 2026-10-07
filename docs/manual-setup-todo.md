@@ -1639,8 +1639,11 @@ resolved in code.
 ### Provision `FIRESTORE_SERVICE_ACCOUNT_JSON`
 
 - **From**: `docs/paper-portfolios-remaining-todo.md` Phase 6, same branch.
-- **Blocked on**: a Firebase service-account JSON key for the `gcp3` Firebase
-  project (the one `gcp3-mobile` already reads), via the `secrets-sync` skill
+- **Blocked on**: **superseded 2026-10-05 — use the `ttb-lang1` entry below
+  ("Provision FIRESTORE_SERVICE_ACCOUNT_JSON (confirmed missing 2026-10-05)")
+  as the single project target.** Originally: a Firebase service-account JSON
+  key for the `gcp3` Firebase project (the one `gcp3-mobile` already reads),
+  via the `secrets-sync` skill
   — never typed into chat, never committed. Firebase console → Project
   settings → Service accounts → Generate new private key.
 - **Why it can't be code**: it's a credential this session cannot generate or
@@ -1737,3 +1740,46 @@ resolved in code.
   ```bash
   gh run list --branch main --workflow e2e --limit 5
   ```
+
+### Provision FIRESTORE_SERVICE_ACCOUNT_JSON (confirmed missing 2026-10-05)
+
+- **From**: Firestore write audit, 2026-10-05.
+- **Blocked on**: a service-account key for the Firestore project that holds the live data (`ttb-lang1`; the older `nuwrrrld-prod` project does not exist). Only you can generate it.
+- **Why it can't be code**: it is a credential. Until it is set, the paper-portfolio mirror and reconcile never write, and `paper/*` does not exist in Firestore. Runs now record `mirror_error: "watchlist: not_configured; account: not_configured"` in `paper_runs.detail`.
+- **Unblocks**: `lib/paper-firestore-mirror.ts` and `lib/paper-reconcile.ts`, then a re-mirror from Neon.
+- **Added**: 2026-10-05
+
+🖱 **Dashboard:** create the key at https://console.cloud.google.com/iam-admin/serviceaccounts?project=ttb-lang1 (role: Cloud Datastore User), and save it as `~/Downloads/ttb-lang1-key.json`.
+
+**Step 1 — preflight.**
+
+```bash
+cd ~/code/nuwrrrld-portal && gh auth status && test -s ~/Downloads/ttb-lang1-key.json && echo key-file-present
+```
+Expect `gh` logged in and `key-file-present`.
+
+**Step 2 — push to GitHub Actions without printing it.**
+
+```bash
+cd ~/code/nuwrrrld-portal && gh secret set FIRESTORE_SERVICE_ACCOUNT_JSON < ~/Downloads/ttb-lang1-key.json
+```
+
+**Step 3 — push to Vercel production (the paper route runs there).**
+
+```bash
+cd ~/code/nuwrrrld-portal && vercel env add FIRESTORE_SERVICE_ACCOUNT_JSON production < ~/Downloads/ttb-lang1-key.json
+```
+
+**Step 4 — remove the local key file (only after both uploads above succeeded).**
+
+```bash
+rm -P ~/Downloads/ttb-lang1-key.json && test ! -e ~/Downloads/ttb-lang1-key.json && echo key-file-removed
+```
+Expect `key-file-removed`.
+
+**Step 5 — verify.**
+
+```bash
+cd ~/code/nuwrrrld-portal && gh secret list | grep FIRESTORE_SERVICE_ACCOUNT_JSON && vercel env ls 2>&1 | grep FIRESTORE_SERVICE_ACCOUNT_JSON
+```
+Expect one row from each.

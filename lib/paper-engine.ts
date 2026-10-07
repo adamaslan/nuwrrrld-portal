@@ -614,6 +614,8 @@ export async function runAccountSlot(
   // a run that lost the idempotency race (the FK-abort path above) would
   // mirror state this process never actually wrote. Both calls are
   // best-effort: neither can fail this function, only annotate its detail.
+  // not_configured is recorded too: a missing FIRESTORE_SERVICE_ACCOUNT_JSON
+  // used to leave every run looking clean while nothing was ever mirrored.
   const mirrorErrors: string[] = [];
 
   if (watchlist.length > 0) {
@@ -622,7 +624,7 @@ export async function runAccountSlot(
       watchlistVersion: watchlist[0].watchlistVersion,
       entries: watchlist,
     });
-    if (!watchlistMirror.ok && watchlistMirror.error !== "not_configured") {
+    if (!watchlistMirror.ok) {
       mirrorErrors.push(`watchlist: ${watchlistMirror.error}`);
     }
   }
@@ -683,7 +685,7 @@ export async function runAccountSlot(
       turnover: turnoverUsedActual,
     },
   });
-  if (!accountMirror.ok && accountMirror.error !== "not_configured") {
+  if (!accountMirror.ok) {
     mirrorErrors.push(`account: ${accountMirror.error}`);
   }
 
