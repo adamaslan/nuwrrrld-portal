@@ -1783,3 +1783,11 @@ Expect `key-file-removed`.
 cd ~/code/nuwrrrld-portal && gh secret list | grep FIRESTORE_SERVICE_ACCOUNT_JSON && vercel env ls 2>&1 | grep FIRESTORE_SERVICE_ACCOUNT_JSON
 ```
 Expect one row from each.
+
+### E2E Resiliency red: `OpenRouter 404: all models in chain failed` (observed 2026-10-07)
+
+- **From**: PR #225 / #226 — wait-merge1 CI triage.
+- **Blocked on**: the owner confirming why the OpenRouter model chain returns 404 (a retired model slug in the chain, or a bad `OPENROUTER_API_KEY` in the CI environment). Not diagnosed.
+- **Why it can't be code**: needs the key and the model list checked against the OpenRouter dashboard.
+- **Unblocks**: e2e shards 1 and 4 (a visibility assertion and the `AI unavailable` health check); both PRs failed identically with unrelated diffs, and #225 merged past it.
+- **Added**: 2026-10-07
