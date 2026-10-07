@@ -40,6 +40,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
 - [[entity-sqlite-backup]] — `scripts/backup-to-sqlite.mjs` + `lib/db/schema.sqlite.sql`; point-in-time Neon → local SQLite snapshot export, zero new dependencies
 - [[entity-db-parity-suite]] — `scripts/gen-sqlite-schema.mjs` (generates the SQLite schema instead of hand-maintaining it) + `test/db-parity/`; contract-tests 10 of 14 `lib/*-db.ts` modules against both engines
+- [[entity-modal-backend]] — `deploy/modal-backend`: Postgres-of-record Modal backend (evening pipeline, council + paper trading, billing, FastAPI) with a DynamoDB mirror; written and tested locally, **never deployed**
 - [[entity-model-usage-log]] — `pipeline_run_log` + `lib/pipeline-run-log-db.ts` + `scripts/model-usage-report.mjs` (`npm run model-usage`); per-run audit of which OpenRouter model served each pipeline, rolled up daily/weekly/monthly into `docs/model-usage/`
 
 **Billing / Auth**
@@ -94,6 +95,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-exact-offset-and-fresh-price-for-followed-tickers]] — benchmark horizons exit on their own trading-day offset (a missing close voids, never borrows a later one); prices must be dated on or after a freshness bound and record their source
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner
+- [[decision-modal-backend-skip-before-claim]] — multi-fire jobs (weekly council, Thu+Fri) decide "act today?" before claiming their run key, because a recorded skip makes the later run `not_claimed`
 - [[decision-self-implemented-totp-over-clerk-pro]] — nulogdash's admin mutation gate self-implements TOTP instead of paying for Clerk's $25/mo Pro plan or migrating identity providers
 - [[decision-nulogdash-browser-trigger-handshake]] — the nulogdash pipeline-run buttons are a dry-only → live-only two-action handshake (server-minted single-use token + typed name + prod-DB guard + rate limit), never a client `dryRun` flag
 - [[decision-local-portfolio-scoring-over-upstream-wait]] — the portal scores portfolios from its own `ticker_cards` instead of waiting any longer on gcp3's never-deployed `/api/portfolio/health`; upstream demoted from dependency to preferred optimisation
