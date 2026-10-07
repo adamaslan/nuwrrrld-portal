@@ -51,6 +51,19 @@ import {
 
 export const maxDuration = 300;
 
+/** Picks processed in parallel. The council call is a free-model round trip
+ *  (seconds to tens of seconds with fallbacks); serial over a 20-pick cohort
+ *  ran past maxDuration and 504ed every run since the gate was fixed. */
+const PICK_CONCURRENCY = 4;
+/** Stop starting new picks this long after the handler began, leaving the rest
+ *  of maxDuration for in-flight calls and the run log. Unstarted picks are not
+ *  observed today and the next fire picks them up (observedToday skip). */
+const PICK_START_BUDGET_MS = 210_000;
+/** Hard stop for optional council calls, measured from handler start. Past it
+ *  the council is skipped (or abandoned) so in-flight picks cannot hold
+ *  Promise.all past maxDuration; the observation is already written by then. */
+const COUNCIL_DEADLINE_MS = 270_000;
+
 interface Reading {
   ticker: string;
   direction: "bull" | "bear";
@@ -246,6 +259,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
+
   const body = (await req.json().catch(() => ({}))) as {
     dry_run?: boolean;
     session?: string;
@@ -284,12 +299,9 @@ export async function POST(req: NextRequest) {
   let missedObservations = 0;
   let councilDegraded = 0;
   let alreadyObserved = 0;
+  let deferred = 0;
 
-  for (const pick of picks) {
-    if (observedToday.has(pick.id)) {
-      alreadyObserved++;
-      continue;
-    }
+  const processPick = async (pick: Pick): Promise<void> => {
 
     // The observer runs after the close: a pre-close print must never become
     // the day's close, because the same-day skip would then keep it.
@@ -301,7 +313,35 @@ export async function POST(req: NextRequest) {
     const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
-    const councilResult = apiKey ? await councilVerdictFor(pick.ticker, apiKey) : null;
+
+    // Required observation first: council work below is optional and bounded.
+    const liveDir = liveSignalDir
+      ? liveSignalDir.toLowerCase().includes("buy")
+        ? "bull"
+        : liveSignalDir.toLowerCase().includes("sell")
+          ? "bear"
+          : null
+      : null;
+    if (price != null && !dryRun) {
+      await upsertObservation({
+        pickId: pick.id,
+        observedOn: today,
+        closePrice: price.price,
+        priceSource: price.source,
+        signalDir: liveDir,
+        backtestRate,
+        councilJson: null,
+      });
+    }
+
+    const councilMsLeft = COUNCIL_DEADLINE_MS - (Date.now() - startedAt);
+    const councilResult =
+      apiKey && councilMsLeft > 0
+        ? await Promise.race([
+            councilVerdictFor(pick.ticker, apiKey),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), councilMsLeft)),
+          ])
+        : null;
     const council = councilResult?.ok ? councilResult.verdict : null;
     if (apiKey && !council) councilDegraded++;
 
@@ -344,7 +384,7 @@ export async function POST(req: NextRequest) {
 
     if (price == null) {
       missedObservations++;
-    } else if (!dryRun) {
+    } else if (!dryRun && (council || normLive !== liveDir)) {
       await upsertObservation({
         pickId: pick.id,
         observedOn: today,
@@ -372,7 +412,25 @@ export async function POST(req: NextRequest) {
       thesisHolding,
       resolved,
     });
-  }
+  };
+
+  const pending = picks.filter((pick) => {
+    if (!observedToday.has(pick.id)) return true;
+    alreadyObserved++;
+    return false;
+  });
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < pending.length) {
+      if (Date.now() - startedAt > PICK_START_BUDGET_MS) {
+        deferred += pending.length - nextIndex;
+        nextIndex = pending.length;
+        return;
+      }
+      await processPick(pending[nextIndex++]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PICK_CONCURRENCY, pending.length) }, worker));
 
   const backtestAvailable = readings.some((r) => r.backtestRate != null);
   const horizonsResolved = readings.reduce((n, r) => n + r.resolved.length, 0);
@@ -388,6 +446,7 @@ export async function POST(req: NextRequest) {
       cohortSize: picks.length,
       missedObservations,
       alreadyObserved,
+      deferred,
       councilDegraded,
       backtestAvailable,
       horizonsResolved,
@@ -403,6 +462,7 @@ export async function POST(req: NextRequest) {
       cohortSize: picks.length,
       missedObservations,
       alreadyObserved,
+      deferred,
       degraded: councilDegraded,
       backtest_available: backtestAvailable,
       horizonsResolved,
