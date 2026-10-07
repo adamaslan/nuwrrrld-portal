@@ -118,6 +118,7 @@ export default async function Dashboard({
           <Link href="/dashboard/nuai">Nu AI</Link>
           <Link href="/dashboard/portfolio">Portfolio</Link>
           <Link href="/dashboard/followed-tickers">Followed</Link>
+          <Link href="/dashboard/council/portfolios">Paper</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
@@ -202,6 +203,15 @@ export default async function Dashboard({
             </div>
             <p>The app&apos;s 10 strongest bull and bear calls each month, frozen and scored against real prices across seven horizons — with an LLM grading the reasoning.</p>
             <span className="tool-cta">See the track record →</span>
+          </Link>
+
+          <Link href="/dashboard/council/portfolios" className="tool tool--link">
+            <div className="tool-head">
+              <h2>Paper Portfolios</h2>
+              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
+            </div>
+            <p>Eight simulated $10,000 accounts — one per AI council seat plus two baselines — trading the same rules, ranked by return, Sharpe and drawdown.</p>
+            <span className="tool-cta">See the leaderboard →</span>
           </Link>
         </div>
 
