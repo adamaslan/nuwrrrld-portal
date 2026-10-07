@@ -11,6 +11,7 @@
  */
 import { randomUUID } from "node:crypto";
 import sql from "@/lib/db";
+import { deriveRunStatus } from "@/lib/shared/run-status";
 
 export type PipelineName =
   | "followed-tickers"
@@ -110,6 +111,9 @@ export function rollupModels(items: RunItem[]): Record<string, PerModelStats> {
 export async function logPipelineRun(run: PipelineRunLog): Promise<boolean> {
   const models = rollupModels(run.items);
   const itemsAi = run.items.filter((it) => it.model != null).length;
+  // Never write a null status: a caller that did not compute one gets it
+  // derived from its item outcomes.
+  const status = run.status ?? deriveRunStatus(run.items);
   try {
     // Generate the id application-side rather than leaning on the column
     // default. Postgres has `DEFAULT gen_random_uuid()`, but the generated
@@ -130,7 +134,7 @@ export async function logPipelineRun(run: PipelineRunLog): Promise<boolean> {
         ${JSON.stringify(run.items)},
         ${JSON.stringify(run.summary)},
         ${run.host ?? null},
-        ${run.status ?? null},
+        ${status},
         ${JSON.stringify(run.coverage ?? {})}
       )
     `;
