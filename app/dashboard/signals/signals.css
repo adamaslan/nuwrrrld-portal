@@ -61,3 +61,7 @@
 .signal-deeper-fields dt:first-child { margin-top: 0; }
 .signal-deeper-fields dd { color: var(--text); margin: 2px 0 0; }
 .signal-deeper-error { font-size: .82rem; color: var(--bear); margin-top: .5rem; }
+
+.signal-daychg { margin-left: 8px; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.signal-daychg--up { color: #16a34a; }
+.signal-daychg--down { color: #dc2626; }

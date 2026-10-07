@@ -4,7 +4,7 @@ import type { SignalPayload } from "@/lib/digest";
 import { SignalShareButton } from "@/components/SignalShareButton";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 import { SignalAskAnything } from "@/components/SignalAskAnything";
-import { filterSignals, sortSignals, type Direction, type SortKey } from "@/lib/shared/signalFilters";
+import { filterSignals, sortSignals, isSortKey, SORT_OPTIONS, type Direction, type SortKey } from "@/lib/shared/signalFilters";
 import { buildSignalPrompt } from "@/lib/shared/prompts";
 import { getPref, setPref } from "@/lib/shared/prefs";
 import { councilErrorMessage } from "@/lib/shared/councilErrors";
@@ -45,7 +45,7 @@ export function SignalsClient({ signals }: Props) {
         try {
           const { direction: d, sort: s } = JSON.parse(saved) as { direction: Direction; sort: SortKey };
           if (d) setDirection(d);
-          if (s) setSort(s);
+          if (isSortKey(s)) setSort(s);
         } catch { /* ignore */ }
       }
       setFilterReady(true);
@@ -138,8 +138,9 @@ export function SignalsClient({ signals }: Props) {
           value={sort}
           onChange={e => setSort(e.target.value as SortKey)}
         >
-          <option value="confidence">Sort: Confidence</option>
-          <option value="ticker">Sort: Ticker A–Z</option>
+          {SORT_OPTIONS.map(o => (
+            <option key={o.key} value={o.key}>Sort: {o.label}</option>
+          ))}
         </select>
       </div>
 
@@ -157,6 +158,11 @@ export function SignalsClient({ signals }: Props) {
               <div className="signal-card-header">
                 <div>
                   <span className="signal-ticker">{sig.ticker}</span>
+                  {sig.dayChangePct != null && (
+                    <span className={`signal-daychg signal-daychg--${sig.dayChangePct >= 0 ? "up" : "down"}`}>
+                      {sig.dayChangePct >= 0 ? "+" : ""}{sig.dayChangePct.toFixed(2)}% today
+                    </span>
+                  )}
                   <span className={`signal-direction signal-direction--${sig.direction}`}>
                     {sig.direction === "bullish" ? "↑" : sig.direction === "bearish" ? "↓" : "→"}{" "}
                     {sig.direction}

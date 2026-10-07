@@ -56,6 +56,8 @@ export interface SignalPayload {
   isStale: boolean;
   /** Which scoring engine/version produced this signal, when the source reports one (provenance) */
   engineVersion?: string;
+  /** Today's % change (the backend's `returns["1d"]`), when the source reports one — drives the "Day gain" sort */
+  dayChangePct?: number;
   /** Backend-reported data quality ("fresh" | "stale" | "unknown"), when the source computes one — takes precedence over the client-side isStale heuristic */
   dataQualityScore?: 'fresh' | 'stale' | 'unknown';
 }
@@ -109,6 +111,8 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
       const bearish = typeof entry.bear_count === 'number' ? entry.bear_count : undefined;
       const total = typeof entry.signal_count === 'number' ? entry.signal_count : undefined;
       const engineVersion = typeof entry.engine_version === 'string' ? entry.engine_version : undefined;
+      const returns = entry.returns && typeof entry.returns === 'object' ? (entry.returns as Record<string, unknown>) : null;
+      const dayChangePct = typeof returns?.['1d'] === 'number' && Number.isFinite(returns['1d']) ? returns['1d'] : undefined;
       const rawDqScore = entry.data_quality_score;
       const dataQualityScore: SignalPayload['dataQualityScore'] =
         rawDqScore === 'fresh' || rawDqScore === 'stale' || rawDqScore === 'unknown'
@@ -152,6 +156,7 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
             : undefined,
         isStale,
         engineVersion,
+        dayChangePct,
         dataQualityScore,
       };
     });
@@ -195,6 +200,7 @@ export function normaliseDigest(raw: unknown, sources: string[]): DigestPayload 
           ? (sig.signalCounts as SignalPayload['signalCounts'])
           : undefined,
       engineVersion: typeof sig.engineVersion === 'string' ? sig.engineVersion : undefined,
+      dayChangePct: typeof sig.dayChangePct === 'number' && Number.isFinite(sig.dayChangePct) ? sig.dayChangePct : undefined,
     };
   });
 
