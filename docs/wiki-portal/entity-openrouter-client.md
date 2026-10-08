@@ -37,7 +37,7 @@ look it up in the catalog:
 | QUANT | `liquid/lfm-2.5-2.6b:free` | 2.6B | liquid | numbers-only → smallest model (updated PR #97, was `nvidia/nemotron-nano-9b-v2:free`) |
 | CHAIR | `nvidia/nemotron-3-ultra-550b-a55b:free` | 550B | nvidia | synthesis (hardest job) |
 
-**Six seats, five distinct vendors** (qwen / poolside x2 / dots-studio / liquid / nvidia) as of 2026-10-02. T2 and RISK share poolside after PR #211 retired two 404ing ids, so one poolside outage now degrades two seats.
+**Six seats, four distinct vendors** (nvidia x2 / poolside x2 / dots-studio / liquid) as of 2026-10-08. T1 and CHAIR share nvidia, and T2 and RISK share poolside (after PR #211 retired two 404ing ids), so one nvidia or poolside outage now degrades two seats.
 
 The **Vendor** column is load-bearing, not decoration. `FREE_MODEL_CHAIN` is nvidia-heavy (failure #6), so if the seats were too, one account-tier outage would remove every primary *and* its entire fallback simultaneously. Distinct vendors across every seat mean such an outage degrades some seats to the chain rather than all of them at once.
 
