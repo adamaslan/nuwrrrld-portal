@@ -81,6 +81,17 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
   unlike watchlist writes it deliberately tolerates losing one ack write. The
   read/write split — not the table — is what decides the policy.
 
+## Worked case — the signals digest's last resort
+
+`getOrFetchDigest` (see `lib/digest-cache.ts`) is the pattern in full: per-user cache,
+global cache, live fetch, then a degraded last resort. The durable Neon read has a short
+freshness window, so it only answers while the row is recent. The last resort used to
+read the in-memory copy only, which a cold serverless instance does not have, so a live
+outage right after a cold start produced an empty page while Neon still held a digest.
+The last resort now reads the newest durable row of any age and marks it degraded. The
+rule it illustrates: a degrade path must read from the same durable layer the
+freshness-gated path does, only without the age gate, or "degrade" quietly means "nothing".
+
 ## See also
 
 - [[concept-graceful-degradation]] — the "one hard dependency" stance this refines
