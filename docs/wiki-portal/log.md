@@ -962,3 +962,4 @@ watchlist route.
 ## [2026-10-05] ingest | PR fix(followed-tickers): bound concurrency and time budget so the track run stops 504ing | pages touched: 1
 
 ## [2026-10-07] ingest | PR #233 feat(modal-backend): Modal-side backend (tested locally, not deployed) | pages touched: 3
+## [2026-10-07] ingest | PR #234 fix(digest): durable stale fallback when live backend is down | pages touched: 1
