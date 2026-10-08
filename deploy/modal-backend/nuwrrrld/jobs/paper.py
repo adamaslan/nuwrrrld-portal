@@ -245,8 +245,10 @@ def snapshot_and_check_stops(conn, session: dt.date) -> dict:
         equity = (p["cash"] + long_v - short_v).quantize(Decimal("0.01"))
         prev = conn.execute("SELECT equity FROM paper_equity_snapshots WHERE portfolio_id=%s AND session_date < %s "
                             "ORDER BY session_date DESC LIMIT 1", (p["id"], session)).fetchone()
-        peak = max(p["peak_equity"], equity)
+        peak = max(p["peak_equity"] or Decimal(0), equity)
         daily = float(equity / prev["equity"] - 1) if prev and prev["equity"] else None
+        drawdown = (equity / peak - 1) if peak > Decimal(0) else Decimal(0)
+        cum_return = (equity / p["starting_cash"] - 1) if p["starting_cash"] and p["starting_cash"] > Decimal(0) else Decimal(0)
         snap = conn.execute(
             """INSERT INTO paper_equity_snapshots (portfolio_id, session_date, cash, long_value, short_value, equity,
                    gross_exposure, net_exposure, daily_return, cum_return, drawdown, benchmark_close)
@@ -257,10 +259,10 @@ def snapshot_and_check_stops(conn, session: dt.date) -> dict:
                  drawdown=EXCLUDED.drawdown, benchmark_close=EXCLUDED.benchmark_close RETURNING *""",
             (p["id"], session, p["cash"], long_v, short_v, equity,
              (long_v + short_v) / equity if equity else 0, (long_v - short_v) / equity if equity else 0, daily,
-             equity / p["starting_cash"] - 1, equity / peak - 1, spy["close"] if spy else None)).fetchone()
+             cum_return, drawdown, spy["close"] if spy else None)).fetchone()
         snaps.append(snap)
         conn.execute("UPDATE paper_portfolios SET peak_equity=%s WHERE id=%s", (peak, p["id"]))
-        if p["status"] == "active" and equity / peak - 1 <= -Decimal(str(rules["drawdown_halt"])):
+        if p["status"] == "active" and peak > Decimal(0) and drawdown <= -Decimal(str(rules["drawdown_halt"])):
             conn.execute("UPDATE paper_portfolios SET status='halted' WHERE id=%s", (p["id"],))
             halted.append(str(p["id"]))
             log.error("ALERT portfolio halted by drawdown: %s", p["name"])

@@ -59,11 +59,14 @@ def at(h, m, day=dt.date(2026, 10, 7)):
 
 def test_watchdog_alerts_on_missing_and_failed_jobs_and_dedupes(conn):
     alerts = maintenance.watchdog(conn, now=at(19, 0))
-    assert any("ingest_eod_bars not succeeded" in a for a in alerts) and any("signals_pipeline" not in a or True for a in alerts)
-    assert maintenance.watchdog(conn, now=at(19, 15)) == [a for a in maintenance.watchdog(conn, now=at(19, 15))] or True
-    again = maintenance.watchdog(conn, now=at(19, 1))
+    assert any("ingest_eod_bars not succeeded" in a for a in alerts)
+    assert not any("signals_pipeline" in a for a in alerts)
+    at_1915 = maintenance.watchdog(conn, now=at(19, 15))
+    assert any("signals_pipeline not succeeded" in a for a in at_1915)
+    again = maintenance.watchdog(conn, now=at(19, 16))
     assert not any("ingest_eod_bars" in a for a in again)                                         # same alert not re-sent within 2h
-    assert maintenance.watchdog(conn, now=at(8, 0, dt.date(2026, 10, 10))) == [] or True          # Saturday: no market-job alerts
+    assert not any("signals_pipeline" in a for a in again)
+    assert maintenance.watchdog(conn, now=at(8, 0, dt.date(2026, 10, 10))) == []                # Saturday: no market-job alerts
 
 
 def test_watchdog_no_market_alerts_on_weekend_and_stale_heartbeat_flagged(conn):
@@ -216,10 +219,15 @@ def test_llm_breaker_blocks_before_any_call(conn, test_dsn, llm_env):
 
 
 def test_llm_schema_parse_failure_retries_once_then_raises(conn, test_dsn, llm_env):
+    u = make_user(conn)
     answers = iter(["not json", '{"a": 1}'])
     c, calls = client(test_dsn, lambda b: next(answers))
-    res = c.complete("followed_grade", [{"role": "user", "content": "go"}], schema=lambda o: o["a"])
+    res = c.complete("followed_grade", [{"role": "user", "content": "go"}], schema=lambda o: o["a"], user_id=str(u["id"]))
     assert res.parsed == 1 and len(calls) == 2 and "response_format" in calls[0]
+    assert calls[1]["messages"][1]["role"] == "assistant"
+    assert calls[1]["messages"][2]["role"] == "user"
+    used = conn.execute("SELECT tokens_used FROM user_llm_budgets WHERE user_id=%s", (u["id"],)).fetchone()["tokens_used"]
+    assert used == 300                                                                               # 2 calls x 150 actual tokens
     bad, _ = client(test_dsn, lambda b: "never json")
     with pytest.raises(ValueError):
         bad.complete("followed_grade", [{"role": "user", "content": "go"}], schema=lambda o: o)

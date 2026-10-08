@@ -137,11 +137,14 @@ def ingest_eod(conn, provider: MarketDataProvider, fallback: MarketDataProvider 
         if bad_tracked:
             raise IngestFailed(f"validation failed for tracked ETFs (fail closed): {bad}")
         history = [b for b in bars if b.bar_date != session]
-        n = upsert_bars(conn, history + good)
+        good_history, bad_history = validate_bars(history, {}, set())
+        if bad_history:
+            log.warning("ingest: %d historical gap bars failed validation and were excluded: %s", len(bad_history), bad_history)
+        n = upsert_bars(conn, good_history + good)
         if cache_dir:
-            write_parquet(cache_dir, history + good)
-        ctx.detail.update({"bars": n, "session": session.isoformat(), "flagged": bad})
-        return {"status": "succeeded", "bars": n, "flagged": bad}
+            write_parquet(cache_dir, good_history + good)
+        ctx.detail.update({"bars": n, "session": session.isoformat(), "flagged": bad + bad_history})
+        return {"status": "succeeded", "bars": n, "flagged": bad + bad_history}
 
 
 def backfill_ticker(conn, provider: MarketDataProvider, fallback: MarketDataProvider | None, ticker: str,
@@ -152,7 +155,10 @@ def backfill_ticker(conn, provider: MarketDataProvider, fallback: MarketDataProv
     if missing:
         log.warning("backfill: no data for %s", ticker)
         return 0
-    n = upsert_bars(conn, bars)
+    good_bars, bad_bars = validate_bars(bars, {}, set())
+    if bad_bars:
+        log.warning("backfill: %d bars failed validation for %s: %s", len(bad_bars), ticker, bad_bars)
+    n = upsert_bars(conn, good_bars)
     if cache_dir:
-        write_parquet(cache_dir, bars)
+        write_parquet(cache_dir, good_bars)
     return n

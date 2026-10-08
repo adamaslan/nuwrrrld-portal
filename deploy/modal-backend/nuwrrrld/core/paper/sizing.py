@@ -33,6 +33,8 @@ def council_target_qty(equity: Decimal, conviction: float, reference: Decimal, i
         return Decimal(0)
     if invalidation is None or reference <= 0:
         return None
+    if (direction == "long" and invalidation >= reference) or (direction == "short" and invalidation <= reference):
+        return None
     stop_distance = abs(reference - invalidation)
     if stop_distance == 0:
         return None

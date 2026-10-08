@@ -62,15 +62,17 @@ def maintenance(conn, cache_dir: str | None = None) -> dict:
     return out
 
 
-def gap_report(conn, today: dt.date | None = None) -> dict:
+def gap_report(conn, today: dt.date | None = None, now: dt.datetime | None = None) -> dict:
     """Detect missing bars / signals / explanations / snapshots over the last 10 sessions + rebuild mismatches."""
     cal = universe.calendar_for(conn)
-    today = today or today_et()
+    current_dt = (now or dt.datetime.now(ET)).astimezone(ET)
+    actual_today = current_dt.date()
+    today = today or actual_today
     window = cal.sessions_between(today - dt.timedelta(days=20), today)[-GAP_WINDOW_SESSIONS:]
     tracked = universe.tracked_tickers(conn)
     gaps: dict[str, list] = {"bars": [], "signals": [], "explanations": [], "snapshots": [], "grades": [], "rebuild": []}
     for day in window:
-        if day == today and dt.datetime.now(ET).time() < dt.time(18, 0):
+        if day == actual_today and current_dt.time() < dt.time(18, 0):
             continue
         n = conn.execute("SELECT count(DISTINCT ticker) AS n FROM price_bars WHERE bar_date=%s AND ticker = ANY(%s)", (day, tracked)).fetchone()["n"]
         if n < len(tracked):

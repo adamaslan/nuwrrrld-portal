@@ -155,6 +155,7 @@ class LLMClient:
         est = estimate_tokens(messages) + max_output_tokens
         self._check_and_reserve(user_id, est)
         attempt_messages, last_errors = list(messages), []
+        reserved = est
         for attempt in range(2):
             started = time.perf_counter()
             text, tin, tout, cached = self._call(model, attempt_messages, max_output_tokens, schema is not None)
@@ -170,11 +171,15 @@ class LLMClient:
             if not problems and validator is not None:
                 problems = validator(text)
             self._log_usage(feature, ref_id, user_id, res, ok=not problems)
-            self._reconcile(user_id, est, tin + tout)
+            self._reconcile(user_id, reserved, tin + tout)
+            reserved = 0
             if not problems:
                 return LLMResult(**{**res.__dict__, "parsed": parsed})
             last_errors = problems
-            attempt_messages = messages + [{"role": "user", "content": "Fix these problems and answer again: " + "; ".join(problems)}]
+            attempt_messages = messages + [
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": "Fix these problems and answer again: " + "; ".join(problems)},
+            ]
         raise ValueError("; ".join(last_errors))
 
     async def astream(self, messages: list[dict], *, model_tier: str = "smart", max_output_tokens: int = 700,

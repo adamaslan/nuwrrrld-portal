@@ -157,6 +157,7 @@ async def post_message(thread_id: UUID, body: MessageIn, user: dict = Depends(re
             yield sse("done", {"content": text, "message_id": str(assistant["id"]), "disclaimer": DISCLAIMER})
         except Exception as exc:
             await pool.execute("UPDATE chat_messages SET status='error' WHERE id=$1", assistant["id"])
+            await budget.reconcile(user["id"], est, 0)
             yield sse("error", {"code": "stream_failed", "detail": type(exc).__name__})
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

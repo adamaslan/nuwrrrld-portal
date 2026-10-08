@@ -39,7 +39,7 @@ def test_council_sizing_risk_vs_cap():
     assert sizing.council_target_qty(eq, 1.0, D(100), D(95), "long", RULES) == D("100.000000")
     # wide stop: 1000/20 = 50 sh < cap
     assert sizing.council_target_qty(eq, 1.0, D(100), D(80), "long", RULES) == D("50.000000")
-    assert sizing.council_target_qty(eq, 0.5, D(100), D(80), "short", {**RULES}) is None or True
+    assert sizing.council_target_qty(eq, 0.5, D(100), D(80), "short", {**RULES}) is None
     assert sizing.council_target_qty(eq, 1.0, D(100), D(120), "short", RULES) == D("-50.000000")
     assert sizing.council_target_qty(eq, 1.0, D(100), None, "flat", RULES) == D(0)
     assert sizing.council_target_qty(eq, 1.0, D(100), None, "long", RULES) is None
