@@ -1,6 +1,6 @@
 # Beta Testers — A More Robust Grant System (Proposal)
 
-**Status:** PR 1 (read path) implemented; PRs 2–3 pending · **Drafted:** 2026-10-08
+**Status:** PRs 1–2 implemented (read path, console panel + script); PR 3 (mobile) pending · **Drafted:** 2026-10-08
 **Touches:** `lib/beta-testers.ts`, `lib/subscription-admin.ts`, nulogdash console, mobile `useSubscription`
 **Related:** [entity-billing](wiki-portal/entity-billing.md) (PR #119 env-var incident),
 [concept-sync-requirements](wiki-portal/concept-sync-requirements.md) (web-Pro / mobile-Free asymmetry)
