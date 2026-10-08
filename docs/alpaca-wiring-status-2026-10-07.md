@@ -2,7 +2,7 @@
 
 Policy: `~/.claude/rules/market-data-fallback.md`. Alpaca is the primary market-data source on every host. yfinance and Finnhub are fallbacks only, and yfinance is never called from a cloud host.
 
-Start here: the stale signals digest was fixed by hand, and the scripts were then moved to Alpaca in four repos. Three repos have a committed branch with **no PR yet**. One repo (mcp-finance1) is not started.
+Start here: the stale signals digest was fixed by hand, and the scripts were then moved to Alpaca in three repos. Three repos have a committed branch with **no PR yet**. One repo (mcp-finance1) is not started.
 
 ## 1. What is done
 
@@ -119,6 +119,8 @@ Target: `src/technical_analysis_mcp/data.py`, class `FinnhubAlphaDataFetcher`. P
 | PBS | Alpaca returned no bars for it. | Check whether the symbol is delisted or renamed. |
 
 ## 3. Verify the whole thing once it is merged
+
+The `GET /api/signals/refresh` readback below only reads the in-process cache. It cannot trigger a refresh. Run the producer first (`refresh-signals.py --push --universe etf_sector`, which needs `PORTAL_PUSH_SECRET` in the environment), then run the readback to check the result.
 
 ```bash
 cd ~/code/nuwrrrld-portal
