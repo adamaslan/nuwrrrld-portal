@@ -1,0 +1,26 @@
+name: nwf-lab
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas=2.2
+  - numpy=1.26
+  - httpx
+  - python-dotenv
+  - pydantic
+  - tenacity
+  - pyarrow
+  - streamlit
+  - plotly
+  - ta
+  - vaderSentiment
+  - yfinance
+  - pytest
+  - ruff
+  - mypy
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+  - jupytext
+  - papermill
+  - nbstripout
