@@ -19,6 +19,26 @@ export async function getLatestDigest(): Promise<DigestPayload | null> {
   }
 }
 
+/**
+ * Newest global digest regardless of age. Used only as the last-resort degraded
+ * fallback: unlike getLatestDigest (15 min TTL) this survives a cold start while the
+ * live backend is down. Callers must mark the result degraded.
+ */
+export async function getLatestDigestAnyAge(): Promise<DigestPayload | null> {
+  try {
+    const rows = await sql`
+      SELECT payload
+      FROM signal_digest_cache
+      ORDER BY generated_at DESC
+      LIMIT 1
+    `;
+    if (!rows.length) return null;
+    return rows[0].payload as DigestPayload;
+  } catch {
+    return null;
+  }
+}
+
 export async function saveDigest(digest: DigestPayload): Promise<void> {
   try {
     await sql`

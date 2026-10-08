@@ -1,6 +1,7 @@
 import { adaptLiveSignals, type DigestPayload } from "@/lib/digest";
 import {
   getLatestDigest,
+  getLatestDigestAnyAge,
   getUserDigest,
   saveDigest,
   saveUserDigest,
@@ -45,7 +46,8 @@ async function fetchLiveSignals(): Promise<unknown> {
  * layer, hitting the live backend on every page load.
  *
  * Order: per-user cache (fresh) -> global cache (fresh) -> live fetch
- * (caches on success) -> global cache (however stale, marked degraded) -> null.
+ * (caches on success) -> global cache (however stale: in-memory, then the newest
+ * durable Neon row, which survives cold starts) marked degraded -> null.
  */
 export async function getOrFetchDigest(
   userId: string | null | undefined,
@@ -95,6 +97,8 @@ export async function getOrFetchDigest(
     }
   }
 
-  // 4. Graceful degradation: last-known global, however stale.
-  return globalDigestCache.digest ? { ...globalDigestCache.digest, degraded: true } : null;
+  // 4. Graceful degradation: last-known global, however stale. The in-memory copy is
+  // empty after a cold start, so fall through to the newest durable row.
+  const lastKnown = globalDigestCache.digest ?? (await getLatestDigestAnyAge());
+  return lastKnown ? { ...lastKnown, degraded: true } : null;
 }
