@@ -2,7 +2,7 @@
 date: 2026-09-10
 type: entity
 tags: [billing, subscription, stripe, clerk, auth]
-sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/beta-testers.ts, lib/beta-grant.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
+sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/beta-testers.ts, lib/beta-grant.ts, lib/beta-grant-actions.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
 ---
 
 # entity: Billing / Auth (Clerk + Stripe)
@@ -79,9 +79,11 @@ byte-identical copy later), then the built-in owner list. A grant counts only
 when `tier` is `pro` and it has no expiry or an expiry in the future; a
 malformed expiry fails closed. Because the grant sits on the Clerk user, it
 survives an email change and needs no deploy. `BETA_TESTER_EMAILS` is
-deprecated and logs a warning if set. Read path only so far; the admin console
-panel, grant script and mobile adoption are tracked in
-`docs/beta-testers-robust-plan.md`. Mobile still resolves tier without the
+deprecated and logs a warning if set. Grants are managed from the nulogdash **Beta testers** tab
+(`lib/beta-grant-actions.ts`: list/grant/revoke, MFA-gated via
+`canPerformAdminAction`, default 90-day expiry, audit logs carry user IDs
+only) or `scripts/beta-grant.mjs` against whichever Clerk instance the key
+belongs to. Mobile adoption is tracked in `docs/beta-testers-robust-plan.md`. Mobile still resolves tier without the
 grant, so the web-Pro / mobile-Free asymmetry for testers is unchanged.
 
 ## Known failures
