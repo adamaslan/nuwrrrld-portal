@@ -410,6 +410,8 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 > deriving its own" the cheaper of the two paths. Tracked in
 > [[concept-sync-requirements]].
 
+> ℹ️ **Portal PR feat(watchlist): CSV import (2026-10-08) assessed — portal-only feature, headline unchanged at ~62%.** Adds a bulk watchlist import: the browser parses the CSV and posts a ticker array to `POST /api/portfolio/watchlist/import`, which re-validates it server-side (see [[entity-portfolio-intelligence]]). Touches no existing `lib/shared/` module and adds none — `lib/watchlist-import.ts` and `lib/watchlist-csv.ts` are portal-only, and the store/queue additions sit in portal-only files. Mobile's `usePortfolio` watchlist has no bulk path and no server counterpart, so this is a one-surface feature in the watchlist domain; the domain row stays "partial" and neither denominator moves. Parity candidate only if mobile wants CSV import — it would call the portal endpoint rather than port the validation. The mobile wiki mirror of this entry is still owed (separate repo, separate PR).
+
 ## See also
 
 - [[concept-sync-requirements]] — the checklist to raise the number
