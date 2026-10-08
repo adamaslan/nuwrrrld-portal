@@ -1,3 +1,15 @@
+# ---
+# jupyter:
+#   jupytext:
+#     cell_metadata_filter: tags,title,-all
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.5
+# ---
+
 # %% [markdown]
 # # nwf-lab: every feature, one notebook
 # Pair with jupytext: `jupytext --set-formats ipynb,py:percent notebooks/nwf_lab.py`
@@ -5,6 +17,7 @@
 # %% tags=["parameters"]
 # papermill overrides these values
 TICKERS = ["AAPL", "NVDA", "MSFT"]
+TICKERS_CSV = None          # e.g. "../tickers.csv" (a column named ticker); overrides TICKERS
 DAYS = 365
 FROM_BUNDLE = None          # e.g. "../runs/2026-10-07/bundle.parquet" for offline replay
 FIXTURE = False             # True = synthetic data, no keys
@@ -19,10 +32,12 @@ from nwf_lab import charts, scenarios
 from nwf_lab.config import LabConfig
 from nwf_lab.data.bundle import DataBundle
 from nwf_lab.features.registry import run_features
-from nwf_lab.pipeline import fetch_fixture, fetch_live, load_positions
+from nwf_lab.pipeline import fetch_fixture, fetch_live, load_positions, load_tickers
 
 # %% Fetch: the only cell that calls an API
 cfg = LabConfig()
+if TICKERS_CSV:
+    TICKERS = load_tickers(TICKERS_CSV)
 positions = load_positions(PORTFOLIO_CSV)
 if FROM_BUNDLE:
     bundle = DataBundle.load(FROM_BUNDLE)

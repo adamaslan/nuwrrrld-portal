@@ -20,7 +20,7 @@ def test_every_in_scope_feature_ok_on_fixture(bundle, cfg):
            if r.status not in ("ok", "skipped_llm")}
     assert not bad, bad
     assert exit_code(results) == 0
-    assert "14 in scope" in summary_line(results)
+    assert "16 in scope" in summary_line(results)
 
 
 def test_llm_off_returns_prompt_only(bundle, cfg):
@@ -139,6 +139,45 @@ def test_finnhub_cache_avoids_second_call(monkeypatch):
     assert len(calls) == 1
 
 
+def test_ichimoku_and_fib_on_fixture(bundle, cfg):
+    r = run_features(bundle, cfg, only=["ichimoku", "fib"])
+    assert r["ichimoku"].status == r["fib"].status == "ok"
+    for d in r["ichimoku"].data.values():
+        assert -4 <= d["score"] <= 4 and d["bias"].split("_")[-1] in ("bullish", "bearish", "neutral")
+        assert d["cloud_top"] >= d["cloud_bottom"]
+    for d in r["fib"].data.values():
+        lv = d["levels"]
+        assert d["swing_high"] > d["swing_low"] and len(lv) == 7
+        assert (lv["0.236"] > lv["0.786"]) == (d["trend"] == "up")
+
+
+def test_ichimoku_needs_enough_bars(cfg):
+    from nwf_lab.data.fixture import FixtureProvider
+
+    short = DataBundle(tickers=["AAPL"], bars=FixtureProvider().daily_bars(["AAPL"], 60))
+    assert run_features(short, cfg, only=["ichimoku"])["ichimoku"].status == "vendor_gap"
+
+
+def test_ichimoku_strong_bullish_on_steady_uptrend(cfg):
+    import numpy as np
+
+    idx = pd.bdate_range("2026-01-01", periods=200)
+    close = pd.Series(np.linspace(100, 200, 200), index=idx)
+    df = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close, "volume": 1e6})
+    from nwf_lab.features.ichimoku import ichimoku_symbol
+
+    d, _ = ichimoku_symbol(df, cfg)
+    assert d["bias"] == "strong_bullish" and d["score"] == 4
+
+
+def test_load_tickers_dedupes(tmp_path):
+    from nwf_lab.pipeline import load_tickers
+
+    p = tmp_path / "t.csv"
+    p.write_text("ticker\naapl\n AAPL \nNVDA\n")
+    assert load_tickers(p) == ["AAPL", "NVDA"]
+
+
 def test_symbology():
     assert to_alpaca("BRK-B") == "BRK.B" and to_yahoo("BRK.B") == "BRK-B"
 
@@ -157,3 +196,49 @@ def test_paper_engine_nav_never_negative(bundle, cfg):
     r = run_features(bundle, cfg, only=["paper-engine"])["paper-engine"]
     assert (r.frames["nav"]["nav"] > 0).all()
     assert isinstance(r.frames["orders"], pd.DataFrame)
+
+
+class _Upload:
+    def __init__(self, name, data):
+        import io
+
+        self.name, self._d = name, data if isinstance(data, bytes) else data.encode()
+        self._buf = io.BytesIO(self._d)
+
+    def read(self, *a):
+        return self._buf.read(*a)
+
+    def seek(self, *a):
+        return self._buf.seek(*a)
+
+    def tell(self):
+        return self._buf.tell()
+
+    def getvalue(self):
+        return self._d
+
+
+def test_dropped_files_are_classified_by_content(bundle, tmp_path):
+    import pathlib
+
+    src = pathlib.Path(__file__).parents[1] / "app.py"
+    text = src.read_text()
+    ns: dict = {}
+    # exec only the pure helper so importing app.py does not start Streamlit UI
+    start = text.index("def read_dropped")
+    end = text.index("def acquire_bundle")
+    exec("import pandas as pd\nfrom pathlib import Path\nfrom nwf_lab.data.bundle import DataBundle\n" + text[start:end], ns)
+    path = bundle.save(tmp_path / "b.parquet")
+    files = [
+        _Upload("tickers.csv", "ticker\naapl\nNVDA\n"),
+        _Upload("pos.csv", "symbol,shares,cost_basis\nAAPL,5,100\n"),
+        _Upload("junk.csv", "a,b\n1,2\n"),
+        _Upload("b.parquet", path.read_bytes()),
+        _Upload("b.meta.json", (tmp_path / "b.meta.json").read_bytes()),
+    ]
+    tickers, positions, loaded, notes = ns["read_dropped"](files)
+    assert tickers == ["AAPL", "NVDA"] and list(positions["symbol"]) == ["AAPL"]
+    assert loaded is not None and loaded.content_hash() == bundle.content_hash()
+    assert any("ignored" in n for n in notes)
+    _, _, none_loaded, notes2 = ns["read_dropped"]([_Upload("b.parquet", path.read_bytes())])
+    assert none_loaded is None and "meta.json" in notes2[0]

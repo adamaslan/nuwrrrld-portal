@@ -12,6 +12,26 @@ INVENTORY_PATH = PORTAL_ROOT / "docs" / "nulogdash-inventory.json"
 DEFAULT_TICKERS = ("AAPL", "NVDA", "MSFT")
 
 
+def env_file_candidates() -> list[Path]:
+    """NWF_LAB_ENV, this checkout's .env.local, then the main checkout's (git worktrees don't get the
+    gitignored .env.local, so a lab running from a worktree would otherwise find no keys)."""
+    import subprocess
+
+    found: list[Path] = []
+    if os.getenv("NWF_LAB_ENV"):
+        found.append(Path(os.environ["NWF_LAB_ENV"]).expanduser())
+    found.append(DEFAULT_ENV_FILE)
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=PORTAL_ROOT, capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip()
+        found.append(Path(common).parent / ".env.local")
+    except (subprocess.SubprocessError, OSError):
+        pass
+    return found
+
+
 @dataclass(frozen=True)
 class LabConfig:
     # indicators (mirror homebase/locrun.py:analyze)
@@ -33,6 +53,14 @@ class LabConfig:
     bull_vote_threshold: int = 2        # votes needed to call a direction
     buy_score: int = 70                 # ai_score at/above -> BUY
     sell_score: int = 30                # ai_score at/below -> SELL
+    # ichimoku
+    ichi_tenkan: int = 9
+    ichi_kijun: int = 26
+    ichi_senkou_b: int = 52
+    ichi_cross_lookback: int = 5
+    # fibonacci
+    fib_lookback: int = 120
+    fib_tolerance: float = 0.01         # within 1% of a level counts as "at" it
     # holdfold
     fold_score: int = 40
     hold_score: int = 60
@@ -63,11 +91,13 @@ class Credentials:
     openrouter: str | None = field(default=None, repr=False)
 
     @classmethod
-    def from_env(cls, env_file: Path = DEFAULT_ENV_FILE) -> Credentials:
+    def from_env(cls, env_file: Path | None = None) -> Credentials:
         from dotenv import load_dotenv
 
-        if env_file.exists():
-            load_dotenv(env_file, override=False)
+        for candidate in ([env_file] if env_file else env_file_candidates()):
+            if candidate.exists():
+                load_dotenv(candidate, override=False)
+                break
         return cls(
             finnhub=os.getenv("FINNHUB_API_KEY") or None,
             alpaca_key=os.getenv("ALPACA_API_KEY") or None,

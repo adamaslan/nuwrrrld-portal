@@ -23,6 +23,8 @@ SLIDERS: dict[str, tuple[float, float, float]] = {
     "sma_fast": (5, 50, 1), "sma_slow": (20, 200, 5), "vol_surge": (1.0, 3.0, 0.05),
     "vol_dry": (0.3, 1.0, 0.05), "bull_vote_threshold": (1, 3, 1), "buy_score": (55, 95, 5),
     "sell_score": (5, 45, 5), "fold_score": (10, 60, 1), "hold_score": (40, 90, 1),
+    "ichi_tenkan": (5, 20, 1), "ichi_kijun": (15, 60, 1), "ichi_senkou_b": (30, 120, 1),
+    "ichi_cross_lookback": (1, 15, 1), "fib_lookback": (40, 250, 5), "fib_tolerance": (0.002, 0.03, 0.001),
     "backtest_hold_days": (1, 30, 1), "paper_buy_threshold": (55, 95, 5),
     "paper_sell_threshold": (5, 65, 5), "paper_max_position_weight": (0.01, 0.2, 0.005),
     "top_n": (3, 25, 1),
@@ -57,6 +59,13 @@ TAB_INTRO = {
     "Hold/Fold": "**holdfold** starts from the technical score, nudges it by the share of analysts rating the stock "
                  "buy or better, and subtracts a small penalty for high beta. At or above *hold_score* it says HOLD, "
                  "below *fold_score* it says FOLD, in between WATCH. This rule is the lab's own, not the portal's.",
+    "Ichimoku": "**ichimoku** scores four things +1/-1 each: price vs the cloud, Tenkan vs Kijun, cloud colour "
+                "(span A vs B), and Chikou (today's close vs the close Kijun bars ago). Total 3 or more is "
+                "strong bullish, -3 or less strong bearish. A recent Tenkan/Kijun cross is noted separately.",
+    "Fibonacci": "**fib** finds the swing high and low in the lookback window, decides whether the dominant move "
+                 "was up or down, and draws retracement levels (0.236 to 0.786) and extensions (1.272, 1.618). "
+                 "Sitting on the 0.382/0.5/0.618 level is read as support in an uptrend or resistance in a downtrend; "
+                 "breaking 0.786 means the swing is failing.",
     "Backtest": "**backtest** replays the same vote rule over each ticker's history: enter when the score reaches "
                 "*buy_score*, hold *backtest_hold_days* bars, no overlapping trades. The curve is the compounded "
                 "result; hit rate is the share of winning trades. Past results do not predict future ones.",
@@ -91,6 +100,9 @@ CONFIG_HELP = {
     "paper_buy_threshold": "Paper account buys at or above this score.",
     "paper_sell_threshold": "Paper account sells below this score.",
     "paper_max_position_weight": "Largest share of NAV in one paper position.",
+    "ichi_tenkan": "Tenkan-sen (conversion line) window.", "ichi_kijun": "Kijun-sen (base line) window; also how far the cloud and Chikou are displaced.",
+    "ichi_senkou_b": "Senkou span B window (the slow cloud edge).", "ichi_cross_lookback": "Bars back in which a Tenkan/Kijun cross still counts as recent.",
+    "fib_lookback": "Bars searched for the swing high and low.", "fib_tolerance": "How close (fraction of price) counts as being 'at' a level.",
     "top_n": "How many tickers the leaderboard shows.",
 }
 
@@ -100,6 +112,21 @@ FEATURE_DOC = {
     "nuai": "general trading-assistant answer", "signal-chat": "explanation of the top signal",
     "portfolio-health-ai": "explanation of portfolio health",
 }
+
+
+def show_symbol_tab(res: FeatureResult, chart) -> None:
+    if res.status != "ok":
+        st.info(f"{res.status}: {res.note or ''}")
+        return
+    summary = pd.DataFrame({t: {"bias": d["bias"], **({"score": d["score"]} if "score" in d else {"trend": d["trend"]})}
+                            for t, d in res.data.items()}).T
+    st.dataframe(summary)
+    sym = st.selectbox("Ticker", list(res.data), key=f"sym_{res.slug}")
+    st.plotly_chart(chart(sym), width="stretch")
+    d = res.data[sym]
+    st.write(d.get("reasons") or d.get("why"))
+    if "levels" in d:
+        st.dataframe(pd.Series(d["levels"], name="price"))
 
 
 def intro(tab: str) -> None:
@@ -128,15 +155,67 @@ def sidebar_config() -> LabConfig:
     return base.replace(**values)
 
 
+def read_dropped(files) -> tuple[list[str], pd.DataFrame | None, DataBundle | None, list[str]]:
+    """Classify dropped files by content: tickers CSV, positions CSV, or a saved bundle (.parquet + .meta.json)."""
+    import tempfile
+
+    tickers: list[str] = []
+    positions: pd.DataFrame | None = None
+    bundle: DataBundle | None = None
+    notes: list[str] = []
+    by_name = {f.name: f for f in files}
+    for f in files:
+        if f.name.endswith(".csv"):
+            df = pd.read_csv(f)
+            cols = {c.strip().lower(): c for c in df.columns}
+            if "shares" in cols and ("symbol" in cols or "ticker" in cols):
+                df = df.rename(columns={cols.get("symbol", cols.get("ticker")): "symbol", cols["shares"]: "shares"})
+                positions = df
+                notes.append(f"{f.name}: {len(df)} portfolio positions")
+            elif "ticker" in cols or "symbol" in cols:
+                col = cols.get("ticker", cols.get("symbol"))
+                tickers = list(dict.fromkeys(df[col].astype(str).str.strip().str.upper()))
+                notes.append(f"{f.name}: {len(tickers)} tickers")
+            else:
+                notes.append(f"{f.name}: ignored (needs a 'ticker'/'symbol' column, plus 'shares' for positions)")
+        elif f.name.endswith(".parquet"):
+            meta = by_name.get(f.name[:-len(".parquet")] + ".meta.json")
+            if meta is None:
+                notes.append(f"{f.name}: also drop its {f.name[:-8]}.meta.json")
+                continue
+            tmp = Path(tempfile.mkdtemp())
+            (tmp / f.name).write_bytes(f.getvalue())
+            (tmp / meta.name).write_bytes(meta.getvalue())
+            bundle = DataBundle.load(tmp / f.name)
+            notes.append(f"{f.name}: saved bundle with {len(bundle.tickers)} tickers (no fetch needed)")
+    return tickers, positions, bundle, notes
+
+
 def acquire_bundle() -> DataBundle | None:
+    st.markdown("##### Drag & drop")
+    dropped = st.file_uploader(
+        "Drop a tickers CSV (column `ticker`), a portfolio CSV (`symbol,shares,cost_basis`), or a saved bundle "
+        "(`bundle.parquet` + `bundle.meta.json`). Several files at once is fine.",
+        type=["csv", "parquet", "json"], accept_multiple_files=True)
+    d_tickers, d_positions, d_bundle, d_notes = read_dropped(dropped or [])
+    for n in d_notes:
+        st.caption("✓ " + n)
+    if d_bundle is not None:
+        st.session_state["base"] = d_bundle
+
     st.sidebar.header("Data")
     source = st.sidebar.radio("Source", ["Fixture (synthetic)", "Live (Finnhub + Alpaca)", "Replay saved bundle"], help="Fixture: synthetic, no keys. Live: calls Finnhub and Alpaca. Replay: reload a saved bundle, zero API calls.")
+    st.sidebar.caption("Tickers, portfolio and bundles: drag & drop on the main page.")
     tickers = st.sidebar.multiselect("Tickers", sorted(set(DEFAULT_TICKERS) | {"TSLA", "AMZN", "GOOGL", "META"}),
                                      default=list(DEFAULT_TICKERS))
+    if d_tickers:
+        tickers = d_tickers
     extra = st.sidebar.text_input("More tickers (comma-separated)")
+    if len(tickers) > 20:
+        st.sidebar.caption(f"{len(tickers)} tickers. Live fetch ≈ {9 * len(tickers)} Finnhub calls "
+                           f"(~{9 * len(tickers) // 60} min cold at 1 req/s). Fixture is instant.")
     tickers += [t.strip().upper() for t in extra.split(",") if t.strip()]
-    csv = st.sidebar.file_uploader("Portfolio CSV (symbol,shares,cost_basis)", type="csv")
-    positions = pd.read_csv(csv) if csv else None
+    positions = d_positions
     days = st.sidebar.number_input("History (trading days)", 60, 1000, 365, 5)
 
     if source == "Replay saved bundle":
@@ -197,7 +276,7 @@ def main() -> None:
         RUNS_DIR.mkdir(exist_ok=True)
         st.sidebar.success(f"saved {working.save(RUNS_DIR / 'app' / 'bundle.parquet')}")
 
-    tabs = st.tabs(["Overview", "Data", "Signals", "Hold/Fold", "Backtest", "Portfolio", "Paper",
+    tabs = st.tabs(["Overview", "Data", "Signals", "Ichimoku", "Fibonacci", "Hold/Fold", "Backtest", "Portfolio", "Paper",
                     "News & earnings", "LLM"])
     with tabs[0]:
         intro("Overview")
@@ -230,25 +309,31 @@ def main() -> None:
         else:
             show_result(results["analyze"])
     with tabs[3]:
+        intro("Ichimoku")
+        show_symbol_tab(results["ichimoku"], lambda sym: charts.ichimoku_chart(working, results["ichimoku"], sym))
+    with tabs[4]:
+        intro("Fibonacci")
+        show_symbol_tab(results["fib"], lambda sym: charts.fib_chart(working, results["fib"], sym, cfg.fib_lookback))
+    with tabs[5]:
         intro("Hold/Fold")
         show_result(results["holdfold"])
         if results["holdfold"].status == "ok":
             st.dataframe(pd.DataFrame(results["holdfold"].data).T)
-    with tabs[4]:
+    with tabs[6]:
         intro("Backtest")
         if results["backtest"].status == "ok":
             st.plotly_chart(charts.backtest_equity(results["backtest"]), width="stretch")
             st.dataframe(pd.DataFrame(results["backtest"].data).T)
         else:
             show_result(results["backtest"])
-    with tabs[5]:
+    with tabs[7]:
         intro("Portfolio")
         for slug in ("portfolio-health", "portfolio-suggestions", "followed-tickers-read"):
             st.subheader(slug)
             show_result(results[slug])
         if results["portfolio-health"].status == "ok":
             st.plotly_chart(charts.sector_treemap(results["portfolio-health"]), width="stretch")
-    with tabs[6]:
+    with tabs[8]:
         intro("Paper")
         if results["paper-engine"].status == "ok":
             st.plotly_chart(charts.nav_curve(results["paper-engine"]), width="stretch")
@@ -256,12 +341,12 @@ def main() -> None:
             st.json({k: v for k, v in results["paper-engine"].data.items()})
         else:
             show_result(results["paper-engine"])
-    with tabs[7]:
+    with tabs[9]:
         intro("News & earnings")
         for slug in ("news-sentiment", "earnings-watch", "insider-flow"):
             st.subheader(slug)
             show_result(results[slug])
-    with tabs[8]:
+    with tabs[10]:
         intro("LLM")
         for slug, spec in FEATURES.items():
             if spec.llm:

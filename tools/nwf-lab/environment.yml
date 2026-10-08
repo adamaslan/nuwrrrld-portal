@@ -18,3 +18,9 @@ dependencies:
   - pytest
   - ruff
   - mypy
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+  - jupytext
+  - papermill
+  - nbstripout
