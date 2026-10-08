@@ -14,6 +14,7 @@ from nwf_lab.features.llm import openrouter_caller
 from nwf_lab.features.registry import FEATURES, FeatureResult, run_features
 from nwf_lab.pipeline import fetch_fixture, fetch_live
 from nwf_lab.report import summary_line
+from nwf_lab.saved_lists import MAX_NAME_LENGTH, SavedListStore
 
 RUNS_DIR = Path(__file__).parent / "runs"
 SLIDERS: dict[str, tuple[float, float, float]] = {
@@ -202,6 +203,7 @@ def acquire_bundle() -> DataBundle | None:
         st.caption("✓ " + n)
     if d_bundle is not None:
         st.session_state["base"] = d_bundle
+    chosen = saved_list_controls(SavedListStore(), d_tickers, tickers_file_stem(dropped or [], d_notes))
 
     st.sidebar.header("Data")
     source = st.sidebar.radio("Source", ["Fixture (synthetic)", "Live (Finnhub + Alpaca)", "Replay saved bundle"], help="Fixture: synthetic, no keys. Live: calls Finnhub and Alpaca. Replay: reload a saved bundle, zero API calls.")
@@ -210,6 +212,8 @@ def acquire_bundle() -> DataBundle | None:
                                      default=list(DEFAULT_TICKERS))
     if d_tickers:
         tickers = d_tickers
+    elif chosen:
+        tickers = chosen
     extra = st.sidebar.text_input("More tickers (comma-separated)")
     if len(tickers) > 20:
         st.sidebar.caption(f"{len(tickers)} tickers. Live fetch ≈ {9 * len(tickers)} Finnhub calls "
@@ -233,6 +237,49 @@ def acquire_bundle() -> DataBundle | None:
             st.sidebar.error(str(e))
     st.sidebar.metric("API calls this session", st.session_state.get("api_calls", 0))
     return st.session_state.get("base")
+
+
+def tickers_file_stem(files, notes: list[str]) -> str:
+    """File stem of the dropped CSV that read_dropped treated as a tickers list ("" if none)."""
+    for f in files:
+        if f.name.endswith(".csv") and any(n.startswith(f"{f.name}: ") and n.endswith(" tickers") for n in notes):
+            return Path(f.name).stem
+    return ""
+
+
+def saved_list_controls(store: SavedListStore, d_tickers: list[str], default_name: str) -> list[str]:
+    """Name + save an uploaded list (auto-saved once under its file name), and pick a saved one.
+
+    Returns the tickers of the saved list picked in the sidebar, or [] when none is picked.
+    """
+    if d_tickers:
+        upload_key = f"{default_name}:{len(d_tickers)}:{d_tickers[0]}:{d_tickers[-1]}"
+        c1, c2 = st.columns([3, 1])
+        name = c1.text_input("Name this list", value=default_name[:MAX_NAME_LENGTH], key=f"list_name:{upload_key}",
+                             max_chars=MAX_NAME_LENGTH, help="Saved on this machine. The same name overwrites.")
+        c2.write("")
+        clicked = c2.button("Save list", key=f"save_list:{upload_key}")
+        autosave = bool(default_name) and not st.session_state.get(f"autosaved:{upload_key}")
+        if clicked or autosave:
+            st.session_state[f"autosaved:{upload_key}"] = True
+            try:
+                saved = store.save(name or default_name, d_tickers)
+                st.caption(f"✓ saved “{saved.name}” ({len(saved.tickers)} tickers)")
+            except LabError as e:
+                st.error(str(e))
+    saved_lists = store.all_lists()
+    if not saved_lists:
+        return []
+    st.sidebar.markdown("##### Saved lists")
+    by_name = {item.name: item for item in saved_lists}
+    choice = st.sidebar.selectbox("Saved list", ["(none)", *by_name],
+                                  format_func=lambda n: n if n == "(none)" else f"{n} ({len(by_name[n].tickers)})")
+    if choice == "(none)":
+        return []
+    if st.sidebar.button(f"Delete “{choice}”"):
+        store.delete(choice)
+        st.rerun()
+    return list(by_name[choice].tickers)
 
 
 def apply_edits(base: DataBundle, scenario: str) -> DataBundle:
