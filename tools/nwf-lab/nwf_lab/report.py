@@ -79,6 +79,14 @@ def _html(bundle: DataBundle, results: dict[str, FeatureResult]) -> str:
     if "analyze" in results and results["analyze"].status == "ok":
         first = next(iter(results["analyze"].frames))
         parts.append(charts.candles_with_bands(bundle, results, first).to_html(full_html=False, include_plotlyjs=False))
+    if len(bundle.bars) > 1:
+        returns = charts.period_returns(charts.close_panel(bundle))
+        parts.append("<h3>Returns by period</h3>" + charts.returns_heatmap(returns).to_html(
+            full_html=False, include_plotlyjs=False))
+    if "analyze" in results and results["analyze"].status == "ok" and len(results["analyze"].data) > 1:
+        parts.append(charts.score_distribution(results["analyze"]).to_html(full_html=False, include_plotlyjs=False))
+    if "backtest" in results and results["backtest"].status == "ok":
+        parts.append(charts.backtest_equity(results["backtest"]).to_html(full_html=False, include_plotlyjs=False))
     if "signals-digest" in results and results["signals-digest"].status == "ok":
         parts.append(f"<pre>{results['signals-digest'].data['text']}</pre>")
     return ("<!doctype html><html><head><meta charset='utf-8'><title>nwf-lab run</title>"

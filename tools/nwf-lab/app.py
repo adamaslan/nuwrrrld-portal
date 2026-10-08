@@ -27,7 +27,7 @@ SLIDERS: dict[str, tuple[float, float, float]] = {
     "ichi_cross_lookback": (1, 15, 1), "fib_lookback": (40, 250, 5), "fib_tolerance": (0.002, 0.03, 0.001),
     "backtest_hold_days": (1, 30, 1), "paper_buy_threshold": (55, 95, 5),
     "paper_sell_threshold": (5, 65, 5), "paper_max_position_weight": (0.01, 0.2, 0.005),
-    "top_n": (3, 25, 1),
+    "top_n": (3, 100, 1),
 }
 
 st.set_page_config(page_title="nwf-lab", layout="wide")
@@ -56,6 +56,10 @@ TAB_INTRO = {
     "Signals": "**analyze** computes RSI, MACD, Bollinger bands and moving averages, then four indicator "
                "'votes' each for bullish and bearish decide the direction, a 0-100 score and BUY/HOLD/SELL. "
                "**signals-top** ranks tickers by score; **signals-digest** is the text summary.",
+    "Universe": "Every ticker at once. The heatmap shows returns across 1D to 1Y (best and worst when there are "
+                "many names), movers lists the extremes for one period, the histogram shows how the whole "
+                "universe scores, and the comparison rebases prices to 100 so different stocks share one axis. "
+                "Beyond a dozen tickers, lines become percentile bands plus the best and worst finishers.",
     "Hold/Fold": "**holdfold** starts from the technical score, nudges it by the share of analysts rating the stock "
                  "buy or better, and subtracts a small penalty for high beta. At or above *hold_score* it says HOLD, "
                  "below *fold_score* it says FOLD, in between WATCH. This rule is the lab's own, not the portal's.",
@@ -132,6 +136,16 @@ def show_symbol_tab(res: FeatureResult, chart) -> None:
 def intro(tab: str) -> None:
     st.markdown(TAB_INTRO[tab])
 
+
+
+@st.cache_data(show_spinner="Building price panel…")
+def cached_panel(bundle_hash: str, _bundle: DataBundle) -> pd.DataFrame:
+    return charts.close_panel(_bundle)
+
+
+@st.cache_data(show_spinner=False)
+def cached_returns(bundle_hash: str, _panel: pd.DataFrame) -> pd.DataFrame:
+    return charts.period_returns(_panel)
 
 
 @st.cache_data(show_spinner="Computing features…")
@@ -276,9 +290,10 @@ def main() -> None:
         RUNS_DIR.mkdir(exist_ok=True)
         st.sidebar.success(f"saved {working.save(RUNS_DIR / 'app' / 'bundle.parquet')}")
 
-    tabs = st.tabs(["Overview", "Data", "Signals", "Ichimoku", "Fibonacci", "Hold/Fold", "Backtest", "Portfolio", "Paper",
-                    "News & earnings", "LLM"])
-    with tabs[0]:
+    names = ["Overview", "Data", "Signals", "Universe", "Ichimoku", "Fibonacci", "Hold/Fold", "Backtest",
+             "Portfolio", "Paper", "News & earnings", "LLM"]
+    tabs = dict(zip(names, st.tabs(names), strict=True))
+    with tabs["Overview"]:
         intro("Overview")
         st.markdown(f"**{summary_line(results)}**")
         for g in working.gaps:
@@ -286,7 +301,7 @@ def main() -> None:
         if working.manual_edits:
             st.caption("manual edits / scenario: " + ", ".join(working.manual_edits))
         st.plotly_chart(charts.status_grid(results), width="stretch")
-    with tabs[1]:
+    with tabs["Data"]:
         intro("Data")
         st.caption("Edit a live price; every feature recomputes. Edited rows are recorded as source=manual.")
         qdf = pd.DataFrame({"ticker": pd.Series(list(base.quotes), dtype="string"),
@@ -299,41 +314,72 @@ def main() -> None:
                 r.ticker: r.price for r in edited.itertuples()
                 if abs(r.price - base.quotes[r.ticker]["price"]) > 1e-9}
         st.dataframe(working.summary(), hide_index=True)
-    with tabs[2]:
+    with tabs["Signals"]:
         intro("Signals")
         if results["analyze"].status == "ok":
-            sym = st.selectbox("Ticker", list(results["analyze"].frames))
-            st.plotly_chart(charts.candles_with_bands(working, results, sym), width="stretch")
+            score_of = {t: d["ai_score"] for t, d in results["analyze"].data.items()}
+            ranked = sorted(score_of, key=lambda t: (-score_of[t], t))  # best score first; type to search
+            sym = st.selectbox("Ticker", ranked, format_func=lambda t: f"{t} ({score_of[t]})")
+            c1, c2 = st.columns(2)
+            period = c1.radio("Period", charts.CHART_PERIODS, index=4, horizontal=True, key="candle_period")
+            freq = c2.radio("Bars", list(charts.FREQUENCIES), horizontal=True, key="candle_freq")
+            st.plotly_chart(charts.candles_with_bands(working, results, sym, period, freq), width="stretch")
             st.plotly_chart(charts.leaderboard(results["signals-top"]), width="stretch")
             st.text(results["signals-digest"].data["text"])
         else:
             show_result(results["analyze"])
-    with tabs[3]:
+    with tabs["Universe"]:
+        intro("Universe")
+        panel = cached_panel(working.content_hash(), working)
+        if panel.shape[1] < 2:
+            st.info("Fetch at least two tickers with price history to compare them.")
+        else:
+            st.caption(f"{panel.shape[1]} tickers · {panel.index[0].date()} to {panel.index[-1].date()}")
+            returns = cached_returns(working.content_hash(), panel)
+            c1, c2, c3 = st.columns(3)
+            sort_by = c1.radio("Sort by", charts.RETURN_PERIODS, index=2, horizontal=True, key="uni_sort")
+            max_rows = c2.slider("Heatmap rows", 20, 1000, 60, 20, help="Past this many tickers the heatmap shows the best and worst half.")
+            top_n = c3.slider("Movers per side", 5, 50, 15)
+            st.subheader("Returns by period")
+            st.plotly_chart(charts.returns_heatmap(returns, sort_by, max_rows), width="stretch")
+            st.subheader(f"{sort_by} movers")
+            st.plotly_chart(charts.movers(returns, sort_by, top_n), width="stretch")
+            if results["analyze"].status == "ok":
+                st.subheader("Score distribution")
+                st.plotly_chart(charts.score_distribution(results["analyze"]), width="stretch")
+            st.subheader("Price comparison (rebased to 100)")
+            cmp_period = st.radio("Period", charts.CHART_PERIODS, index=2, horizontal=True, key="cmp_period")
+            picked = st.multiselect("Tickers (empty = all)", list(panel.columns),
+                                    help="Pick a few for one line each; leave empty to see the whole universe as bands.")
+            sub = panel[picked] if picked else panel
+            st.plotly_chart(charts.compare_rebased(sub, cmp_period), width="stretch")
+    with tabs["Ichimoku"]:
         intro("Ichimoku")
         show_symbol_tab(results["ichimoku"], lambda sym: charts.ichimoku_chart(working, results["ichimoku"], sym))
-    with tabs[4]:
+    with tabs["Fibonacci"]:
         intro("Fibonacci")
         show_symbol_tab(results["fib"], lambda sym: charts.fib_chart(working, results["fib"], sym, cfg.fib_lookback))
-    with tabs[5]:
+    with tabs["Hold/Fold"]:
         intro("Hold/Fold")
         show_result(results["holdfold"])
         if results["holdfold"].status == "ok":
             st.dataframe(pd.DataFrame(results["holdfold"].data).T)
-    with tabs[6]:
+    with tabs["Backtest"]:
         intro("Backtest")
         if results["backtest"].status == "ok":
-            st.plotly_chart(charts.backtest_equity(results["backtest"]), width="stretch")
+            bt_period = st.radio("Period", charts.CHART_PERIODS, index=5, horizontal=True, key="bt_period")
+            st.plotly_chart(charts.backtest_equity(results["backtest"], period=bt_period), width="stretch")
             st.dataframe(pd.DataFrame(results["backtest"].data).T)
         else:
             show_result(results["backtest"])
-    with tabs[7]:
+    with tabs["Portfolio"]:
         intro("Portfolio")
         for slug in ("portfolio-health", "portfolio-suggestions", "followed-tickers-read"):
             st.subheader(slug)
             show_result(results[slug])
         if results["portfolio-health"].status == "ok":
             st.plotly_chart(charts.sector_treemap(results["portfolio-health"]), width="stretch")
-    with tabs[8]:
+    with tabs["Paper"]:
         intro("Paper")
         if results["paper-engine"].status == "ok":
             st.plotly_chart(charts.nav_curve(results["paper-engine"]), width="stretch")
@@ -341,12 +387,12 @@ def main() -> None:
             st.json({k: v for k, v in results["paper-engine"].data.items()})
         else:
             show_result(results["paper-engine"])
-    with tabs[9]:
+    with tabs["News & earnings"]:
         intro("News & earnings")
         for slug in ("news-sentiment", "earnings-watch", "insider-flow"):
             st.subheader(slug)
             show_result(results[slug])
-    with tabs[10]:
+    with tabs["LLM"]:
         intro("LLM")
         for slug, spec in FEATURES.items():
             if spec.llm:
