@@ -20,7 +20,7 @@ from nwf_lab.data.bundle import DataBundle
 from nwf_lab.errors import LabError
 from nwf_lab.features.llm import openrouter_caller
 from nwf_lab.features.registry import run_features
-from nwf_lab.pipeline import fetch_fixture, fetch_live, load_positions
+from nwf_lab.pipeline import fetch_fixture, fetch_live, load_positions, load_tickers
 from nwf_lab.report import exit_code, summary_line, write_run
 
 DEFAULT_DAYS = 365
@@ -55,7 +55,8 @@ def probe() -> int:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tickers", default=",".join(DEFAULT_TICKERS))
+    ap.add_argument("--tickers", default=",".join(DEFAULT_TICKERS), help="comma-separated, or a path to a .csv")
+    ap.add_argument("--tickers-file", help="CSV with a 'ticker' column (overrides --tickers)")
     ap.add_argument("--portfolio", help="positions CSV: symbol,shares,cost_basis")
     ap.add_argument("--days", type=int, default=DEFAULT_DAYS)
     ap.add_argument("--out", default="runs/")
@@ -75,9 +76,15 @@ def main(argv: list[str] | None = None) -> int:
             bundle = DataBundle.load(args.from_bundle)
             out_dir = Path(args.out)
         else:
-            tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+            if args.tickers_file or args.tickers.lower().endswith(".csv"):
+                tickers = load_tickers(args.tickers_file or args.tickers)
+            else:
+                tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
             positions = load_positions(args.portfolio)
             fetch = fetch_fixture if args.fixture else fetch_live
+            if not args.fixture:
+                print(f"{len(tickers)} tickers: a cold live run makes ~{9 * len(tickers)} Finnhub calls "
+                      f"(~{9 * len(tickers) // 60} min at 1 req/s); warm cache is near-instant")
             bundle = fetch(tickers, args.days, cfg, positions)
             out_dir = Path(args.out) / date.today().isoformat()
         llm_call = None

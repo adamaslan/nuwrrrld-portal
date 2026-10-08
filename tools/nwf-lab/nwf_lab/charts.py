@@ -93,3 +93,24 @@ def diff_table(before: dict[str, FeatureResult], after: dict[str, FeatureResult]
             if h0[t]["verdict"] != h1[t]["verdict"]:
                 rows.append({"ticker": t, "score": "", "action": f"holdfold {h0[t]['verdict']} -> {h1[t]['verdict']}"})
     return pd.DataFrame(rows, columns=["ticker", "score", "action"])
+
+
+def ichimoku_chart(bundle: DataBundle, result: FeatureResult, symbol: str) -> go.Figure:
+    fr, df = result.frames[symbol], bundle.bars[symbol]
+    fig = go.Figure(go.Candlestick(x=df.index, open=df.open, high=df.high, low=df.low, close=df.close, name=symbol))
+    for col, color in (("tenkan", "#e53935"), ("kijun", "#1e88e5")):
+        fig.add_trace(go.Scatter(x=fr.index, y=fr[col], name=col, line=dict(width=1, color=color)))
+    fig.add_trace(go.Scatter(x=fr.index, y=fr["span_a"], name="span A", line=dict(width=0.5, color="#43a047")))
+    fig.add_trace(go.Scatter(x=fr.index, y=fr["span_b"], name="span B", line=dict(width=0.5, color="#c62828"),
+                             fill="tonexty", fillcolor="rgba(150,150,150,0.2)"))
+    fig.update_layout(height=520, xaxis_rangeslider_visible=False, margin=dict(l=0, r=0, t=20, b=0))
+    return fig
+
+
+def fib_chart(bundle: DataBundle, result: FeatureResult, symbol: str, lookback: int = 120) -> go.Figure:
+    df, info = bundle.bars[symbol].iloc[-lookback:], result.data[symbol]
+    fig = go.Figure(go.Candlestick(x=df.index, open=df.open, high=df.high, low=df.low, close=df.close, name=symbol))
+    for name, price in info["levels"].items():
+        fig.add_hline(y=price, line_dash="dot", line_width=1, annotation_text=name, annotation_position="right")
+    fig.update_layout(height=520, xaxis_rangeslider_visible=False, margin=dict(l=0, r=60, t=20, b=0))
+    return fig

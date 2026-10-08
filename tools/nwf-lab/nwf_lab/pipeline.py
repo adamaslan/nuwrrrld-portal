@@ -17,6 +17,14 @@ from nwf_lab.data.yfinance_local import YFinanceLocalProvider
 from nwf_lab.errors import LabError
 
 
+def load_tickers(path: str | Path) -> list[str]:
+    df = pd.read_csv(path)
+    col = next((c for c in df.columns if c.strip().lower() in ("ticker", "symbol")), None)
+    if col is None:
+        raise LabError("tickers CSV needs a 'ticker' or 'symbol' column")
+    return list(dict.fromkeys(df[col].astype(str).str.strip().str.upper().dropna()))
+
+
 def load_positions(path: str | Path | None) -> pd.DataFrame | None:
     if not path:
         return None
