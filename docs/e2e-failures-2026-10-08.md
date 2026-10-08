@@ -42,3 +42,28 @@ Then check which models the brief route's chain tries:
 cd ~/code/nuwrrrld-portal
 grep -rn "free\|MODEL" lib/openrouter.ts | head -30
 ```
+
+## PR #235's e2e run (`feat(tools): nwf-lab`, run `37828569453`)
+
+PR #235 adds only `tools/nwf-lab/` (Python) and docs. It changes nothing in the
+Next.js app. Its red e2e run used a base from before #239, and it shows the same
+OpenRouter-404 signature as #234's run:
+
+| Shard | Test | Error |
+|---|---|---|
+| e2e (1) | `e2e/frontend/dashboard-brief-fault-injection.spec.ts:90`: real `/api/brief` renders a non-empty brief | `expect(locator).toBeVisible()` failed, element not found; server log `Brief error Error: OpenRouter 404: all models in chain failed` |
+| e2e (4) | `e2e/frontend/portfolio-liveness.spec.ts:86`: `/api/portfolio/health-ai` reaches OpenRouter | expected 200, received 503 `{"error":"AI unavailable"}`; server log `Health AI error Error: OpenRouter 404: all models in chain failed` |
+
+Both failed on retry too. Shards 2 and 3 passed. The same shard (4) logged
+`[signals/chat] local path failed for SOXX/MU/GOOG: no signal data available`,
+but it was not a failing assertion.
+
+The branch was rebased onto `main` after #239. Re-check the new run:
+
+```bash
+cd ~/code/nuwrrrld-portal
+gh pr checks 235
+```
+
+If shard 4 turns green and shard 1 stays red, the result matches the
+"brief route still fails" note above. It is not caused by this PR.
