@@ -960,3 +960,5 @@ watchlist route.
 ## [2026-10-03] ingest | PR #213 feat(paper): policy v4 — 15+ name holdings floor from persona starter books | pages touched: 3
 ## [2026-10-05] ingest | PR fix(paper): record not_configured Firestore mirror state in run detail | pages touched: 1
 ## [2026-10-05] ingest | PR fix(followed-tickers): bound concurrency and time budget so the track run stops 504ing | pages touched: 1
+
+## [2026-10-07] ingest | PR #233 feat(modal-backend): Modal-side backend (tested locally, not deployed) | pages touched: 3

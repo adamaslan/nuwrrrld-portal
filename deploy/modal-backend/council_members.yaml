@@ -1,0 +1,23 @@
+# Framework config; strategies are placeholders (owner decision). Replace placeholder.* with registered Strategy keys.
+council:
+  max_rounds: 4                     # debate rounds after the blind opening round
+  consensus_threshold: 0.67         # weighted share of counted conviction on the lead direction
+  headcount_threshold: 0.6          # share of counted seats that must agree (guards heavy voters)
+  min_counted_voters: 4
+  exclude_roles_from_tally: [devils_advocate]   # DA's vote is recorded as dissent, not counted
+  require_da_challenge_response: true          # each analyst must answer the DA at least once
+  invalidation_aggregation: median             # median | weighted_median | most_conservative
+  invalidation_atr_clamp: [0.5, 4.0]
+  token_budget_per_session: 60000
+  subjects:
+    scheduled_top_k: 8              # top-K |strength| tracked ETFs per scheduled run
+    include_held_tickers: true      # always debate tickers the portfolios hold (exits)
+  on_demand_daily_limit_per_user: 3
+
+seats:   # TODO(owner): replace placeholder.* with registered Strategy keys + configs
+  - { slug: seat_1, display_name: "Analyst 1",        role: analyst,         strategy_key: placeholder.strategy_1, strategy_config: {}, model: "${LLM_MODEL_SMART}", vote_weight: 1.0 }
+  - { slug: seat_2, display_name: "Analyst 2",        role: analyst,         strategy_key: placeholder.strategy_2, strategy_config: {}, model: "${LLM_MODEL_SMART}", vote_weight: 1.0 }
+  - { slug: seat_3, display_name: "Analyst 3",        role: analyst,         strategy_key: placeholder.strategy_3, strategy_config: {}, model: "${LLM_MODEL_SMART}", vote_weight: 1.0 }
+  - { slug: seat_4, display_name: "Analyst 4",        role: analyst,         strategy_key: placeholder.strategy_4, strategy_config: {}, model: "${LLM_MODEL_SMART}", vote_weight: 1.0 }
+  - { slug: seat_5, display_name: "Analyst 5",        role: analyst,         strategy_key: placeholder.strategy_5, strategy_config: {}, model: "${LLM_MODEL_SMART}", vote_weight: 1.0 }
+  - { slug: seat_6, display_name: "Devil's Advocate", role: devils_advocate, strategy_key: placeholder.contrarian, strategy_config: {}, model: "${LLM_MODEL_SMART}", vote_weight: 1.0 }
