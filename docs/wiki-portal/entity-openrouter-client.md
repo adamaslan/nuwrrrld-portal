@@ -30,7 +30,7 @@ look it up in the catalog:
 
 | Seat | Primary model | Size | Vendor | Rationale |
 |---|---|---|---|---|
-| T1 | `qwen/qwen3.8-27b:free` | 27B | qwen | tactical 1-60 day read → small, fast model. Was `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
+| T1 | `nvidia/nemotron-3.5-lightning:free` | lightning | nvidia | tactical 1-60 day read → small, fast model. Was `qwen/qwen3.8-27b:free`, withdrawn 2026-10-08 (404 "unavailable for free", paid slug only); before that `thinkingmachines/inkling-small:free`, which **403s** for this account: OpenRouter gates both `inkling*` ids to "agentic harnesses" (see failure #10) |
 | T2 | `poolside/laguna-s-2.1:free` | s | poolside | secular thesis reasoning. Was `google/gemma-4-31b-it:free`, which **429s on every call including the retry** (failure #11) |
 | RISK | `poolside/laguna-xs-2.1:free` | xs | poolside | adversarial framing. Was `inclusionai/ling-3.0-flash-fin:free`, which now 404s (PR #211); before that dead `z-ai/glm-5.2:free` (PR #115) |
 | MACRO | `dots-studio/dots-3-note-preview:free` | preview | dots-studio | rotation/rates narrative; 512k context suits macro grounding. Was `google/gemma-4-26b-a4b-it:free` — same 429 as T2 (failure #11) |
@@ -151,3 +151,5 @@ invalidate every caller again. As of PR #115 **all six seat primaries are `:free
 - `../../__tests__/live/model-chain.live.test.ts` — the suite that surfaced the latency-SLA open question in #9
 - `../moo-council-simulation-todo.md` — the MOO ETF simulation task that found failures #8 and #9 as a side effect
 - [[incident-2026-09-11-model-chain-latency-budget-flake]] — the 2026-09-11 recurrence of the latency-SLA open question, with a new worst-case outlier
+
+**2026-10-08 — dead chain head.** `qwen/qwen3.8-27b:free` (T1 and `FREE_MODEL_CHAIN[0]`) was withdrawn. The plain walks (`fetchWithModelFallback`, `fetchWithModelFallbackChecked`) treated 404 as fatal at any position, so one dead head failed `/api/brief` and `/api/portfolio/health-ai` outright while the rest of the chain was healthy; four open PRs' e2e jobs went red on it. Fix: the id is out of the chain, T1 moved to `nvidia/nemotron-3.5-lightning:free`, and both walks now advance past a 404. 400/401/403 stay fatal there, and `runSeat` keeps its own position-dependent rule. Lesson: the weekly audit checks existence and price, not reachability, so a withdrawn `:free` variant of a still-listed paid model slips through.
