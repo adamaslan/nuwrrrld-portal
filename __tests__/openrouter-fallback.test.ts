@@ -118,6 +118,20 @@ describe("fetchWithModelFallback — retry classification", () => {
     expect(modelsTried).toHaveLength(2);
   });
 
+  it("advances past a 404 (retired :free id) instead of failing the whole chain", async () => {
+    // 2026-10-08: the chain head was withdrawn (404 "unavailable for free") and
+    // the walk broke on it, so every caller failed with healthy models untried.
+    const { modelsTried } = stubFetchSequence([
+      () => errorResponse(404),
+      () => sseResponse(contentFrame("ok")),
+    ]);
+
+    const { model } = await fetchWithModelFallback(KEY, { messages: [] }, "test");
+
+    expect(modelsTried).toHaveLength(2);
+    expect(model).toBe(modelsTried[1]);
+  });
+
   it("stops immediately on a 401 instead of walking the whole chain", async () => {
     // A bad key is fatal for every model — retrying it burns the full chain's
     // latency budget to reach the same answer. This is the stubbed twin of the
@@ -227,6 +241,18 @@ describe("fetchWithModelFallbackChecked — empty-completion detection (BUG-5)",
 
     await fetchWithModelFallbackChecked(KEY, { messages: [] }, "test");
     expect(modelsTried).toHaveLength(2);
+  });
+
+  it("advances past a 404 (retired :free id) to the next chain model", async () => {
+    const { modelsTried } = stubFetchSequence([
+      () => errorResponse(404),
+      () => sseResponse(contentFrame("ok")),
+    ]);
+
+    const { model } = await fetchWithModelFallbackChecked(KEY, { messages: [] }, "test");
+
+    expect(modelsTried).toHaveLength(2);
+    expect(model).toBe(modelsTried[1]);
   });
 
   it("distinguishes an all-empty chain from an all-erroring chain in its message", async () => {

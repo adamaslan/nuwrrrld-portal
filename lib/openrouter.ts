@@ -35,7 +35,6 @@ const OR_BASE = 'https://openrouter.ai/api/v1';
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
-  'qwen/qwen3.8-27b:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
   'liquid/lfm-2.5-2.6b:free',
@@ -100,7 +99,10 @@ export const FREE_MODEL_CHAIN = [
 //   falls through to the chain). T2 and RISK now share a vendor, so the spread
 //   is five vendors (qwen, poolside, dots-studio, liquid, nvidia) not six.
 const SEAT_MODELS: Record<CouncilSeat, string> = {
-  T1: 'qwen/qwen3.8-27b:free',
+  // 2026-10-08: qwen/qwen3.8-27b:free was withdrawn (404 "unavailable for free";
+  // only the paid slug remains). It was also FREE_MODEL_CHAIN's head, and the
+  // plain walks broke on its 404, so brief + health-ai failed outright.
+  T1: 'nvidia/nemotron-3.5-lightning:free',
   T2: 'poolside/laguna-s-2.1:free',
   RISK: 'poolside/laguna-xs-2.1:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
@@ -266,6 +268,18 @@ export const CHAIR_VERDICT_SYSTEM = [
  * Callers provide baseBody WITHOUT the model field.
  */
 /**
+ * Whether the plain chain walks (`fetchWithModelFallback*`) move on to the next
+ * model after a failed attempt. 402/429/5xx always advance. 404 advances too:
+ * a retired or withdrawn `:free` id answers 404 instantly, and breaking on it
+ * let one dead id at the chain head fail every caller while the rest of the
+ * chain was healthy (2026-10-08, `qwen/qwen3.8-27b:free`). Other 4xx (400, 401,
+ * 403) stay fatal — they describe the request or the key, not the model.
+ */
+function isWalkAdvanceStatus(status: number): boolean {
+  return status === 402 || status === 404 || status === 429 || status >= 500;
+}
+
+/**
  * Make a string safe to send as an HTTP header value.
  *
  * Header values are ByteStrings: any code point above 255 makes `fetch` throw a
@@ -310,7 +324,7 @@ export async function fetchWithModelFallback(
       // Retry on 402 (free-tier quota) / 429 (rate limit) / 5xx; other 4xx are
       // fatal for this request and propagate. 402 must fall through so one
       // exhausted free model doesn't abort the rest of the chain.
-      if (response.status !== 402 && response.status !== 429 && response.status < 500) break;
+      if (!isWalkAdvanceStatus(response.status)) break;
     } catch (err) {
       // Re-throw client-initiated aborts; treat network errors as transient and try next model.
       if (err instanceof Error && err.name === 'AbortError') throw err;
@@ -413,7 +427,7 @@ export async function fetchWithModelFallbackChecked(
       endAttempt();
       lastStatus = response.status;
       await response.body?.cancel().catch(() => {});
-      if (response.status !== 402 && response.status !== 429 && response.status < 500) break;
+      if (!isWalkAdvanceStatus(response.status)) break;
       continue;
     }
 
