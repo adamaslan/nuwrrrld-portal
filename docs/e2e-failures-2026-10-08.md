@@ -67,3 +67,36 @@ gh pr checks 235
 
 If shard 4 turns green and shard 1 stays red, the result matches the
 "brief route still fails" note above. It is not caused by this PR.
+
+### Re-run after the rebase onto `916cc31` (with #239)
+
+The OpenRouter-404 failures are gone, and shards 1–3 passed. Shard 4 fails with
+a **different, new cause**, a Playwright strict-mode violation in the
+`portfolio-liveness` `beforeEach`:
+
+- `e2e/frontend/portfolio-liveness.spec.ts:37` calls `page.getByPlaceholder(/ticker/i)`.
+  That now matches two inputs on `/dashboard/portfolio`: `Add ticker (e.g. AAPL)` and
+  the new watchlist filter `Filter 148 tickers…` (`aria-label="Filter watchlist"`,
+  in `app/dashboard/portfolio/PortfolioClient.tsx`).
+- So every test in the describe block fails before it asserts anything. That
+  includes `:42` (health score) and `:86` (health AI). The OpenRouter 503 seen
+  earlier is masked by this failure, not fixed.
+- **`main` itself fails the same way.** The E2E Resiliency run on `916cc31` fails
+  `portfolio-liveness.spec.ts:42`, `:86`, and `:115`, plus
+  `signals-liveness.spec.ts:53` (SOXX chat). PR #235 changes no TS/app code.
+
+**Fix (not applied; it belongs on its own branch):** make the locator target only
+the add box:
+
+```bash
+cd ~/code/nuwrrrld-portal
+grep -n 'getByPlaceholder(/ticker/i)' e2e/frontend/portfolio-liveness.spec.ts
+sed -i '' 's|getByPlaceholder(/ticker/i)|getByPlaceholder(/add ticker/i)|' e2e/frontend/portfolio-liveness.spec.ts
+```
+
+Verify:
+
+```bash
+cd ~/code/nuwrrrld-portal
+npx playwright test e2e/frontend/portfolio-liveness.spec.ts --project=frontend
+```
