@@ -167,3 +167,26 @@ export async function purgePendingSignals(olderThanDays: number): Promise<void> 
     // non-fatal — hygiene only; rows accumulating never breaks the loop.
   }
 }
+
+/**
+ * Batched form of enqueueSignalRefresh for bulk imports: one statement, and
+ * still collapses onto an existing pending row per ticker. Best-effort.
+ */
+export async function enqueueSignalRefreshMany(
+  tickers: readonly string[],
+  userId: string,
+): Promise<void> {
+  const symbols = [...new Set(tickers.map((t) => normalizeTicker(t)).filter((t): t is string => !!t))];
+  if (symbols.length === 0) return;
+  try {
+    await sql`
+      INSERT INTO pending_signals (ticker, requested_by)
+      SELECT t, ${userId} FROM unnest(${symbols}::text[]) AS t
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pending_signals p WHERE p.ticker = t AND p.status = 'pending'
+      )
+    `;
+  } catch {
+    // non-fatal — same contract as enqueueSignalRefresh
+  }
+}

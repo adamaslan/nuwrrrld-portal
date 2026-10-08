@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { removeFromWatchlist } from "@/lib/watchlist-store";
+import { normalizeTicker } from "@/lib/shared/signal-policy";
 
 export async function DELETE(
   _req: NextRequest,
@@ -10,7 +11,8 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { ticker } = await params;
-  const upper = ticker.toUpperCase();
+  const upper = normalizeTicker(ticker);
+  if (!upper) return NextResponse.json({ error: "valid ticker required" }, { status: 400 });
   try {
     await removeFromWatchlist(userId, upper);
     return NextResponse.json({ removed: upper });
