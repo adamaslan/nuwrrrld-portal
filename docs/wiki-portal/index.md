@@ -27,6 +27,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` + `scripts/seed-paper-portfolios.mjs` + `lib/paper-engine.ts` + `.github/workflows/paper-portfolios.yml` + `lib/paper-arbitration.ts` + `lib/paper-firestore-mirror.ts` + `lib/paper-metrics.ts` + `app/dashboard/council/portfolios/` (Phases 1–6 and 8 merged, PR #124/#127/#128/#137/#138/#140; PR #204 fixed a turnover-cap stop-loss bug, a same-run re-buy-after-stop bug, and implemented CHAIR's consensus + per-seat tie-breaks)
 
 **Grounding**
+- [[entity-nwf-lab]] — `tools/nwf-lab/`; local read-only Python lab running every data/analysis feature as pure functions (CLI, Streamlit, notebook); fetch/compute split via `DataBundle`; PR #235
 - [[entity-grounding-tier-ladder]] — `lib/grounding/*` + `lib/council-grounding.ts`; the four-tier deterministic brief resolver
 - [[entity-grounding-compiler]] — `scripts/compile_grounding_pack.mjs` + `corpus/`; the one place a model reads the corpus
 
