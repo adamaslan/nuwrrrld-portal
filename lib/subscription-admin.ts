@@ -8,6 +8,7 @@
  * inside the shared one.
  */
 
+import { hasActiveBetaGrant } from './beta-grant';
 import { isBetaTester } from './beta-testers';
 import { isNulogdashAdmin } from './nulogdash';
 import {
@@ -31,11 +32,14 @@ export interface TierAdminIdentity {
     emailAddress: string;
     verification: { status: string | null } | null;
   }[];
+  /** Clerk `publicMetadata`; carries the `beta` grant (lib/beta-grant.ts). */
+  publicMetadata?: Record<string, unknown> | null;
 }
 
 /**
  * Effective tier for feature gating: an allowlisted nulogdash admin
- * (NULOGDASH_ADMIN_EMAILS) or beta tester (lib/beta-testers.ts) always
+ * (NULOGDASH_ADMIN_EMAILS), a Clerk-metadata beta grant (lib/beta-grant.ts) or
+ * the built-in beta list (lib/beta-testers.ts) always
  * resolves to 'pro', independent of Stripe status — lets admins exercise Pro
  * features without a real subscription, and gives beta testers the full
  * feature set for free in every environment.
@@ -48,6 +52,7 @@ export function resolveTier(
   adminIdentity: TierAdminIdentity | null | undefined,
 ): SubscriptionTier {
   if (isNulogdashAdmin(adminIdentity)) return 'pro';
+  if (hasActiveBetaGrant(adminIdentity?.publicMetadata)) return 'pro';
   if (isBetaTester(adminIdentity)) return 'pro';
   return tierFromStatus(status);
 }

@@ -37,9 +37,20 @@ export interface BetaTesterIdentity {
  */
 const BUILT_IN_BETA_TESTERS: readonly string[] = ['chillcoders@gmail.com'];
 
-/** Env-var additions, merged with the built-ins. Unset ⇒ built-ins only. */
+/**
+ * Env-var additions, merged with the built-ins. Unset ⇒ built-ins only.
+ * Deprecated: per-user grants live in Clerk publicMetadata (lib/beta-grant.ts).
+ * Kept for one release; warns if set, since it silently grants nothing
+ * wherever it was not configured.
+ */
 function allowlist(): string[] {
-  const fromEnv = (process.env.BETA_TESTER_EMAILS ?? '')
+  const rawEnv = process.env.BETA_TESTER_EMAILS ?? '';
+  if (rawEnv.trim()) {
+    console.warn(
+      '[beta-testers] BETA_TESTER_EMAILS is deprecated; grant via Clerk publicMetadata.beta (docs/beta-testers-robust-plan.md)',
+    );
+  }
+  const fromEnv = rawEnv
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
