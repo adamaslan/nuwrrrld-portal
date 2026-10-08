@@ -72,9 +72,10 @@ export async function countWatchlist(userId: string): Promise<number> {
 /**
  * Bulk insert. A per-user advisory lock statement runs first in the same
  * transaction; the insert is its own READ COMMITTED statement, so its cap
- * subquery sees any import that held the lock before it. The cap guard is
- * all-or-nothing: if it fails, nothing is inserted and WatchlistCapError is
- * thrown. Returns only the tickers actually inserted.
+ * subquery sees any import that held the lock before it. The cap counts only
+ * distinct supplied tickers not already present, and is all-or-nothing: if it
+ * fails, nothing is inserted and WatchlistCapError is thrown. An all-conflict
+ * call is a successful no-op. Returns only the tickers actually inserted.
  */
 export async function addManyToWatchlist(
   userId: string,
@@ -83,16 +84,29 @@ export async function addManyToWatchlist(
 ): Promise<string[]> {
   if (tickers.length === 0) return [];
   const list = tickers as string[];
-  const [, inserted] = await sql.transaction([
+  const [, result] = await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(hashtext(${"watchlist:" + userId}))`,
     sql`
-      INSERT INTO watchlist_items (user_id, ticker)
-      SELECT ${userId}, t FROM unnest(${list}::text[]) AS t
-      WHERE (SELECT count(*) FROM watchlist_items WHERE user_id = ${userId}) + cardinality(${list}::text[]) <= ${cap}
-      ON CONFLICT (user_id, ticker) DO NOTHING
-      RETURNING ticker
+      WITH fresh AS (
+        SELECT DISTINCT t FROM unnest(${list}::text[]) AS t
+        WHERE NOT EXISTS (
+          SELECT 1 FROM watchlist_items WHERE user_id = ${userId} AND ticker = t
+        )
+      ),
+      cap AS (
+        SELECT (SELECT count(*) FROM watchlist_items WHERE user_id = ${userId})
+             + (SELECT count(*) FROM fresh) <= ${cap} AS ok
+      ),
+      ins AS (
+        INSERT INTO watchlist_items (user_id, ticker)
+        SELECT ${userId}, t FROM fresh WHERE (SELECT ok FROM cap)
+        ON CONFLICT (user_id, ticker) DO NOTHING
+        RETURNING ticker
+      )
+      SELECT (SELECT ok FROM cap) AS ok, array(SELECT ticker FROM ins) AS inserted
     `,
   ]);
-  if (inserted.length === 0) throw new WatchlistCapError();
-  return inserted.map((r) => r.ticker as string);
+  const { ok, inserted } = result[0] as { ok: boolean; inserted: string[] };
+  if (!ok) throw new WatchlistCapError();
+  return inserted;
 }
