@@ -963,3 +963,4 @@ watchlist route.
 
 ## [2026-10-07] ingest | PR #233 feat(modal-backend): Modal-side backend (tested locally, not deployed) | pages touched: 3
 ## [2026-10-07] ingest | PR #234 fix(digest): durable stale fallback when live backend is down | pages touched: 1
+## [2026-10-07] ingest | PR #235 feat(tools): nwf-lab — local Python lab for every portal feature | pages touched: 3
