@@ -40,12 +40,12 @@ describe("parseGrantInput", () => {
 describe("buildBetaGrant", () => {
   it("produces a grant that hasActiveBetaGrant accepts", () => {
     const grant = buildBetaGrant({ email: "a@b.co", expiresAt: "2027-01-08", note: null }, NOW);
-    expect(grant).toEqual({ tier: "pro", grantedAt: "2026-10-09", expiresAt: "2027-01-08", grantedBy: "admin" });
+    expect(grant).toEqual({ tier: "pro", grantedAt: "2026-10-09", expiresAt: "2027-01-08", grantedBy: "admin", note: null });
     expect(hasActiveBetaGrant({ beta: grant }, NOW)).toBe(true);
   });
 
-  it("omits note when absent and keeps it when present", () => {
-    expect("note" in buildBetaGrant({ email: "a@b.co", expiresAt: null, note: null }, NOW)).toBe(false);
+  it("sends note: null when absent so a re-grant clears a stale note, and keeps it when present", () => {
+    expect(buildBetaGrant({ email: "a@b.co", expiresAt: null, note: null }, NOW).note).toBeNull();
     expect(buildBetaGrant({ email: "a@b.co", expiresAt: null, note: "hi" }, NOW).note).toBe("hi");
   });
 });

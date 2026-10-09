@@ -53,16 +53,20 @@ export async function grantBeta(raw: GrantInput): Promise<BetaActionResult> {
 
   const clerk = await clerkClient();
   const { data: matches } = await clerk.users.getUserList({ emailAddress: [parsed.email] });
-  const target = matches[0];
-  if (!target) {
+  if (matches.length === 0) {
     return { ok: false, error: "No account with that email. Ask them to sign up first, then grant." };
   }
 
   // Only a verified address counts: Clerk's email filter also matches
   // unverified addresses, and an unverified claim on someone else's address
-  // must not turn into a Pro grant.
-  const address = target.emailAddresses.find((e) => e.emailAddress.toLowerCase() === parsed.email);
-  if (address?.verification?.status !== "verified") {
+  // must not turn into a Pro grant. Scan every match so an unverified claim
+  // listed first cannot hide the account that actually owns the address.
+  const target = matches.find((u) =>
+    u.emailAddresses.some(
+      (e) => e.emailAddress.toLowerCase() === parsed.email && e.verification?.status === "verified",
+    ),
+  );
+  if (!target) {
     return { ok: false, error: "That email isn't verified on the account yet. Ask them to verify it first." };
   }
 

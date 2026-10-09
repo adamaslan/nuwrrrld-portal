@@ -28,7 +28,13 @@ function fail(message) {
 }
 
 if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('usage: beta-grant.mjs <email> [--expires YYYY-MM-DD] [--note text] [--revoke] [--dry-run]');
-if (expiresAt && !/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)) fail('--expires must be YYYY-MM-DD');
+if (expiresAt) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(expiresAt);
+  const d = m && new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const real = d && d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+  if (!real) fail('--expires must be a real date in YYYY-MM-DD form');
+  if (expiresAt <= new Date().toISOString().slice(0, 10)) fail('--expires must be a future date');
+}
 const key = process.env.CLERK_SECRET_KEY;
 if (!key) fail('CLERK_SECRET_KEY is not set in the environment');
 
@@ -42,15 +48,16 @@ async function clerk(path, init = {}) {
 }
 
 const users = await clerk(`/users?email_address=${encodeURIComponent(email)}`);
-const user = users[0];
-if (!user) fail('no account with that email on this Clerk instance (they must sign up first)');
-
-const verified = user.email_addresses.find((e) => e.email_address.toLowerCase() === email)?.verification?.status === 'verified';
-if (!revoke && !verified) fail('that email is not verified on the account');
+const isVerifiedOwner = (u) =>
+  u.email_addresses.some((e) => e.email_address.toLowerCase() === email && e.verification?.status === 'verified');
+if (users.length === 0) fail('no account with that email on this Clerk instance (they must sign up first)');
+// Prefer the account that verified the address; only a revoke may fall back to an unverified match.
+const user = users.find(isVerifiedOwner) ?? (revoke ? users[0] : undefined);
+if (!user) fail('that email is not verified on the account');
 
 const beta = revoke
   ? null
-  : { tier: 'pro', grantedAt: new Date().toISOString().slice(0, 10), expiresAt, grantedBy: 'admin', ...(note ? { note } : {}) };
+  : { tier: 'pro', grantedAt: new Date().toISOString().slice(0, 10), expiresAt, grantedBy: 'admin', note: note || null };
 
 console.log(`${dryRun ? '[dry-run] ' : ''}${revoke ? 'revoke' : 'grant'} user ${user.id}`, beta ?? '');
 if (dryRun) process.exit(0);

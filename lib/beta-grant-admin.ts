@@ -29,7 +29,8 @@ export interface BetaGrant {
   grantedAt: string;
   expiresAt: string | null;
   grantedBy: 'admin';
-  note?: string;
+  /** Always present: `null` makes Clerk delete a note left by an earlier grant. */
+  note: string | null;
 }
 
 export interface BetaGrantSummary {
@@ -85,7 +86,7 @@ export function buildBetaGrant(input: ParsedGrantInput, now: Date = new Date()):
     grantedAt: isoDay(now),
     expiresAt: input.expiresAt,
     grantedBy: 'admin',
-    ...(input.note ? { note: input.note } : {}),
+    note: input.note,
   };
 }
 
