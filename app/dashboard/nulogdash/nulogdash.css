@@ -157,3 +157,14 @@
   .nld-card { padding: .75rem .85rem; }
   .nld-trigger-btn { min-height: 2.25rem; }
 }
+
+/* Beta testers panel */
+.nld-beta-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1rem; }
+.nld-beta-form label { display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; color: var(--text-dim); }
+.nld-beta-form input {
+  background: transparent; color: var(--text); border: 1px solid var(--border);
+  padding: .4rem .5rem; font: inherit; min-width: 12rem;
+}
+.nld-result { margin: .4rem 0 0; font-size: .8rem; flex-basis: 100%; }
+.nld-result--ok { color: var(--text); }
+.nld-result--err { color: var(--neon-yellow); }
