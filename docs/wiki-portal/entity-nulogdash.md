@@ -39,10 +39,18 @@ known failure 1.
   `NULOGDASH_ADMIN_EMAILS`. Grants *read*. Fails closed: an unset or empty
   allowlist denies everyone, so a typo locks admins out rather than letting
   strangers in.
-- `canPerformAdminAction(user)` — the above **plus `twoFactorEnabled`**. Required
-  for anything that spends quota or writes a row. Deliberately split, because an
-  env-var email allowlist is one string comparison away from full access: an
-  acceptable risk for reading a report, not for reaching other users' accounts.
+- `canPerformAdminAction(user)` — the above **plus `twoFactorEnabled`**, but only
+  when `NULOGDASH_REQUIRE_MFA=true`. Required for anything that spends quota or
+  writes a row. Deliberately split, because an env-var email allowlist is one
+  string comparison away from full access: an acceptable risk for reading a
+  report, not for reaching other users' accounts.
+- **MFA requirement switched off (2026-10-09, owner decision).** Because MFA is
+  unreachable on this Clerk plan, every admin action (Grant Pro, Revoke, pipeline
+  triggers) was permanently disabled, and the disabled button's
+  `cursor: progress` made it look like a stuck spinner. The second factor is now
+  opt-in via `NULOGDASH_REQUIRE_MFA=true`; the allowlist and verified-primary
+  checks still apply. Disabled buttons now use `cursor: not-allowed`. The e2e MFA
+  specs skip unless that variable is set.
 
 Both take the Clerk `User`, never a bare email string — a caller that resolves the
 address itself can silently bypass both checks, which is how this went wrong
@@ -56,7 +64,8 @@ what sits behind the second gate.
   (default `http://localhost:3000`).
 - `npm run test:e2e:nulogdash` — Playwright, then the browser-tier merge.
 - `/dashboard/nulogdash` — the sweep console; `notFound()` for a non-admin,
-  `MfaNotice` for an allowlisted admin without a second factor.
+  `MfaNotice` for an allowlisted admin without a second factor (only when
+  `NULOGDASH_REQUIRE_MFA=true`).
 - `/dashboard/nulogdash/pipelines` — the run-log tab and the trigger controls
   ([[decision-nulogdash-browser-trigger-handshake]]). Four category sections sit
   above the run table: **model pipelines** (`pipeline_run_log`), **paper trading**
