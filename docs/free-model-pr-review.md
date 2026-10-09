@@ -93,17 +93,32 @@ Why each layer is needed:
 
 | Test | Result |
 |---|---|
-| Normal run | `4/5 chain models verified $0 — dropped: inclusionai/ling-3.0-flash-fin:free`. The `:free` id is **gone from the catalog**; only the paid `inclusionai/ling-3.0-flash-fin` is still listed. The weekly refresh hasn't caught up, and that id also backs the council's `RISK` seat (see below). The review still found 3 of 3 seeded bugs, with `billedCost: 0`. |
+| Normal run (before the upstream chain refresh) | `4/5 chain models verified $0 — dropped: inclusionai/ling-3.0-flash-fin:free`. The `:free` id was **gone from the catalog**; only the paid `inclusionai/ling-3.0-flash-fin` was still listed, and it also backed the council's `RISK` seat (see below). The review still found 3 of 3 seeded bugs, with `billedCost: 0`. |
 | Paid `openai/gpt-4o-mini` added to the start of a copy of the chain | `4/6 verified — dropped: openai/gpt-4o-mini, …`. Layer 1 removed it before any call was made. |
 | Layer 2 (`usage.cost ≠ 0` → exit 3) | **Not exercised.** Triggering it means paying for a call, and layer 1 filters out paid ids before layer 2 would ever see one. The response field it reads was confirmed (`"cost":0` on a free call). |
 
-> **Open finding (not fixed by this doc):** `inclusionai/ling-3.0-flash-fin:free`
-> is still in `FREE_MODEL_CHAIN` and `SEAT_MODELS.RISK` in
-> [`lib/openrouter.ts`](../lib/openrouter.ts), but the id no longer exists, so
-> RISK calls fall through to the chain on every request. The catalog does list
-> `inclusionai/ling-3.1-flash` at $0, but **without** the `:free` suffix, so
-> both this script and the refresh script reject it by design. Repointing RISK
-> is a separate change.
+> **Resolved upstream (2026-10-09):** the check above first caught
+> `inclusionai/ling-3.0-flash-fin:free` still sitting in `FREE_MODEL_CHAIN` and
+> `SEAT_MODELS.RISK` after OpenRouter retired the `:free` id. `origin/main` has
+> since been refreshed (chain of 3, RISK on `poolside/laguna-xs-2.1:free`), and
+> the same check now reports `3/3 chain models verified $0`. This is the
+> failure the startup layer exists for: a dead or paid id stays invisible
+> because the fallback walk hides it.
+
+**Golden-set eval on the refreshed chain** (`node scripts/review/eval.mjs`, about
+9 minutes, 2026-10-09):
+
+| Model | Recall | Precision |
+|---|---|---|
+| `nvidia/nemotron-3-ultra-550b-a55b:free` | 0.80 | 0.50 |
+| `nvidia/nemotron-3-super-120b-a12b:free` | 0.80 | 0.44 |
+| `liquid/lfm-2.5-2.6b:free` | 0.80 | 0.57 |
+
+All three find 4 of the 5 planted bugs, and precision is about 0.5 for every
+model, so roughly half the raw findings are noise. That's why the verifier pass
+(§4.6) and quote anchoring are not optional. `liquid/lfm-2.5-2.6b:free` also
+left 4 calls unanswered across the golden diffs, so its runs are partial and
+the report has to say so.
 
 The final JSON report repeats what was verified, so a reader of the report
 doesn't have to trust stderr:
@@ -131,7 +146,7 @@ cd ~/code/nuwrrrld-portal && set -a && source <(grep -E '^OPENROUTER_API_KEY=' .
 
 Chain as of today (it changes weekly, so read the file rather than this list):
 `nemotron-3-super-120b-a12b` (a 120B MoE with ~12B active), `nemotron-3-nano-omni-30b-a3b-reasoning`,
-`lfm-2.5-2.6b`, `dots-3-note-preview`, `ling-3.0-flash-fin` (retired from the catalog; see §2.1). These range from
+`lfm-2.5-2.6b`, `dots-3-note-preview`, `ling-3.0-flash-fin` (retired from the catalog; see §2.1) — that was the chain on 2026-10-09 morning, and `origin/main` now holds `nemotron-3-ultra-550b-a55b`, `nemotron-3-super-120b-a12b` and `lfm-2.5-2.6b`. These range from
 2.6B dense models to MoEs with a large total but a small active parameter
 count. **Design for the worst model in the chain**, as
 [`concept-small-model-prompting`](wiki-portal/concept-small-model-prompting.md)
