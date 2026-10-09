@@ -73,6 +73,11 @@ EVENT_KEYWORD_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("product_business", ("launch", "unveils", "contract", "partnership", "announces", "customer", "expands", "approval")),
     ("macro_sector", ("fed ", "inflation", "tariff", "jobs report", "treasury", "oil prices", "sector", "futures", "s&p 500", "nasdaq", "dow ")),
 )
+# Whole-word match (so "eps" can't fire inside "steps"), tolerating a plain inflection ("acquires", "upgraded").
+_EVENT_PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = tuple(
+    (event, re.compile(
+        "|".join(rf"(?<!\w){re.escape(keyword.strip())}(?:s|es|ed|d|ing)?(?!\w)" for keyword in keywords)))
+    for event, keywords in EVENT_KEYWORD_RULES)
 HIGH_IMPACT_KEYWORDS = ("earnings", "guidance", "fda", "merger", "acquisition", "offering", "downgrade", "upgrade")
 
 # Curated finance polarity lexicon. Deliberately a compact subset in the spirit
@@ -225,9 +230,9 @@ def session_for_article(created_at: datetime) -> date:
 
 
 def classify_event(text: str) -> str:
-    lowered = f" {text.lower()} "
-    for event, keywords in EVENT_KEYWORD_RULES:
-        if any(keyword in lowered for keyword in keywords):
+    lowered = text.lower()
+    for event, pattern in _EVENT_PATTERNS:
+        if pattern.search(lowered):
             return event
     return "other"
 

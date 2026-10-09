@@ -689,7 +689,13 @@ async def _evaluate(force) -> dict:
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
                    ON CONFLICT DO NOTHING""", accuracy_rows)
 
-        decision = await _decide_weight(conn, now, gate_source)
+        if not force and await conn.fetchval(
+                """SELECT 1 FROM confluence_news_weights
+                    WHERE decided_by = 'evaluator' AND (effective_from AT TIME ZONE 'America/New_York')::date = $1
+                    LIMIT 1""", today):
+            decision = {"skipped": f"weight decision for {today} already exists", "wrote": False}
+        else:
+            decision = await _decide_weight(conn, now, gate_source)
         summary = {"computed_on": str(today), "accuracy_rows": len(accuracy_rows), "labeled_outcomes": len(outcome_rows),
                    "weight": decision,
                    "note": "delta_ic is NULL: ticker_cards keeps no history, so the gate cannot pass yet"}
