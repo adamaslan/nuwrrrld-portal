@@ -386,8 +386,18 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   source_run_id    text,
   bar_date         date NOT NULL,
   computed_at      timestamptz NOT NULL DEFAULT now(),
+  -- News-confluence parts (docs/fin-api-and-4th-aws-modal-pipeline.md §9). All
+  -- NULL while the news weight is 0 (shadow), so existing cards are unchanged.
+  confluence_technical double precision,
+  news_score           double precision,
+  news_vote            double precision,
+  news_weight_version  text,
   PRIMARY KEY (ticker, horizon)
 );
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS confluence_technical double precision;
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_score           double precision;
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_vote            double precision;
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_weight_version  text;
 
 -- The ranking index. Partial on quality because the top-N query never wants
 -- low-quality rows, so they should not occupy the index at all.
@@ -899,4 +909,110 @@ CREATE TABLE IF NOT EXISTS engine_forward_returns (
   r_multiple   double precision,
   labeled_at   timestamptz      NOT NULL DEFAULT now(),
   PRIMARY KEY (hit_id, horizon_days)
+);
+
+-- ── 4th pipeline (nwf4): Alpaca news, scores, outcomes, weights ─────────────
+-- docs/fin-api-and-4th-aws-modal-pipeline.md §9. Written by the Modal app in
+-- deploy/aws-modal-news/. Every row that a metric is computed from lives here;
+-- DynamoDB holds only cursors, dedupe keys, caches and budgets.
+CREATE TABLE IF NOT EXISTS news_articles (
+  article_id     bigint PRIMARY KEY,                 -- Alpaca news id
+  provider       text NOT NULL DEFAULT 'alpaca',
+  source         text NOT NULL,
+  author         text,
+  headline       text NOT NULL,
+  summary        text,                               -- <= 600 chars
+  url            text,
+  created_at     timestamptz NOT NULL,               -- point-in-time anchor
+  updated_at     timestamptz NOT NULL,
+  ingested_at    timestamptz NOT NULL DEFAULT now(),
+  simhash        bigint NOT NULL,
+  corroborated   boolean NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS news_articles_created_idx ON news_articles (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS news_article_symbols (
+  article_id     bigint NOT NULL REFERENCES news_articles(article_id) ON DELETE CASCADE,
+  ticker         text   NOT NULL,
+  symbols_count  int    NOT NULL,
+  relevance      double precision NOT NULL,
+  story_id       text   NOT NULL,                    -- cluster id per ticker
+  novelty        double precision NOT NULL,
+  PRIMARY KEY (article_id, ticker)
+);
+CREATE INDEX IF NOT EXISTS news_article_symbols_ticker_idx ON news_article_symbols (ticker, article_id);
+
+CREATE TABLE IF NOT EXISTS news_article_scores (
+  article_id     bigint NOT NULL REFERENCES news_articles(article_id) ON DELETE CASCADE,
+  scorer         text   NOT NULL,                    -- lexicon_lm_v1 | finbert_v1 | llm_v1 | ensemble_vN
+  polarity       double precision NOT NULL CHECK (polarity BETWEEN -1 AND 1),
+  confidence     double precision NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+  event_type     text,
+  model_id       text,
+  scored_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (article_id, scorer)
+);
+
+CREATE TABLE IF NOT EXISTS news_ticker_scores (
+  ticker          text NOT NULL,
+  session_date    date NOT NULL,
+  scorer_version  text NOT NULL,
+  cutoff_at       timestamptz NOT NULL,
+  news_score      double precision,                  -- NULL = absent
+  news_state      text NOT NULL CHECK (news_state IN ('absent','neutral','bullish','bearish')),
+  n_articles      int  NOT NULL,
+  n_stories       int  NOT NULL,
+  volume_z        double precision,
+  top_event       text,
+  top_article_id  bigint,
+  components      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  computed_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (ticker, session_date, scorer_version)
+);
+
+CREATE TABLE IF NOT EXISTS news_score_outcomes (
+  ticker          text NOT NULL,
+  session_date    date NOT NULL,
+  scorer_version  text NOT NULL,
+  horizon_days    int  NOT NULL,
+  ret             double precision NOT NULL,
+  benchmark       text NOT NULL,
+  abn_ret         double precision NOT NULL,
+  hit             boolean,                           -- NULL inside the neutral band
+  labeled_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (ticker, session_date, scorer_version, horizon_days)
+);
+
+CREATE TABLE IF NOT EXISTS news_accuracy (
+  computed_on     date NOT NULL,
+  scorer_version  text NOT NULL,
+  horizon_days    int  NOT NULL,
+  window_sessions int  NOT NULL,
+  slice_kind      text NOT NULL,                     -- all | scorer | event_type | source | asset_type | volume_z
+  slice_value     text NOT NULL,
+  n_obs           int  NOT NULL,
+  coverage        double precision,
+  hit_rate        double precision,
+  hit_rate_lo     double precision,
+  hit_rate_hi     double precision,
+  rank_ic         double precision,
+  ic_tstat        double precision,
+  icir            double precision,
+  decile_spread   double precision,
+  monotonicity    double precision,
+  brier           double precision,
+  delta_ic        double precision,
+  PRIMARY KEY (computed_on, scorer_version, horizon_days, window_sessions, slice_kind, slice_value)
+);
+
+-- Append-only. The active weight is the latest row by effective_from.
+CREATE TABLE IF NOT EXISTS confluence_news_weights (
+  weight_version  text PRIMARY KEY,                  -- e.g. nw-2026-10-17-1
+  effective_from  timestamptz NOT NULL,
+  status          text NOT NULL CHECK (status IN ('shadow','active','demoted','override')),
+  weight          double precision NOT NULL CHECK (weight BETWEEN 0 AND 1),
+  scorer_version  text NOT NULL,
+  metrics         jsonb NOT NULL,                    -- snapshot that justified the decision
+  decided_by      text NOT NULL,                     -- 'evaluator' | admin user id
+  created_at      timestamptz NOT NULL DEFAULT now()
 );

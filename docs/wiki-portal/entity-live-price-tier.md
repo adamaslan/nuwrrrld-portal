@@ -63,6 +63,20 @@ mapped from the portal's hyphen form to Alpaca's dot form at the boundary.
 Related: [[entity-paper-portfolios]].
 
 
+## Third writer: the nwf4 live poller (2026-10-08)
+
+[[entity-nwf4-news-pipeline]] runs `alpaca_live_poller` every minute from 09:30
+to 16:00 ET: one budgeted Alpaca snapshot call per 150 symbols (IEX feed) for a
+live set of up to 250 names (open paper positions, then active paper
+watchlists, then user watchlists, then tickers already in this table). It
+writes **changed** prices only, with the same never-overwrite-a-newer-tick
+guard as the route (`WHERE EXCLUDED.traded_at >= live_prices.traded_at`), and
+stores the last trade size as `volume` to match the Finnhub feeder. Because
+both feeders now write here, `traded_at` ordering, not arrival order, decides
+which price wins. The source vendor is not recorded per row.
+
+> ❓ Open question: `live_prices` has no `source` column, so an Alpaca IEX price and a Finnhub tick are indistinguishable once written, against the "mixed-vendor data must never be indistinguishable" rule.
+
 ## Open questions
 
 - ❓ Should `fetchTickerEntry` / the Hold-Fold UI prefer `live_prices` over the

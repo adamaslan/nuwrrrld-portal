@@ -34,6 +34,7 @@ One page per named component. These are the hubs — everything links to entitie
 **Signal Data Plane**
 - [[entity-signal-data-plane]] — **canonical signals doc**; `lib/shared/signal-lookup.ts` for the gcp3 fetch-and-shape path and `lib/shared/signalFilters.ts` for shared client-side filtering and sorting
 - [[entity-signal-engine]] — pure-TS canonical Fibonacci engine (`lib/engine/`), golden-fixture parity with the lab, `daily_bars` + `engine_*` tables, nightly shadow run and labels; ladder route flagged off; paper `engine` account core
+- [[entity-nwf4-news-pipeline]] — `deploy/aws-modal-news/`; Alpaca news → per-ticker `news_score` in shadow (weight 0), one dispatcher cron, labeling blocked on SIP bars
 - [[entity-backtest-engine]] — `lib/backtest.ts`; the *separate* hit-rate engine, disabled by default
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
