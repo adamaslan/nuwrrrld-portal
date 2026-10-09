@@ -105,6 +105,14 @@ class TestScorers:
         assert nc.classify_event("Analyst upgrades stock, raises price target") == "analyst_rating"
         assert nc.classify_event("Nothing to see") == "other"
 
+    @pytest.mark.parametrize("headline", [
+        "CEO steps down after board review",   # "eps" inside "steps"
+        "Company issues statement on new store openings",   # "sues" inside "issues"
+        "Company keeps full-year outlook",     # "eps" inside "keeps"
+    ])
+    def test_keywords_match_whole_words_only(self, headline):
+        assert nc.classify_event(headline) not in ("earnings", "regulatory_legal")
+
 
 class TestEnsemble:
     def out(self, scorer, polarity, confidence):
