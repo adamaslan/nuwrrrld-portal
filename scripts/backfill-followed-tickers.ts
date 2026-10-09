@@ -26,6 +26,7 @@ import {
   getLivePicks,
   getObservations,
   getResolvedHorizons,
+  setObservationCouncil,
   upsertObservation,
 } from "@/lib/followed-tickers-db";
 
@@ -128,14 +129,9 @@ async function main(): Promise<void> {
       // retry meaningfully raises coverage; more would just burn quota.
       if (!result.ok) result = await councilVerdictFor(pick.ticker, apiKey);
       if (result.ok) {
-        await upsertObservation({
-          pickId: pick.id,
-          observedOn: latest.observedOn.slice(0, 10),
-          closePrice: latest.closePrice,
-          priceSource: "alpaca_daily_bar",
-          signalDir: null,
-          backtestRate: null,
-          councilJson: { ...(result.verdict.raw as object), backfilled: true },
+        await setObservationCouncil(pick.id, latest.observedOn.slice(0, 10), {
+          ...(result.verdict.raw as object),
+          backfilled: true,
         });
         verdictsAdded++;
       } else {

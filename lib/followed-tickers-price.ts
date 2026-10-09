@@ -103,9 +103,12 @@ export async function resolveFollowedPrice(
   // daily_bars hydration and IEX rarely prints after 16:00 ET, so without this
   // rung the evening run found no close and skipped the day for good.
   const sipBars = await fetchAlpacaDailyBars([ticker], freshSince, closedOn ?? nyDateOf(new Date()));
-  const sipBar = closedOn
-    ? sipBars.get(ticker)?.find((b) => b.date === closedOn)
-    : sipBars.get(ticker)?.at(-1);
+  // With no closedOn, today's bar is still accumulating trades until the 16:00 ET
+  // close, so it is only a close once the session has ended.
+  const now = new Date();
+  const sessionOpenToday = nyMinutesOf(now) < NY_CLOSE_MINUTES;
+  const completedBars = (sipBars.get(ticker) ?? []).filter((b) => !(sessionOpenToday && b.date === nyDateOf(now)));
+  const sipBar = closedOn ? completedBars.find((b) => b.date === closedOn) : completedBars.at(-1);
   if (sipBar) return { price: sipBar.close, source: "alpaca_daily_bar", asOf: sipBar.date };
   console.warn(`[followed-price] ${ticker}: no Alpaca SIP daily bar in the window; falling back`);
 
