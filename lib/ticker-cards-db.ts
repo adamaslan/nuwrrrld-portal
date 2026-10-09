@@ -28,6 +28,9 @@ export interface StoredCard extends TickerCard {
   sourceRunId: string | null;
   barDate: string;
   computedAt: string;
+  /** False for a midday snapshot built from a partial daily bar. Absent means
+   *  final, so callers that predate intraday runs are unchanged. */
+  isFinal?: boolean;
 }
 
 export interface UpsertOutcome {
@@ -121,13 +124,13 @@ export async function upsertCards(
         INSERT INTO ticker_cards (
           ticker, horizon, universe, state_key, taxonomy_version,
           score, score_version, action, tokens, numerics,
-          data_quality, missing_fields, source, source_run_id, bar_date
+          data_quality, missing_fields, source, source_run_id, bar_date, is_final
         ) VALUES (
           ${card.ticker}, ${card.horizon}, ${card.universe}, ${card.stateKey},
           ${card.taxonomyVersion}, ${card.score}, ${card.scoreVersion}, ${card.action},
           ${JSON.stringify(card.tokens)}::jsonb, ${JSON.stringify({})}::jsonb,
           ${card.dataQuality}, ${card.missingFields}, ${card.source},
-          ${card.sourceRunId}, ${card.barDate}
+          ${card.sourceRunId}, ${card.barDate}, ${card.isFinal ?? true}
         )
         ON CONFLICT (ticker, horizon) DO UPDATE SET
           universe         = EXCLUDED.universe,
@@ -142,10 +145,20 @@ export async function upsertCards(
           source           = EXCLUDED.source,
           source_run_id    = EXCLUDED.source_run_id,
           bar_date         = EXCLUDED.bar_date,
+          is_final         = EXCLUDED.is_final,
           computed_at      = now()
         WHERE EXCLUDED.bar_date > ticker_cards.bar_date
            OR (EXCLUDED.bar_date = ticker_cards.bar_date
-               AND EXCLUDED.data_quality > ticker_cards.data_quality)
+               AND (
+                 -- final over partial: the settled close always wins
+                 (EXCLUDED.is_final AND NOT ticker_cards.is_final)
+                 -- final over final: strictly better quality only
+                 OR (EXCLUDED.is_final AND ticker_cards.is_final
+                     AND EXCLUDED.data_quality > ticker_cards.data_quality)
+                 -- partial over partial: the later snapshot at >= quality
+                 OR (NOT EXCLUDED.is_final AND NOT ticker_cards.is_final
+                     AND EXCLUDED.data_quality >= ticker_cards.data_quality)
+               ))
         RETURNING ticker
       `;
       // No returned row means the WHERE guard refused the update — the stored

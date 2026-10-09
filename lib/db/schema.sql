@@ -386,6 +386,9 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   source_run_id    text,
   bar_date         date NOT NULL,
   computed_at      timestamptz NOT NULL DEFAULT now(),
+  -- false = midday snapshot of a still-open session (partial daily bar). Existing
+  -- rows are settled closes, hence the default. See shouldReplaceCard.
+  is_final         boolean NOT NULL DEFAULT true,
   -- News-confluence parts (docs/fin-api-and-4th-aws-modal-pipeline.md §9). All
   -- NULL while the news weight is 0 (shadow), so existing cards are unchanged.
   confluence_technical double precision,
@@ -394,6 +397,7 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   news_weight_version  text,
   PRIMARY KEY (ticker, horizon)
 );
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS is_final             boolean NOT NULL DEFAULT true;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS confluence_technical double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_score           double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_vote            double precision;

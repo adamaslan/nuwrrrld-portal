@@ -66,6 +66,7 @@ const DROP_STATEMENT_PATTERNS = [
   /ALTER TABLE pipeline_run_log ADD COLUMN IF NOT EXISTS coverage jsonb NOT NULL DEFAULT '\{\}'::jsonb;/i,
   /ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS content_hash text;/i,
   /ALTER TABLE corpus_chunks ADD COLUMN IF NOT EXISTS taxonomy_version text;/i,
+  /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS is_final\s+boolean NOT NULL DEFAULT true;/i,
   /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS confluence_technical double precision;/i,
   /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_score\s+double precision;/i,
   /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_vote\s+double precision;/i,

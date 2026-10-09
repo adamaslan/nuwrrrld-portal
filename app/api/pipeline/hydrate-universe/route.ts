@@ -82,6 +82,8 @@ interface HydrateBody {
   source?: string;
   universe?: CardUniverse;
   barDate?: string;
+  /** false for a midday run whose daily bar is still forming. Default true. */
+  isFinal?: boolean;
   rows?: HydrateRow[];
   /** Which compute host is posting this chunk. See lib/pipeline-run-log-db.ts. */
   host?: HydrateHost;
@@ -202,6 +204,7 @@ export async function POST(req: NextRequest) {
   const source = typeof body.source === "string" && body.source ? body.source : null;
   const universe: CardUniverse = body.universe === "etf" ? "etf" : "stock";
   const barDate = normalizeBarDate(body.barDate);
+  const isFinal = body.isFinal !== false;
   const rows = Array.isArray(body.rows) ? body.rows : [];
 
   // Provenance is required, not optional: without `source` and `barDate` a card
@@ -263,7 +266,7 @@ export async function POST(req: NextRequest) {
     const frameStats = parseFrameStats(row.frameStats);
     for (const horizon of HORIZONS) {
       const card = buildCard(ticker, universe, input, horizon, frameStats);
-      cards.push({ ...card, source, sourceRunId: body.runId ?? null, barDate, computedAt: new Date().toISOString() });
+      cards.push({ ...card, source, sourceRunId: body.runId ?? null, barDate, isFinal, computedAt: new Date().toISOString() });
     }
   }
 

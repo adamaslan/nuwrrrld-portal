@@ -20,6 +20,7 @@
  *   node scripts/hydrate-local.mjs --universe=etf             # ETFs only
  *   node scripts/hydrate-local.mjs --limit=50                 # first 50 per lane
  *   node scripts/hydrate-local.mjs --dry-run                  # fetch bars, don't POST
+ *   node scripts/hydrate-local.mjs --intraday                 # midday: partial bar, is_final=false
  *   node scripts/hydrate-local.mjs --host=modal                # override auto-detected host
  */
 
@@ -89,6 +90,9 @@ function fail(message) {
 // default and never what a malformed flag meant to ask for.
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
+// Midday run: the session is still open, so the daily bar is partial. Cards are
+// stored with is_final=false and the settled-close run replaces them.
+const INTRADAY = args.has("--intraday");
 
 const symbolsFlag = process.argv.find(a => a.startsWith("--symbols="));
 let SYMBOLS = null;
@@ -375,6 +379,7 @@ async function postChunk(rows, runId, barDate, universe) {
       source: "hydrate-local",
       universe,
       barDate,
+      isFinal: !INTRADAY,
       rows,
       host: HOST,
     }),
@@ -423,7 +428,7 @@ async function main() {
   }
 
   const barDate = new Date().toISOString().split("T")[0];
-  const runId = `hydrate-local:${barDate}:${new Date().getTime()}`;
+  const runId = `hydrate-local:${barDate}:${INTRADAY ? "intraday:" : ""}${new Date().getTime()}`;
 
   const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
   console.log(`[hydrate] run=${runId} host=${HOST} ${laneSummary} chunk=${CHUNK_SIZE}`);

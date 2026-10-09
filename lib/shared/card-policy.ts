@@ -291,17 +291,34 @@ export function isExplainable(card: TickerCard, minQuality: number = MIN_EXPLAIN
  *
  * The rule that keeps a bad vendor night from erasing a good one: never
  * overwrite real data with worse data for the same bar. A newer bar always
- * wins; the same bar wins only on strictly better quality; an older bar never
- * wins. This is why a failed symbol degrades to "yesterday's card" rather than
- * to nothing.
+ * wins; an older bar never wins. This is why a failed symbol degrades to
+ * "yesterday's card" rather than to nothing.
+ *
+ * Within the same bar, `isFinal` separates a midday snapshot (the session is
+ * still open and the daily bar is partial) from the settled close:
+ *   - a final card replaces a partial one regardless of quality — the settled
+ *     bar is the truth, and without this the 22:30 UTC run would be refused by
+ *     the 15:00 UTC run's equal-quality card and the universe would keep the
+ *     partial bar until the next day;
+ *   - a partial card never replaces a final one;
+ *   - two partials: the later run wins at equal or better quality;
+ *   - two finals: strictly better quality only, as before.
+ * `isFinal` defaults to true so callers that predate intraday runs keep the
+ * original same-bar behavior.
  */
 export function shouldReplaceCard(
-  incoming: { barDate: string; dataQuality: number },
-  stored: { barDate: string; dataQuality: number } | null,
+  incoming: { barDate: string; dataQuality: number; isFinal?: boolean },
+  stored: { barDate: string; dataQuality: number; isFinal?: boolean } | null,
 ): boolean {
   if (!stored) return true;
   if (incoming.barDate > stored.barDate) return true;
   if (incoming.barDate < stored.barDate) return false;
+
+  const incomingFinal = incoming.isFinal ?? true;
+  const storedFinal = stored.isFinal ?? true;
+  if (incomingFinal && !storedFinal) return true;
+  if (!incomingFinal && storedFinal) return false;
+  if (!incomingFinal) return incoming.dataQuality >= stored.dataQuality;
   return incoming.dataQuality > stored.dataQuality;
 }
 

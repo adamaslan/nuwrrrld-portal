@@ -44,6 +44,12 @@ on:
     # Weekdays only: a weekend run re-cards Friday's bars and burns API calls
     # writing rows `shouldReplaceCard` correctly refuses to replace.
     - cron: '30 22 * * 1-5'
+    # 15:00 UTC midday refresh (11:00 ET EDT / 10:00 ET EST): the session is
+    # open, so the daily bar is partial and these cards are written with
+    # is_final=false. The 22:30 run above replaces them — shouldReplaceCard lets
+    # a final card beat a partial one at the same bar date. GitHub delays
+    # scheduled crons by up to a few hours, so treat this as "around midday".
+    - cron: '0 15 * * 1-5'
   workflow_dispatch:
     inputs:
       universe:
@@ -60,6 +66,11 @@ on:
         description: 'Cap symbols per lane (blank = all). Useful for a smoke test.'
         required: false
         default: ''
+      intraday:
+        description: 'Midday run: store cards as partial (is_final=false)'
+        required: false
+        type: boolean
+        default: false
       dryRun:
         description: 'Fetch bars and compute, but POST nothing'
         required: false
@@ -126,6 +137,8 @@ jobs:
           IN_UNIVERSE: ${{ github.event.inputs.universe }}
           IN_LIMIT: ${{ github.event.inputs.limit }}
           IN_DRY_RUN: ${{ github.event.inputs.dryRun }}
+          IN_INTRADAY: ${{ github.event.inputs.intraday }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
 
@@ -147,6 +160,10 @@ jobs:
           [ -n "${IN_UNIVERSE}" ] && [ "${IN_UNIVERSE}" != "all" ] && args+=("--universe=${IN_UNIVERSE}")
           [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}")
           [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run")
+          # The 15:00 UTC cron is the only schedule that runs mid-session.
+          if [ "${IN_INTRADAY}" = "true" ] || [ "${SCHEDULE}" = "0 15 * * 1-5" ]; then
+            args+=("--intraday")
+          fi
 
           # Tee so the summary can be built from the same output the log shows,
           # rather than re-deriving counts from a second source that could disagree.

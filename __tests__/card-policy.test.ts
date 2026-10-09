@@ -252,6 +252,39 @@ describe("replacement rule", () => {
   it("refuses an identical re-post, so a retried batch is a no-op", () => {
     expect(shouldReplaceCard({ barDate: "2026-08-18", dataQuality: 1 }, stored)).toBe(false);
   });
+
+  describe("midday (partial) vs settled (final) cards", () => {
+    const day = "2026-08-18";
+    const midday = { barDate: day, dataQuality: 1, isFinal: false };
+    const close = { barDate: day, dataQuality: 1, isFinal: true };
+
+    it("a final card replaces a same-bar partial at equal quality", () => {
+      expect(shouldReplaceCard(close, midday)).toBe(true);
+    });
+
+    it("a final card replaces a partial even at lower quality", () => {
+      expect(shouldReplaceCard({ ...close, dataQuality: 0.6 }, midday)).toBe(true);
+    });
+
+    it("a partial never replaces a same-bar final", () => {
+      expect(shouldReplaceCard(midday, close)).toBe(false);
+      expect(shouldReplaceCard({ ...midday, dataQuality: 1 }, { ...close, dataQuality: 0.2 })).toBe(false);
+    });
+
+    it("a later partial replaces an earlier partial at equal or better quality", () => {
+      expect(shouldReplaceCard(midday, midday)).toBe(true);
+      expect(shouldReplaceCard({ ...midday, dataQuality: 0.5 }, midday)).toBe(false);
+    });
+
+    it("a newer bar wins even when it is partial", () => {
+      expect(shouldReplaceCard({ ...midday, barDate: "2026-08-19" }, close)).toBe(true);
+    });
+
+    it("treats an absent isFinal as final (callers that predate intraday)", () => {
+      expect(shouldReplaceCard({ barDate: day, dataQuality: 1 }, midday)).toBe(true);
+      expect(shouldReplaceCard({ barDate: day, dataQuality: 1 }, { barDate: day, dataQuality: 1 })).toBe(false);
+    });
+  });
 });
 
 describe("real data quality — bar-series health (Phase 3.2)", () => {
