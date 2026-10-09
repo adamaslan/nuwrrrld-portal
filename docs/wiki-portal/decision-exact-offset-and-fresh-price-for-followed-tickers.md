@@ -74,3 +74,10 @@ recent observation. Entry prices came from `live_prices` with no date check.
 - [[incident-2026-10-04-followed-tickers-never-produced-data]] — the failures that
   made this decision necessary
 - [[entity-live-price-tier]] — the primary price source and its coverage limit
+
+## Update 2026-10-09
+
+The chain gained an Alpaca SIP daily-bar rung (`alpaca_daily_bar`) ahead of
+`daily_bars`: the evening observer runs before hydration, and the closed-day
+window rejects IEX prints that trade before 16:00 ET. The freshness and
+exact-offset rules are unchanged. See [[incident-2026-10-09-followed-tickers-empty-scorecard-and-judge]].

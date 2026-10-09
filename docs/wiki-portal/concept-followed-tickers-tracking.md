@@ -216,3 +216,14 @@ off-season entry is a no-op, not a duplicate live run an hour apart.
 ## Run time budget (2026-10-05)
 
 Once the track job's gate was fixed and it ran for real, the route's serial per-pick council calls exceeded the function's 300s limit and every run returned a gateway timeout. The route now processes picks a few at a time and stops starting new ones after a time budget; picks left over are simply observed on the next fire, because the same-day skip already makes the route resumable. The response reports how many picks were deferred.
+
+## Price and grounding inputs (2026-10-09)
+
+The daily close now follows `live_prices` → Alpaca latest trade → **Alpaca SIP
+daily bar for the closed session** → `daily_bars`, because the evening run
+precedes the nightly hydration and IEX seldom prints after the close. The council
+seat is grounded on the live gcp3 payload when it exists and on the stored
+`ticker_cards` row otherwise. Verdicts added after the fact by the backfill
+script carry a `backfilled` flag. A cohort of 20 stays under the 30-pick minimum
+for publishing a hit rate, so the scoreboard shows counts, not rates, until
+cohorts accumulate. See [[incident-2026-10-09-followed-tickers-empty-scorecard-and-judge]].
