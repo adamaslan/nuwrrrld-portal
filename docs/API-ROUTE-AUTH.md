@@ -45,6 +45,7 @@ docs/admin-console-todo.md §1; "middleware" below still names the same file).
 | `/api/portfolio/suggestions` | GET | auth-required | Clerk |
 | `/api/portfolio/watchlist` | GET, POST | auth-required | Clerk |
 | `/api/portfolio/watchlist/[ticker]` | DELETE | auth-required | Clerk |
+| `/api/portfolio/watchlist/import` | POST | auth-required | Clerk + Origin/JSON-only CSRF gate, 5/h rate limit |
 | `/api/privacy/delete` | POST | auth-required | Clerk + two-step HMAC token (`PORTAL_PUSH_SECRET`) |
 | `/api/privacy/export` | GET | auth-required | Clerk |
 | `/api/privacy/profile` | GET | auth-required | Clerk |

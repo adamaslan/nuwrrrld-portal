@@ -29,6 +29,17 @@ Routes under `app/api/portfolio/`:
 - `suggestions` — optimizer suggestions (priority-ranked, each carrying its own
   disclaimer). Same upstream-then-local shape as `health`.
 - `watchlist` — CRUD over [[entity-holdfold-cache]]'s `watchlist-store`.
+  Since the CSV-import PR (2026-10-08) it also has `watchlist/import`: the
+  browser extracts tickers from a ≤64 KB CSV and posts JSON; the server never
+  receives the file. The route treats the array as hostile — Clerk session,
+  JSON-only content type plus Origin/`Sec-Fetch-Site` gate, 32 KB streamed body
+  cap, ≤500 rows, `normalizeTicker` + crypto-pair rejection, an active-
+  `ticker_universe` allow-list (so uploads cannot feed arbitrary symbols into
+  [[decision-pending-signals-queue]]), a 1,500-ticker watchlist cap, and a
+  5/hour per-user limit. Persistence is one `unnest` insert behind a per-user
+  advisory lock; the signal refresh is one batched enqueue for only the newly
+  added tickers. Preview-then-confirm in the UI (`dryRun`). Rejected raw values
+  are counted, never echoed back.
 
 Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
 

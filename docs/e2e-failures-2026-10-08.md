@@ -100,3 +100,32 @@ Verify:
 cd ~/code/nuwrrrld-portal
 npx playwright test e2e/frontend/portfolio-liveness.spec.ts --project=frontend
 ```
+
+## PR #236's e2e run (`feat(watchlist): CSV import`, run `37806845243`, head `646ce94`)
+
+PR #236 adds a watchlist CSV import route and its UI. Its red run used a base
+from before #239 (4 commits behind `main`), and it shows the same OpenRouter-404
+signature as #234's and #235's runs. Shards 2 and 3 passed: 53 passed, 2 failed,
+1 flaky, 6 skipped.
+
+| Shard | Test | Error |
+|---|---|---|
+| e2e (1) | `e2e/frontend/dashboard-brief-fault-injection.spec.ts:90`: real `/api/brief` renders a non-empty brief | `expect(locator).toBeVisible()` failed, element not found; server log `Brief error Error: OpenRouter 404: all models in chain failed` |
+| e2e (4) | `e2e/frontend/portfolio-liveness.spec.ts:86`: `/api/portfolio/health-ai` reaches OpenRouter | `unexpected status: {"error":"AI unavailable"}`; server log `Health AI error Error: OpenRouter 404: all models in chain failed` |
+| e2e (4) | `e2e/frontend/signals-liveness.spec.ts:53`: `POST /api/signals/MU/chat` responds without a 5xx | `apiRequestContext.post: Timeout 25000ms exceeded` |
+
+None of these touch the watchlist import code. The `signals-liveness` MU chat
+timeout is the same test that fails on `main` (`916cc31`, see above).
+
+The branch was rebased onto `5ff5567` (with #239), and the watchlist unit tests
+still pass locally (41/41). A CodeRabbit review was re-requested on 2026-10-08
+after the rebase. Expect the re-run to look like `main`: the OpenRouter-404
+failures go away, and `portfolio-liveness` fails on the strict-mode locator
+instead. The locator fix above has not been applied yet.
+
+Re-check:
+
+```bash
+cd ~/code/nuwrrrld-portal
+gh pr checks 236
+```

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { MAX_CSV_FILE_BYTES, parseTickerCsv } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
@@ -157,6 +158,69 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       .catch(() => setSuggestionsStatus("error"));
   }, []);
 
+  interface ImportSummary {
+    added: string[];
+    skipped: { already_present: number; unknown_symbol: number; invalid: number; crypto_unsupported: number };
+    rejectedSample: string[];
+  }
+  const [csvTickers, setCsvTickers] = useState<string[] | null>(null);
+  const [csvPreview, setCsvPreview] = useState<ImportSummary | null>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvMessage, setCsvMessage] = useState("");
+
+  async function postImport(tickers: string[], dryRun: boolean): Promise<ImportSummary | null> {
+    const res = await fetch("/api/portfolio/watchlist/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers, dryRun }),
+    });
+    if (res.status === 429) { setCsvMessage("Too many imports — try again in a while."); return null; }
+    if (res.status === 422) { setCsvMessage("That import would exceed the watchlist size limit."); return null; }
+    if (res.status === 413) { setCsvMessage("Too many rows (limit 500)."); return null; }
+    if (!res.ok) { setCsvMessage("Import failed."); return null; }
+    return await res.json() as ImportSummary;
+  }
+
+  async function onCsvSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    setCsvPreview(null);
+    setCsvTickers(null);
+    setCsvMessage("");
+    if (!file) return;
+    if (file.size > MAX_CSV_FILE_BYTES) { setCsvMessage("File too large (max 64 KB)."); return; }
+    const tickers = parseTickerCsv(await file.text());
+    if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
+    if (tickers.length > 500) { setCsvMessage("Too many rows (limit 500)."); return; }
+    setCsvBusy(true);
+    try {
+      const preview = await postImport(tickers, true);
+      if (preview) { setCsvTickers(tickers); setCsvPreview(preview); }
+    } catch {
+      setCsvMessage("Network error — could not read file.");
+    } finally {
+      setCsvBusy(false);
+    }
+  }
+
+  async function confirmCsvImport() {
+    if (!csvTickers) return;
+    setCsvBusy(true);
+    try {
+      const done = await postImport(csvTickers, false);
+      if (!done) return;
+      const now = new Date().toISOString();
+      setWatchlist(w => [...w, ...done.added.map(ticker => ({ ticker, addedAt: now }))]);
+      setCsvMessage(`Added ${done.added.length} ticker${done.added.length === 1 ? "" : "s"}.`);
+      setCsvTickers(null);
+      setCsvPreview(null);
+    } catch {
+      setCsvMessage("Network error — import not completed.");
+    } finally {
+      setCsvBusy(false);
+    }
+  }
+
   async function addTicker() {
     const ticker = tickerInput.trim().toUpperCase();
     if (!ticker) return;
@@ -261,6 +325,25 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
           </button>
         </div>
         {addError && <p className="port-watch-error">{addError}</p>}
+        <div className="port-watch-add">
+          <label className="port-watch-btn" style={{ cursor: csvBusy ? "wait" : "pointer" }}>
+            Import CSV
+            <input type="file" accept=".csv,text/csv" onChange={onCsvSelected} disabled={csvBusy} hidden />
+          </label>
+        </div>
+        {csvPreview && (
+          <div>
+            <p className="port-watch-empty">
+              Will add {csvPreview.added.length} · {csvPreview.skipped.already_present} already on your list ·{" "}
+              {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} skipped
+              {csvPreview.rejectedSample.length > 0 && ` (e.g. ${csvPreview.rejectedSample.slice(0, 5).join(", ")})`}
+            </p>
+            <button className="port-watch-btn" onClick={confirmCsvImport} disabled={csvBusy || csvPreview.added.length === 0}>
+              Confirm import
+            </button>
+          </div>
+        )}
+        {csvMessage && <p className="port-watch-error">{csvMessage}</p>}
         {watchlist.length === 0 ? (
           <p className="port-watch-empty">No tickers yet — add one above.</p>
         ) : (
