@@ -96,7 +96,15 @@ export function isNulogdashAdmin(user: AdminIdentity | undefined | null): boolea
  */
 export function canPerformAdminAction(user: AdminIdentity | undefined | null): boolean {
   if (!isNulogdashAdmin(user)) return false;
+  if (!isAdminMfaRequired()) return true;
   return user?.twoFactorEnabled === true;
+}
+
+/** The second-factor requirement is switched OFF by owner decision
+ * (2026-10-09) until admins have enrolled. Set NULOGDASH_REQUIRE_MFA=true to
+ * turn it back on; anything else leaves it off. */
+export function isAdminMfaRequired(): boolean {
+  return process.env.NULOGDASH_REQUIRE_MFA === "true";
 }
 
 /** The subset of Clerk's User that `primaryEmail` needs — narrower than

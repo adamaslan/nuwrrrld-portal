@@ -100,7 +100,7 @@
   cursor: pointer;
 }
 .nld-trigger-btn:hover:not(:disabled) { border-color: var(--text-dim); }
-.nld-trigger-btn:disabled { opacity: .5; cursor: progress; }
+.nld-trigger-btn:disabled { opacity: .5; cursor: not-allowed; }
 .nld-trigger-btn--live { border-color: #f59e0b; color: #f59e0b; }
 .nld-trigger-confirm {
   display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;

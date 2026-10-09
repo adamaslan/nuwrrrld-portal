@@ -154,14 +154,45 @@ describe("isNulogdashAdmin", () => {
   });
 });
 
-describe("canPerformAdminAction", () => {
+describe("canPerformAdminAction with the MFA requirement off (default)", () => {
   beforeEach(() => {
     process.env.NULOGDASH_ADMIN_EMAILS = "admin@example.com";
+    delete process.env.NULOGDASH_REQUIRE_MFA;
   });
 
   afterEach(() => {
     if (ORIGINAL_ALLOWLIST === undefined) delete process.env.NULOGDASH_ADMIN_EMAILS;
     else process.env.NULOGDASH_ADMIN_EMAILS = ORIGINAL_ALLOWLIST;
+  });
+
+  it("permits an allowlisted admin without MFA", () => {
+    expect(canPerformAdminAction(user({ twoFactorEnabled: false }))).toBe(true);
+  });
+
+  it("still refuses a non-allowlisted user", () => {
+    expect(canPerformAdminAction(user({ email: "stranger@example.com", twoFactorEnabled: false }))).toBe(false);
+  });
+
+  it("still refuses an unverified allowlisted address", () => {
+    expect(canPerformAdminAction(user({ verified: false }))).toBe(false);
+  });
+
+  it("only treats the exact string 'true' as turning it back on", () => {
+    process.env.NULOGDASH_REQUIRE_MFA = "1";
+    expect(canPerformAdminAction(user({ twoFactorEnabled: false }))).toBe(true);
+  });
+});
+
+describe("canPerformAdminAction with NULOGDASH_REQUIRE_MFA=true", () => {
+  beforeEach(() => {
+    process.env.NULOGDASH_ADMIN_EMAILS = "admin@example.com";
+    process.env.NULOGDASH_REQUIRE_MFA = "true";
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_ALLOWLIST === undefined) delete process.env.NULOGDASH_ADMIN_EMAILS;
+    else process.env.NULOGDASH_ADMIN_EMAILS = ORIGINAL_ALLOWLIST;
+    delete process.env.NULOGDASH_REQUIRE_MFA;
   });
 
   it("permits an allowlisted admin with MFA enrolled", () => {
