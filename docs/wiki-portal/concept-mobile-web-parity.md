@@ -155,6 +155,8 @@ agree in intent but not in code.
 
 > *(Superseded: PR #77 alone took the headline ~66% → ~63%; PRs #78/#79 and mobile PR #39 then moved it to the current figure below.)*
 
+> ℹ️ **Portal followed-tickers fill PR (2026-10-09) assessed — portal-only data and grounding fix, headline unchanged at ~62%.** Adds an Alpaca SIP daily-bar rung to the followed-tickers price chain, a stored-card fallback in council grounding (`lib/council-grounding.ts`), and a one-off backfill script. No `lib/shared/` module is added or changed, so the single-source denominator does not move, and the benchmark stays web-only by decision. See [[incident-2026-10-09-followed-tickers-empty-scorecard-and-judge]].
+
 > ℹ️ **Portal PR #217 (2026-10-04) assessed — portal-only pipeline and correctness fix, headline unchanged at ~62%.** Fixes [[concept-followed-tickers-tracking]], which had never written a production row. The change is server-side (`app/api/pipeline/followed-tickers*`, `lib/followed-tickers-*`, `lib/alpaca-latest-price.ts`), CI gates in five workflows, and additive schema. No `lib/shared/` module is touched and no new shared module is added, so the single-source denominator does not move. The followed-tickers feature is web-only by decision: mobile has no benchmark surface, so the gap is not counted as drift. The price chain (`live_prices` → Alpaca → `daily_bars`, freshness-bounded) is a portal-side data-contract change. Mobile reads `live_prices` differently, so it is not a parity item. See [[incident-2026-10-04-followed-tickers-never-produced-data]].
 
 ## Headline: ~62% synced (2026-08-29, after portal PRs #77/#78/#79 + mobile PR #39 — consent/DSAR land web-only, `attribution.ts` mirrored to mobile)
