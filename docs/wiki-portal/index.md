@@ -97,6 +97,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-exact-offset-and-fresh-price-for-followed-tickers]] — benchmark horizons exit on their own trading-day offset (a missing close voids, never borrows a later one); prices must be dated on or after a freshness bound and record their source
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner
+- [[decision-midday-partial-card-replacement]] — 15:00 UTC hydration run writes partial-bar cards (`is_final=false`) that the 22:30 close run replaces; same-bar replacement rule changed in code and SQL
 - [[decision-modal-backend-skip-before-claim]] — multi-fire jobs (weekly council, Thu+Fri) decide "act today?" before claiming their run key, because a recorded skip makes the later run `not_claimed`
 - [[decision-self-implemented-totp-over-clerk-pro]] — nulogdash's admin mutation gate self-implements TOTP instead of paying for Clerk's $25/mo Pro plan or migrating identity providers
 - [[decision-nulogdash-browser-trigger-handshake]] — the nulogdash pipeline-run buttons are a dry-only → live-only two-action handshake (server-minted single-use token + typed name + prod-DB guard + rate limit), never a client `dryRun` flag
