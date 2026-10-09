@@ -526,7 +526,7 @@ CREATE TABLE IF NOT EXISTS followed_ticker_picks (
   ticker          text        NOT NULL,
   direction       text        NOT NULL CHECK (direction IN ('bull', 'bear')),
   entry_price     numeric     NOT NULL,
-  price_source    text,                       -- live_prices | alpaca_iex | daily_bars
+  price_source    text,                       -- live_prices | alpaca_iex | alpaca_daily_bar | daily_bars
   strength        real,
   signal_category text,
   invalidation    text,                       -- from the council verdict
@@ -546,7 +546,7 @@ CREATE TABLE IF NOT EXISTS followed_ticker_observations (
   pick_id       TEXT        NOT NULL REFERENCES followed_ticker_picks(id) ON DELETE CASCADE,
   observed_on   TEXT        NOT NULL,
   close_price   numeric     NOT NULL,
-  price_source  text,                         -- live_prices | alpaca_iex | daily_bars
+  price_source  text,                         -- live_prices | alpaca_iex | alpaca_daily_bar | daily_bars
   signal_dir    text,                         -- today's direction, for days_held
   backtest_rate real,
   council_json  TEXT,                        -- the structured verdict, verbatim
@@ -571,7 +571,7 @@ CREATE TABLE IF NOT EXISTS followed_ticker_scores (
 );
 CREATE INDEX IF NOT EXISTS followed_ticker_scores_horizon_idx
   ON followed_ticker_scores (horizon, resolved_on DESC);
--- Where entry_price / close_price came from: live_prices | alpaca_iex | daily_bars.
+-- Where entry_price / close_price came from: live_prices | alpaca_iex | alpaca_daily_bar | daily_bars.
 -- Null on rows written before the fallback chain existed.
 -- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 -- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)

@@ -30,7 +30,7 @@ export interface Pick {
 
 /** Where a stored price came from. Recorded on every pick and observation so a
  *  vendor switch is visible in the data, not just in logs. */
-export type PriceSource = "live_prices" | "alpaca_iex" | "daily_bars";
+export type PriceSource = "live_prices" | "alpaca_iex" | "alpaca_daily_bar" | "daily_bars";
 
 export interface NewPick {
   cohortMonth: string;
@@ -183,6 +183,16 @@ export async function upsertObservation(obs: Observation): Promise<void> {
   `;
 }
 
+/** Replace only the council verdict on an existing observation, leaving its price,
+ *  source, signal and backtest fields as the observer wrote them. */
+export async function setObservationCouncil(pickId: string, observedOn: string, councilJson: unknown): Promise<void> {
+  await sql`
+    UPDATE followed_ticker_observations
+    SET council_json = ${councilJson == null ? null : JSON.stringify(councilJson)}
+    WHERE pick_id = ${pickId} AND observed_on = ${observedOn}
+  `;
+}
+
 /** Pick IDs that already have an observation on `observedOn`. The observer uses
  *  this to skip a pick on a second run the same day (the track gate accepts a
  *  whole afternoon window, so a double fire is expected). */
@@ -201,11 +211,11 @@ export async function getPickIdsObservedOn(observedOn: string): Promise<Set<stri
 /** All observations for a pick, oldest first — the price series outcome
  *  scoring reads to find a horizon's close and to compute days_held. */
 export async function getObservations(pickId: string): Promise<
-  Array<{ observedOn: string; closePrice: number; signalDir: string | null }>
+  Array<{ observedOn: string; closePrice: number; signalDir: string | null; councilJson: unknown }>
 > {
   try {
     const rows = await sql`
-      SELECT observed_on, close_price, signal_dir
+      SELECT observed_on, close_price, signal_dir, council_json
       FROM followed_ticker_observations
       WHERE pick_id = ${pickId}
       ORDER BY observed_on ASC
@@ -214,6 +224,7 @@ export async function getObservations(pickId: string): Promise<
       observedOn: new Date(r.observed_on as string).toISOString().slice(0, 10),
       closePrice: Number(r.close_price),
       signalDir: (r.signal_dir as string) ?? null,
+      councilJson: r.council_json ?? null,
     }));
   } catch {
     return [];

@@ -7,16 +7,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/live-price-db", () => ({ getLivePrice: vi.fn() }));
 vi.mock("@/lib/alpaca-latest-price", () => ({ fetchAlpacaLatestTrade: vi.fn() }));
+vi.mock("@/lib/alpaca-daily-bars", () => ({ fetchAlpacaDailyBars: vi.fn() }));
 vi.mock("@/lib/followed-tickers-db", () => ({ getLatestDailyBar: vi.fn() }));
 
 import { getLivePrice } from "@/lib/live-price-db";
 import { fetchAlpacaLatestTrade } from "@/lib/alpaca-latest-price";
+import { fetchAlpacaDailyBars } from "@/lib/alpaca-daily-bars";
 import { getLatestDailyBar } from "@/lib/followed-tickers-db";
 import { nyDateDaysAgo, nyDateOf, resolveFollowedPrice } from "@/lib/followed-tickers-price";
 
 const mockLive = vi.mocked(getLivePrice);
 const mockAlpaca = vi.mocked(fetchAlpacaLatestTrade);
 const mockBar = vi.mocked(getLatestDailyBar);
+const mockSip = vi.mocked(fetchAlpacaDailyBars);
 
 const FRESH_SINCE = "2026-06-01";
 /** 2026-06-03 15:00 ET. */
@@ -29,6 +32,7 @@ beforeEach(() => {
   mockLive.mockResolvedValue(null);
   mockAlpaca.mockResolvedValue(null);
   mockBar.mockResolvedValue(null);
+  mockSip.mockResolvedValue(new Map());
 });
 
 describe("nyDateOf", () => {
@@ -124,5 +128,25 @@ describe("resolveFollowedPrice with closedOn (track runs)", () => {
     mockBar.mockResolvedValue({ barDate: CLOSED_ON, close: 209.1 });
     const out = await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON });
     expect(out).toEqual({ price: 209.1, source: "daily_bars", asOf: CLOSED_ON });
+  });
+});
+
+describe("Alpaca SIP daily bar rung", () => {
+  const CLOSED_ON = "2026-06-03";
+  it("supplies the closed day's close when nothing else has it (evening run)", async () => {
+    mockSip.mockResolvedValue(
+      new Map([["AAPL", [{ date: CLOSED_ON, close: 212.4 }]]]),
+    );
+    const out = await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON });
+    expect(out).toEqual({ price: 212.4, source: "alpaca_daily_bar", asOf: CLOSED_ON });
+    expect(mockBar).not.toHaveBeenCalled();
+  });
+
+  it("ignores a SIP bar from a different session than closedOn", async () => {
+    mockSip.mockResolvedValue(
+      new Map([["AAPL", [{ date: "2026-06-01", close: 200 }]]]),
+    );
+    const out = await resolveFollowedPrice("AAPL", { freshSince: CLOSED_ON, closedOn: CLOSED_ON });
+    expect(out).toBeNull();
   });
 });

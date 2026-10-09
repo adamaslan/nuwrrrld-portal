@@ -21,6 +21,7 @@ import { resolveGrounding, type GroundingRule } from "@/lib/grounding/resolve";
 import type { Horizon, SignalStateInput } from "@/lib/grounding/taxonomy";
 import type { CouncilSeat } from "@/lib/openrouter";
 import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup";
+import { getCard } from "@/lib/ticker-cards-db";
 
 type VerdictDirection = "bullish" | "bearish" | "neutral";
 
@@ -50,9 +51,8 @@ interface SignalData {
  */
 async function fetchSignalData(ticker: string): Promise<SignalData | null> {
   const entry = await fetchTickerEntry(ticker);
-  if (!entry) return null;
-  const text = formatTickerBrief(entry);
-  if (!text) return null;
+  const text = entry ? formatTickerBrief(entry) : null;
+  if (!entry || !text) return fetchCardSignalData(ticker);
 
   // Best-effort structured fields — gcp3's `indicators` field exists but is
   // currently null for every tracked symbol (backend gap, see
@@ -66,6 +66,28 @@ async function fetchSignalData(ticker: string): Promise<SignalData | null> {
   };
 
   return { text, structured };
+}
+
+/**
+ * Fallback when the live gcp3 payload is empty (its /signals endpoint answers
+ * "not found" for symbols it does not track): the portal's own stored card for
+ * the ticker, which is what the cohort and top-signal rankings are built from.
+ * Without it a seat is handed "no grounding data" and answers "no data".
+ */
+async function fetchCardSignalData(ticker: string): Promise<SignalData | null> {
+  const card = await getCard(ticker, "t1");
+  if (!card) return null;
+  const t = card.tokens;
+  const text = [
+    `Action: ${card.action}`,
+    `Signal score: ${card.score} (range -100 to 100; positive is bullish)`,
+    `State: RSI ${t.rsi}, MACD ${t.macd}, ADX ${t.adx}, volume ${t.vol}, confluence ${t.confluence}, direction ${t.direction}`,
+    `Source: stored daily card dated ${card.barDate.slice(0, 10)}, data quality ${card.dataQuality}`,
+  ].join("\n");
+  return {
+    text,
+    structured: { confluenceScore: null, direction: directionFromAction(card.action) },
+  };
 }
 
 async function fetchHitRates(ticker: string): Promise<string | null> {
