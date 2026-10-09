@@ -64,7 +64,8 @@ describe("triggerPipelineRun (dry run)", () => {
     await expect(triggerPipelineRun({ pipeline: "followed-tickers" })).rejects.toThrow();
   });
 
-  it("rejects an allowlisted admin without MFA", async () => {
+  it("rejects an allowlisted admin without MFA when MFA is required", async () => {
+    process.env.NULOGDASH_REQUIRE_MFA = "true";
     asAdmin({ mfa: false });
     await expect(triggerPipelineRun({ pipeline: "followed-tickers" })).rejects.toThrow(/two-factor/i);
   });

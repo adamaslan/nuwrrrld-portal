@@ -78,6 +78,10 @@ test.describe("nulogdash console — admin access", () => {
 });
 
 test.describe("nulogdash console — MFA gate on mutating actions", () => {
+  // The MFA requirement is off by default (lib/nulogdash.ts isAdminMfaRequired);
+  // these only apply when the server runs with NULOGDASH_REQUIRE_MFA=true.
+  test.skip(process.env.NULOGDASH_REQUIRE_MFA !== "true", "MFA requirement is switched off");
+
   test("an admin without a second factor is told why, on both tabs", async ({ page }) => {
     // MfaNotice is rendered by the sweep page; the pipelines page states the
     // same restriction in its own copy. Both matter: an admin who lands on
