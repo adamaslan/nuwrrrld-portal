@@ -18,7 +18,7 @@ that exercises them, and an admin-only console that renders the result at
 | Inventory | `scripts/nulogdash-inventory.mjs` | Cross-checks a hand-authored `FEATURE_META` table against a filesystem scan of `app/api/**/route.ts`. Emits `docs/nulogdash-inventory.json` + drift warnings |
 | Sweep runner | `scripts/nulogdash.mjs` | Calls each inventoried feature against a running server, writes `.nulogdash/latest.json` |
 | Browser merge | `scripts/nulogdash-merge-e2e.mjs` | Folds [[entity-playwright-e2e]]'s JSON reporter output in as `tier: "browser"` rows |
-| Console | `app/dashboard/nulogdash/**` | Two tabs — the feature sweep, and the `pipeline_run_log` reader ([[entity-model-usage-log]]) |
+| Console | `app/dashboard/nulogdash/**` | Three tabs — the feature sweep, the `pipeline_run_log` reader ([[entity-model-usage-log]]), and Beta testers (grant/revoke Pro via Clerk metadata, [[entity-billing]]) |
 
 **The inventory is the interesting half.** A route the filesystem scan finds but
 `FEATURE_META` doesn't describe becomes a drift warning *and* an `undocumented-*`

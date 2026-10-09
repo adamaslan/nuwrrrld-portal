@@ -40,7 +40,7 @@ export function MfaNotice() {
 
 /** Tab strip shared with /dashboard/nulogdash/pipelines. Lives here because
  * the feature sweep is the console's root; the pipelines page imports it. */
-export function NulogdashTabs({ active }: { active: "sweep" | "pipelines" }) {
+export function NulogdashTabs({ active }: { active: "sweep" | "pipelines" | "beta" }) {
   return (
     <nav className="nld-tabs" aria-label="nulogdash sections">
       <Link
@@ -56,6 +56,13 @@ export function NulogdashTabs({ active }: { active: "sweep" | "pipelines" }) {
         aria-current={active === "pipelines" ? "page" : undefined}
       >
         Pipeline runs
+      </Link>
+      <Link
+        href="/dashboard/nulogdash/beta"
+        className={`nld-tab${active === "beta" ? " nld-tab--active" : ""}`}
+        aria-current={active === "beta" ? "page" : undefined}
+      >
+        Beta testers
       </Link>
     </nav>
   );
