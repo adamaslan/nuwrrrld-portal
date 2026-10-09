@@ -11,6 +11,8 @@
  *     npx tsx --env-file=.env.local scripts/backfill-followed-tickers.ts --apply
  *   Also generate verdicts for the latest observation (free-tier model calls):
  *     npx tsx --env-file=.env.local scripts/backfill-followed-tickers.ts --apply --council
+ *   Re-run only for picks whose latest observation has no usable verdict yet:
+ *     npx tsx --env-file=.env.local scripts/backfill-followed-tickers.ts --apply --council --only-missing
  *
  * Closes come from Alpaca SIP daily bars (split-adjusted), the same source as the
  * entry prices. An existing observation is never overwritten, and a session that
@@ -33,6 +35,16 @@ const COUNCIL_PAUSE_MS = 1_500;
 
 const apply = process.argv.includes("--apply");
 const withCouncil = process.argv.includes("--council");
+const onlyMissing = process.argv.includes("--only-missing");
+
+/** A stored verdict that is just the model saying it had no data. */
+const NO_DATA_VERDICT = /no (grounding )?data/i;
+
+function hasUsableVerdict(councilJson: unknown): boolean {
+  if (!councilJson || typeof councilJson !== "object") return false;
+  const because = (councilJson as { because?: unknown }).because;
+  return typeof because === "string" && !NO_DATA_VERDICT.test(because);
+}
 
 /** Latest NY session date whose close is final: today once settled past 16:00 ET,
  *  otherwise the previous calendar day (non-sessions simply have no bar). */
@@ -110,6 +122,7 @@ async function main(): Promise<void> {
 
     if (withCouncil && apiKey && series.length > 0) {
       const latest = series[series.length - 1];
+      if (onlyMissing && hasUsableVerdict(latest.councilJson)) continue;
       let result = await councilVerdictFor(pick.ticker, apiKey);
       // The free-tier chain returns an empty completion often enough that one
       // retry meaningfully raises coverage; more would just burn quota.

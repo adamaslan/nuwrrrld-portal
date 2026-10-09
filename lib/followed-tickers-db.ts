@@ -201,11 +201,11 @@ export async function getPickIdsObservedOn(observedOn: string): Promise<Set<stri
 /** All observations for a pick, oldest first — the price series outcome
  *  scoring reads to find a horizon's close and to compute days_held. */
 export async function getObservations(pickId: string): Promise<
-  Array<{ observedOn: string; closePrice: number; signalDir: string | null }>
+  Array<{ observedOn: string; closePrice: number; signalDir: string | null; councilJson: unknown }>
 > {
   try {
     const rows = await sql`
-      SELECT observed_on, close_price, signal_dir
+      SELECT observed_on, close_price, signal_dir, council_json
       FROM followed_ticker_observations
       WHERE pick_id = ${pickId}
       ORDER BY observed_on ASC
@@ -214,6 +214,7 @@ export async function getObservations(pickId: string): Promise<
       observedOn: new Date(r.observed_on as string).toISOString().slice(0, 10),
       closePrice: Number(r.close_price),
       signalDir: (r.signal_dir as string) ?? null,
+      councilJson: r.council_json ?? null,
     }));
   } catch {
     return [];
