@@ -609,6 +609,604 @@ mechanical defect classes before a paid reviewer spends a cycle on them.
 
 ---
 
+## 8. Source as implemented
+
+The code that exists on branch `feat/free-pr-review`, copied verbatim. The files on disk are authoritative; this section is a snapshot. It supersedes the MVP heredoc in §5 Step 2 (the §5 commands that call `scripts/free-pr-review.mjs` still work).
+
+Run it:
+
+```bash
+cd ~/code/nuwrrrld-portal && set -a && source <(grep -E '^OPENROUTER_API_KEY=' .env.local) && set +a && gh pr diff "$(gh pr view --json number -q .number)" | node scripts/free-pr-review.mjs
+```
+
+Add `--no-verify` to skip the verifier pass. Check model competence with `node scripts/review/eval.mjs`.
+
+### `scripts/free-pr-review.mjs`
+
+```js
+// free-pr-review — lens × file review of a PR diff using only verified-$0 OpenRouter models.
+// Usage: gh pr diff <n> | node scripts/free-pr-review.mjs [--no-verify]     (DEBUG=1 for raw model text)
+// Exit: 1 missing key · 2 free-ness unverified · 3 a call was billed.
+import { readFileSync } from 'node:fs';
+import { readDeclaredChain, verifyFreeChain } from './review/core.mjs';
+import { reviewDiff } from './review/review-diff.mjs';
+
+const key = process.env.OPENROUTER_API_KEY;
+if (!key) { console.error('OPENROUTER_API_KEY not set'); process.exit(1); }
+
+const { verified, dropped } = await verifyFreeChain(readDeclaredChain());
+const result = await reviewDiff(readFileSync(0, 'utf8'), { chain: verified, key, verify: !process.argv.includes('--no-verify') });
+console.log(JSON.stringify({ ...result, freeCheck: { verified, dropped, billedCost: 0 } }, null, 2));
+```
+
+### `scripts/review/core.mjs`
+
+```js
+// Shared pieces of the free-model PR reviewer: free-model verification, diff
+// splitting, lens routing, quote anchoring and the model call. Pure helpers are
+// exported separately so tests can reach them without touching the network.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+export const OPENROUTER_URL = 'https://openrouter.ai/api/v1';
+export const MAX_FILE_DIFF_CHARS = 6000;
+export const MAX_TOKENS = 2000; // reasoning models burn ~300 tokens thinking before JSON
+const SKIP_FILE = /\.(md|json|lock|html|svg|png|jpg)$|(^|\/)package-lock\.json$/;
+const MIN_QUOTE_CHARS = 8;
+
+export const EXIT_UNVERIFIED_FREE = 2;
+export const EXIT_BILLED = 3;
+
+export function loadLenses() {
+  return JSON.parse(readFileSync(path.join(HERE, 'lenses.json'), 'utf8'));
+}
+
+export function readDeclaredChain(repoRoot = process.cwd()) {
+  const src = readFileSync(path.join(repoRoot, 'lib/openrouter.ts'), 'utf8');
+  const body = src.match(/FREE_MODEL_CHAIN = \[([\s\S]*?)\]/)?.[1] ?? '';
+  return [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+
+// Same rule as scripts/refresh-free-models.mjs isFree(): prompt and completion
+// price present and 0, request price 0 or absent.
+export function isFree(pricing) {
+  if (!pricing || typeof pricing !== 'object') return false;
+  const presentAndZero = (v) => v !== undefined && v !== null && Number(v) === 0;
+  const zeroOrAbsent = (v) => v === undefined || v === null || Number(v) === 0;
+  return presentAndZero(pricing.prompt) && presentAndZero(pricing.completion) && zeroOrAbsent(pricing.request);
+}
+
+// Free check 1: re-verify every declared id against the live catalog. Fails closed.
+export async function verifyFreeChain(declared) {
+  const res = await fetch(`${OPENROUTER_URL}/models`).catch(() => null);
+  if (!res?.ok) fail('free-check: OpenRouter /models unreachable — refusing to run unverified', EXIT_UNVERIFIED_FREE);
+  const catalog = new Map(((await res.json())?.data ?? []).map((m) => [m.id, m]));
+  const verified = declared.filter((id) => id.endsWith(':free') && isFree(catalog.get(id)?.pricing));
+  const dropped = declared.filter((id) => !verified.includes(id));
+  console.error(`free-check: ${verified.length}/${declared.length} chain models verified $0${dropped.length ? ` — dropped: ${dropped.join(', ')}` : ''}`);
+  if (verified.length === 0) fail('free-check: no verified-free model left — aborting', EXIT_UNVERIFIED_FREE);
+  return { verified, dropped };
+}
+
+function fail(message, code) {
+  console.error(message);
+  process.exit(code);
+}
+
+export function splitDiff(diff) {
+  return diff.split(/^diff --git /m).slice(1)
+    .map((block) => ({ path: block.match(/ b\/(\S+)/)?.[1], body: block }))
+    .filter((f) => f.path)
+    .map((f) => ({
+      ...f,
+      skipped: SKIP_FILE.test(f.path),
+      truncated: f.body.length > MAX_FILE_DIFF_CHARS,
+      body: f.body.slice(0, MAX_FILE_DIFF_CHARS),
+    }));
+}
+
+// Minimal glob: `**` spans directories, `*` stays within one segment.
+export function globToRegExp(glob) {
+  const re = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*\//g, '\u0000').replace(/\*\*/g, '\u0001').replace(/\*/g, '[^/]*')
+    .replace(/\u0000/g, '(?:.*/)?').replace(/\u0001/g, '.*');
+  return new RegExp(`^${re}$`);
+}
+
+export function lensesForPath(lenses, filePath) {
+  return lenses.filter((l) => l.paths.some((g) => globToRegExp(g).test(filePath)));
+}
+
+// New-file line number of the first added line containing `quote`, or null when
+// no + line matches (the finding is unanchored and gets dropped).
+export function addedLineNumber(body, quote) {
+  let newLine = 0;
+  for (const l of body.split('\n')) {
+    const hunk = l.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
+    if (hunk) { newLine = Number(hunk[1]); continue; }
+    if (l.startsWith('+++') || l.startsWith('---') || !newLine) continue;
+    if (l.startsWith('+')) {
+      if (l.includes(quote)) return newLine;
+      newLine++;
+    } else if (!l.startsWith('-')) {
+      newLine++;
+    }
+  }
+  return null;
+}
+
+export function anchorQuote(body, rawQuote) {
+  const quote = (rawQuote ?? '').replace(/^\+/, '').trim();
+  const line = quote.length > MIN_QUOTE_CHARS ? addedLineNumber(body, quote) : null;
+  return { quote, line, anchored: line !== null };
+}
+
+export function lensPrompt(question, file, contextPack = '') {
+  return [
+    'You review ONE file diff for ONE question.',
+    `QUESTION: ${question}`,
+    'Lines starting with + are new. Judge only + lines.',
+    'Reply with ONLY JSON: {"answer":"yes|no","quote":"exact + line copied from the diff","why":"one sentence"}',
+    contextPack && `DEFINITIONS the changed code calls (already correct, do not review them):\n${contextPack}`,
+    `FILE: ${file.path}\n${file.body}`,
+    'Answer "no" unless you can copy the exact line. Output starts with { and ends with }.',
+  ].filter(Boolean).join('\n');
+}
+
+function parseJson(text) {
+  const json = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!json) return null;
+  try { return JSON.parse(json); } catch { return null; }
+}
+
+// Walks `chain` until a model returns parseable JSON. Free check 2: every
+// response must report a billed usage.cost of exactly 0, otherwise the run stops.
+export async function ask(chain, content, { key } = {}) {
+  for (const model of chain) {
+    const r = await fetch(`${OPENROUTER_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'X-Title': 'free-pr-review' },
+      body: JSON.stringify({
+        model, temperature: 0, max_tokens: MAX_TOKENS, reasoning: { effort: 'low' },
+        usage: { include: true }, messages: [{ role: 'user', content }],
+      }),
+    }).catch(() => null);
+    if (!r?.ok) continue;
+    const payload = await r.json().catch(() => null);
+    // OpenRouter can return HTTP 200 with an error body (provider overloaded); nothing ran, nothing billed.
+    if (!payload || payload.error || !payload.choices?.length) continue;
+    const cost = payload?.usage?.cost;
+    if (cost !== 0) fail(`free-check: ${model} reported usage.cost=${cost} — stopping before another call`, EXIT_BILLED);
+    const msg = payload?.choices?.[0]?.message ?? {};
+    const text = msg.content || msg.reasoning || '';
+    if (process.env.DEBUG) console.error(model, JSON.stringify(text).slice(0, 300));
+    const parsed = parseJson(text);
+    if (parsed) return { model, ...parsed };
+  }
+  return null;
+}
+
+export function vendorOf(modelId) {
+  return modelId.split('/')[0];
+}
+```
+
+### `scripts/review/review-diff.mjs`
+
+```js
+// The review spine: split → route lenses → context pack → finder → anchor → verifier.
+// Used by scripts/free-pr-review.mjs and scripts/review/eval.mjs.
+import { ask, anchorQuote, lensPrompt, lensesForPath, loadLenses, splitDiff } from './core.mjs';
+import { buildContextPack } from './context-pack.mjs';
+import { verifyFinding } from './verify.mjs';
+
+export async function reviewDiff(diff, { chain, key, verify = true, repoRoot = process.cwd(), lenses = loadLenses() }) {
+  const files = splitDiff(diff);
+  const tally = { yes: 0, no: 0, unanswered: 0 };
+  const served = {};
+  const findings = [];
+  const skipped = files.filter((f) => f.skipped).map((f) => ({ path: f.path, reason: 'non-code file' }));
+  const truncated = files.filter((f) => !f.skipped && f.truncated).map((f) => f.path);
+  let calls = 0;
+
+  for (const file of files.filter((f) => !f.skipped)) {
+    const routed = lensesForPath(lenses, file.path);
+    if (routed.length === 0) { skipped.push({ path: file.path, reason: 'no lens routed' }); continue; }
+    const pack = buildContextPack(file.body, diff, repoRoot);
+    for (const lens of routed) {
+      calls++;
+      const res = await ask(chain, lensPrompt(lens.question, file, pack), { key });
+      if (!res) { tally.unanswered++; continue; }
+      served[res.model] = (served[res.model] ?? 0) + 1;
+      if (res.answer !== 'yes') { tally.no++; continue; }
+      tally.yes++;
+      const anchor = anchorQuote(file.body, res.quote);
+      findings.push({ file: file.path, lens: lens.id, severity: lens.severity, model: res.model, why: res.why, pack, ...anchor });
+    }
+  }
+
+  const verifyTally = { real: 0, false: 0, unanswered: 0 };
+  if (verify) {
+    for (const f of findings.filter((x) => x.anchored)) {
+      const v = await verifyFinding(chain, f, f.pack, key);
+      Object.assign(f, { verdict: v.verdict, verdictReason: v.reason, verifier: v.verifier });
+      verifyTally[v.verdict]++;
+      calls++;
+    }
+  }
+  for (const f of findings) delete f.pack;
+  return { files: files.length, calls, tally, verifyTally: verify ? verifyTally : null, served, skipped, truncated, findings };
+}
+
+// A finding is reportable when anchored and not refuted by the verifier.
+// Unanswered verification stays visible instead of being dropped.
+export function reportable(findings) {
+  return findings.filter((f) => f.anchored && f.verdict !== 'false');
+}
+```
+
+### `scripts/review/context-pack.mjs`
+
+```js
+// Context pack: definitions of identifiers a diff calls, so the model stops
+// flagging correct code whose signature lives in another file.
+import { execFileSync } from 'node:child_process';
+
+const MAX_PACK_CHARS = 2000;
+const DEFINITION_LINES = 15;
+const MAX_IDENTIFIERS = 8;
+const IDENTIFIER = /\b([A-Za-z_$][\w$]{3,})\s*\(/g;
+const NOISE = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'await', 'async', 'require',
+  'fetch', 'JSON', 'parse', 'stringify', 'push', 'map', 'filter', 'then', 'json', 'text', 'join', 'slice', 'includes']);
+
+export function calledIdentifiers(body) {
+  const names = new Set();
+  for (const line of body.split('\n')) {
+    if (!line.startsWith('+') || line.startsWith('+++')) continue;
+    for (const m of line.matchAll(IDENTIFIER)) if (!NOISE.has(m[1])) names.add(m[1]);
+  }
+  return [...names].slice(0, MAX_IDENTIFIERS);
+}
+
+function definitionFromDiff(diff, name) {
+  const lines = diff.split('\n');
+  const re = new RegExp(`(function\\s+${name}\\b|const\\s+${name}\\s*=)`);
+  const at = lines.findIndex((l) => l.startsWith('+') && re.test(l));
+  if (at < 0) return null;
+  return lines.slice(at, at + DEFINITION_LINES).map((l) => l.replace(/^\+/, '')).join('\n');
+}
+
+// Looks only in tracked files, matches the exported definition, never writes.
+function definitionFromRepo(name, repoRoot) {
+  let hit;
+  try {
+    hit = execFileSync('git', ['grep', '-n', '-E', `export (async )?(function|const) ${name}\\b`, '--', '*.ts', '*.tsx', '*.mjs'],
+      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n')[0];
+  } catch { return null; }
+  const m = hit?.match(/^([^:]+):(\d+):/);
+  if (!m) return null;
+  const start = Number(m[2]);
+  try {
+    return execFileSync('sed', ['-n', `${start},${start + DEFINITION_LINES - 1}p`, m[1]], { cwd: repoRoot, encoding: 'utf8' });
+  } catch { return null; }
+}
+
+export function buildContextPack(fileBody, fullDiff, repoRoot = process.cwd()) {
+  const parts = [];
+  let used = 0;
+  for (const name of calledIdentifiers(fileBody)) {
+    const def = definitionFromDiff(fullDiff, name) ?? definitionFromRepo(name, repoRoot);
+    if (!def) continue;
+    if (used + def.length > MAX_PACK_CHARS) break;
+    parts.push(def.trimEnd());
+    used += def.length;
+  }
+  return parts.join('\n---\n');
+}
+```
+
+### `scripts/review/verify.mjs`
+
+```js
+// Verifier pass: a second call, preferring a different vendor than the finder,
+// that sees the claimed bug plus the definitions it depends on.
+import { ask, vendorOf } from './core.mjs';
+
+export function verifierChain(chain, finderModel) {
+  const otherVendor = chain.filter((m) => vendorOf(m) !== vendorOf(finderModel));
+  const rest = chain.filter((m) => !otherVendor.includes(m));
+  return [...otherVendor, ...rest];
+}
+
+export function verifyPrompt(finding, contextPack) {
+  return [
+    'Here is a claimed bug, the exact line, and the definitions it depends on.',
+    `CLAIM (${finding.lens}): ${finding.why}`,
+    `LINE: ${finding.quote}`,
+    contextPack && `DEFINITIONS:\n${contextPack}`,
+    'Reply with ONLY JSON: {"verdict":"real|false","reason":"one sentence"}',
+    'Answer "false" if a definition shown already handles the case. Output starts with { and ends with }.',
+  ].filter(Boolean).join('\n');
+}
+
+// Returns 'real', 'false', or 'unanswered' — never silently drops a finding.
+export async function verifyFinding(chain, finding, contextPack, key) {
+  const res = await ask(verifierChain(chain, finding.model), verifyPrompt(finding, contextPack), { key });
+  if (!res) return { verdict: 'unanswered' };
+  return { verdict: res.verdict === 'false' ? 'false' : res.verdict === 'real' ? 'real' : 'unanswered', reason: res.reason, verifier: res.model };
+}
+```
+
+### `scripts/review/eval.mjs`
+
+```js
+// Golden-set eval: runs planted-bug and known-clean diffs through the reviewer, one
+// chain model at a time, and prints recall/precision per model. Reachable != competent.
+// Usage: node scripts/review/eval.mjs [--min-recall 0.5] [--model <id>]
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readDeclaredChain, verifyFreeChain } from './core.mjs';
+import { reviewDiff } from './review-diff.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const GOLDEN = path.join(HERE, 'golden');
+const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
+const MIN_RECALL = Number(arg('--min-recall', '0.5'));
+
+export function score(expectedLenses, foundLenses) {
+  const expected = new Set(expectedLenses);
+  const found = new Set(foundLenses);
+  const hits = [...found].filter((l) => expected.has(l)).length;
+  return { expected: expected.size, found: found.size, hits };
+}
+
+async function main() {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) { console.error('OPENROUTER_API_KEY not set'); process.exit(1); }
+  const expected = JSON.parse(readFileSync(path.join(GOLDEN, 'expected.json'), 'utf8'));
+  const { verified } = await verifyFreeChain(readDeclaredChain());
+  const models = arg('--model') ? [arg('--model')] : verified;
+  const rows = [];
+
+  for (const model of models) {
+    const total = { expected: 0, found: 0, hits: 0 };
+    for (const name of readdirSync(GOLDEN).filter((f) => f.endsWith('.diff'))) {
+      const diff = readFileSync(path.join(GOLDEN, name), 'utf8');
+      const result = await reviewDiff(diff, { chain: [model], key, verify: false });
+      const s = score(expected[name] ?? [], result.findings.filter((f) => f.anchored).map((f) => f.lens));
+      for (const k of Object.keys(total)) total[k] += s[k];
+      if (result.tally.unanswered) console.error(`${model}: ${result.tally.unanswered} unanswered on ${name}`);
+    }
+    rows.push({ model, recall: total.expected ? total.hits / total.expected : 1, precision: total.found ? total.hits / total.found : 1, ...total });
+  }
+
+  console.table(rows.map((r) => ({ model: r.model, recall: r.recall.toFixed(2), precision: r.precision.toFixed(2), hits: r.hits, expected: r.expected, found: r.found })));
+  const weak = rows.filter((r) => r.recall < MIN_RECALL);
+  if (weak.length) {
+    console.error(`recall below ${MIN_RECALL}: ${weak.map((r) => r.model).join(', ')} — remove from review routing`);
+    process.exit(1);
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) await main();
+```
+
+### `scripts/review/lenses.json`
+
+```json
+[
+  { "id": "null-guard", "paths": ["**/*.ts", "**/*.tsx", "**/*.mjs"], "severity": "medium",
+    "question": "Can a value used in an added line be null, undefined, or an empty array where the code assumes it is present?",
+    "source": "general" },
+  { "id": "error-path", "paths": ["**/*.ts", "**/*.tsx", "**/*.mjs"], "severity": "medium",
+    "question": "Does an added line call fetch, a database, or JSON.parse without handling the failure case?",
+    "source": "general" },
+  { "id": "auth", "paths": ["app/api/**"], "severity": "high",
+    "question": "Does an added API route trust a user id, org id, or role from the request body or query instead of the Clerk session?",
+    "source": ".coderabbit.yaml app/api/**" },
+  { "id": "secret", "paths": ["**/*.ts", "**/*.tsx", "**/*.mjs"], "severity": "high",
+    "question": "Does an added line put a secret, key, token, or internal URL into a NEXT_PUBLIC_ variable, a log, or a response?",
+    "source": ".coderabbit.yaml **/*.ts" },
+  { "id": "webhook-sig", "paths": ["app/api/**"], "severity": "high",
+    "question": "Does an added webhook handler read or trust the request body before verifying the signature?",
+    "source": ".coderabbit.yaml app/api/**" },
+  { "id": "shared-drift", "paths": ["lib/shared/**"], "severity": "high",
+    "question": "Does this diff change a file that is mirrored byte-identical in gcp3-mobile, outside its base-URL seam?",
+    "source": ".coderabbit.yaml lib/shared/**" },
+  { "id": "timeout", "paths": ["**/*.ts", "**/*.tsx", "**/*.mjs"], "severity": "medium",
+    "question": "Does an added fetch to a model or vendor lack an AbortSignal or timeout budget?",
+    "source": "MODEL_CHAIN_WALK_BUDGET_MS incident" },
+  { "id": "test-asserts", "paths": ["__tests__/**", "**/*.test.ts", "**/*.test.tsx"], "severity": "low",
+    "question": "Does an added test lack an assertion that could fail?",
+    "source": "general" },
+  { "id": "fallthrough", "paths": ["lib/openrouter.ts", "lib/**/*chain*", "lib/**/*fallback*"], "severity": "medium",
+    "question": "Does an added fallback chain stop on a status it should retry, or retry a status it should stop on?",
+    "source": "openrouter.ts 403/429 history" }
+]
+```
+
+### `scripts/review/golden/expected.json`
+
+```json
+{
+  "auth-from-body.diff": ["auth", "null-guard", "error-path"],
+  "next-public-secret.diff": ["secret"],
+  "webhook-no-sig.diff": ["webhook-sig"],
+  "clean-refactor.diff": []
+}
+```
+
+### `scripts/review/golden/auth-from-body.diff`
+
+```diff
+diff --git a/app/api/x/route.ts b/app/api/x/route.ts
++++ b/app/api/x/route.ts
+@@ -0,0 +1,6 @@
++export async function POST(req: Request) {
++  const body = await req.json();
++  const userId = body.userId;
++  const rows = await sql`SELECT id FROM portfolios WHERE user_id = ${userId}`;
++  const first = rows[0].id;
++}
+```
+
+### `scripts/review/golden/next-public-secret.diff`
+
+```diff
+diff --git a/lib/config.ts b/lib/config.ts
++++ b/lib/config.ts
+@@ -0,0 +1,2 @@
++export const stripeKey = process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY;
++export const label = "billing";
+```
+
+### `scripts/review/golden/webhook-no-sig.diff`
+
+```diff
+diff --git a/app/api/webhooks/stripe/route.ts b/app/api/webhooks/stripe/route.ts
++++ b/app/api/webhooks/stripe/route.ts
+@@ -0,0 +1,5 @@
++export async function POST(req: Request) {
++  const event = await req.json();
++  if (event.type === "invoice.paid") await grantAccess(event.data.object.customer);
++  return new Response("ok");
++}
+```
+
+### `scripts/review/golden/clean-refactor.diff`
+
+```diff
+diff --git a/lib/format.ts b/lib/format.ts
++++ b/lib/format.ts
+@@ -0,0 +1,3 @@
++export function formatPct(value: number): string {
++  return `${(value * 100).toFixed(1)}%`;
++}
+```
+
+### `__tests__/free-pr-review.test.ts`
+
+```ts
+import { describe, expect, it } from "vitest";
+import { addedLineNumber, anchorQuote, globToRegExp, isFree, lensesForPath, splitDiff } from "../scripts/review/core.mjs";
+import { calledIdentifiers } from "../scripts/review/context-pack.mjs";
+import { verifierChain } from "../scripts/review/verify.mjs";
+
+const DIFF = [
+  "diff --git a/app/api/x/route.ts b/app/api/x/route.ts",
+  "+++ b/app/api/x/route.ts",
+  "@@ -3,2 +10,4 @@",
+  " context line",
+  "-removed line here",
+  "+  const userId = body.userId;",
+  "+  const first = rows[0].id;",
+].join("\n");
+
+describe("isFree", () => {
+  it("requires prompt and completion priced at 0", () => {
+    expect(isFree({ prompt: "0", completion: "0" })).toBe(true);
+    expect(isFree({ prompt: "0", completion: "0", request: "0" })).toBe(true);
+    expect(isFree({ prompt: "0" })).toBe(false);
+    expect(isFree({ prompt: "0", completion: "0.000001" })).toBe(false);
+    expect(isFree({ prompt: "0", completion: "0", request: "0.01" })).toBe(false);
+    expect(isFree(undefined)).toBe(false);
+  });
+});
+
+describe("quote anchoring", () => {
+  it("returns the new-file line of the matching + line", () => {
+    expect(addedLineNumber(DIFF, "const first = rows[0].id;")).toBe(12);
+  });
+  it("rejects quotes from removed lines and short quotes", () => {
+    expect(anchorQuote(DIFF, "removed line here").anchored).toBe(false);
+    expect(anchorQuote(DIFF, "+x").anchored).toBe(false);
+    expect(anchorQuote(DIFF, "+  const userId = body.userId;").line).toBe(11);
+  });
+});
+
+describe("path routing", () => {
+  it("routes by glob and skips non-code files", () => {
+    const lenses = [{ id: "a", paths: ["app/api/**"] }, { id: "b", paths: ["**/*.ts"] }];
+    expect(lensesForPath(lenses, "app/api/x/route.ts").map((l: { id: string }) => l.id)).toEqual(["a", "b"]);
+    expect(lensesForPath(lenses, "lib/x.ts").map((l: { id: string }) => l.id)).toEqual(["b"]);
+    expect(globToRegExp("**/*.ts").test("a.ts")).toBe(true);
+    expect(splitDiff(DIFF.replace(/route\.ts/g, "notes.md"))[0].skipped).toBe(true);
+  });
+});
+
+describe("context pack and verifier routing", () => {
+  it("collects called identifiers from + lines only", () => {
+    expect(calledIdentifiers("+ hasActiveBetaGrant(meta)\n- oldThing(x)\n+ if (ok)")).toEqual(["hasActiveBetaGrant"]);
+  });
+  it("prefers a different vendor for the verifier", () => {
+    const chain = ["nvidia/a:free", "nvidia/b:free", "liquid/c:free"];
+    expect(verifierChain(chain, "nvidia/a:free")[0]).toBe("liquid/c:free");
+  });
+});
+```
+
+### `.claude/commands/freereview.md`
+
+```md
+# /freereview [PR] — Free-model PR review (preview first, post only on a yes)
+
+Reviews a PR with verified-$0 OpenRouter models. Read
+`docs/free-model-pr-review.md` for the design. Output is unverified triage, not
+a replacement for CodeRabbit.
+
+1. **Preflight.** `cd` to the repo, run `gh auth status`, and confirm
+   `grep -cE '^OPENROUTER_API_KEY=.+' .env.local` prints `1`. Never print the key.
+2. **Tools first.** `npx tsc --noEmit` and `npx eslint` on the PR's changed `.ts/.tsx` files.
+3. **Golden check** (skip if run in the last day):
+   `node scripts/review/eval.mjs` — stop if a model's recall is below 0.5.
+4. **Review.** Source the key from `.env.local` without printing it, then
+   `gh pr diff <PR> | node scripts/free-pr-review.mjs | tee <scratchpad>/free-review-pr<PR>.json`.
+   Exit `2` or `3` means the free-ness check stopped the run — report it, don't retry blindly.
+5. **Report** the tally, `verifyTally`, `skipped`, `truncated` and `served`. If
+   `unanswered > 0` or any file was truncated, say the review is **partial**.
+6. **Preview** the inline comments (doc §5 Step 6a). Findings with
+   `verdict: "false"` or `anchored: false` are never posted. `secret` findings
+   get a generic comment with no quote.
+7. **Post only after the user says yes** (doc §5 Step 6b). Event is always `COMMENT`.
+```
+
+### `docs/review-invariants.md`
+
+```md
+# Review invariants — short cards for the free-model reviewer
+
+Each card is ≤5 bullets so a small model can hold it. A lens in
+[`scripts/review/lenses.json`](../scripts/review/lenses.json) pulls **one** card
+into its prompt. They mirror [`.coderabbit.yaml`](../.coderabbit.yaml).
+
+## auth
+- The Clerk session is the source of truth for who is calling.
+- A user id, org id or role in the body or query is untrusted input.
+- Check it against the session before using it in a query.
+
+## secret
+- `NEXT_PUBLIC_*` ships to the client bundle; secrets never go there.
+- Backend and internal service URLs use server-only env vars.
+- Secrets never appear in logs or responses.
+
+## webhook-sig
+- Verify the signature before trusting the body.
+- Read the raw body for verification, then parse.
+
+## shared-drift
+- Mirrored files in `lib/shared/` are byte-identical with `gcp3-mobile/lib/`.
+- Only the declared base-URL seam may differ.
+
+## timeout / fallthrough
+- Every model or vendor fetch gets an `AbortSignal` and counts toward `MODEL_CHAIN_WALK_BUDGET_MS`.
+- Retry on 402, 429 and 5xx; stop on other 4xx.
+```
+
+---
+
 ## See also
 
 - [`lib/openrouter.ts`](../lib/openrouter.ts): the chain, the fallback walk and the timeout budget
