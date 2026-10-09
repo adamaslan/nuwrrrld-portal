@@ -1,6 +1,6 @@
 # Beta Testers — A More Robust Grant System (Proposal)
 
-**Status:** PR 1 (read path) implemented; PRs 2–3 pending · **Drafted:** 2026-10-08
+**Status:** PRs 1–2 implemented (read path, console panel + script); PR 3 (mobile) dropped, see §5 · **Drafted:** 2026-10-08
 **Touches:** `lib/beta-testers.ts`, `lib/subscription-admin.ts`, nulogdash console, mobile `useSubscription`
 **Related:** [entity-billing](wiki-portal/entity-billing.md) (PR #119 env-var incident),
 [concept-sync-requirements](wiki-portal/concept-sync-requirements.md) (web-Pro / mobile-Free asymmetry)
@@ -121,21 +121,18 @@ curl -s "https://api.clerk.com/v1/users/$USER_ID" \
 
 > **Production:** the production `CLERK_SECRET_KEY` exists only in Vercel, not in `.env.local`, so these commands only reach the dev instance. Grant in production through the console panel (§4a), or 🖱 **Dashboard:** https://dashboard.clerk.com → production instance → Users → the user → Metadata → Public.
 
-## 5. Mobile parity
+## 5. Mobile parity — no change needed
 
-This removes the web-Pro / mobile-Free asymmetry with no allowlist in the client:
+Mobile does not derive the tier locally. `lib/useSubscription.ts` in gcp3-mobile calls `GET /api/stripe/subscription` and uses the returned tier, and that route runs `parseSubscriptionMetadataWithAdmin()` → `resolveTier()`. A `publicMetadata.beta` grant therefore reaches mobile the moment PR 1 is deployed, the same way admin and built-in beta overrides already do.
 
-- **Option A (smallest):** mobile `useSubscription` adds the same `hasActiveBetaGrant()` check. The metadata is already on the Clerk user that mobile reads. Put the parser in a new shared, byte-identical module (`lib/beta-grant.ts`), **not** in `lib/subscription.ts`, so that file's byte-identity contract stays untouched.
-- **Option B:** mobile reads `GET /api/stripe/subscription`, which already returns the override-aware tier. That's the fix `concept-sync-requirements` already recommends. It also covers admins, but it's a bigger change.
-
-Recommendation: A now, since it's cheap and pure, and B when the admin asymmetry is worked on.
+The former Option A (a byte-identical `lib/beta-grant.ts` copy plus a client-side check) is **dropped**: it would add a second source of truth and a new drift-check pair for no gain. `lib/beta-grant.ts` stays portal-only. Remaining check: confirm on a device that a granted dev account shows Pro after the portal deploy.
 
 ## 6. Rollout
 
 1. **PR 1, read path:** `hasActiveBetaGrant()` with unit tests (active, expired, malformed, missing), wired into `resolveTier()`, plus a WARN if `BETA_TESTER_EMAILS` is set. With no grants yet, nothing changes.
 2. **Grant the first testers** with §4b against dev, then in production through the dashboard. Check that `/dashboard/signals` shows Pro features for them.
 3. **PR 2, console panel:** list, grant and revoke behind the TOTP gate. Add `scripts/beta-grant.mjs`.
-4. **PR 3, mobile (`gcp3-mobile`):** shared `lib/beta-grant.ts` and the `useSubscription` check (§5A). Refresh the parity wiki pages in both repos.
+4. ~~PR 3, mobile~~ — dropped (§5). Only a device check remains.
 5. **Cleanup:** remove the `BETA_TESTER_EMAILS` parser one release after PR 1.
 
 ## 7. When to move to a table instead
@@ -158,4 +155,4 @@ Even then, have the table **write through** to `publicMetadata.beta`, so the rea
 
 1. Should grants expire by default (for example 90 days), or stay open-ended?
 2. Should a tester who later subscribes through Stripe keep the grant record, or have it cleared on the `checkout.session.completed` webhook?
-3. Is Option A (mobile parses metadata) acceptable, or should mobile wait for Option B?
+3. ~~Mobile option A vs B~~ — moot (§5).

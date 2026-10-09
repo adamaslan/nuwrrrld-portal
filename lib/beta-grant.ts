@@ -41,3 +41,39 @@ export function hasActiveBetaGrant(
   if (!hasValidCalendarDate(expiresAt)) return false;
   return expiry > now.getTime();
 }
+
+/** Default lifetime for a new grant (owner decision, 2026-10-08). */
+export const DEFAULT_GRANT_DAYS = 90;
+const MS_PER_DAY = 86_400_000;
+
+export interface BetaGrant {
+  tier: 'pro';
+  grantedAt: string;
+  expiresAt: string | null;
+  grantedBy: string;
+  note?: string;
+}
+
+/**
+ * Build the `publicMetadata.beta` value. `expiresInDays: null` means no
+ * expiry; undefined means DEFAULT_GRANT_DAYS. Dates are ISO `YYYY-MM-DD`.
+ */
+export function buildBetaGrant(opts: {
+  now?: Date;
+  expiresInDays?: number | null;
+  grantedBy?: string;
+  note?: string;
+}): BetaGrant {
+  const now = opts.now ?? new Date();
+  const days = opts.expiresInDays === undefined ? DEFAULT_GRANT_DAYS : opts.expiresInDays;
+  const expiresAt =
+    days === null ? null : new Date(now.getTime() + days * MS_PER_DAY).toISOString().slice(0, 10);
+  const note = opts.note?.trim().slice(0, 120);
+  return {
+    tier: 'pro',
+    grantedAt: now.toISOString().slice(0, 10),
+    expiresAt,
+    grantedBy: opts.grantedBy ?? 'admin',
+    ...(note ? { note } : {}),
+  };
+}
