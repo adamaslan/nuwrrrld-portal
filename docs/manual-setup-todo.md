@@ -1791,3 +1791,46 @@ Expect one row from each.
 - **Why it can't be code**: needs the key and the model list checked against the OpenRouter dashboard.
 - **Unblocks**: e2e shards 1 and 4 (a visibility assertion and the `AI unavailable` health check); both PRs failed identically with unrelated diffs, and #225 merged past it.
 - **Added**: 2026-10-07
+
+## Added 2026-10-09 — PR #240 e2e failures: portfolio-liveness strict-mode + signals-liveness 25s timeout
+
+### Portfolio liveness: `getByPlaceholder(/ticker/i)` matched two inputs (fixed in code)
+
+- **From**: PR #240 CI — 3 `portfolio-liveness.spec.ts` failures in `beforeEach`.
+- **Cause**: the watchlist panel renders both the "Add ticker (e.g. AAPL)" input and a "Filter N tickers…" input; `/ticker/i` hit both and Playwright strict mode threw. A test bug, not a product bug.
+- **Fix**: the selector is now `/Add ticker/i` (`e2e/frontend/portfolio-liveness.spec.ts`).
+- **Added**: 2026-10-09
+
+**Verify (needs the Clerk test user and `MCP_BACKEND_URL`; otherwise the tests skip):**
+
+```bash
+cd ~/code/nuwrrrld-portal-beta-grant
+npx playwright test --project=frontend e2e/frontend/portfolio-liveness.spec.ts
+```
+Expect: no `strict mode violation` error. Any remaining failure is a backend-state failure, not a selector one.
+
+### Signals liveness: `POST /api/signals/{ticker}/chat` exceeds 25s (budget raised; root cause still open)
+
+- **From**: PR #240 CI — `signals-liveness.spec.ts` for MU, GOOG and SOXX. Same failure as the 2026-09-15 entry above, still unresolved.
+- **Mitigation applied**: per-request timeout 25s → 45s, with `test.setTimeout(90_000)` so the request budget fits inside the test budget. This only separates "slow" from "dead"; it does not fix a route that never answers.
+- **Blocked on**: confirming whether gcp3 serves `/signals/{ticker}/chat` at all. The spec's own diagnostic notes it 404ed for every ticker on 2026-08-18.
+- **Unblocks**: the `signals-liveness` shard going green, or a decision to retire the test.
+- **Added**: 2026-10-09
+
+**Step 1 — time the route directly (read-only; prints a status and seconds, not the URL):**
+
+```bash
+cd ~/code/nuwrrrld-portal-beta-grant
+BASE=$(awk -F= '$1=="MCP_BACKEND_URL"{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)
+curl -s -o /dev/null -w 'status=%{http_code} time=%{time_total}s\n' -m 60 \
+  -X POST -H 'content-type: application/json' \
+  -d '{"question":"What is the current signal and why?"}' "$BASE/signals/SOXX/chat"
+```
+Expect: `status=404` (route not deployed), or `status=200` with a time under 45s. A `time` near 60 means the backend hangs.
+
+**Step 2 — re-run the spec after the backend answers:**
+
+```bash
+npx playwright test --project=frontend e2e/frontend/signals-liveness.spec.ts
+```
+Expect: three passes, or three `diagnosis` annotations on a 503 — never a `TimeoutError`.

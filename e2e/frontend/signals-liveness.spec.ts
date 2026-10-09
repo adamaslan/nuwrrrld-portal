@@ -51,10 +51,13 @@ test.describe("Signal chat (/api/signals/{ticker}/chat) — live backend livenes
   // test, not just liveness for its own sake.
   for (const ticker of ["SOXX", "MU", "GOOG"]) {
     test(`${ticker} — POST /api/signals/${ticker}/chat responds without a 5xx from the portal's own proxy layer`, async ({ page }) => {
+      // Per-request budget (45s) must fit inside the test budget, or the
+      // test dies on the timeout instead of reporting the proxy's status.
+      test.setTimeout(90_000);
       await page.goto("/dashboard/signals");
       const res = await page.request.post(`/api/signals/${ticker}/chat`, {
         data: { question: "What is the current signal and why?" },
-        timeout: 25_000,
+        timeout: 45_000,
       });
 
       // The route (app/api/signals/[ticker]/chat/route.ts) collapses EVERY
