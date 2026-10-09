@@ -79,10 +79,18 @@ byte-identical copy later), then the built-in owner list. A grant counts only
 when `tier` is `pro` and it has no expiry or an expiry in the future; a
 malformed expiry fails closed. Because the grant sits on the Clerk user, it
 survives an email change and needs no deploy. `BETA_TESTER_EMAILS` is
-deprecated and logs a warning if set. Read path only so far; the admin console
-panel, grant script and mobile adoption are tracked in
-`docs/beta-testers-robust-plan.md`. Mobile still resolves tier without the
-grant, so the web-Pro / mobile-Free asymmetry for testers is unchanged.
+deprecated and logs a warning if set.
+
+Admins now manage grants from the **Beta testers** tab of [[entity-nulogdash]]
+(`/dashboard/nulogdash/beta`): list, grant, revoke. Writes are Server Actions
+behind the same MFA gate as pipeline triggers, rate-limited per admin, and only
+accept an account whose matching email is *verified* (Clerk's email filter also
+matches unverified addresses). A person must already have signed up; there is
+no pre-signup invite. Grants are per Clerk instance, so a dev grant does not
+exist in production. `scripts/beta-grant.mjs` does the same from a terminal
+(dev instance only, since the production secret key lives in Vercel). Mobile
+adoption is still pending (`docs/beta-testers-robust-plan.md` §5), so the
+web-Pro / mobile-Free asymmetry for testers is unchanged.
 
 ## Known failures
 
