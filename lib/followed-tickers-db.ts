@@ -30,7 +30,7 @@ export interface Pick {
 
 /** Where a stored price came from. Recorded on every pick and observation so a
  *  vendor switch is visible in the data, not just in logs. */
-export type PriceSource = "live_prices" | "alpaca_iex" | "daily_bars";
+export type PriceSource = "live_prices" | "alpaca_iex" | "alpaca_daily_bar" | "daily_bars";
 
 export interface NewPick {
   cohortMonth: string;
