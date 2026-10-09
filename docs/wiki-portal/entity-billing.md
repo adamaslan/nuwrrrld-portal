@@ -2,7 +2,7 @@
 date: 2026-09-10
 type: entity
 tags: [billing, subscription, stripe, clerk, auth]
-sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/beta-testers.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
+sources: [lib/subscription.ts, lib/subscription-admin.ts, lib/beta-testers.ts, lib/beta-grant.ts, lib/stripe.ts, app/api/stripe/checkout/route.ts, app/api/stripe/portal/route.ts, app/api/webhooks/stripe/route.ts, app/api/webhooks/clerk/route.ts, middleware.ts, docs/clerk-stripe-auth.md, PR#45, PR#119]
 ---
 
 # entity: Billing / Auth (Clerk + Stripe)
@@ -69,6 +69,20 @@ Full architecture writeup with CLI debugging commands (Clerk CLI, Stripe CLI):
   Clerk bearer token) rather than touching Stripe itself — see
   `gcp3-mobile/docs/wiki-mobile/entity-billing.md`, which documents the mobile
   side of this same Clerk-is-the-source-of-truth model.
+
+## Beta grants (Clerk metadata)
+
+Beta-tester Pro no longer depends only on the email lists. `resolveTier()` now
+checks, in order: nulogdash admin, an active **`publicMetadata.beta` grant**
+(`lib/beta-grant.ts`, pure and dependency-free so mobile can adopt a
+byte-identical copy later), then the built-in owner list. A grant counts only
+when `tier` is `pro` and it has no expiry or an expiry in the future; a
+malformed expiry fails closed. Because the grant sits on the Clerk user, it
+survives an email change and needs no deploy. `BETA_TESTER_EMAILS` is
+deprecated and logs a warning if set. Read path only so far; the admin console
+panel, grant script and mobile adoption are tracked in
+`docs/beta-testers-robust-plan.md`. Mobile still resolves tier without the
+grant, so the web-Pro / mobile-Free asymmetry for testers is unchanged.
 
 ## Known failures
 

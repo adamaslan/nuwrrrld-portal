@@ -33,9 +33,18 @@ test.describe("Portfolio panels — live backend liveness", () => {
     // watchlist), so assert on the AAPL item this test just added rather
     // than on ".port-watch-item" generically — that locator strict-mode
     // violates the moment a second pre-existing item is present.
+    // The watchlist panel also renders a "Filter N tickers…" input, so the
+    // placeholder match must be anchored on "Add ticker" — a bare /ticker/i
+    // strict-mode violates (2 elements).
     await page.goto("/dashboard/portfolio");
-    await page.getByPlaceholder(/ticker/i).fill("AAPL");
+    await page.getByPlaceholder(/Add ticker/i).fill("AAPL");
     await page.getByRole("button", { name: "+ Add" }).click();
+    // The list is windowed (WATCHLIST_WINDOW rows of a ~150-ticker watchlist),
+    // so a just-added ticker is usually not rendered. Narrow with the panel's
+    // own filter input before asserting.
+    // The filter only renders for long watchlists, so it is optional here.
+    const filter = page.getByRole("textbox", { name: "Filter watchlist" });
+    if (await filter.count()) await filter.fill("AAPL");
     await expect(page.locator(".port-watch-item", { hasText: "AAPL" })).toBeVisible({ timeout: 10_000 });
   });
 
