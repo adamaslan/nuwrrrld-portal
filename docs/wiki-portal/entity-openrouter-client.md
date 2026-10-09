@@ -135,6 +135,10 @@ invalidate every caller again. As of PR #115 **all six seat primaries are `:free
 - 🟡 (PR #97, partly addressed PR #115) `scripts/refresh-free-models.mjs` already detects a dead/paid `SEAT_MODELS` entry — the **weekly `refresh-free-models.yml` cron already runs it** (not just on-demand), and PR #115 made its exit non-blocking so the seat report can't kill the chain-refresh PR. Still open: nothing *fails a build* on a `DEAD`/`PAID` seat, so a rotted seat is a warning on a weekly PR, not a red check. [[entity-model-usage-log]]'s `⚠ paid` report rows are a second, after-the-fact signal.
 - ❓ (PR #97, **recurred 2026-09-11**) Live-tested against the real catalog with the #9 fixes applied, `__tests__/live/model-chain.live.test.ts`'s 20s `SEAT_LATENCY_BUDGET_MS` failed 6/20 assertions (MACRO/QUANT/CHAIR each hit 20.7–23.8s at least once) — is 20s still the right SLA for an all-reasoning-model chain, or does the chain need at least one fast non-reasoning entry ahead of the slow ones? A second, unrelated full-suite run on 2026-09-11 hit CHAIR at 20.9s and **26.8s** — a new worst outlier, ~3s past PR #97's ceiling. See [[incident-2026-09-11-model-chain-latency-budget-flake]]. (This live suite is excluded from `npm test`/CI, so nothing broke either time — but the tension has now recurred once and the budget still hasn't been re-derived.)
 
+## Also consumed by the PR reviewer
+
+`scripts/review/core.mjs` reads `FREE_MODEL_CHAIN` straight out of this file's source and re-verifies each id is free against the live catalog before use ([[entity-free-pr-reviewer]]). That makes the chain a second, offline consumer: a dead or paid id that the council's fallback walk silently absorbs is reported loudly there (the 2026-10-09 check surfaced a retired `ling-3.0-flash-fin:free` this way, since resolved by PR #211).
+
 ## See also
 
 - [[incident-2026-09-11-nulogdash-blind-sweep]] — the sweep run that surfaced failures #10-#12

@@ -2,7 +2,7 @@
 date: 2026-07-20
 type: concept
 tags: [prompting, small-models, free-tier, verdict, critique]
-sources: [../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37]
+sources: [../../scripts/review/core.mjs, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37]
 ---
 
 # Concept: Small-Model Prompting
@@ -33,6 +33,8 @@ Each numbered section maps to a concrete mechanism in the codebase:
 
 The §8 critique is the clearest example: *"critique the other seats"* produces polite mush from small models, so `extractDirection` + `computeDisagreements` find who actually disagrees on direction **in code**, and only genuinely-disagreeing seats get a round-2 call. Agreeing seats, ties, and undetectable directions skip round 2 entirely.
 
+The same contract now drives a second surface: the PR reviewer's lenses are closed yes/no questions with the critical constraint repeated last and a JSON-only reply ([[entity-free-pr-reviewer]]), with code, not the model, doing anchoring and severity.
+
 ## Contradictions / tensions
 
 > ❓ Open question: the contract targets "the worst model in the chain," but `SEAT_MODELS` assigns *specific* primary models per seat (e.g. Cohere command-r7b for T1's structured output). If a seat falls through to a weaker chain model, is its prompt still reliably parseable? No live-model golden test verifies this in CI ([[entity-ai-council]] open question).
@@ -42,6 +44,7 @@ The §8 critique is the clearest example: *"critique the other seats"* produces 
 ## See also
 
 - [[entity-ai-council]] — the system these techniques serve
+- [[entity-free-pr-reviewer]] — the same contract applied to code review
 - [[entity-openrouter-client]] — where `SEAT_SYSTEM` and the model map live
 - [[concept-verdict-repair-loop]] — §7 made concrete
 - [[decision-four-field-verdict-scaffold]] — §2–3 made concrete

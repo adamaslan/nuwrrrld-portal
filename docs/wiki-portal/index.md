@@ -24,6 +24,7 @@ One page per named component. These are the hubs — everything links to entitie
 **AI Council**
 - [[entity-ai-council]] — the six-seat deliberation system; `app/api/council/*` + `lib/openrouter.ts`
 - [[entity-openrouter-client]] — `lib/openrouter.ts`; seats, model map, `FREE_MODEL_CHAIN`, `runSeat` fallback
+- [[entity-free-pr-reviewer]] — `scripts/free-pr-review.mjs`; lens×file PR triage on verified-$0 models, quote-anchored, with a golden eval
 - [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` + `scripts/seed-paper-portfolios.mjs` + `lib/paper-engine.ts` + `.github/workflows/paper-portfolios.yml` + `lib/paper-arbitration.ts` + `lib/paper-firestore-mirror.ts` + `lib/paper-metrics.ts` + `app/dashboard/council/portfolios/` (Phases 1–6 and 8 merged, PR #124/#127/#128/#137/#138/#140; PR #204 fixed a turnover-cap stop-loss bug, a same-run re-buy-after-stop bug, and implemented CHAIR's consensus + per-seat tie-breaks)
 
 **Grounding**
@@ -92,6 +93,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
 - [[decision-free-tier-model-chain]] — every seat but T1 uses `:free` models; T1 is paid (~$0.20–$0.50/deliberation)
+- [[decision-free-pr-review-lenses-and-verifier]] — review by closed lens questions, quote anchoring and a verifier; free-ness proven at three layers
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
