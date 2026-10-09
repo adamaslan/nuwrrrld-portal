@@ -30,7 +30,9 @@ function definitionFromDiff(diff, name) {
 function definitionFromRepo(name, repoRoot) {
   let hit;
   try {
-    hit = execFileSync('git', ['grep', '-n', '-E', `export (async )?(function|const) ${name}\\b`, '--', '*.ts', '*.tsx', '*.mjs'],
+    // `\b` is a PCRE/JS word boundary, not POSIX ERE — `git grep -E` on macOS
+    // silently never matches it. Use an explicit non-identifier-or-end class instead.
+    hit = execFileSync('git', ['grep', '-n', '-E', `export (async )?(function|const) ${name}([^[:alnum:]_$]|$)`, '--', '*.ts', '*.tsx', '*.mjs'],
       { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n')[0];
   } catch { return null; }
   const m = hit?.match(/^([^:]+):(\d+):/);
@@ -47,7 +49,7 @@ export function buildContextPack(fileBody, fullDiff, repoRoot = process.cwd()) {
   for (const name of calledIdentifiers(fileBody)) {
     const def = definitionFromDiff(fullDiff, name) ?? definitionFromRepo(name, repoRoot);
     if (!def) continue;
-    if (used + def.length > MAX_PACK_CHARS) break;
+    if (used + def.length > MAX_PACK_CHARS) continue;
     parts.push(def.trimEnd());
     used += def.length;
   }

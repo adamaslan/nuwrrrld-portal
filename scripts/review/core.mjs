@@ -14,6 +14,7 @@ const MIN_QUOTE_CHARS = 8;
 
 export const EXIT_UNVERIFIED_FREE = 2;
 export const EXIT_BILLED = 3;
+const FETCH_TIMEOUT_MS = 30_000; // a stuck free-tier provider must not stall the whole run
 
 export function loadLenses() {
   return JSON.parse(readFileSync(path.join(HERE, 'lenses.json'), 'utf8'));
@@ -36,7 +37,7 @@ export function isFree(pricing) {
 
 // Free check 1: re-verify every declared id against the live catalog. Fails closed.
 export async function verifyFreeChain(declared) {
-  const res = await fetch(`${OPENROUTER_URL}/models`).catch(() => null);
+  const res = await fetch(`${OPENROUTER_URL}/models`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }).catch(() => null);
   if (!res?.ok) fail('free-check: OpenRouter /models unreachable — refusing to run unverified', EXIT_UNVERIFIED_FREE);
   const catalog = new Map(((await res.json())?.data ?? []).map((m) => [m.id, m]));
   const verified = declared.filter((id) => id.endsWith(':free') && isFree(catalog.get(id)?.pricing));
@@ -79,10 +80,14 @@ export function lensesForPath(lenses, filePath) {
 // no + line matches (the finding is unanchored and gets dropped).
 export function addedLineNumber(body, quote) {
   let newLine = 0;
+  let sawHunk = false;
   for (const l of body.split('\n')) {
     const hunk = l.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
-    if (hunk) { newLine = Number(hunk[1]); continue; }
-    if (l.startsWith('+++') || l.startsWith('---') || !newLine) continue;
+    if (hunk) { newLine = Number(hunk[1]); sawHunk = true; continue; }
+    // The `+++ b/<path>` / `--- a/<path>` file headers only appear before the
+    // first hunk; after that, a line starting with `+++` or `---` is real
+    // added/removed code (e.g. `+++i;`) and must be counted, not skipped.
+    if ((!sawHunk && (l.startsWith('+++') || l.startsWith('---'))) || l.startsWith('\\') || !newLine) continue;
     if (l.startsWith('+')) {
       if (l.includes(quote)) return newLine;
       newLine++;
@@ -128,13 +133,17 @@ export async function ask(chain, content, { key } = {}) {
         model, temperature: 0, max_tokens: MAX_TOKENS, reasoning: { effort: 'low' },
         usage: { include: true }, messages: [{ role: 'user', content }],
       }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     }).catch(() => null);
+    // A bad key or missing payment method fails every model identically — falling
+    // through to "try the next one" just produces a misleadingly "partial" result.
+    if (r?.status === 401 || r?.status === 402) fail(`free-check: OpenRouter returned ${r.status} (${r.status === 401 ? 'bad key' : 'payment required'}) — stopping`, EXIT_BILLED);
     if (!r?.ok) continue;
     const payload = await r.json().catch(() => null);
     // OpenRouter can return HTTP 200 with an error body (provider overloaded); nothing ran, nothing billed.
     if (!payload || payload.error || !payload.choices?.length) continue;
     const cost = payload?.usage?.cost;
-    if (cost !== 0) fail(`free-check: ${model} reported usage.cost=${cost} — stopping before another call`, EXIT_BILLED);
+    if (cost !== 0) fail(`free-check: ${model} reported usage.cost=${cost ?? 'missing'} — stopping before another call`, EXIT_BILLED);
     const msg = payload?.choices?.[0]?.message ?? {};
     const text = msg.content || msg.reasoning || '';
     if (process.env.DEBUG) console.error(model, JSON.stringify(text).slice(0, 300));

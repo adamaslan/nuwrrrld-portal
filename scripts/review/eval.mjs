@@ -24,7 +24,12 @@ async function main() {
   if (!key) { console.error('OPENROUTER_API_KEY not set'); process.exit(1); }
   const expected = JSON.parse(readFileSync(path.join(GOLDEN, 'expected.json'), 'utf8'));
   const { verified } = await verifyFreeChain(readDeclaredChain());
-  const models = arg('--model') ? [arg('--model')] : verified;
+  const requested = arg('--model');
+  if (requested && !verified.includes(requested)) {
+    console.error(`--model ${requested} is not in the verified-$0 chain — refusing to eval it unverified`);
+    process.exit(1);
+  }
+  const models = requested ? [requested] : verified;
   const rows = [];
 
   for (const model of models) {

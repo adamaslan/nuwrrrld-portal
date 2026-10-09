@@ -33,6 +33,24 @@ describe("quote anchoring", () => {
     expect(anchorQuote(DIFF, "+x").anchored).toBe(false);
     expect(anchorQuote(DIFF, "+  const userId = body.userId;").line).toBe(11);
   });
+
+  it("does not count a '\\ No newline at end of file' marker as a line", () => {
+    const noNewline = [
+      "diff --git a/x.ts b/x.ts",
+      "+++ b/x.ts",
+      "@@ -1,1 +1,2 @@",
+      "-old",
+      "\\ No newline at end of file",
+      "+old",
+      "+const target = 1;",
+    ].join("\n");
+    expect(addedLineNumber(noNewline, "const target = 1;")).toBe(2);
+  });
+
+  it("counts an added line that happens to start with '+++' as code, not a file header", () => {
+    const plusPlus = "@@ -1,0 +1,3 @@\n+++i;\n+const target = 1;";
+    expect(addedLineNumber(plusPlus, "const target = 1;")).toBe(2);
+  });
 });
 
 describe("path routing", () => {
