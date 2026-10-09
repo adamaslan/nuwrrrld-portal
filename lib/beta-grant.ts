@@ -10,6 +10,16 @@
  */
 
 /** `now` is injectable so expiry is testable without fake timers. */
+const LEADING_ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})/;
+
+function hasValidCalendarDate(value: string): boolean {
+  const match = LEADING_ISO_DATE.exec(value);
+  if (!match) return true; // non-ISO forms are left to Date.parse's own result
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 export function hasActiveBetaGrant(
   publicMetadata: Record<string, unknown> | null | undefined,
   now: Date = new Date(),
@@ -26,5 +36,8 @@ export function hasActiveBetaGrant(
   const expiry = Date.parse(expiresAt);
   // A malformed expiry fails closed — a typo must not become a permanent grant.
   if (Number.isNaN(expiry)) return false;
+  // Date.parse normalizes impossible calendar dates ("2027-02-30" → Mar 2), so
+  // the leading Y-M-D must round-trip or the grant is treated as malformed.
+  if (!hasValidCalendarDate(expiresAt)) return false;
   return expiry > now.getTime();
 }

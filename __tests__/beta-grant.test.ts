@@ -18,6 +18,7 @@ describe("hasActiveBetaGrant", () => {
   it("fails closed on a malformed expiry or non-string expiry", () => {
     expect(hasActiveBetaGrant({ beta: { tier: "pro", expiresAt: "soon" } }, NOW)).toBe(false);
     expect(hasActiveBetaGrant({ beta: { tier: "pro", expiresAt: 12345 } }, NOW)).toBe(false);
+    expect(hasActiveBetaGrant({ beta: { tier: "pro", expiresAt: "2027-02-30" } }, NOW)).toBe(false);
   });
 
   it("rejects non-pro tiers and malformed or missing grants", () => {

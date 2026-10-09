@@ -95,7 +95,7 @@ cd ~/code/nuwrrrld-portal
 set -a; source .env.local; set +a
 curl -s -G https://api.clerk.com/v1/users \
   -H "Authorization: Bearer $CLERK_SECRET_KEY" \
-  --data-urlencode "email_address=jeremy.odell01@gmail.com" | jq '.[0].id'
+  --data-urlencode "email_address=${TESTER_EMAIL:?export TESTER_EMAIL=<the tester's dev-instance email> first}" | jq '.[0].id'
 ```
 
 Expect a `"user_..."` ID. `null` means they haven't signed up on this instance yet.
@@ -105,7 +105,7 @@ Expect a `"user_..."` ID. `null` means they haven't signed up on this instance y
 ```bash
 USER_ID=$(curl -s -G https://api.clerk.com/v1/users \
   -H "Authorization: Bearer $CLERK_SECRET_KEY" \
-  --data-urlencode "email_address=jeremy.odell01@gmail.com" | jq -r '.[0].id')
+  --data-urlencode "email_address=${TESTER_EMAIL:?export TESTER_EMAIL=<the tester's dev-instance email> first}" | jq -r '.[0].id')
 curl -s -X PATCH "https://api.clerk.com/v1/users/$USER_ID/metadata" \
   -H "Authorization: Bearer $CLERK_SECRET_KEY" -H "Content-Type: application/json" \
   -d "{\"public_metadata\":{\"beta\":{\"tier\":\"pro\",\"grantedAt\":\"$(date +%F)\",\"expiresAt\":null,\"grantedBy\":\"admin\"}}}" \

@@ -43,9 +43,12 @@ const BUILT_IN_BETA_TESTERS: readonly string[] = ['chillcoders@gmail.com'];
  * Kept for one release; warns if set, since it silently grants nothing
  * wherever it was not configured.
  */
+let warnedEnvDeprecation = false;
+
 function allowlist(): string[] {
   const rawEnv = process.env.BETA_TESTER_EMAILS ?? '';
-  if (rawEnv.trim()) {
+  if (rawEnv.trim() && !warnedEnvDeprecation) {
+    warnedEnvDeprecation = true;
     console.warn(
       '[beta-testers] BETA_TESTER_EMAILS is deprecated; grant via Clerk publicMetadata.beta (docs/beta-testers-robust-plan.md)',
     );
