@@ -814,6 +814,7 @@ def tick() -> list[str]:
         nc.JOB_LABEL: lambda: news_label_outcomes.spawn(),
         nc.JOB_EVAL: lambda: news_accuracy_eval.spawn(),
         nc.JOB_POLLER: lambda: alpaca_live_poller.spawn(),
+        nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None),  # separate from news_ingest's targeted scoring
     }
     due = nc.due_jobs(_utcnow())
     for job in due:

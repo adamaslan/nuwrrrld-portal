@@ -400,6 +400,9 @@ class TestScheduler:
         assert nc.JOB_CORROBORATE not in nc.due_jobs(self.at(2026, 10, 8, 10, 15))
 
     def test_daily_slots(self):
+        assert nc.JOB_SCORE_BACKLOG in nc.due_jobs(self.at(2026, 10, 8, 17, 30))
+        assert nc.JOB_SCORE_BACKLOG not in nc.due_jobs(self.at(2026, 10, 8, 17, 31))
+        assert nc.JOB_SCORE_BACKLOG not in nc.due_jobs(self.at(2026, 10, 10, 17, 30))   # Saturday
         assert nc.JOB_AGGREGATE_PREVIEW in nc.due_jobs(self.at(2026, 10, 8, 9, 20))
         assert nc.JOB_AGGREGATE_FINAL in nc.due_jobs(self.at(2026, 10, 8, 16, 5))
         assert nc.JOB_AGGREGATE_FINAL in nc.due_jobs(self.at(2026, 10, 8, 16, 25))   # retry slot

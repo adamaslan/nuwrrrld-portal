@@ -742,12 +742,14 @@ JOB_AGGREGATE_PREVIEW = "news_aggregate_preview"
 JOB_LABEL = "news_label_outcomes"
 JOB_EVAL = "news_accuracy_eval"
 JOB_POLLER = "alpaca_live_poller"
+JOB_SCORE_BACKLOG = "news_score_backlog"
 
 # Retry slots exist because a cron tick can be skipped; each job is idempotent
 # (a finished final aggregate / label / eval no-ops on the retry).
 _FINAL_AGGREGATE_SLOTS = ((16, 5), (16, 25))
 _LABEL_SLOTS = ((19, 0), (19, 30))
 _EVAL_SLOTS = ((10, 0), (10, 30))
+_SCORE_BACKLOG_SLOT = (17, 30)  # after the final aggregate, so ingest-time scoring misses are caught before the next session
 
 
 def due_jobs(now: datetime) -> list[str]:
@@ -776,6 +778,8 @@ def due_jobs(now: datetime) -> list[str]:
         due.append(JOB_AGGREGATE_FINAL)
     if on_weekday and clock in _LABEL_SLOTS:
         due.append(JOB_LABEL)
+    if on_weekday and clock == _SCORE_BACKLOG_SLOT:
+        due.append(JOB_SCORE_BACKLOG)
     if weekday == 5 and clock in _EVAL_SLOTS:
         due.append(JOB_EVAL)
     return due
