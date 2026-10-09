@@ -1,0 +1,6 @@
+{
+  "auth-from-body.diff": ["auth", "null-guard", "error-path"],
+  "next-public-secret.diff": ["secret"],
+  "webhook-no-sig.diff": ["webhook-sig"],
+  "clean-refactor.diff": []
+}

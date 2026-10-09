@@ -1,0 +1,9 @@
+diff --git a/app/api/x/route.ts b/app/api/x/route.ts
++++ b/app/api/x/route.ts
+@@ -0,0 +1,6 @@
++export async function POST(req: Request) {
++  const body = await req.json();
++  const userId = body.userId;
++  const rows = await sql`SELECT id FROM portfolios WHERE user_id = ${userId}`;
++  const first = rows[0].id;
++}
