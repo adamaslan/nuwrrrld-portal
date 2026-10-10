@@ -74,6 +74,7 @@ Cross-cutting patterns and design choices.
 - [[concept-public-surface-audit]] — which 4 of 44 routes are truly unauthenticated, the amplification bug found on the cheapest one, and why a grep can't prove a property is absent
 - [[concept-test-strategy]] — the three vitest projects, why `live` is opt-in, the stub/live pairing rule, and why nothing runs the suite in CI
 - [[concept-live-backend-liveness-tests]] — how to test the portal against real gcp3/OpenRouter data (add a real ticker, run each panel for real); found 3 live incidents mocked tests couldn't
+- [[concept-gha-cloud-parity]] — GitHub Actions brought toward Modal/GCP reliability: write-safe retries, an NYSE-calendar gate, CI for the Modal Python code, and what's still missing (on-time start, a shared idempotency ledger)
 - [[concept-free-tier-resilience]] — the layered machinery keeping $0 inference reliable, and the account-wide quota ceiling it wasn't designed for
 - [[concept-three-state-signal]] — absent vs measured-negative vs measured-positive; collapsing the first two emptied the entire top-N ranking
 - [[concept-signal-engine-host-parity]] — three engines write one `ticker_cards` table; the raw indicators are pinned, but `confluence` drifted (Modal = full signals-app port, JS = pre-port vote) and the portal's re-score absorbs the sign but not the posted direction/magnitude

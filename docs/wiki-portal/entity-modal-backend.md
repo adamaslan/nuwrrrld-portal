@@ -22,6 +22,8 @@ Status at ingest: **written and tested, never deployed.** The suite passes again
 
 ## Known failures
 
+- **No CI until 2026-10-10.** The 241 tests ran only on a laptop with local Postgres. `ci.yml` › `modal-python` now runs them against a Postgres service on every PR, along with the news pipeline's 85, and `requirements.txt` is test-pinned to the image's inline package list. See [[concept-gha-cloud-parity]].
+
 - **Run-key claim and skip interact badly for multi-fire crons.** A job that fires on several days under one key (the weekly council fires Thu and Fri under one ISO-week key) must decide "should I act today?" *before* claiming the key. A recorded skip counts as done, so the later run sees `not_claimed`. Found by the first real run of the ops tests; fixed by checking before the claim.
 - **Default-argument `time.sleep` is invisible to test patches.** Entry points bound the real sleep at import, so a test that patched `time.sleep` still waited minutes. Now resolved at call time. The same trap is worth checking in any new polling code here.
 - Entrypoints that pass a date to a helper must pass their own `today`; one helper read the real clock instead.

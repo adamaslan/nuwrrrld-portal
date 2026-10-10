@@ -251,6 +251,9 @@ paper table empty. Two of three independent blockers are addressed in code:
 
 ## Open questions
 
+> 2026-10-10: the workflow has a `dry_run` input (gate, slot, secrets and deploy check; no `live_prices` write, no POST), because the route has none. Its gate also consults the NYSE calendar through `.github/actions/market-gate`, so weekday holidays are skipped. The run POST retries only connect errors and 429/502/503, never a timeout, since a timed-out slot may already have traded. See [[concept-gha-cloud-parity]].
+
+
 Carried from the design doc's §11: reset cadence (leaning never); whether RISK
 needs shorts to be a fair test of its mandate. **CHAIR's book question is now
 resolved** — see the PR #204 section below: it reads a weighted consensus of
