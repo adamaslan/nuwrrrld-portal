@@ -94,3 +94,63 @@ jobs:
           WEB_ROOT: .
           MOBILE_ROOT: ../gcp3-mobile
         run: node scripts/check-shared-drift.mjs
+
+  modal-python:
+    # deploy/modal-backend (241 tests) and deploy/aws-modal-news (85) had no CI
+    # at all (docs/gha-tests-and-cloud-parity.md §3.3 C). The DB tests need a
+    # real Postgres; conftest.py creates and drops a throwaway database per run.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['54329:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: deploy/modal-backend/requirements*.txt
+
+      # A CI runner, not a dev machine: the mamba-only rule doesn't apply here.
+      - name: Install deps (mirrors modal_app.py's image; drift is a test failure)
+        run: pip install -r deploy/modal-backend/requirements-dev.txt
+
+      - name: modal-backend tests
+        working-directory: deploy/modal-backend
+        env:
+          TEST_PG_ADMIN_URL: postgresql://postgres@localhost:54329/postgres
+        run: pytest -q
+
+      - name: aws-modal-news tests
+        run: pytest -q deploy/aws-modal-news/tests
+
+  workflow-lint:
+    # §3.3 J: actionlint for syntax/expressions, zizmor for workflow security.
+    # zizmor fails on high severity only; policy and suppressions live in
+    # .github/zizmor.yml with a reason for each.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: actionlint
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color -shellcheck=
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: zizmor
+        run: |
+          pip install 'zizmor~=1.30'
+          zizmor --offline --min-severity high --config .github/zizmor.yml .github/

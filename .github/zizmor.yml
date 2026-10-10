@@ -1,0 +1,14 @@
+# zizmor policy for the ci.yml workflow-lint job (docs/gha-tests-and-cloud-parity.md §3.3 J).
+# CI fails on high-severity findings; everything else is reported, not enforced.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # Tag pins are accepted for now; only sync-corpus.yml is SHA-pinned.
+        # Follow-up: pin every action by SHA, then tighten this to hash-pin.
+        "*": ref-pin
+  dangerous-triggers:
+    ignore:
+      # workflow_run after "Nightly universe hydration" on the default branch.
+      # It checks out the default branch, never a PR head, so no untrusted code runs.
+      - engine-nightly.yml:8

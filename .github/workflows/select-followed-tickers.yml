@@ -106,8 +106,7 @@ jobs:
           UNIVERSE: ${{ inputs.universe || 'all' }}
         run: |
           set -euo pipefail
-          STATUS=$(curl -sS -o /tmp/cohort.json -w '%{http_code}' \
-            -X POST "$PORTAL_URL/api/pipeline/followed-tickers-select" \
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/cohort.json "$PORTAL_URL/api/pipeline/followed-tickers-select" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H 'Content-Type: application/json' \
             --max-time 300 \
