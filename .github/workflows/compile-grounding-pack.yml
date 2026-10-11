@@ -31,6 +31,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      # compile_grounding_pack.mjs imports @neondatabase/serverless. Without an
+      # install every run died with ERR_MODULE_NOT_FOUND (daily since 2026-10-03).
+      - name: Install dependencies
+        run: npm ci
+
+      # Fail with a one-line cause if the install ever stops providing the
+      # driver, instead of a stack trace from inside the script.
+      - name: Verify the database driver resolves
+        run: node -e "import('@neondatabase/serverless').then(() => console.log('deps ok'))"
 
       - name: Compile grounding_pack from corpus/
         env:
