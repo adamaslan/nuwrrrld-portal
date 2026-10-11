@@ -45,6 +45,8 @@ runs:
           "https://paper-api.alpaca.markets/v2/calendar?start=$D&end=$D" 2>/dev/null) || BODY=""
         if ! jq -e 'type == "array"' <<<"$BODY" >/dev/null 2>&1; then
           echo "::warning::Alpaca calendar unavailable for $D — failing open (weekday gate still applies)."
+          echo "### :warning: Holiday gate failed open" >> "$GITHUB_STEP_SUMMARY"
+          echo "Alpaca calendar unavailable for $D (outage or rotated/missing key). Holidays are NOT being filtered this run." >> "$GITHUB_STEP_SUMMARY"
           { echo "is_trading_day=true"; echo "close="; echo "source=unavailable"; } >> "$GITHUB_OUTPUT"
           exit 0
         fi
