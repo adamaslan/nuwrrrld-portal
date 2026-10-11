@@ -1,0 +1,438 @@
+<title>GHA Run Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; evidence first (heatmap), then the claim it breaks (lateness), then the test run, then what changed. */
+:root {
+  --bg: #eceff3;
+  --surface: #f8f9fb;
+  --ink: #141a24;
+  --ink-dim: #556073;
+  --rule: #cfd5de;
+  --accent: #2b55d6;
+  --pass: #1b8556;
+  --fail: #c2362b;
+  --warn: #a8710f;
+  --idle: #8892a3;
+  --pass-bg: #d8efe3;
+  --fail-bg: #f6dcd9;
+  --warn-bg: #f3e6c8;
+  --idle-bg: #dde1e8;
+  --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1218; --surface: #151b24; --ink: #e6eaf1; --ink-dim: #93a0b4; --rule: #263041;
+    --accent: #7a9cff; --pass: #4cc38a; --fail: #ef6b60; --warn: #e0ad4a; --idle: #7d889a;
+    --pass-bg: #123326; --fail-bg: #3b1916; --warn-bg: #35280d; --idle-bg: #232b38;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1218; --surface: #151b24; --ink: #e6eaf1; --ink-dim: #93a0b4; --rule: #263041;
+  --accent: #7a9cff; --pass: #4cc38a; --fail: #ef6b60; --warn: #e0ad4a; --idle: #7d889a;
+  --pass-bg: #123326; --fail-bg: #3b1916; --warn-bg: #35280d; --idle-bg: #232b38;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.55; padding-inline: 16px; padding-block: 28px 64px; }
+.wrap { max-width: 1040px; margin-inline: auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.12; }
+h1 { font-size: clamp(1.9rem, 4.6vw, 3rem); font-weight: 700; letter-spacing: -0.02em; max-width: 20ch; }
+h2 { font-size: clamp(1.35rem, 2.6vw, 1.7rem); font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 1.02rem; font-weight: 600; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+.lede { max-width: 62ch; color: var(--ink-dim); font-size: 1.04rem; }
+.lede b { color: var(--ink); font-weight: 600; }
+header { display: flex; flex-direction: column; gap: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 8px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.tile .n { font-family: var(--display); font-weight: 700; font-size: 2.2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 0.84rem; color: var(--ink-dim); }
+.tile.fail .n { color: var(--fail); } .tile.pass .n { color: var(--pass); } .tile.warn .n { color: var(--warn); }
+section { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec-head { display: flex; flex-direction: column; gap: 8px; }
+.sec-head p { max-width: 64ch; color: var(--ink-dim); }
+.panel { background: var(--surface); border: 1px solid var(--rule); padding: 18px; min-width: 0; }
+.panel-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.note { font-size: 0.8rem; color: var(--ink-dim); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.8rem; color: var(--ink-dim); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; display: inline-block; border: 1px solid transparent; }
+.sw.pass { background: var(--pass-bg); border-color: var(--pass); } .sw.fail { background: var(--fail-bg); border-color: var(--fail); }
+.sw.warn { background: var(--warn-bg); border-color: var(--warn); } .sw.idle { background: var(--idle-bg); border-color: var(--idle); }
+
+/* heatmap */
+.heat { display: grid; gap: 4px 10px; grid-template-columns: minmax(205px, 1.6fr) repeat(8, minmax(26px, 1fr)) 56px; align-items: center; min-width: 640px; }
+.heat .name { font-family: var(--mono); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heat .rate { font-family: var(--mono); font-size: 0.78rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.heat .hd { font-family: var(--mono); font-size: 0.68rem; color: var(--ink-dim); text-align: center; }
+.cell { height: 26px; display: grid; place-items: center; font-family: var(--mono); font-size: 0.78rem; font-weight: 500; border: 1px solid transparent; }
+.cell.pass { background: var(--pass-bg); color: var(--pass); border-color: var(--pass); }
+.cell.fail { background: var(--fail-bg); color: var(--fail); border-color: var(--fail); border-style: dashed; }
+.cell.idle { background: var(--idle-bg); color: var(--idle); border-color: var(--idle); }
+.cell.none { background: transparent; border: 1px dotted var(--rule); }
+.scroll { overflow-x: auto; }
+
+/* chart boxes */
+.cbox { position: relative; height: 250px; min-width: 0; }
+.cbox.tall { height: 300px; }
+.multi { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
+.fallback { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-dim); white-space: pre-wrap; }
+
+/* callout */
+.callout { border-left: 3px solid var(--fail); background: var(--fail-bg); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; max-width: 78ch; }
+.callout b { font-family: var(--display); font-size: 1.02rem; }
+.callout code, p code, td code { font-family: var(--mono); font-size: 0.82em; background: var(--idle-bg); padding: 1px 5px; }
+
+/* filter chips + table */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font: inherit; font-size: 0.82rem; padding: 6px 12px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip:focus-visible, .row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 640px; }
+th { text-align: left; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); padding: 8px 10px; border-bottom: 1px solid var(--ink); font-weight: 500; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td.wf { font-family: var(--mono); font-size: 0.8rem; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 2px 8px; border: 1px solid; white-space: nowrap; }
+.pill.pass { color: var(--pass); background: var(--pass-bg); border-color: var(--pass); }
+.pill.fail { color: var(--fail); background: var(--fail-bg); border-color: var(--fail); border-style: dashed; }
+.pill.warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+tr[hidden] { display: none; }
+
+/* parity matrix */
+.pm { display: grid; grid-template-columns: minmax(180px, 1.6fr) 1fr 1fr 2fr; gap: 0; min-width: 640px; }
+.pm > div { padding: 9px 10px; border-bottom: 1px solid var(--rule); font-size: 0.86rem; }
+.pm .h { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); border-bottom: 1px solid var(--ink); }
+.st { font-family: var(--mono); font-size: 0.78rem; }
+.st.full { color: var(--pass); } .st.part { color: var(--warn); } .st.none { color: var(--idle); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+
+ul.open { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; max-width: 78ch; }
+ul.open li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+ul.open .k { font-family: var(--mono); color: var(--warn); }
+footer { color: var(--ink-dim); font-size: 0.82rem; max-width: 78ch; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--rule); padding-top: 18px; }
+@media (max-width: 520px) { .panel { padding: 12px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">gh run list · 17 workflows · read 2026-10-10 (Sat, market closed)</p>
+  <h1>Which workflows actually do their job?</h1>
+  <p class="lede">Every scheduled workflow was dispatched on <b>2026-10-10</b>, then compared with its recent run history. Most of what looked healthy is healthy. Two things were green without doing anything, and the largest gap is timing: <b>GitHub's scheduler starts runs three to four hours late</b>.</p>
+  <div class="tiles">
+    <div class="tile pass"><span class="n">11</span><span class="l">of 15 dispatches passed</span></div>
+    <div class="tile fail"><span class="n">2</span><span class="l">unexpected failures: afternoon-pipeline, precompute-ai</span></div>
+    <div class="tile warn"><span class="n">160–249</span><span class="l">minutes late: range of the 24 scheduled starts charted below</span></div>
+    <div class="tile"><span class="n">327</span><span class="l">Modal tests that had no CI until PR #256</span></div>
+  </div>
+</header>
+
+<section id="history">
+  <div class="sec-head">
+    <h2>The run history, last eight real runs each</h2>
+    <p>Scheduled, push and PR runs only. Manual dispatches are excluded so the grid shows what happened without anyone pressing a button. Sorted by failures, worst first.</p>
+  </div>
+  <div class="panel">
+    <div class="panel-title">
+      <div class="legend"><span><i class="sw pass"></i>success ✓</span><span><i class="sw fail"></i>failure ✕ (dashed)</span><span><i class="sw idle"></i>other •</span></div>
+      <span class="note">oldest → newest</span>
+    </div>
+    <div class="scroll"><div class="heat" id="heat" role="table" aria-label="Last eight runs per workflow"></div></div>
+  </div>
+</section>
+
+<section id="late">
+  <div class="sec-head">
+    <h2>Green does not mean it ran</h2>
+    <p>Each bar is a scheduled run and how many minutes after its cron time it was queued. Hydration targets 22:30 UTC. The afternoon pipeline and followed-ticker tracker run in two cron pairs a day (summer and winter offset), so those bars measure from the later cron of the pair, which understates the delay by up to an hour.</p>
+  </div>
+  <div class="panel">
+    <div class="multi" id="lateCharts"></div>
+    <p class="note" style="margin-top:10px">Minutes between the cron time and the run being queued. Source: <code>createdAt</code> of each scheduled run.</p>
+  </div>
+  <div class="callout" role="note">
+    <b>afternoon-pipeline has been "green" for eight straight runs and has never done any work.</b>
+    <p>Its gate only passes when New York is in the 15:00 hour. All eight runs were queued between <b>19:05 and 20:24 ET</b>, so each one skipped. A forced run on 2026-10-10 reached the first route and got <code>HTTP 404</code> on <code>/api/pipeline/signals-refresh</code>. The route was never built.</p>
+  </div>
+</section>
+
+<section id="dispatch">
+  <div class="sec-head">
+    <h2>What happened when every workflow was run today</h2>
+    <p>Fifteen dispatches: thirteen on <code>main</code>, plus the grounding fix and the paper-portfolios dry run on their own branches. Gated workflows ran with <code>skip_market_check</code>.</p>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <div class="panel-title"><h3>Outcome of 15 dispatches</h3></div>
+      <div class="cbox"><canvas id="outcomeChart" role="img" aria-label="Stacked outcomes of 15 dispatches"></canvas></div>
+      <p class="fallback" id="outcomeFb" hidden></p>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><h3>Tests that run in CI</h3><span class="note">new in PR #256 highlighted</span></div>
+      <div class="cbox"><canvas id="testsChart" role="img" aria-label="Tests per suite in CI"></canvas></div>
+      <p class="fallback" id="testsFb" hidden></p>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">
+      <div class="chips" id="chips" role="group" aria-label="Filter results">
+        <button class="chip" data-f="all" aria-pressed="true">All 15</button>
+        <button class="chip" data-f="bad" aria-pressed="false">Failed or weak</button>
+        <button class="chip" data-f="unexpected" aria-pressed="false">Unexpected</button>
+      </div>
+      <span class="note" id="count"></span>
+    </div>
+    <div class="scroll"><table id="dtable"><thead><tr><th>Workflow</th><th>Inputs</th><th>Result</th><th>What it showed</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</section>
+
+<section id="parity">
+  <div class="sec-head">
+    <h2>Parity with Modal and GCP: before and after PR #256</h2>
+    <p>Nine capabilities Modal and GCP already have. A capability counts as full only when it is built and running; partial means built but blocked, or covering only part of the surface.</p>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <div class="panel-title"><h3>Capabilities by state</h3></div>
+      <div class="cbox"><canvas id="parityChart" role="img" aria-label="Parity states before and after"></canvas></div>
+      <p class="fallback" id="parityFb" hidden></p>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><h3>Built in the PR</h3></div>
+      <ul class="open" style="gap:8px">
+        <li><span class="k">▸</span><span><b>Retries.</b> One helper for all eight portal POSTs. It retries only requests that cannot have reached the route, because these routes write paper orders.</span></li>
+        <li><span class="k">▸</span><span><b>Holiday gate.</b> Alpaca's NYSE calendar feeds three gates. Thanksgiving 2026-11-26 is closed and the day after closes at 13:00. If the calendar is down, the weekday check decides.</span></li>
+        <li><span class="k">▸</span><span><b>Modal CI.</b> 242 and 85 tests, plus a check that CI's dependency list equals the Modal image's.</span></li>
+        <li><span class="k">▸</span><span><b>Lint, live smoke, dry run.</b> actionlint and zizmor, a weekly live model-chain test, and a paper-portfolios dry run.</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="panel scroll"><div class="pm" id="pm" role="table" aria-label="Parity matrix"></div></div>
+</section>
+
+<section id="open">
+  <div class="sec-head"><h2>Still open</h2></div>
+  <ul class="open">
+    <li><span class="k">1</span><span><b>On-time start.</b> Needs an external clock (a Modal or Cloud Scheduler cron calling <code>workflow_dispatch</code>) and a shared run ledger so a second trigger cannot double-run. Neither exists yet.</span></li>
+    <li><span class="k">2</span><span><b>precompute-ai returns 502 with <code>db write failed</code>.</b> The model answered; the request bundled the whole ~800-ticker watchlist into one subject. This is not the quota failure its alert text assumes.</span></li>
+    <li><span class="k">3</span><span><b>Grounding compile passes while mostly failing.</b> On the fix branch, 37 of 40 extraction calls failed, giving 6 pack rows and 220 chunks deferred. Probably the free-tier daily request limit.</span></li>
+    <li><span class="k">4</span><span><b>The freshness alert test cannot fail on a fresh day.</b> With the threshold at 0 it passed, and the newest card date is a Saturday.</span></li>
+    <li><span class="k">5</span><span><b>Modal run button needs a token.</b> <code>modal-run.yml</code> waits on two GitHub secrets. The identical command succeeded locally.</span></li>
+  </ul>
+</section>
+
+<footer>
+  <p>Sources: <code>gh run list</code> history read 2026-10-10 (scheduled, push and PR events; cancelled and skipped runs excluded), the 15 dispatch results of that day, and <code>docs/gha-tests-and-cloud-parity.md</code>. Lateness is queue time minus cron time, from each run's <code>createdAt</code>.</p>
+  <p>Not checked: the intraday hydrate flip (writes real cards, waits on PR #248 to deploy), a real paper slot (a weekend fill would write stale-mark trades into 8 books), and <code>modal-run.yml</code> from GitHub (no Modal token yet).</p>
+</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const DATA = {"late": {"afternoon-pipeline.yml": [{"t": "2026-10-06T23:05:04Z", "cron": "10-06 20:15Z", "late": 170}, {"t": "2026-10-06T23:50:29Z", "cron": "10-06 20:15Z", "late": 215}, {"t": "2026-10-07T23:35:43Z", "cron": "10-07 20:15Z", "late": 201}, {"t": "2026-10-08T00:13:28Z", "cron": "10-07 20:15Z", "late": 238}, {"t": "2026-10-08T23:45:13Z", "cron": "10-08 20:15Z", "late": 210}, {"t": "2026-10-09T00:24:24Z", "cron": "10-08 20:15Z", "late": 249}, {"t": "2026-10-09T23:17:33Z", "cron": "10-09 20:15Z", "late": 183}, {"t": "2026-10-10T00:03:28Z", "cron": "10-09 20:15Z", "late": 228}], "hydrate-universe.yml": [{"t": "2026-10-01T01:24:54Z", "cron": "09-30 22:30Z", "late": 175}, {"t": "2026-10-02T01:45:28Z", "cron": "10-01 22:30Z", "late": 195}, {"t": "2026-10-03T01:18:06Z", "cron": "10-02 22:30Z", "late": 168}, {"t": "2026-10-06T02:23:54Z", "cron": "10-05 22:30Z", "late": 234}, {"t": "2026-10-07T01:43:30Z", "cron": "10-06 22:30Z", "late": 194}, {"t": "2026-10-08T02:11:08Z", "cron": "10-07 22:30Z", "late": 221}, {"t": "2026-10-09T02:24:59Z", "cron": "10-08 22:30Z", "late": 235}, {"t": "2026-10-10T01:51:22Z", "cron": "10-09 22:30Z", "late": 201}], "track-followed-tickers.yml": [{"t": "2026-10-06T23:10:27Z", "cron": "10-06 20:30Z", "late": 160}, {"t": "2026-10-06T23:58:43Z", "cron": "10-06 20:30Z", "late": 209}, {"t": "2026-10-07T23:39:35Z", "cron": "10-07 20:30Z", "late": 190}, {"t": "2026-10-08T00:19:50Z", "cron": "10-07 20:30Z", "late": 230}, {"t": "2026-10-08T23:49:58Z", "cron": "10-08 20:30Z", "late": 200}, {"t": "2026-10-09T00:33:42Z", "cron": "10-08 20:30Z", "late": 244}, {"t": "2026-10-09T23:23:19Z", "cron": "10-09 20:30Z", "late": 173}, {"t": "2026-10-10T00:12:51Z", "cron": "10-09 20:30Z", "late": 223}]}, "hist": {"afternoon-pipeline.yml": ["success", "success", "success", "success", "success", "success", "success", "success"], "backup-to-sqlite.yml": ["success", "success", "success", "success", "success", "success", "failure", "failure"], "ci.yml": ["action_required", "failure", "success", "success", "success", "success", "success", "success"], "compile-grounding-pack.yml": ["failure", "failure", "failure", "failure", "failure", "failure", "failure", "failure"], "e2e-resiliency.yml": ["action_required", "success", "success", "success", "success", "success", "success", "success"], "engine-nightly.yml": ["success", "success", "success", "success", "success", "success", "success", "success"], "hydrate-universe.yml": ["success", "success", "success", "success", "success", "success", "success", "success"], "integration-tests.yml": ["success", "success", "success", "success", "success", "success", "success", "success"], "judge-followed-tickers.yml": ["failure", "failure", "failure", "failure", "failure", "success"], "model-usage-report.yml": ["failure", "failure", "failure", "failure", "success"], "paper-portfolios.yml": ["success", "success", "success", "success", "success", "success", "success", "success"], "precompute-ai.yml": ["success", "success", "success", "failure", "failure", "failure", "success", "success"], "refresh-free-models.yml": ["failure", "success", "failure", "failure", "failure", "failure", "failure", "success"], "select-followed-tickers.yml": ["failure", "failure"], "signal-freshness-check.yml": ["success", "success", "success", "failure", "success", "success", "success", "success"], "sync-corpus.yml": ["failure", "success"], "track-followed-tickers.yml": ["failure", "failure", "success", "success", "success", "success", "success", "success"]}};
+
+const DISPATCH = [
+  { wf: "hydrate-universe", inp: "stock, limit 5, dry run", s: "pass", exp: true, note: "Healthy." },
+  { wf: "engine-nightly", inp: "limit 5, dry run", s: "pass", exp: true, note: "Healthy." },
+  { wf: "signal-freshness-check", inp: "max stale days 0", s: "weak", exp: false, note: "Passed. The test as written cannot force a failure on a day the data is current; the newest card date is Saturday 2026-10-10, which is worth a look." },
+  { wf: "afternoon-pipeline", inp: "skip gate, dry run", s: "fail", exp: false, note: "HTTP 404 on /api/pipeline/signals-refresh. The route was never built; scheduled runs only looked green because the gate skipped them." },
+  { wf: "track-followed-tickers", inp: "skip gate, dry run", s: "pass", exp: true, note: "Healthy." },
+  { wf: "judge-followed-tickers", inp: "dry run", s: "pass", exp: true, note: "Healthy." },
+  { wf: "select-followed-tickers", inp: "dry run, universe all", s: "pass", exp: true, note: "Healthy." },
+  { wf: "precompute-ai", inp: "max subjects 1", s: "fail", exp: false, note: "HTTP 502, reason \"db write failed\". The model answered in about 12.7 s; the subject sent was the whole watchlist joined into one string. Not a quota failure." },
+  { wf: "refresh-free-models", inp: "none", s: "pass", exp: true, note: "Healthy." },
+  { wf: "sync-corpus", inp: "none", s: "pass", exp: true, note: "Healthy." },
+  { wf: "model-usage-report", inp: "period day", s: "pass", exp: true, note: "Healthy." },
+  { wf: "backup-to-sqlite", inp: "tables ticker_cards", s: "fail", exp: true, note: "ticker_cards.is_final not mirrored in the SQLite schema. Expected until PR #248 merges." },
+  { wf: "compile-grounding-pack (main)", inp: "none", s: "fail", exp: true, note: "Cannot find @neondatabase/serverless. Expected; fixed by PR #253." },
+  { wf: "compile-grounding-pack (fix branch)", inp: "none", s: "degraded", exp: false, note: "Passed with npm ci, but 37 of 40 extraction calls failed: 6 pack rows built, 220 chunks deferred. Probably the free-tier daily limit." },
+  { wf: "paper-portfolios (PR branch)", inp: "midday, skip gate, dry run", s: "pass", exp: true, note: "Calendar said not a session; override applied; slot resolved and flagged late; deploy SHA compared; stopped before the POST." }
+];
+
+const PARITY = [
+  ["On-time start", "none", "none", "Needs an external clock (not built)."],
+  ["Retries with backoff", "none", "full", "portal-post.sh on all 8 portal POSTs."],
+  ["Idempotency shared with Modal", "none", "none", "Needs a ledger route (not built)."],
+  ["Modal code tested in CI", "none", "full", "modal-python job, 242 + 85 tests."],
+  ["Holiday-aware gate", "none", "full", "market-gate action on 3 gates."],
+  ["Trigger any Modal job from GHA", "none", "part", "Built; waits on a Modal token secret."],
+  ["Metered Alpaca budget", "none", "none", "Not built; GHA scripts still unmetered."],
+  ["Cross-pipeline staleness alarm", "part", "part", "Card freshness only; unchanged."],
+  ["Unified alerting", "none", "none", "Owned by a separate branch."]
+];
+const LABEL = { full: "✓ built", part: "◐ partial", none: "✕ missing" };
+
+/* helpers */
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+
+/* heatmap */
+(function heat() {
+  const root = document.getElementById("heat");
+  const names = Object.keys(DATA.hist);
+  const stat = names.map((n) => {
+    const h = DATA.hist[n], ok = h.filter((c) => c === "success").length, bad = h.filter((c) => c === "failure").length;
+    return { n, h, ok, bad, total: h.length };
+  }).sort((a, b) => b.bad / b.total - a.bad / a.total || b.total - a.total);
+  root.append(el("div", "hd", ""));
+  for (let i = 1; i <= 8; i++) root.append(el("div", "hd", String(i)));
+  root.append(el("div", "hd", "pass"));
+  stat.forEach((r) => {
+    root.append(el("div", "name", r.n.replace(".yml", "")));
+    const pad = 8 - r.h.length;
+    for (let i = 0; i < pad; i++) root.append(el("div", "cell none", ""));
+    r.h.forEach((c, i) => {
+      const kind = c === "success" ? "pass" : c === "failure" ? "fail" : "idle";
+      const cell = el("div", "cell " + kind, kind === "pass" ? "✓" : kind === "fail" ? "✕" : "•");
+      cell.title = r.n + " · run " + (i + 1) + " · " + c;
+      root.append(cell);
+    });
+    root.append(el("div", "rate", r.ok + "/" + r.total));
+  });
+})();
+
+/* dispatch table + filter */
+(function table() {
+  const tb = document.querySelector("#dtable tbody");
+  const pillFor = (s) => ({ pass: ["pass", "passed"], fail: ["fail", "failed"], weak: ["warn", "weak test"], degraded: ["warn", "passed, degraded"] }[s]);
+  DISPATCH.forEach((d) => {
+    const tr = document.createElement("tr");
+    tr.dataset.bad = d.s !== "pass" ? "1" : "0";
+    tr.dataset.unexpected = (d.s === "fail" && !d.exp) || d.s === "weak" || d.s === "degraded" ? "1" : "0";
+    const td1 = el("td", "wf", d.wf), td2 = el("td", null, d.inp);
+    const [k, t] = pillFor(d.s);
+    const td3 = el("td"); td3.append(el("span", "pill " + k, t + (d.s === "fail" && d.exp ? " · expected" : "")));
+    tr.append(td1, td2, td3, el("td", null, d.note));
+    tb.append(tr);
+  });
+  const chips = document.querySelectorAll(".chip"), count = document.getElementById("count");
+  function apply(f) {
+    let shown = 0;
+    tb.querySelectorAll("tr").forEach((tr) => {
+      const show = f === "all" || (f === "bad" && tr.dataset.bad === "1") || (f === "unexpected" && tr.dataset.unexpected === "1");
+      tr.hidden = !show; if (show) shown++;
+    });
+    count.textContent = shown + " of " + DISPATCH.length + " shown";
+    chips.forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.f === f)));
+    try { localStorage.setItem("gha-report-filter", f); } catch (e) {}
+  }
+  chips.forEach((c) => c.addEventListener("click", () => apply(c.dataset.f)));
+  let saved = "all"; try { saved = localStorage.getItem("gha-report-filter") || "all"; } catch (e) {}
+  apply(["all", "bad", "unexpected"].includes(saved) ? saved : "all");
+})();
+
+/* parity matrix */
+(function matrix() {
+  const root = document.getElementById("pm");
+  ["Capability", "Before", "After #256", "Detail"].forEach((h) => root.append(el("div", "h", h)));
+  PARITY.forEach((r) => {
+    root.append(el("div", null, r[0]));
+    root.append(el("div", "st " + r[1], LABEL[r[1]]));
+    root.append(el("div", "st " + r[2], LABEL[r[2]]));
+    root.append(el("div", null, r[3]));
+  });
+})();
+
+/* charts */
+const charts = [];
+function drawCharts() {
+  charts.splice(0).forEach((c) => c.destroy());
+  if (typeof Chart === "undefined") {
+    ["outcomeFb", "testsFb", "parityFb"].forEach((id) => (document.getElementById(id).hidden = false));
+    document.getElementById("outcomeFb").textContent = "Passed 9 · passed degraded 1 · weak test 1 · failed expected 2 · failed unexpected 2";
+    document.getElementById("testsFb").textContent = "unit+components 1116 · modal-backend 242 (new) · news 85 (new) · live model-chain 11 (new)";
+    document.getElementById("parityFb").textContent = "Before: 0 built, 1 partial, 8 missing · After: 3 built, 2 partial, 4 missing";
+    document.querySelectorAll("#lateCharts").forEach((n) => (n.textContent = JSON.stringify(DATA.late)));
+    return;
+  }
+  const ink = css("--ink"), dim = css("--ink-dim"), rule = css("--rule");
+  const pass = css("--pass"), fail = css("--fail"), warn = css("--warn"), idle = css("--idle"), accent = css("--accent");
+  Chart.defaults.font.family = css("--mono"); Chart.defaults.font.size = 11; Chart.defaults.color = dim;
+  const grid = { color: rule, drawTicks: false };
+
+  /* lateness small multiples */
+  const host = document.getElementById("lateCharts"); host.textContent = "";
+  const sets = [
+    ["hydrate-universe.yml", "hydrate-universe", "22:30 UTC cron"],
+    ["afternoon-pipeline.yml", "afternoon-pipeline", "vs the 20:15 UTC cron"],
+    ["track-followed-tickers.yml", "track-followed-tickers", "vs the 20:30 UTC cron"]
+  ];
+  sets.forEach(([key, title, sub]) => {
+    const pts = DATA.late[key] || [];
+    const box = el("div"); const h = el("h3", null, title); const s = el("p", "note", sub);
+    const wrap = el("div", "cbox"); const cv = document.createElement("canvas");
+    cv.setAttribute("role", "img"); cv.setAttribute("aria-label", title + " minutes late per scheduled run");
+    wrap.append(cv); box.append(h, s, wrap); host.append(box);
+    const labels = pts.map((p) => p.t.slice(5, 10).replace("-", "/") + (key === "hydrate-universe.yml" ? "" : " " + p.t.slice(11, 13) + "h"));
+    charts.push(new Chart(cv, {
+      type: "bar",
+      data: { labels, datasets: [{ data: pts.map((p) => p.late), backgroundColor: warn, borderColor: warn, borderWidth: 0, borderRadius: 0, maxBarThickness: 22 }] },
+      options: {
+        maintainAspectRatio: false, layout: { padding: { left: 4, top: 14, right: 4 } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { title: (i) => "queued " + pts[i[0].dataIndex].t.replace("T", " ").slice(0, 16) + "Z", label: (c) => c.parsed.y + " min after " + pts[c.dataIndex].cron } } },
+        scales: {
+          y: { min: 0, max: 270, grid, border: { display: false }, ticks: { stepSize: 60, callback: (v) => v + "m" } },
+          x: { grid: { display: false }, ticks: { maxRotation: 60, minRotation: 45, font: { size: 9 } } }
+        }
+      },
+      plugins: [{ id: "val", afterDatasetsDraw(c) { const x = c.ctx; x.save(); x.fillStyle = ink; x.textAlign = "center"; x.font = "10px " + css("--mono");
+        c.getDatasetMeta(0).data.forEach((b, i) => x.fillText(pts[i].late, b.x, b.y - 4)); x.restore(); } }]
+    }));
+  });
+
+  /* outcome: one stacked horizontal bar per category, sorted */
+  const cats = [
+    ["Passed", 9, pass], ["Passed, degraded", 1, warn], ["Weak test", 1, idle],
+    ["Failed, expected", 2, css("--ink-dim")], ["Failed, unexpected", 2, fail]
+  ];
+  charts.push(new Chart(document.getElementById("outcomeChart"), {
+    type: "bar",
+    data: { labels: cats.map((c) => c[0]), datasets: [{ data: cats.map((c) => c[1]), backgroundColor: cats.map((c) => c[2]), maxBarThickness: 26 }] },
+    options: {
+      indexAxis: "y", maintainAspectRatio: false, layout: { padding: { right: 24, left: 4 } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.parsed.x + " of 15 dispatches" } } },
+      scales: { x: { min: 0, max: 10, grid, border: { display: false }, ticks: { stepSize: 2 } }, y: { grid: { display: false }, ticks: { color: ink } } }
+    },
+    plugins: [{ id: "v", afterDatasetsDraw(c) { const x = c.ctx; x.save(); x.fillStyle = ink; x.font = "11px " + css("--mono");
+      c.getDatasetMeta(0).data.forEach((b, i) => x.fillText(cats[i][1], b.x + 6, b.y + 4)); x.restore(); } }]
+  }));
+
+  /* tests in CI */
+  const tests = [["unit + components", 1116, dim], ["modal-backend", 242, accent], ["aws-modal-news", 85, accent], ["live model-chain", 11, accent]];
+  charts.push(new Chart(document.getElementById("testsChart"), {
+    type: "bar",
+    data: { labels: tests.map((t) => t[0]), datasets: [{ data: tests.map((t) => t[1]), backgroundColor: tests.map((t) => t[2]), maxBarThickness: 26 }] },
+    options: {
+      indexAxis: "y", maintainAspectRatio: false, layout: { padding: { right: 36, left: 4 } },
+      plugins: { legend: { display: false } },
+      scales: { x: { min: 0, max: 1200, grid, border: { display: false }, ticks: { stepSize: 300 } }, y: { grid: { display: false }, ticks: { color: ink } } }
+    },
+    plugins: [{ id: "v", afterDatasetsDraw(c) { const x = c.ctx; x.save(); x.fillStyle = ink; x.font = "11px " + css("--mono");
+      c.getDatasetMeta(0).data.forEach((b, i) => x.fillText(tests[i][1], b.x + 6, b.y + 4)); x.restore(); } }]
+  }));
+
+  /* parity before/after, stacked horizontal, counts out of 9 */
+  const count = (k) => ({ full: PARITY.filter((r) => r[k] === "full").length, part: PARITY.filter((r) => r[k] === "part").length, none: PARITY.filter((r) => r[k] === "none").length });
+  const b = count(1), a = count(2);
+  const mk = (label, key, color) => ({ label, data: [b[key], a[key]], backgroundColor: color, maxBarThickness: 40 });
+  charts.push(new Chart(document.getElementById("parityChart"), {
+    type: "bar",
+    data: { labels: ["Before", "After #256"], datasets: [mk("Built", "full", pass), mk("Partial", "part", warn), mk("Missing", "none", idle)] },
+    options: {
+      indexAxis: "y", maintainAspectRatio: false, layout: { padding: { right: 8, left: 4 } },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, color: ink } } },
+      scales: { x: { stacked: true, min: 0, max: 9, grid, border: { display: false }, ticks: { stepSize: 3 } }, y: { stacked: true, grid: { display: false }, ticks: { color: ink } } }
+    },
+    plugins: [{ id: "v", afterDatasetsDraw(c) { const x = c.ctx; x.save(); x.fillStyle = "#fff"; x.textAlign = "center"; x.font = "bold 12px " + css("--mono");
+      c.data.datasets.forEach((d, di) => c.getDatasetMeta(di).data.forEach((bar, i) => { if (d.data[i] > 0) x.fillText(d.data[i], (bar.x + bar.base) / 2, bar.y + 4); })); x.restore(); } }]
+  }));
+}
+drawCharts();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawCharts);
+new MutationObserver(drawCharts).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
