@@ -1,0 +1,89 @@
+name: Run a Modal job now
+
+# The "run it now" button and backup trigger for Modal-only jobs
+# (docs/gha-tests-and-cloud-parity.md §3.3 F). Ownership doesn't move: Modal's
+# own schedules stay the primary trigger. This runs `modal run` on an
+# ephemeral app built from this commit's code, so it works whether or not
+# that app is deployed. The function still needs its Modal secrets
+# (nuwrrrld-db, nuwrrrld-market, ...) to exist in the target environment.
+#
+# MANUAL STEP: MODAL_TOKEN_ID and MODAL_TOKEN_SECRET must be GitHub Actions
+# secrets. Use a dedicated Modal service token, not a personal one
+# (docs/manual-setup-todo.md, "Modal token for modal-run.yml").
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Modal function to run (app::function)'
+        required: true
+        type: choice
+        options:
+          - aws-modal-news::smoke
+          - aws-modal-news::news_ingest
+          - aws-modal-news::news_aggregate
+          - aws-modal-news::news_accuracy_eval
+          - modal-backend::smoke
+          - modal-backend::db_ping
+          - modal-backend::dynamo_ping
+          - modal-backend::provider_healthcheck
+          - modal-backend::health_checks_weekly
+          - modal-backend::calendar_refresh
+          - modal-backend::backfill_gaps
+          - modal-backend::billing_reconcile
+          - modal-backend::trial_sweeper
+          - modal-backend::referral_qualifier
+          - modal-backend::maintenance
+      modal_environment:
+        description: 'Modal environment'
+        required: false
+        type: string
+        default: main
+
+concurrency:
+  group: modal-run-${{ inputs.job }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - name: Require Modal credentials
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          [ -n "$MODAL_TOKEN_ID" ] && [ -n "$MODAL_TOKEN_SECRET" ] || {
+            echo "::error::MODAL_TOKEN_ID / MODAL_TOKEN_SECRET secrets missing — see docs/manual-setup-todo.md"
+            exit 1
+          }
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # A CI runner, not a dev machine: the mamba-only rule doesn't apply here.
+      - run: pip install 'modal>=1.0,<2'
+
+      - name: modal run ${{ inputs.job }}
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          MODAL_ENVIRONMENT: ${{ inputs.modal_environment }}
+          JOB: ${{ inputs.job }}
+        run: |
+          APP_DIR="deploy/${JOB%%::*}"
+          FN="${JOB##*::}"
+          # modal_app.py resolves add_local_file paths relative to the cwd.
+          cd "$APP_DIR"
+          echo "Running ${FN} from ${APP_DIR} in Modal env ${MODAL_ENVIRONMENT}"
+          modal run "modal_app.py::${FN}"

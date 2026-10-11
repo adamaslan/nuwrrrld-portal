@@ -46,6 +46,11 @@ jobs:
 
       - name: Generate the report
         env:
+          # Inputs reach the shell through env, never ${{ }} in run: (zizmor template-injection).
+          IN_PERIOD: ${{ github.event.inputs.period }}
+          IN_DATE: ${{ github.event.inputs.date }}
+          FIRED_CRON: ${{ github.event.schedule }}
+          EVENT_NAME: ${{ github.event_name }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set -euo pipefail
@@ -56,9 +61,9 @@ jobs:
 
           # Period: from the manual input if given, else from *which* cron fired
           # (both can fire on the same day — the 1st of a month that is a Monday).
-          period="${{ github.event.inputs.period }}"
+          period="${IN_PERIOD}"
           if [ -z "${period}" ]; then
-            case "${{ github.event.schedule }}" in
+            case "${FIRED_CRON}" in
               '10 5 1 * *') period="month" ;;
               *)            period="week"  ;;
             esac
@@ -66,9 +71,9 @@ jobs:
           # Anchor: the manual input verbatim if given; a blank manual input means
           # "today" (as the workflow_dispatch help says); a scheduled run reports
           # the period that just *ended*, so anchor = yesterday UTC.
-          anchor="${{ github.event.inputs.date }}"
+          anchor="${IN_DATE}"
           if [ -z "${anchor}" ]; then
-            if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${EVENT_NAME}" = "schedule" ]; then
               anchor="$(date -u -d 'yesterday' +%F)"
             else
               anchor="$(date -u +%F)"

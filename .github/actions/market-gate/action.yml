@@ -1,0 +1,58 @@
+name: NYSE trading-day check
+description: >
+  Asks Alpaca's market calendar whether a date (default: today in New York) is
+  an NYSE session. Weekday-only gates let holidays through; this closes that gap
+  the way modal-backend's calendar_refresh does. Fails open: if the calendar
+  can't be read, is_trading_day=true and source=unavailable, so the caller's
+  existing weekday gate still decides and an Alpaca outage never cancels a run.
+
+inputs:
+  alpaca-key:
+    description: ALPACA_API_KEY (paper key; the calendar is account-agnostic)
+    required: true
+  alpaca-secret:
+    description: ALPACA_API_SECRET
+    required: true
+  date:
+    description: YYYY-MM-DD to check. Empty means today in America/New_York.
+    required: false
+    default: ''
+
+outputs:
+  is_trading_day:
+    description: "'true' or 'false'"
+    value: ${{ steps.cal.outputs.is_trading_day }}
+  close:
+    description: Session close (HH:MM ET); 13:00 on early-close days. Empty when closed or unknown.
+    value: ${{ steps.cal.outputs.close }}
+  source:
+    description: "'alpaca' when the calendar answered, 'unavailable' when the gate failed open"
+    value: ${{ steps.cal.outputs.source }}
+
+runs:
+  using: composite
+  steps:
+    - id: cal
+      shell: bash
+      env:
+        APCA_KEY: ${{ inputs.alpaca-key }}
+        APCA_SECRET: ${{ inputs.alpaca-secret }}
+        IN_DATE: ${{ inputs.date }}
+      run: |
+        D="${IN_DATE:-$(TZ=America/New_York date +%F)}"
+        BODY=$(curl -sS --max-time 15 --retry 2 \
+          -H "APCA-API-KEY-ID: $APCA_KEY" -H "APCA-API-SECRET-KEY: $APCA_SECRET" \
+          "https://paper-api.alpaca.markets/v2/calendar?start=$D&end=$D" 2>/dev/null) || BODY=""
+        if ! jq -e 'type == "array"' <<<"$BODY" >/dev/null 2>&1; then
+          echo "::warning::Alpaca calendar unavailable for $D — failing open (weekday gate still applies)."
+          { echo "is_trading_day=true"; echo "close="; echo "source=unavailable"; } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        CLOSE=$(jq -r --arg d "$D" '.[] | select(.date == $d) | .close' <<<"$BODY")
+        if [[ -n "$CLOSE" ]]; then
+          echo "$D is an NYSE session (close $CLOSE ET)."
+          { echo "is_trading_day=true"; echo "close=$CLOSE"; echo "source=alpaca"; } >> "$GITHUB_OUTPUT"
+        else
+          echo "$D is not an NYSE session (weekend or holiday)."
+          { echo "is_trading_day=false"; echo "close="; echo "source=alpaca"; } >> "$GITHUB_OUTPUT"
+        fi

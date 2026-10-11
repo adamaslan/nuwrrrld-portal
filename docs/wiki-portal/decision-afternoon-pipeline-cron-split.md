@@ -47,6 +47,7 @@ CodeRabbit's review of this PR then surfaced a more substantive finding: the wor
 - YAML parse validated with `yaml.safe_load` after the indentation fix and again after the CodeRabbit-driven revision; `bash -n` on the setup script both times.
 - CodeRabbit automated review (5 findings: 1 critical, 3 major, all addressed pre-merge).
 - Not yet validated by an actual run — the 4 `/api/pipeline/*` routes it calls don't exist yet.
+- **2026-10-10, first forced run (`skip_market_check`, `dry_run`):** failed with HTTP 404 on `/api/pipeline/signals-refresh`, so the routes still don't exist. Its earlier scheduled runs were all reported green because the 15:xx gate skipped them: GHA started them late, after 16:00 ET. A green history here meant "skipped", not "working". See [[concept-gha-cloud-parity]].
 
 ## See also
 

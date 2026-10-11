@@ -46,6 +46,12 @@ jobs:
     outputs:
       judge_status: ${{ steps.judge.outputs.status }}
     steps:
+      # Sparse: only .github/ — the shared retry helper and market-gate action.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
       - name: Verify required secrets exist
         # The secrets API needs a token with secrets scope; the default
         # GITHUB_TOKEN gets HTTP 403, so check the values this job receives.
@@ -63,8 +69,7 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
-          STATUS=$(curl -sS -o /tmp/judge.json -w '%{http_code}' \
-            -X POST "$PORTAL_URL/api/pipeline/followed-tickers-judge" \
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/judge.json "$PORTAL_URL/api/pipeline/followed-tickers-judge" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H 'Content-Type: application/json' \
             --max-time 600 \
