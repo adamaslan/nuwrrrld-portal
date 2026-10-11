@@ -76,6 +76,19 @@ fails loudly instead of re-introducing a silent starve.
 - No alert exists for a short cohort. A selection returning fewer than
   `COHORT_SIDE_SIZE` on either side is still an HTTP 200; it should be loud.
 
+## Follow-up (2026-10-10, PR #248 review)
+
+A second, unrelated correctness gap was found in the same function during
+review of the midday-hydration PR: `bipolarCards`' eligibility CTE had no
+`is_final` filter, so a partial (midday) card could enter either tail's
+ranking alongside settled-close cards. `topCards` had — and was fixed for —
+the identical gap first; CodeRabbit's second review pass then caught that
+`bipolarCards` shared it. See
+[[decision-midday-partial-card-replacement]]. Generalizes the same way this
+incident's own thesis does: a ranking query's correctness has more than one
+axis (direction *and* finality here), and fixing one found gap does not imply
+the sibling query sharing its eligibility logic was checked against the other.
+
 ## Generalization
 
 **A top-N over a signed ordering is a one-directional read.** Any caller that
