@@ -523,7 +523,7 @@ export async function getLatestRunAnySlot(account: PaperAccount): Promise<RunRow
     const rows = await sql`
       SELECT * FROM paper_runs
       WHERE account = ${account}
-      ORDER BY trade_date DESC, started_at DESC LIMIT 1
+      ORDER BY started_at DESC, trade_date DESC LIMIT 1
     `;
     return rows[0] ? rowToRun(rows[0]) : null;
   } catch {
