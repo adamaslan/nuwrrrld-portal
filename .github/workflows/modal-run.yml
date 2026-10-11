@@ -34,6 +34,11 @@ on:
           - modal-backend::trial_sweeper
           - modal-backend::referral_qualifier
           - modal-backend::maintenance
+      confirm_mutating:
+        description: 'Type RUN to allow billing_reconcile, trial_sweeper, referral_qualifier, backfill_gaps, maintenance (they write to production)'
+        required: false
+        type: string
+        default: ''
       modal_environment:
         description: 'Modal environment'
         required: false
@@ -53,6 +58,21 @@ jobs:
     timeout-minutes: 60
     environment: production
     steps:
+      # These jobs write to production data and the `production` environment
+      # has no required reviewers, so a typed confirmation is the only gate.
+      - name: Gate mutating jobs
+        env:
+          JOB: ${{ inputs.job }}
+          CONFIRM: ${{ inputs.confirm_mutating }}
+        run: |
+          case "$JOB" in
+            *::billing_reconcile|*::trial_sweeper|*::referral_qualifier|*::backfill_gaps|*::maintenance)
+              [ "$CONFIRM" = "RUN" ] || {
+                echo "::error::$JOB writes to production. Re-dispatch with confirm_mutating=RUN."
+                exit 1
+              } ;;
+          esac
+
       - name: Require Modal credentials
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}

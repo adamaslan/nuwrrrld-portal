@@ -64,7 +64,9 @@ jobs:
           # -sS keeps curl quiet but still prints errors; the body is captured
           # separately from the status so a non-2xx can be reported with its
           # payload rather than an opaque exit code.
-          http_status=$(bash .github/scripts/portal-post.sh response.json "${PORTAL_URL}/api/pipeline/precompute-ai" \
+          # No 502 retry: the route returns 502 after the model already answered
+          # (save failed), so a retry would spend the account-wide free quota again.
+          http_status=$(RETRY_STATUSES="429 503" bash .github/scripts/portal-post.sh response.json "${PORTAL_URL}/api/pipeline/precompute-ai" \
             -H "Authorization: Bearer ${PORTAL_PUSH_SECRET}" \
             -H 'Content-Type: application/json' \
             --max-time 600 \
