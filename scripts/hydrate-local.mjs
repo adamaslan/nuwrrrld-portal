@@ -20,6 +20,7 @@
  *   node scripts/hydrate-local.mjs --universe=etf             # ETFs only
  *   node scripts/hydrate-local.mjs --limit=50                 # first 50 per lane
  *   node scripts/hydrate-local.mjs --dry-run                  # fetch bars, don't POST
+ *   node scripts/hydrate-local.mjs --intraday                 # midday: partial bar, is_final=false
  *   node scripts/hydrate-local.mjs --host=modal                # override auto-detected host
  */
 
@@ -89,6 +90,9 @@ function fail(message) {
 // default and never what a malformed flag meant to ask for.
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
+// Midday run: the session is still open, so the daily bar is partial. Cards are
+// stored with is_final=false and the settled-close run replaces them.
+const INTRADAY = args.has("--intraday");
 
 const symbolsFlag = process.argv.find(a => a.startsWith("--symbols="));
 let SYMBOLS = null;
@@ -358,7 +362,7 @@ function rowFor(symbol, barData) {
  * when the stored card is already better (see `shouldReplaceCard`), and
  * reporting that as written would overstate coverage.
  */
-async function postChunk(rows, runId, barDate, universe) {
+async function postChunk(rows, runId, barDate, universe, observedAt) {
   if (DRY_RUN) {
     console.log(`[dry-run] would POST ${rows.length} rows (universe=${universe})`);
     return { written: rows.length, skipped: 0, failed: 0 };
@@ -375,8 +379,10 @@ async function postChunk(rows, runId, barDate, universe) {
       source: "hydrate-local",
       universe,
       barDate,
+      isFinal: !INTRADAY,
       rows,
       host: HOST,
+      observedAt,
     }),
   });
 
@@ -423,7 +429,12 @@ async function main() {
   }
 
   const barDate = new Date().toISOString().split("T")[0];
-  const runId = `hydrate-local:${barDate}:${new Date().getTime()}`;
+  // Captured once, before any chunk is computed or posted — this is the batch's
+  // immutable generation time. Using it (rather than the portal's write-time
+  // `now()`) lets an older partial batch that is POSTed late still lose a
+  // same-quality tie-break to a newer one that was POSTed first.
+  const observedAt = new Date().toISOString();
+  const runId = `hydrate-local:${barDate}:${INTRADAY ? "intraday:" : ""}${new Date().getTime()}`;
 
   const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
   console.log(`[hydrate] run=${runId} host=${HOST} ${laneSummary} chunk=${CHUNK_SIZE}`);
@@ -494,7 +505,7 @@ async function main() {
 
         // Persistence counters come from the portal's response, and only after
         // it has actually answered — never from the count we optimistically sent.
-        const result = await postChunk(rows, runId, barDate, universe);
+        const result = await postChunk(rows, runId, barDate, universe, observedAt);
         written += result.written ?? 0;
         postFailures += result.failed ?? 0;
         console.log(`  → posted: written=${result.written} failed=${result.failed}`);

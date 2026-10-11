@@ -252,6 +252,74 @@ describe("replacement rule", () => {
   it("refuses an identical re-post, so a retried batch is a no-op", () => {
     expect(shouldReplaceCard({ barDate: "2026-08-18", dataQuality: 1 }, stored)).toBe(false);
   });
+
+  describe("midday (partial) vs settled (final) cards", () => {
+    const day = "2026-08-18";
+    const midday = { barDate: day, dataQuality: 1, isFinal: false };
+    const close = { barDate: day, dataQuality: 1, isFinal: true };
+
+    it("a final card replaces a same-bar partial at equal quality", () => {
+      expect(shouldReplaceCard(close, midday)).toBe(true);
+    });
+
+    it("a final card replaces a partial even at lower quality", () => {
+      expect(shouldReplaceCard({ ...close, dataQuality: 0.6 }, midday)).toBe(true);
+    });
+
+    it("a partial never replaces a same-bar final", () => {
+      expect(shouldReplaceCard(midday, close)).toBe(false);
+      expect(shouldReplaceCard({ ...midday, dataQuality: 1 }, { ...close, dataQuality: 0.2 })).toBe(false);
+    });
+
+    it("a later partial replaces an earlier partial at equal or better quality", () => {
+      expect(shouldReplaceCard(midday, midday)).toBe(true);
+      expect(shouldReplaceCard({ ...midday, dataQuality: 0.5 }, midday)).toBe(false);
+    });
+
+    it("a newer bar wins even when it is partial", () => {
+      expect(shouldReplaceCard({ ...midday, barDate: "2026-08-19" }, close)).toBe(true);
+    });
+
+    it("treats an absent isFinal as final (callers that predate intraday)", () => {
+      expect(shouldReplaceCard({ barDate: day, dataQuality: 1 }, midday)).toBe(true);
+      expect(shouldReplaceCard({ barDate: day, dataQuality: 1 }, { barDate: day, dataQuality: 1 })).toBe(false);
+    });
+
+    describe("equal-quality partials: observedAt breaks the tie, not arrival order", () => {
+      const earlier = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T14:00:00.000Z" };
+      const later = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T14:30:00.000Z" };
+
+      it("a later-generated partial replaces an earlier one at equal quality", () => {
+        expect(shouldReplaceCard(later, earlier)).toBe(true);
+      });
+
+      it("an earlier-generated partial is refused even if it arrives (is written) second", () => {
+        // This is the bug CodeRabbit flagged on PR #248: without observedAt,
+        // write order alone decided the tie and a stale retry could win.
+        expect(shouldReplaceCard(earlier, later)).toBe(false);
+      });
+
+      it("strictly better quality still wins regardless of observedAt", () => {
+        expect(shouldReplaceCard({ ...earlier, dataQuality: 0.95 }, later)).toBe(true);
+      });
+
+      it("falls back to the old quality-only tie-break when observedAt is missing on either side", () => {
+        expect(shouldReplaceCard({ ...earlier, observedAt: undefined }, later)).toBe(true);
+        expect(shouldReplaceCard(earlier, { ...later, observedAt: undefined })).toBe(true);
+      });
+
+      it("compares observedAt as instants, not strings, across differing UTC offsets", () => {
+        // 09:00Z is the later instant, but "09:00:00Z" < "10:00:00+02:00"
+        // lexicographically ("09" < "10") even though 10:00+02:00 is really
+        // 08:00Z — an hour *earlier*. A naive string compare would get this
+        // backwards; Date.parse does not.
+        const laterInstant = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T09:00:00Z" };
+        const earlierInstant = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T10:00:00+02:00" };
+        expect(shouldReplaceCard(laterInstant, earlierInstant)).toBe(true);
+        expect(shouldReplaceCard(earlierInstant, laterInstant)).toBe(false);
+      });
+    });
+  });
 });
 
 describe("real data quality — bar-series health (Phase 3.2)", () => {

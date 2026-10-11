@@ -391,14 +391,24 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   source_run_id    text,
   bar_date         TEXT NOT NULL,
   computed_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- false = midday snapshot of a still-open session (partial daily bar). Existing
+  -- rows are settled closes, hence the default. See shouldReplaceCard.
+  is_final         INTEGER NOT NULL DEFAULT true,
   -- News-confluence parts (docs/fin-api-and-4th-aws-modal-pipeline.md §9). All
   -- NULL while the news weight is 0 (shadow), so existing cards are unchanged.
   confluence_technical double precision,
   news_score           double precision,
   news_vote            double precision,
   news_weight_version  text,
+  -- The producer's own pre-compute timestamp, distinct from computed_at
+  -- (portal write time). NULL for callers that don't send it. Used only to
+  -- break an equal-quality partial-vs-partial tie in shouldReplaceCard /
+  -- upsertCards by generation order instead of arrival order.
+  observed_at          TEXT,
   PRIMARY KEY (ticker, horizon)
 );
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
+-- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 -- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 -- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)
 -- (dropped for SQLite: no equivalent construct — see gen-sqlite-schema.mjs)

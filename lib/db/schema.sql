@@ -386,18 +386,28 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   source_run_id    text,
   bar_date         date NOT NULL,
   computed_at      timestamptz NOT NULL DEFAULT now(),
+  -- false = midday snapshot of a still-open session (partial daily bar). Existing
+  -- rows are settled closes, hence the default. See shouldReplaceCard.
+  is_final         boolean NOT NULL DEFAULT true,
   -- News-confluence parts (docs/fin-api-and-4th-aws-modal-pipeline.md §9). All
   -- NULL while the news weight is 0 (shadow), so existing cards are unchanged.
   confluence_technical double precision,
   news_score           double precision,
   news_vote            double precision,
   news_weight_version  text,
+  -- The producer's own pre-compute timestamp, distinct from computed_at
+  -- (portal write time). NULL for callers that don't send it. Used only to
+  -- break an equal-quality partial-vs-partial tie in shouldReplaceCard /
+  -- upsertCards by generation order instead of arrival order.
+  observed_at          timestamptz,
   PRIMARY KEY (ticker, horizon)
 );
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS is_final             boolean NOT NULL DEFAULT true;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS confluence_technical double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_score           double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_vote            double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_weight_version  text;
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS observed_at          timestamptz;
 
 -- The ranking index. Partial on quality because the top-N query never wants
 -- low-quality rows, so they should not occupy the index at all.
