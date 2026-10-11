@@ -330,8 +330,15 @@ export function shouldReplaceCard(
   if (incoming.dataQuality > stored.dataQuality) return true;
   if (incoming.dataQuality < stored.dataQuality) return false;
   // Equal quality: break the tie by generation time, not arrival time.
+  // Parsed as instants rather than compared as strings — two ISO timestamps
+  // with different UTC offsets (or one Z-suffixed and one not) can disagree
+  // with their lexicographic order, which would make an older card look newer.
   if (incoming.observedAt && stored.observedAt) {
-    return incoming.observedAt > stored.observedAt;
+    const incomingMs = Date.parse(incoming.observedAt);
+    const storedMs = Date.parse(stored.observedAt);
+    if (!Number.isNaN(incomingMs) && !Number.isNaN(storedMs)) {
+      return incomingMs > storedMs;
+    }
   }
   return incoming.dataQuality >= stored.dataQuality;
 }

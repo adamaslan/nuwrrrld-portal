@@ -307,6 +307,17 @@ describe("replacement rule", () => {
         expect(shouldReplaceCard({ ...earlier, observedAt: undefined }, later)).toBe(true);
         expect(shouldReplaceCard(earlier, { ...later, observedAt: undefined })).toBe(true);
       });
+
+      it("compares observedAt as instants, not strings, across differing UTC offsets", () => {
+        // 09:00Z is the later instant, but "09:00:00Z" < "10:00:00+02:00"
+        // lexicographically ("09" < "10") even though 10:00+02:00 is really
+        // 08:00Z — an hour *earlier*. A naive string compare would get this
+        // backwards; Date.parse does not.
+        const laterInstant = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T09:00:00Z" };
+        const earlierInstant = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T10:00:00+02:00" };
+        expect(shouldReplaceCard(laterInstant, earlierInstant)).toBe(true);
+        expect(shouldReplaceCard(earlierInstant, laterInstant)).toBe(false);
+      });
     });
   });
 });

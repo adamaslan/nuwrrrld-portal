@@ -457,6 +457,7 @@ export async function bipolarCards(
          WHERE c.horizon = ${horizon}
            AND c.data_quality >= 0.8
            AND c.missing_fields = '{}'
+           AND c.is_final = true
            AND (${universe} = 'all' OR c.universe = ${universe})
          GROUP BY c.ticker, c.horizon
       ),
