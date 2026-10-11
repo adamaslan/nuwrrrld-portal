@@ -373,6 +373,14 @@ written as `0`/`0`/`50`, indistinguishable from real measurements. 40 is a
 measured boundary, not a guess — at 39 bars `volatilityPercentile` still
 returns `null` — and the test suite pins both sides of it.
 
+`main()` now also captures `observedAt` (a plain `new Date().toISOString()`)
+before computing anything, and threads it through every `postChunk` call as
+the batch's immutable generation time — distinct from the run's `runId`,
+which embeds a timestamp but isn't meant to be parsed back out of its string
+form. This is what [[decision-midday-partial-card-replacement]]'s
+equal-quality partial tie-break uses to tell a batch computed first but
+POSTed late from one genuinely generated later.
+
 ## Three-phase plan — Phases 1–3 code (PR #101, 2026-09-03)
 
 `docs/signal-engine-three-phase-plan.md` ordered the fix for three stacked
