@@ -39,7 +39,7 @@ import {
 } from "@/lib/ticker-cards-db";
 import type { Horizon, SignalStateInput, VerdictDirection } from "@/lib/grounding/taxonomy";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
-import { computeRunStatus } from "@/lib/shared/run-status";
+import { computeBatchCoverage, computeRunStatus } from "@/lib/shared/run-status";
 
 /** Which compute host actually ran the batch. Optional: an older caller that
  *  omits it logs `host: null` rather than failing the request — this is
@@ -307,13 +307,17 @@ export async function POST(req: NextRequest) {
   // (not once per run) so a wedged multi-chunk run still leaves a partial
   // trail instead of nothing.
   const { queryFailed, ...universeCoverage } = await coverageForUniverseAndDate(universe, barDate);
-  // A failed coverage query reads as expected=0/filled=0, which
-  // computeRunStatus would score "ok" — so surface it as a failed run.
-  const runStatus = computeRunStatus({
-    expected: universeCoverage.expected,
-    filled: universeCoverage.filled,
-    threw: queryFailed,
-  });
+  // Grade the batch on its own rows. Grading it against universe-wide coverage
+  // marked every early batch of a chunked run `fail` (28 of 30 rows a night)
+  // while each reported `failed: 0`. Universe coverage is still stored in the
+  // `coverage` column so the nightly total stays queryable, and a failed
+  // coverage query is noted in the summary rather than failing a clean batch.
+  const batchCoverage = computeBatchCoverage(
+    [...seen, ...upstreamErrors.map((e) => e.ticker)],
+    new Set(failed.map((o) => o.ticker)),
+    new Set(upstreamErrors.map((e) => e.ticker)),
+  );
+  const runStatus = computeRunStatus(batchCoverage);
   const items: RunItem[] = [
     ...outcomes.map((o) => ({
       subject: o.ticker,
@@ -332,7 +336,16 @@ export async function POST(req: NextRequest) {
     host: body.host ?? null,
     status: runStatus,
     coverage: universeCoverage,
-    summary: { universe, source, barDate, written, skipped, failed: failed.length },
+    summary: {
+      universe,
+      source,
+      barDate,
+      written,
+      skipped,
+      failed: failed.length,
+      batchCoverage,
+      coverageQueryFailed: queryFailed,
+    },
   });
 
   return NextResponse.json({

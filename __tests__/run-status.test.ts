@@ -5,7 +5,12 @@
  * reason universe-policy.test.ts runs without it.
  */
 import { describe, expect, it } from "vitest";
-import { PARTIAL_COVERAGE_THRESHOLD, computeRunStatus } from "@/lib/shared/run-status";
+import {
+  PARTIAL_COVERAGE_THRESHOLD,
+  computeBatchCoverage,
+  computeRunStatus,
+  deriveRunStatus,
+} from "@/lib/shared/run-status";
 
 describe("computeRunStatus", () => {
   it("is ok when fully filled with no model substitution", () => {
@@ -49,5 +54,55 @@ describe("computeRunStatus", () => {
   it("degraded takes no effect when coverage alone is already partial or fail", () => {
     expect(computeRunStatus({ expected: 762, filled: 700, hadFallback: true })).toBe("fail");
     expect(computeRunStatus({ expected: 762, filled: 730, hadFallback: true })).toBe("partial");
+  });
+});
+
+describe("computeBatchCoverage", () => {
+  it("grades a clean batch ok even when it is a small slice of a large universe", () => {
+    // The 2026-10 defect: 68 clean rows of a 1,008-ticker run were stamped
+    // `fail` because they were graded against the whole universe.
+    const tickers = Array.from({ length: 68 }, (_, i) => `T${i}`);
+    const coverage = computeBatchCoverage(tickers, new Set(), new Set());
+    expect(coverage).toEqual({ expected: 68, filled: 68 });
+    expect(computeRunStatus(coverage)).toBe("ok");
+  });
+
+  it("dedupes tickers (a ticker carries one card per horizon)", () => {
+    expect(computeBatchCoverage(["A", "A", "B"], new Set(), new Set())).toEqual({ expected: 2, filled: 2 });
+  });
+
+  it("counts failed writes and upstream errors as unfilled", () => {
+    const coverage = computeBatchCoverage(["A", "B", "C", "D"], new Set(["B"]), new Set(["C"]));
+    expect(coverage).toEqual({ expected: 4, filled: 2 });
+    expect(computeRunStatus(coverage)).toBe("fail");
+  });
+
+  it("an empty batch is ok, not a division error", () => {
+    expect(computeRunStatus(computeBatchCoverage([], new Set(), new Set()))).toBe("ok");
+  });
+});
+
+describe("deriveRunStatus", () => {
+  it("is ok when every attempted item succeeded", () => {
+    expect(deriveRunStatus([{ outcome: "ok" }, { outcome: "ok" }])).toBe("ok");
+  });
+
+  it("is ok when nothing was attempted (all skipped, or no items)", () => {
+    expect(deriveRunStatus([{ outcome: "skip" }])).toBe("ok");
+    expect(deriveRunStatus([])).toBe("ok");
+  });
+
+  it("is fail when nothing generated — the precompute 0/10 shape", () => {
+    expect(deriveRunStatus(Array.from({ length: 10 }, () => ({ outcome: "fail" as const })))).toBe("fail");
+  });
+
+  it("is degraded when everything succeeded but a fallback served", () => {
+    expect(deriveRunStatus([{ outcome: "ok", fallback: true }, { outcome: "ok" }])).toBe("degraded");
+  });
+
+  it("never returns a nullish status", () => {
+    for (const items of [[], [{ outcome: "empty" as const }], [{ outcome: "skip" as const }]]) {
+      expect(deriveRunStatus(items)).toMatch(/^(ok|degraded|partial|fail)$/);
+    }
   });
 });
