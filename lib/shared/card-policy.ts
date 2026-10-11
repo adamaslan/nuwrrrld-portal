@@ -301,14 +301,20 @@ export function isExplainable(card: TickerCard, minQuality: number = MIN_EXPLAIN
  *     the 15:00 UTC run's equal-quality card and the universe would keep the
  *     partial bar until the next day;
  *   - a partial card never replaces a final one;
- *   - two partials: the later run wins at equal or better quality;
+ *   - two partials: the higher-quality one wins; at equal quality, the one
+ *     generated later wins, using `observedAt` (an immutable time the
+ *     producer captured before computing the batch) rather than write order
+ *     — an older batch that is POSTed late must not reverse a newer one just
+ *     because it happened to arrive second. `observedAt` absent on either
+ *     side falls back to the pre-existing quality-only tie-break (`>=`,
+ *     incoming wins), which is what every caller predating this field gets;
  *   - two finals: strictly better quality only, as before.
  * `isFinal` defaults to true so callers that predate intraday runs keep the
  * original same-bar behavior.
  */
 export function shouldReplaceCard(
-  incoming: { barDate: string; dataQuality: number; isFinal?: boolean },
-  stored: { barDate: string; dataQuality: number; isFinal?: boolean } | null,
+  incoming: { barDate: string; dataQuality: number; isFinal?: boolean; observedAt?: string | null },
+  stored: { barDate: string; dataQuality: number; isFinal?: boolean; observedAt?: string | null } | null,
 ): boolean {
   if (!stored) return true;
   if (incoming.barDate > stored.barDate) return true;
@@ -318,8 +324,16 @@ export function shouldReplaceCard(
   const storedFinal = stored.isFinal ?? true;
   if (incomingFinal && !storedFinal) return true;
   if (!incomingFinal && storedFinal) return false;
-  if (!incomingFinal) return incoming.dataQuality >= stored.dataQuality;
-  return incoming.dataQuality > stored.dataQuality;
+  if (incomingFinal) return incoming.dataQuality > stored.dataQuality;
+
+  // Both partial.
+  if (incoming.dataQuality > stored.dataQuality) return true;
+  if (incoming.dataQuality < stored.dataQuality) return false;
+  // Equal quality: break the tie by generation time, not arrival time.
+  if (incoming.observedAt && stored.observedAt) {
+    return incoming.observedAt > stored.observedAt;
+  }
+  return incoming.dataQuality >= stored.dataQuality;
 }
 
 /**

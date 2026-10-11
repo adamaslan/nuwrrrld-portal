@@ -284,6 +284,30 @@ describe("replacement rule", () => {
       expect(shouldReplaceCard({ barDate: day, dataQuality: 1 }, midday)).toBe(true);
       expect(shouldReplaceCard({ barDate: day, dataQuality: 1 }, { barDate: day, dataQuality: 1 })).toBe(false);
     });
+
+    describe("equal-quality partials: observedAt breaks the tie, not arrival order", () => {
+      const earlier = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T14:00:00.000Z" };
+      const later = { ...midday, dataQuality: 0.8, observedAt: "2026-08-18T14:30:00.000Z" };
+
+      it("a later-generated partial replaces an earlier one at equal quality", () => {
+        expect(shouldReplaceCard(later, earlier)).toBe(true);
+      });
+
+      it("an earlier-generated partial is refused even if it arrives (is written) second", () => {
+        // This is the bug CodeRabbit flagged on PR #248: without observedAt,
+        // write order alone decided the tie and a stale retry could win.
+        expect(shouldReplaceCard(earlier, later)).toBe(false);
+      });
+
+      it("strictly better quality still wins regardless of observedAt", () => {
+        expect(shouldReplaceCard({ ...earlier, dataQuality: 0.95 }, later)).toBe(true);
+      });
+
+      it("falls back to the old quality-only tie-break when observedAt is missing on either side", () => {
+        expect(shouldReplaceCard({ ...earlier, observedAt: undefined }, later)).toBe(true);
+        expect(shouldReplaceCard(earlier, { ...later, observedAt: undefined })).toBe(true);
+      });
+    });
   });
 });
 

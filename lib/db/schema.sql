@@ -395,6 +395,11 @@ CREATE TABLE IF NOT EXISTS ticker_cards (
   news_score           double precision,
   news_vote            double precision,
   news_weight_version  text,
+  -- The producer's own pre-compute timestamp, distinct from computed_at
+  -- (portal write time). NULL for callers that don't send it. Used only to
+  -- break an equal-quality partial-vs-partial tie in shouldReplaceCard /
+  -- upsertCards by generation order instead of arrival order.
+  observed_at          timestamptz,
   PRIMARY KEY (ticker, horizon)
 );
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS is_final             boolean NOT NULL DEFAULT true;
@@ -402,6 +407,7 @@ ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS confluence_technical double pr
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_score           double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_vote            double precision;
 ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_weight_version  text;
+ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS observed_at          timestamptz;
 
 -- The ranking index. Partial on quality because the top-N query never wants
 -- low-quality rows, so they should not occupy the index at all.

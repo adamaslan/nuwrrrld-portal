@@ -71,6 +71,7 @@ const DROP_STATEMENT_PATTERNS = [
   /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_score\s+double precision;/i,
   /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_vote\s+double precision;/i,
   /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS news_weight_version\s+text;/i,
+  /ALTER TABLE ticker_cards ADD COLUMN IF NOT EXISTS observed_at\s+timestamptz;/i,
   /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS stop_price numeric;/i,
   /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS target_price numeric;/i,
   /ALTER TABLE paper_positions ADD COLUMN IF NOT EXISTS exit_by date;/i,

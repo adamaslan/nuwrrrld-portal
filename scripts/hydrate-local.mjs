@@ -362,7 +362,7 @@ function rowFor(symbol, barData) {
  * when the stored card is already better (see `shouldReplaceCard`), and
  * reporting that as written would overstate coverage.
  */
-async function postChunk(rows, runId, barDate, universe) {
+async function postChunk(rows, runId, barDate, universe, observedAt) {
   if (DRY_RUN) {
     console.log(`[dry-run] would POST ${rows.length} rows (universe=${universe})`);
     return { written: rows.length, skipped: 0, failed: 0 };
@@ -382,6 +382,7 @@ async function postChunk(rows, runId, barDate, universe) {
       isFinal: !INTRADAY,
       rows,
       host: HOST,
+      observedAt,
     }),
   });
 
@@ -428,6 +429,11 @@ async function main() {
   }
 
   const barDate = new Date().toISOString().split("T")[0];
+  // Captured once, before any chunk is computed or posted — this is the batch's
+  // immutable generation time. Using it (rather than the portal's write-time
+  // `now()`) lets an older partial batch that is POSTed late still lose a
+  // same-quality tie-break to a newer one that was POSTed first.
+  const observedAt = new Date().toISOString();
   const runId = `hydrate-local:${barDate}:${INTRADAY ? "intraday:" : ""}${new Date().getTime()}`;
 
   const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
@@ -499,7 +505,7 @@ async function main() {
 
         // Persistence counters come from the portal's response, and only after
         // it has actually answered — never from the count we optimistically sent.
-        const result = await postChunk(rows, runId, barDate, universe);
+        const result = await postChunk(rows, runId, barDate, universe, observedAt);
         written += result.written ?? 0;
         postFailures += result.failed ?? 0;
         console.log(`  → posted: written=${result.written} failed=${result.failed}`);

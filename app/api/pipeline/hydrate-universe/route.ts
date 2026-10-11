@@ -84,6 +84,15 @@ interface HydrateBody {
   barDate?: string;
   /** false for a midday run whose daily bar is still forming. Default true. */
   isFinal?: boolean;
+  /** ISO timestamp captured by the compute host before it started computing
+   *  this batch — the batch's generation time, distinct from `computedAt`
+   *  (set below from the portal's own write-time clock). Carrying this
+   *  through lets `upsertCards` break an equal-quality partial-vs-partial tie
+   *  by generation order instead of arrival order, so a batch that was
+   *  computed first but POSTed late cannot overwrite a fresher one. Absent
+   *  for callers that predate this (falls back to the pre-existing
+   *  quality-only tie-break). */
+  observedAt?: string;
   rows?: HydrateRow[];
   /** Which compute host is posting this chunk. See lib/pipeline-run-log-db.ts. */
   host?: HydrateHost;
@@ -205,6 +214,7 @@ export async function POST(req: NextRequest) {
   const universe: CardUniverse = body.universe === "etf" ? "etf" : "stock";
   const barDate = normalizeBarDate(body.barDate);
   const isFinal = body.isFinal !== false;
+  const observedAt = typeof body.observedAt === "string" && body.observedAt ? body.observedAt : null;
   const rows = Array.isArray(body.rows) ? body.rows : [];
 
   // Provenance is required, not optional: without `source` and `barDate` a card
@@ -266,7 +276,7 @@ export async function POST(req: NextRequest) {
     const frameStats = parseFrameStats(row.frameStats);
     for (const horizon of HORIZONS) {
       const card = buildCard(ticker, universe, input, horizon, frameStats);
-      cards.push({ ...card, source, sourceRunId: body.runId ?? null, barDate, isFinal, computedAt: new Date().toISOString() });
+      cards.push({ ...card, source, sourceRunId: body.runId ?? null, barDate, isFinal, computedAt: new Date().toISOString(), observedAt });
     }
   }
 

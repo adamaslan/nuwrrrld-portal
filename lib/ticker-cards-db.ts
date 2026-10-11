@@ -31,6 +31,10 @@ export interface StoredCard extends TickerCard {
   /** False for a midday snapshot built from a partial daily bar. Absent means
    *  final, so callers that predate intraday runs are unchanged. */
   isFinal?: boolean;
+  /** ISO timestamp the producer captured before computing this batch — see
+   *  `shouldReplaceCard`'s partial-vs-partial tie-break. Null for callers
+   *  that don't send it. */
+  observedAt?: string | null;
 }
 
 export interface UpsertOutcome {
@@ -124,13 +128,15 @@ export async function upsertCards(
         INSERT INTO ticker_cards (
           ticker, horizon, universe, state_key, taxonomy_version,
           score, score_version, action, tokens, numerics,
-          data_quality, missing_fields, source, source_run_id, bar_date, is_final
+          data_quality, missing_fields, source, source_run_id, bar_date, is_final,
+          observed_at
         ) VALUES (
           ${card.ticker}, ${card.horizon}, ${card.universe}, ${card.stateKey},
           ${card.taxonomyVersion}, ${card.score}, ${card.scoreVersion}, ${card.action},
           ${JSON.stringify(card.tokens)}::jsonb, ${JSON.stringify({})}::jsonb,
           ${card.dataQuality}, ${card.missingFields}, ${card.source},
-          ${card.sourceRunId}, ${card.barDate}, ${card.isFinal ?? true}
+          ${card.sourceRunId}, ${card.barDate}, ${card.isFinal ?? true},
+          ${card.observedAt ?? null}
         )
         ON CONFLICT (ticker, horizon) DO UPDATE SET
           universe         = EXCLUDED.universe,
@@ -146,6 +152,7 @@ export async function upsertCards(
           source_run_id    = EXCLUDED.source_run_id,
           bar_date         = EXCLUDED.bar_date,
           is_final         = EXCLUDED.is_final,
+          observed_at      = EXCLUDED.observed_at,
           computed_at      = now()
         WHERE EXCLUDED.bar_date > ticker_cards.bar_date
            OR (EXCLUDED.bar_date = ticker_cards.bar_date
@@ -155,9 +162,23 @@ export async function upsertCards(
                  -- final over final: strictly better quality only
                  OR (EXCLUDED.is_final AND ticker_cards.is_final
                      AND EXCLUDED.data_quality > ticker_cards.data_quality)
-                 -- partial over partial: the later snapshot at >= quality
+                 -- partial over partial: strictly better quality always wins;
+                 -- at equal quality, prefer the batch generated later
+                 -- (observed_at — the producer's own pre-compute timestamp)
+                 -- so a batch that was computed first but POSTed late cannot
+                 -- reverse a newer one purely on write order. Falls back to
+                 -- accepting the incoming row when either side lacks
+                 -- observed_at, matching the pre-existing behavior.
                  OR (NOT EXCLUDED.is_final AND NOT ticker_cards.is_final
-                     AND EXCLUDED.data_quality >= ticker_cards.data_quality)
+                     AND (
+                       EXCLUDED.data_quality > ticker_cards.data_quality
+                       OR (EXCLUDED.data_quality = ticker_cards.data_quality
+                           AND (
+                             EXCLUDED.observed_at IS NULL
+                             OR ticker_cards.observed_at IS NULL
+                             OR EXCLUDED.observed_at > ticker_cards.observed_at
+                           ))
+                     ))
                ))
         RETURNING ticker
       `;
@@ -208,6 +229,7 @@ export async function topCards(
         WHERE c.horizon = ${horizon}
           AND c.data_quality >= 0.8
           AND c.missing_fields = '{}'
+          AND c.is_final = true
           AND (${universe} = 'all' OR c.universe = ${universe})
         GROUP BY c.ticker, c.horizon
         ORDER BY c.score DESC, c.computed_at DESC
@@ -383,6 +405,8 @@ function rowToStored(row: Record<string, unknown>): StoredCard {
     sourceRunId: (row.source_run_id as string | null) ?? null,
     barDate: toIsoDate(row.bar_date),
     computedAt: String(row.computed_at),
+    isFinal: (row.is_final as boolean | null | undefined) ?? true,
+    observedAt: row.observed_at == null ? null : String(row.observed_at),
   };
 }
 
