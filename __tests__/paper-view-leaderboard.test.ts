@@ -5,7 +5,7 @@
  * a healthy one.
  */
 import { describe, expect, it } from "vitest";
-import { buildLeaderboardView, type LatestRunSummary } from "@/lib/shared/paper-view";
+import { buildLeaderboardView, RUN_LOOKUP_FAILED, type LatestRunSummary } from "@/lib/shared/paper-view";
 import type { Account } from "@/lib/paper-db";
 import type { PaperAccount } from "@/lib/shared/paper-policy";
 
@@ -31,6 +31,13 @@ describe("buildLeaderboardView — last run", () => {
     const vm = buildLeaderboardView([account("chair")], new Map(), new Map(), runs);
     expect(vm.rows[0].lastRunStatus).toBe("ok");
     expect(vm.rows[0].lastRunAt).toBe("2026-10-07T13:30:00.000Z");
+  });
+
+  it("shows a failed lookup as an error, not as 'unknown' (no run yet)", () => {
+    const runs = new Map<PaperAccount, LatestRunSummary | null>([["chair", RUN_LOOKUP_FAILED]]);
+    const vm = buildLeaderboardView([account("chair")], new Map(), new Map(), runs);
+    expect(vm.rows[0].lastRunStatus).toBe("error");
+    expect(vm.rows[0].lastRunAt).toBe("2026-09-22T00:00:00.000Z");
   });
 
   it("surfaces a failing run instead of masking it", () => {

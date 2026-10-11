@@ -60,8 +60,11 @@ export interface LeaderboardRowVM {
 /** The two fields of a `paper_runs` row the leaderboard needs. */
 export interface LatestRunSummary {
   status: string;
-  startedAt: string;
+  startedAt: string | null;
 }
+
+/** Shown when the latest-run lookup itself failed, so it is never mistaken for "no run yet". */
+export const RUN_LOOKUP_FAILED: LatestRunSummary = { status: "error", startedAt: null };
 
 export interface LeaderboardVM {
   rows: LeaderboardRowVM[];

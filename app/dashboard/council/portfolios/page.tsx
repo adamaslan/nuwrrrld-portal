@@ -7,7 +7,7 @@ import type { SubscriptionStatus } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
 import { listAccounts, getLatestRun, getLatestRunAnySlot, getNavSeries, type NavPoint } from "@/lib/paper-db";
 import { PAPER_ACCOUNTS, type PaperAccount } from "@/lib/shared/paper-policy";
-import { buildLeaderboardView, type AccountMetrics, type LatestRunSummary } from "@/lib/shared/paper-view";
+import { buildLeaderboardView, RUN_LOOKUP_FAILED, type AccountMetrics, type LatestRunSummary } from "@/lib/shared/paper-view";
 import { PaperPortfoliosClient } from "./PaperPortfoliosClient";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "./paper-portfolios.css";
@@ -47,7 +47,10 @@ export default async function PaperPortfoliosPage() {
       const [run, [latestNav], anyRun] = await Promise.all([
         getLatestRun(account, "settle"),
         getNavSeries(account, 1),
-        getLatestRunAnySlot(account),
+        getLatestRunAnySlot(account).catch((err) => {
+          console.error("[paper] latest run lookup failed", account, err);
+          return RUN_LOOKUP_FAILED;
+        }),
       ]);
       metricsByAccount.set(account, (run?.detail?.metrics as AccountMetrics | undefined) ?? null);
       latestNavByAccount.set(account, latestNav ?? null);

@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 import { listAccounts, getLatestRun, getLatestRunAnySlot, getNavSeries, type NavPoint } from "@/lib/paper-db";
 import { PAPER_ACCOUNTS, type PaperAccount } from "@/lib/shared/paper-policy";
-import { buildLeaderboardView, type LeaderboardVM, type AccountMetrics, type LatestRunSummary } from "@/lib/shared/paper-view";
+import { buildLeaderboardView, RUN_LOOKUP_FAILED, type LeaderboardVM, type AccountMetrics, type LatestRunSummary } from "@/lib/shared/paper-view";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let cache: { data: LeaderboardVM; expiresAt: number } | null = null;
@@ -27,7 +27,10 @@ async function generate(): Promise<LeaderboardVM> {
       const [run, [latestNav], anyRun] = await Promise.all([
         getLatestRun(account, "settle"),
         getNavSeries(account, 1),
-        getLatestRunAnySlot(account),
+        getLatestRunAnySlot(account).catch((err) => {
+          console.error("[paper] latest run lookup failed", account, err);
+          return RUN_LOOKUP_FAILED;
+        }),
       ]);
       metricsByAccount.set(account, (run?.detail?.metrics as AccountMetrics | undefined) ?? null);
       latestNavByAccount.set(account, latestNav ?? null);
