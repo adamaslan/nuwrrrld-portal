@@ -107,6 +107,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-local-signal-chat-over-missing-gcp3-agent]] — the same call made a second time: `/api/signals/{ticker}/chat` proxied to a gcp3 agent that was never registered and 503'd for its entire life, so the portal now grounds and answers it locally, upstream-first, with an `X-Signal-Chat-Source` header
 - [[decision-clerk-subdomain-without-satellite]] — financial.nuwrrrld.com uses `allowed_origins`, not Clerk's paid satellite-domain feature; `change_domain` silently no-ops if misused as an "add a subdomain" call
 - [[decision-engine-shadow-mode-first]] — the engine writes only its own tables and is promoted by a pre-committed checklist, not switched in; older signal writers stay until then
+- [[decision-agent-model-tiers]] — coding agents (Claude Code, Codex) follow one tiered rule set in `AGENTS.md`: judgment stays in the main session, bulk reads/edits go to cheaper tiers returning summaries, one `TODO.md` item per session
 
 ---
 
