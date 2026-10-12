@@ -1,0 +1,18 @@
+# Runtime deps for CI. Mirrors py_image.pip_install(...) in modal_app.py;
+# tests/test_requirements_sync.py fails if the two lists drift.
+fastapi[standard]~=0.115
+asyncpg~=0.30
+psycopg[binary]~=3.2
+pydantic-settings~=2.6
+httpx~=0.28
+PyJWT[crypto]~=2.10
+svix~=1.40
+stripe~=11.0
+pandas~=2.2
+numpy~=2.1
+pyarrow~=18.0
+exchange_calendars~=4.5
+tenacity~=9.0
+sentry-sdk[fastapi]~=2.18
+pyyaml~=6.0
+boto3~=1.35

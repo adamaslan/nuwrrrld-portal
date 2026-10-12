@@ -36,6 +36,19 @@ jobs:
     outputs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
     steps:
+      # Sparse: only .github/ — the shared retry helper and market-gate action.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - id: calendar
+        name: NYSE calendar (holidays, early closes)
+        uses: ./.github/actions/market-gate
+        with:
+          alpaca-key: ${{ secrets.ALPACA_API_KEY }}
+          alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
+
       - id: check
         name: Weekday + single-fire (America/New_York 15:xx) check
         run: |
@@ -48,6 +61,9 @@ jobs:
           if [[ "$DAY" -ge 6 ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping pipeline."
+          elif [[ "${{ steps.calendar.outputs.is_trading_day }}" == "false" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NYSE holiday per the Alpaca calendar — skipping pipeline."
           elif [[ "$NY_HOUR" != "15" && "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "NY local hour is ${NY_HOUR}, not 15 — this is the off-season cron entry, skipping."
@@ -68,6 +84,12 @@ jobs:
       signals_status: ${{ steps.signals.outputs.status }}
       council_status:  ${{ steps.council.outputs.status }}
     steps:
+      # Sparse: only .github/ — the shared retry helper and market-gate action.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
       - name: Verify required secrets exist
         # Fails fast if a secret was never set rather than silently sending
         # an empty Authorization header to the portal. The secrets API needs a
@@ -93,8 +115,7 @@ jobs:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          STATUS=$(curl -s -o /tmp/signals.json -w "%{http_code}" \
-            -X POST "$PORTAL_URL/api/pipeline/signals-refresh" \
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/signals.json "$PORTAL_URL/api/pipeline/signals-refresh" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
@@ -112,8 +133,7 @@ jobs:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          STATUS=$(curl -s -o /tmp/council.json -w "%{http_code}" \
-            -X POST "$PORTAL_URL/api/pipeline/council-run" \
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/council.json "$PORTAL_URL/api/pipeline/council-run" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")
@@ -131,8 +151,7 @@ jobs:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          STATUS=$(curl -s -o /tmp/theses.json -w "%{http_code}" \
-            -X POST "$PORTAL_URL/api/pipeline/theses-score" \
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/theses.json "$PORTAL_URL/api/pipeline/theses-score" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "{\"dry_run\": ${{ inputs.dry_run || false }}, \"session\": \"afternoon\"}")

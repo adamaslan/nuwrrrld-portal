@@ -37,6 +37,8 @@ Every row is stamped with `CORPUS_VERSION` (git short SHA, else `"dev"`) and `TA
 
 ## Known failures
 
+0. **The compile workflow never installed dependencies** (fix in PR #253). From 2026-10-03, every run of `compile-grounding-pack.yml` died with `ERR_MODULE_NOT_FOUND` for the Neon driver, so `grounding_pack` stopped refreshing. The fix adds `npm ci` and a one-line check that the driver resolves.
+
 1. **Production corpus not yet migrated** (resolved). Until PR #176, `corpus/` held only two sample files, so the compiled pack was a placeholder. `corpus/trader-qa/` is now a reviewed mirror of `adamaslan/ai-text-opt`'s `docs/trader-qa/` (9 files, 260 chunks), kept current by `scripts/sync-corpus.mjs` through a weekly PR-opening workflow. Six outline and RAG-tooling files are excluded. The two news docs in it are time-sensitive and have no freshness flag yet.
 2. **Under-constrained rule → Cartesian blow-up.** A rule that pins few taxonomy dimensions expands into many `state_key` rows; `MAX_EXPANDED_ROWS_PER_RULE` (24) caps this.
 3. **Extraction model returns malformed tuples.** The verbatim-quote invariant rejects fabricated evidence, but a chunk that yields zero valid rules simply contributes nothing — silent under-coverage rather than an error.

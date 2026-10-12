@@ -45,6 +45,8 @@ The reframing that produced this decision: **free-tier quota is a renewable reso
 
 ## Validated by
 
+- **2026-10-10 manual run (`maxSubjects=1`) failed with 502 for a reason other than quota.** The model answered (nemotron, about 12.7 s), but the result came back `reason: "db write failed"`, and the selected subject was the entire watchlist (about 800 tickers) joined into one string. The failure issue's quota and secret hints don't cover this, so the failure is open and unexplained.
+
 - `__tests__/precomputed-ai.test.ts` — pins `subjectFromTickers` order-independence, case/whitespace normalization, de-duplication, and `split()` round-trip. This is the cache key, so instability in it silently re-spends the quota the feature exists to conserve — and a miss looks like a cold cache, not a bug.
 - `next build` — `/api/pipeline/precompute-ai` registers; full unit suite green (262 passing).
 - ❓ **Not yet validated end-to-end against a real schedule.** The endpoint and both schedulers exist; no nightly run has executed. The `quotaExhausted` warning path in particular is untested against a live 429.

@@ -159,6 +159,8 @@ agree in intent but not in code.
 
 > ℹ️ **Portal PR #217 (2026-10-04) assessed — portal-only pipeline and correctness fix, headline unchanged at ~62%.** Fixes [[concept-followed-tickers-tracking]], which had never written a production row. The change is server-side (`app/api/pipeline/followed-tickers*`, `lib/followed-tickers-*`, `lib/alpaca-latest-price.ts`), CI gates in five workflows, and additive schema. No `lib/shared/` module is touched and no new shared module is added, so the single-source denominator does not move. The followed-tickers feature is web-only by decision: mobile has no benchmark surface, so the gap is not counted as drift. The price chain (`live_prices` → Alpaca → `daily_bars`, freshness-bounded) is a portal-side data-contract change. Mobile reads `live_prices` differently, so it is not a parity item. See [[incident-2026-10-04-followed-tickers-never-produced-data]].
 
+
+> ℹ️ **Portal PRs #253 and the GHA parity PR (2026-10-10) assessed: CI and workflow infra only.** These cover a grounding-workflow dependency install, CI for the Modal Python code, workflow retries, an NYSE-calendar gate and workflow lint. No feature-domain or `lib/shared/` change, so the headline is unchanged. See [[concept-gha-cloud-parity]].
 ## Headline: ~62% synced (2026-08-29, after portal PRs #77/#78/#79 + mobile PR #39 — consent/DSAR land web-only, `attribution.ts` mirrored to mobile)
 
 Two different denominators, deliberately kept separate:

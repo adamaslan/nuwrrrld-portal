@@ -70,6 +70,11 @@ on:
         required: false
         type: boolean
         default: false
+      dry_run:
+        description: 'Gate, slot, secrets and deploy check only; no live_prices write, no paper orders'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: paper-portfolios
@@ -88,6 +93,19 @@ jobs:
       slot: ${{ steps.check.outputs.slot }}
       late: ${{ steps.check.outputs.late }}
     steps:
+      # Sparse: only .github/ — the shared retry helper and market-gate action.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - id: calendar
+        name: NYSE calendar (holidays, early closes)
+        uses: ./.github/actions/market-gate
+        with:
+          alpaca-key: ${{ secrets.ALPACA_API_KEY }}
+          alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
+
       - id: check
         name: Slot resolution (from the cron that fired) + weekday gate
         env:
@@ -104,6 +122,13 @@ jobs:
           if [[ "$DAY" -ge 6 && "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping."
+            exit 0
+          fi
+
+          # Weekday holidays passed the weekday-only gate (docs/gha-tests-and-cloud-parity.md §3.3 E).
+          if [[ "${{ steps.calendar.outputs.is_trading_day }}" == "false" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NYSE holiday per the Alpaca calendar — skipping."
             exit 0
           fi
 
@@ -239,7 +264,15 @@ jobs:
       - name: Wait for the deployed commit to match this run's commit
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
+          if [[ "$DRY_RUN" == "true" ]]; then
+            # A dry run writes nothing, and one dispatched from a branch can never
+            # match prod's SHA — report the comparison instead of polling it.
+            LIVE_SHA=$(curl -sS --max-time 10 "$PORTAL_URL/api/paper/version" | jq -r '.sha // empty')
+            echo "Dry run: deployed=${LIVE_SHA:-unknown} run=${{ github.sha }} ($([[ "$LIVE_SHA" == "${{ github.sha }}" ]] && echo match || echo 'no match — a real run would wait, then fail'))."
+            exit 0
+          fi
           for i in $(seq 1 30); do
             LIVE_SHA=$(curl -sS --max-time 10 "$PORTAL_URL/api/paper/version" | jq -r '.sha // empty')
             if [[ "$LIVE_SHA" == "${{ github.sha }}" ]]; then
@@ -261,6 +294,7 @@ jobs:
           exit 1
 
       - name: Refresh live_prices from Alpaca (IEX latest trades)
+        if: ${{ !inputs.dry_run }}
         continue-on-error: true
         timeout-minutes: 5
         env:
@@ -286,8 +320,15 @@ jobs:
           if [[ "${{ needs.gate.outputs.late }}" == "true" ]]; then
             URL="${URL}&late=true"
           fi
-          STATUS=$(curl -sS -o /tmp/paper-run.json -w '%{http_code}' \
-            -X POST "$URL" \
+          if [[ "${{ inputs.dry_run || false }}" == "true" ]]; then
+            # The route has no dry-run mode; stop before it. Everything up to
+            # here (gate, slot, secrets, deploy check) has run for real.
+            echo "status=dry-run" >> "$GITHUB_OUTPUT"
+            echo "Dry run: would POST ${URL#"$PORTAL_URL"}"
+            jq -n --arg slot "$SLOT" --arg url "${URL#"$PORTAL_URL"}" '{ok: true, dryRun: true, slot: $slot, wouldPost: $url}' > /tmp/paper-run.json
+            exit 0
+          fi
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/paper-run.json "$URL" \
             -H "Authorization: Bearer $PAPER_CRON_SECRET" \
             -H 'Content-Type: application/json' \
             --max-time 280)
@@ -315,6 +356,8 @@ jobs:
 
       - name: Write step summary
         if: always()
+        env:
+          ACCOUNT_FILTER: ${{ inputs.account || 'all 8' }}
         run: |
           {
             echo "## Paper portfolios — ${{ needs.gate.outputs.slot }} — $(date -u '+%Y-%m-%d %H:%M UTC')"
@@ -322,7 +365,8 @@ jobs:
             echo "| Field | Value |"
             echo "|-------|-------|"
             echo "| slot | ${{ needs.gate.outputs.slot }} |"
-            echo "| account filter | ${{ inputs.account || 'all 8' }} |"
+            echo "| account filter | ${ACCOUNT_FILTER} |"
+            echo "| dry run | ${{ inputs.dry_run || false }} |"
             echo "| run HTTP | ${{ steps.run.outputs.status || '—' }} |"
             if [[ -f /tmp/paper-run.json ]]; then
               echo ""

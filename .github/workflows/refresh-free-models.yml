@@ -9,14 +9,19 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    # Write scopes only on the job that opens the chain PR (zizmor excessive-permissions).
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -46,6 +51,7 @@ jobs:
       - name: Open PR if the chain changed
         uses: peter-evans/create-pull-request@v6
         with:
+          token: ${{ github.token }}
           branch: chore/refresh-free-models
           base: main
           commit-message: 'chore: refresh FREE_MODEL_CHAIN with currently-free, reachable models'

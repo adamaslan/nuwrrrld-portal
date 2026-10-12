@@ -53,6 +53,19 @@ jobs:
     outputs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
     steps:
+      # Sparse: only .github/ — the shared retry helper and market-gate action.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - id: calendar
+        name: NYSE calendar (holidays, early closes)
+        uses: ./.github/actions/market-gate
+        with:
+          alpaca-key: ${{ secrets.ALPACA_API_KEY }}
+          alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
+
       - id: check
         name: Weekday + single-fire (America/New_York 15:xx) check
         run: |
@@ -70,6 +83,9 @@ jobs:
           if [[ "$DAY" -ge 6 ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping."
+          elif [[ "${{ steps.calendar.outputs.is_trading_day }}" == "false" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "NYSE holiday per the Alpaca calendar — skipping."
           elif (( 10#$NY_HOUR < 16 )) && [[ "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "NY local hour is ${NY_HOUR}, before the 16:00 ET close — skipping."
@@ -89,6 +105,12 @@ jobs:
     outputs:
       track_status: ${{ steps.track.outputs.status }}
     steps:
+      # Sparse: only .github/ — the shared retry helper and market-gate action.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
       - name: Verify required secrets exist
         # The secrets API needs a token with secrets scope; the default
         # GITHUB_TOKEN gets HTTP 403, so check the values this job receives.
@@ -110,8 +132,7 @@ jobs:
           # (or its own store) and, per ticker, calls fetchBacktest + re-reads
           # the ranked card + runs one grounded council seat, then writes the
           # four columns back into the doc.
-          STATUS=$(curl -sS -o /tmp/track.json -w '%{http_code}' \
-            -X POST "$PORTAL_URL/api/pipeline/followed-tickers" \
+          STATUS=$(bash .github/scripts/portal-post.sh /tmp/track.json "$PORTAL_URL/api/pipeline/followed-tickers" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H 'Content-Type: application/json' \
             --max-time 600 \

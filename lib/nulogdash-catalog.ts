@@ -212,6 +212,8 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
       { label: "test", detail: "Unit and component tests." },
       { label: "db-schema-parity", detail: "Checks the Postgres and SQLite schemas agree." },
       { label: "shared-drift-check", detail: "Checks shared modules have not drifted between surfaces." },
+      { label: "modal-python", detail: "Runs the Modal backend and news pipeline Python tests against Postgres." },
+      { label: "workflow-lint", detail: "actionlint and zizmor (high severity) over .github/." },
     ],
   },
   {
@@ -224,6 +226,26 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
       { label: "auth", detail: "Signs in through the auth flow." },
       { label: "e2e", detail: "Runs the Playwright end-to-end specs." },
       { label: "report", detail: "Publishes the E2E report." },
+    ],
+  },
+  {
+    id: "live-smoke.yml",
+    label: "Live model-chain smoke",
+    source: ".github/workflows/live-smoke.yml",
+    trigger: "Cron Mon 07:35 UTC · PRs touching the chain · manual",
+    manual: true,
+    subFeatures: [
+      { label: "model-chain", detail: "Live free-chain reachability, council seats and fallback path; fails if the key is missing." },
+    ],
+  },
+  {
+    id: "modal-run.yml",
+    label: "Run a Modal job now",
+    source: ".github/workflows/modal-run.yml",
+    trigger: "Manual only (job choice input)",
+    manual: true,
+    subFeatures: [
+      { label: "run", detail: "modal run on a listed Modal function; needs MODAL_TOKEN_ID / MODAL_TOKEN_SECRET." },
     ],
   },
 ];

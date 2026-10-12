@@ -23,9 +23,17 @@ import { LIVE_KEY, SEAT_LATENCY_BUDGET_MS, describeLive, probeModel } from "./_h
 
 const ALL_SEATS: CouncilSeat[] = [...DEBATE_SEATS, "CHAIR"];
 
+// Probed once and shared: the free tier allows ~50 requests/day account-wide,
+// and probing the whole chain per test doubled the spend.
+let chainProbes: ReturnType<typeof probeChain> | undefined;
+function probeChain() {
+  return Promise.all(FREE_MODEL_CHAIN.map((m) => probeModel(m, LIVE_KEY)));
+}
+const getChainProbes = () => (chainProbes ??= probeChain());
+
 describeLive("LIVE: FREE_MODEL_CHAIN reachability", () => {
   it("has at least one model that actually answers", async () => {
-    const probes = await Promise.all(FREE_MODEL_CHAIN.map((m) => probeModel(m, LIVE_KEY)));
+    const probes = await getChainProbes();
     for (const p of probes) {
       console.info(`[chain] ${p.ok ? "✅" : "❌"} ${p.status} ${p.latencyMs}ms ${p.model}`);
     }
@@ -38,7 +46,7 @@ describeLive("LIVE: FREE_MODEL_CHAIN reachability", () => {
   });
 
   it("keeps a real fallback margin — more than one model answers", async () => {
-    const probes = await Promise.all(FREE_MODEL_CHAIN.map((m) => probeModel(m, LIVE_KEY)));
+    const probes = await getChainProbes();
     const healthy = probes.filter((p) => p.ok).map((p) => p.model);
     // A one-model chain is not a chain. This is the early warning that the
     // weekly refresh has stopped keeping up with provider churn.
