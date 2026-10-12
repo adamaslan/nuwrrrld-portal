@@ -1447,7 +1447,7 @@ other than `.env.local` / the Vercel dashboard.
         inline in an unrelated detector PR.
       - **Unblocks**: same as the 2026-09-12 entry
       - **Added**: 2026-09-29
-- [ ] **`e2e/frontend/signal-timing.spec.ts` throws instead of skipping when
+- [x] **`e2e/frontend/signal-timing.spec.ts` throws instead of skipping when
       `/api/signals/digest` returns an HTML error page.**
       - **From**: `/wait-merge1` run on PR #123 — same `[frontend]` shard,
         second failure: `SyntaxError: Unexpected token '<', "<!DOCTYPE "...
@@ -1462,6 +1462,9 @@ other than `.env.local` / the Vercel dashboard.
       - **Unblocks**: `signal-timing.spec.ts` degrading to a clean skip instead
         of a hard failure when the digest endpoint is unhealthy
       - **Added**: 2026-09-12
+      - **Completed**: 2026-10-12 — all three digest reads now share a helper
+        that skips on a missing/non-OK response, a non-JSON content type, or a
+        malformed JSON body instead of letting `.json()` fail the test.
 
 ## Suggested order
 

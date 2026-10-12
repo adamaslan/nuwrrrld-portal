@@ -1,4 +1,19 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIResponse } from "@playwright/test";
+
+async function digestJsonOrSkip(response: APIResponse | null, unavailableMessage: string) {
+  test.skip(!response || !response.ok(), unavailableMessage);
+
+  const contentType = response!.headers()["content-type"]?.toLowerCase() ?? "";
+  const isJson = contentType.includes("application/json") || contentType.includes("+json");
+  test.skip(!isJson, `digest API returned ${contentType || "no content type"} instead of JSON`);
+
+  try {
+    return await response!.json();
+  } catch {
+    test.skip(true, "digest API returned malformed JSON");
+    return null;
+  }
+}
 
 /**
  * Timing-correctness coverage for /dashboard/signals — prompted by a
@@ -42,8 +57,10 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     // portfolio-health.spec.ts's backtest 401 test for the same fix.
     await page.goto("/dashboard/signals");
     const digestRes = await page.request.get("/api/signals/digest").catch(() => null);
-    test.skip(!digestRes || !digestRes.ok(), "digest API unavailable this run — see e2e/health for dependency status");
-    const digest = await digestRes!.json();
+    const digest = await digestJsonOrSkip(
+      digestRes,
+      "digest API unavailable this run — see e2e/health for dependency status",
+    );
     const firstSignal = digest?.signals?.[0];
     test.skip(!firstSignal, "no signals in today's live digest");
 
@@ -76,9 +93,10 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     // storageState session (see the earlier test's comment for why).
     await page.goto("/dashboard/signals");
     const digestRes = await page.request.get("/api/signals/digest").catch(() => null);
-    test.skip(!digestRes || !digestRes.ok(), "digest API unavailable this run — see e2e/health for dependency status");
-
-    const digest = await digestRes!.json();
+    const digest = await digestJsonOrSkip(
+      digestRes,
+      "digest API unavailable this run — see e2e/health for dependency status",
+    );
     const soxx = digest?.signals?.find((s: { ticker: string }) => s.ticker === "SOXX");
     test.skip(!soxx, "SOXX not present in the current digest");
 
@@ -103,9 +121,8 @@ test.describe("SOXX / signal-timing (/dashboard/signals)", () => {
     // digest cache route rather than imported directly, since e2e specs
     // intentionally stay black-box against the running server.
     await page.goto("/dashboard/signals");
-    const res = await page.request.get("/api/signals/digest");
-    test.skip(!res.ok(), "digest API unavailable this run");
-    const digest = await res.json();
+    const res = await page.request.get("/api/signals/digest").catch(() => null);
+    const digest = await digestJsonOrSkip(res, "digest API unavailable this run");
     const soxx = digest?.signals?.find((s: { ticker: string }) => s.ticker === "SOXX");
     test.skip(!soxx, "SOXX not present in the current digest");
 
