@@ -7,9 +7,18 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 
 # Concept — What Each Surface Needs to Sync
 
-Companion page: [[concept-mobile-web-parity]] — the current ~60% measurement this
+Companion page: [[concept-mobile-web-parity]] — the historical ~62% measurement this
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
+
+## Portal PR #271 — CI alerting, no client port
+
+The open PR layers recovery closure and optional ntfy onto portal deduplication
+PR #265. It changes workflow operations, not shared app logic or either client.
+No new mobile port is required. Merge the base first, then validate deployed
+issue permissions and optional delivery; conservative issue-age checks can defer
+recovery until a later eligible successful run. Historical feature parity is
+unchanged and has not been re-audited for this infrastructure-only change.
 
 ## The pattern
 

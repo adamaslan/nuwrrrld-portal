@@ -146,3 +146,9 @@ The 2026-07-15 chain-of-thought leak remains documented as context inside [[deci
 ## Schema
 
 - [[SCHEMA]] — conventions, page types, secret policy, PR-ingest workflow
+
+## 2026-10-12 — Portal PR #271 CI alert assessment
+
+- [[concept-mobile-web-parity]] and [[concept-sync-requirements]]: recovery alerts are operational infrastructure; historical feature headline and domain matrix stay unchanged. PR remains open, stacked on #265.
+- [[entity-workflow-alert-lifecycle]]: exact workflow incidents, eligible recovery, optional push and remaining deployed checks.
+- [[decision-outage-transition-push]]: push on new outage and actual recovery, with conservative recovery ordering.
