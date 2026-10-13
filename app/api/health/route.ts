@@ -13,6 +13,12 @@ interface DepResult {
   error?: string;
 }
 
+function unreachableStatus(error: unknown): DepStatus {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
+    ? "degraded"
+    : "down";
+}
+
 async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -29,7 +35,7 @@ async function checkMcp(): Promise<DepResult> {
     const res = await withTimeout((signal) => fetch(`${MCP_URL}/health`, { signal }));
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: "down", latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
+    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
   }
 }
 
@@ -39,7 +45,7 @@ async function checkNeon(): Promise<DepResult> {
     await sql`SELECT 1`;
     return { status: "ok", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: "down", latencyMs: null, error: err instanceof Error ? err.message : "query failed" };
+    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "query failed" };
   }
 }
 
@@ -89,7 +95,7 @@ async function checkStripe(): Promise<DepResult> {
     );
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: "down", latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
+    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
   }
 }
 
@@ -131,7 +137,7 @@ async function checkOpenRouter(): Promise<DepResult> {
     );
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: "down", latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
+    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
   }
 }
 
@@ -153,6 +159,6 @@ export async function GET() {
 
   return NextResponse.json(
     { status: overall, ...deps, ts: new Date().toISOString() },
-    { status: overall === "down" ? 503 : 200 },
+    { status: overall === "down" ? 503 : 200, headers: { "Cache-Control": "public, s-maxage=60" } },
   );
 }

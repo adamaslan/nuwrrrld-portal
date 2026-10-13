@@ -1,3 +1,4 @@
+import { getTickerVerdict } from "../stored-signals";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -12,68 +13,10 @@ import DisclaimerFooter from "@/components/DisclaimerFooter";
 import { AnalyzeLivePanel } from "./AnalyzeLivePanel";
 import "../holdfold.css";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-
-// Distinct sentinel so the page can differentiate "backend down" from "ticker not found"
 class BackendError extends Error {}
 
 async function fetchVerdict(ticker: string): Promise<HoldFoldVerdict | null> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 8_000);
-  try {
-    const res = await fetch(`${MCP_URL}/signals`, {
-      signal: ctrl.signal,
-      next: { revalidate: 900 },
-    });
-    if (!res.ok) throw new BackendError(`upstream ${res.status}`);
-    const raw = await res.json() as Record<string, unknown>;
-    if (!raw?.symbols || typeof raw.symbols !== "object" || Array.isArray(raw.symbols)) {
-      throw new BackendError("invalid signals shape");
-    }
-
-    const symbols = raw.symbols as Record<string, Record<string, unknown>>;
-    const upper = ticker.toUpperCase();
-    const entry = Object.entries(symbols).find(([k, s]) =>
-      String(s.symbol ?? k).trim().toUpperCase() === upper
-    );
-    if (!entry) return null; // ticker genuinely not in the dataset → caller sends notFound()
-    const [key, s] = entry;
-
-    const action = String(s.ai_action ?? "").toUpperCase();
-    const confLabel = String(s.ai_confidence ?? "LOW").toUpperCase();
-    const inds = (s.indicators ?? {}) as Record<string, number | null>;
-    const rawSignals = Array.isArray(s.signals) ? s.signals as Record<string, unknown>[] : [];
-    const updatedAt = String(raw.updated ?? new Date().toISOString());
-
-    return {
-      ticker: String(s.symbol ?? key).trim().toUpperCase(),
-      verdict: action === "BUY" ? "HOLD EM" : action === "SELL" ? "FOLD EM" : "NEUTRAL",
-      confidence: confLabel === "HIGH" ? 80 : confLabel === "MEDIUM" ? 55 : 30,
-      confidenceLabel: confLabel,
-      bias: action === "BUY" ? "bullish" : action === "SELL" ? "bearish" : "neutral",
-      industry: String(s.industry ?? ""),
-      rsi: inds.rsi ?? null,
-      macd: inds.macd ?? null,
-      adx: inds.adx ?? null,
-      price: Number(s.price ?? 0),
-      high52w: Number(s["52w_high"] ?? 0),
-      low52w: Number(s["52w_low"] ?? 0),
-      returns: (s.returns ?? {}) as Record<string, number>,
-      signals: rawSignals.map(sig => ({
-        signal: String(sig.signal ?? ""),
-        strength: String(sig.strength ?? ""),
-        detail: String(sig.detail ?? ""),
-        category: String(sig.category ?? ""),
-      })),
-      aiSummary: String(s.ai_summary ?? ""),
-      aiOutlook: String(s.ai_outlook ?? ""),
-      updatedAt,
-    };
-  } catch (err) {
-    if (err instanceof BackendError) throw err;
-    if (ctrl.signal.aborted) throw new BackendError("upstream timeout");
-    return null;
-  } finally { clearTimeout(t); }
+  return getTickerVerdict(ticker);
 }
 
 export async function generateMetadata(
@@ -141,8 +84,8 @@ export default async function TickerDetailPage(
         </div>
 
         <div className="hf-detail-conf">
-          <span className="hf-conf-num">{v.confidence}</span>
-          <span className="hf-conf-pct">%</span>
+          <span className="hf-conf-num">{Number.isFinite(v.confidence) ? v.confidence : "—"}</span>
+          <span className="hf-conf-pct">{Number.isFinite(v.confidence) ? "%" : ""}</span>
           <span className="hf-conf-label">confidence · {v.bias}</span>
         </div>
 

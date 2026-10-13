@@ -2,82 +2,11 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { localSignalChat, type SignalChatAnswer } from "@/lib/signal-chat-local";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-const TIMEOUT_MS = 20_000; // agent tool-call loop budget on the backend is ~15s
-
-// A single question about one ticker, not a document. Without a cap an
-// authenticated client can submit an oversized body that gets forwarded
-// unbounded to both the upstream agent and the local OpenRouter fallback —
-// spending model-token budget on every such call (CWE-400).
 const MAX_QUESTION_LENGTH = 500;
 
-type ChatSource = "upstream" | "local";
-
-/**
- * Per-signal ask-anything chat.
- * POST /api/signals/{ticker}/chat -> { ticker, answer, tool_calls, fallback_used, created_at }
- *
- * This was a pure proxy to gcp3's `/signals/{ticker}/chat`. That endpoint is not
- * registered on gcp3 — confirmed against the backend's live OpenAPI — so the
- * proxy 404'd upstream and this route returned 503 to every user on every call,
- * for as long as the feature has existed. See lib/signal-chat-local.ts for the
- * full finding and docs/wiki-portal/incident-2026-09-11-nulogdash-blind-sweep.md.
- *
- * Upstream is still tried first and still wins when it answers the contract, so
- * a future gcp3 deploy takes over with no change here. Every other outcome —
- * unreachable, non-2xx, or a 200 that isn't this shape — grounds locally on
- * `/signals/{ticker}` instead of degrading to an error. `X-Signal-Chat-Source`
- * says which path answered; an unlabelled substitute would be the same silent
- * swap that made the portfolio-health outage invisible for 47 days.
- */
-function respond(payload: SignalChatAnswer, source: ChatSource) {
-  return NextResponse.json(payload, { headers: { "X-Signal-Chat-Source": source } });
-}
-
-/**
- * Ask gcp3. Returns null on every failure mode, including a 200 carrying
- * something that is not this contract — a missing `answer` is a miss, not an
- * empty answer to forward.
- */
-async function fetchUpstreamChat(ticker: string, question: string): Promise<SignalChatAnswer | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(`${MCP_URL}/signals/${encodeURIComponent(ticker)}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const raw: unknown = await res.json();
-    if (!raw || typeof raw !== "object") return null;
-    const data = raw as Partial<SignalChatAnswer>;
-    if (typeof data.answer !== "string" || data.answer.trim() === "") return null;
-    // Every *present* field must match the contract's type, or this is drift
-    // to fall through on — not a value to coerce. `!!data.fallback_used`
-    // previously turned the string "false" into `true`; a non-string
-    // `created_at`/`model`, or a `tool_calls` entry that isn't a string,
-    // would likewise have passed through unchecked.
-    if (data.tool_calls !== undefined && (!Array.isArray(data.tool_calls) || !data.tool_calls.every((t) => typeof t === "string"))) {
-      return null;
-    }
-    if (data.fallback_used !== undefined && typeof data.fallback_used !== "boolean") return null;
-    if (data.created_at !== undefined && typeof data.created_at !== "string") return null;
-    if (data.model !== undefined && typeof data.model !== "string") return null;
-    return {
-      ticker,
-      answer: data.answer,
-      tool_calls: data.tool_calls ?? [],
-      fallback_used: data.fallback_used ?? false,
-      created_at: data.created_at ?? new Date().toISOString(),
-      model: data.model,
-    };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+/** Answer signal questions locally because gcp3 does not expose a chat endpoint. */
+function respond(payload: SignalChatAnswer) {
+  return NextResponse.json(payload, { headers: { "X-Signal-Chat-Source": "local" } });
 }
 
 export async function POST(
@@ -98,11 +27,8 @@ export async function POST(
     return NextResponse.json({ error: `question must be ${MAX_QUESTION_LENGTH} characters or fewer` }, { status: 400 });
   }
 
-  const upstream = await fetchUpstreamChat(ticker, question);
-  if (upstream) return respond(upstream, "upstream");
-
   try {
-    return respond(await localSignalChat(ticker, question), "local");
+    return respond(await localSignalChat(ticker, question));
   } catch (err) {
     // Terminal honest state: no upstream agent and nothing to ground a local
     // answer in. Never a speculated answer — see concept-graceful-degradation.
