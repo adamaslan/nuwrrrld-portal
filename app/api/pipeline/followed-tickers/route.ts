@@ -26,7 +26,7 @@ import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import { councilVerdictFor, resolveDueHorizons } from "@/lib/followed-tickers-run";
 import { resolveFollowedPrice, nyDateOf } from "@/lib/followed-tickers-price";
 import type { Horizon } from "@/lib/eval-scoring";
-import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
+import { liveDirectionFor } from "@/lib/followed-tickers-signal";
 import {
   getLivePicks,
   getObservations,
@@ -102,7 +102,10 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     dry_run?: boolean;
     session?: string;
+    /** Re-observe picks already observed today (fills rows written blank). */
+    refill?: boolean;
   };
+  const refill = body.refill === true;
   const dryRun = body.dry_run === true;
   const apiKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -147,19 +150,11 @@ export async function POST(req: NextRequest) {
     const close = price?.price ?? null;
 
     // Today's signal direction, for the days_held count and the thesis-flip check.
-    const liveEntry = await fetchTickerEntry(pick.ticker);
-    const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
+    const liveDir = await liveDirectionFor(pick.ticker, today);
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
 
     // Required observation first: council work below is optional and bounded.
-    const liveDir = liveSignalDir
-      ? liveSignalDir.toLowerCase().includes("buy")
-        ? "bull"
-        : liveSignalDir.toLowerCase().includes("sell")
-          ? "bear"
-          : null
-      : null;
     if (price != null && !dryRun) {
       await upsertObservation({
         pickId: pick.id,
@@ -205,19 +200,13 @@ export async function POST(req: NextRequest) {
     }
 
     // thesis holding? — the live signal direction vs. the picked direction.
-    const normLive = liveSignalDir
-      ? liveSignalDir.toLowerCase().includes("buy")
+    const normLive =
+      liveDir ??
+      (council?.direction === "bullish"
         ? "bull"
-        : liveSignalDir.toLowerCase().includes("sell")
+        : council?.direction === "bearish"
           ? "bear"
-          : null
-      : council
-        ? council.direction === "bullish"
-          ? "bull"
-          : council.direction === "bearish"
-            ? "bear"
-            : null
-        : null;
+          : null);
     const thesisHolding = normLive == null ? null : normLive === pick.direction;
 
     if (price == null) {
@@ -253,7 +242,7 @@ export async function POST(req: NextRequest) {
   };
 
   const pending = picks.filter((pick) => {
-    if (!observedToday.has(pick.id)) return true;
+    if (refill || !observedToday.has(pick.id)) return true;
     alreadyObserved++;
     return false;
   });
@@ -271,6 +260,8 @@ export async function POST(req: NextRequest) {
   await Promise.all(Array.from({ length: Math.min(PICK_CONCURRENCY, pending.length) }, worker));
 
   const backtestAvailable = readings.some((r) => r.backtestRate != null);
+  const signalFilled = readings.filter((r) => r.signalDir != null).length;
+  const backtestFilled = readings.filter((r) => r.backtestRate != null).length;
   const horizonsResolved = readings.reduce((n, r) => n + r.resolved.length, 0);
 
   // Best-effort model-usage audit row (docs/model-usage/). Never fatal.
@@ -287,6 +278,8 @@ export async function POST(req: NextRequest) {
       deferred,
       councilDegraded,
       backtestAvailable,
+      signalFilled,
+      backtestFilled,
       horizonsResolved,
     },
   });
@@ -303,6 +296,9 @@ export async function POST(req: NextRequest) {
       deferred,
       degraded: councilDegraded,
       backtest_available: backtestAvailable,
+      signalFilled,
+      backtestFilled,
+      refill,
       horizonsResolved,
       runLogged,
     },

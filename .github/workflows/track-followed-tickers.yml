@@ -11,12 +11,6 @@ name: Track Followed Tickers (daily)
 # the gate makes the off-season one a no-op instead of a duplicate live run),
 # workflow_dispatch with dry_run, secret verification, concurrency guard, step
 # summary, artifact upload, failure issue.
-#
-# ROUTE STATUS: /api/pipeline/followed-tickers does NOT exist yet. Orchestration
-# shipped ahead of its endpoint. Passes gate + secret check, then 404s on the
-# trigger call until a follow-up PR lands the handler. Path namespaced under
-# /api/pipeline/ so the 404 is loud, not a silent 401 against an unrelated
-# working route (the /api/signals/refresh reuse bug that decision doc records).
 
 on:
   schedule:
@@ -141,7 +135,7 @@ jobs:
           echo "track HTTP $STATUS"
           jq . /tmp/track.json 2>/dev/null || cat /tmp/track.json
           if [[ "$STATUS" != 2* ]]; then
-            echo "::error::followed-tickers returned HTTP $STATUS (route not built yet — see docs/tickers-followed.md)"
+            echo "::error::followed-tickers returned HTTP $STATUS (see docs/tickers-followed.md)"
             exit 1
           fi
 
@@ -166,6 +160,29 @@ jobs:
           fi
           echo "flipped=$FLIPPED" >> "$GITHUB_OUTPUT"
 
+      - name: Fill-gap check
+        id: fill
+        if: steps.track.outputs.status == '200'
+        run: |
+          # A green run with blank Signal/Backtest columns is the failure this
+          # step exists to catch: both were null on ~every row for weeks while
+          # the workflow reported success. Rows already observed today are
+          # excluded (alreadyObserved) so a re-run does not fail on them.
+          TOTAL=$(jq -r '(.readings // []) | length' /tmp/track.json 2>/dev/null || echo 0)
+          SIG=$(jq -r '[.readings[]? | select(.signalDir != null)] | length' /tmp/track.json 2>/dev/null || echo 0)
+          BT=$(jq -r '[.readings[]? | select(.backtestRate != null)] | length' /tmp/track.json 2>/dev/null || echo 0)
+          echo "signal_filled=$SIG/$TOTAL backtest_filled=$BT/$TOTAL"
+          echo "gap=signal $SIG/$TOTAL, backtest $BT/$TOTAL" >> "$GITHUB_OUTPUT"
+          # A pick whose card went neutral is legitimately blank, so tolerate up to
+          # 20% rather than failing on any single null.
+          if [[ "$TOTAL" -gt 0 && $((SIG * 100)) -lt $((TOTAL * 80)) ]]; then
+            echo "::error::Signal column blank for $((TOTAL - SIG))/$TOTAL picks"
+            exit 1
+          fi
+          if [[ "$TOTAL" -gt 0 && "$BT" -lt "$TOTAL" ]]; then
+            echo "::warning::Backtest column blank for $((TOTAL - BT))/$TOTAL picks (engine/store not populated)"
+          fi
+
       - name: Write step summary
         if: always()
         run: |
@@ -176,6 +193,7 @@ jobs:
             echo "|-------|-------|"
             echo "| track HTTP | ${{ steps.track.outputs.status || '—' }} |"
             echo "| theses flipped today | ${{ steps.flips.outputs.flipped || '—' }} |"
+            echo "| fill (signal / backtest) | ${{ steps.fill.outputs.gap || '—' }} |"
             echo "| dry_run | ${{ inputs.dry_run || false }} |"
             if [[ -f /tmp/track.json ]]; then
               echo ""
@@ -219,5 +237,5 @@ jobs:
 
           **Track:** ${{ needs.track.outputs.track_status || 'skipped' }}
 
-          Expected while \`/api/pipeline/followed-tickers\` is unbuilt — see docs/tickers-followed.md."
+          See the run log and docs/tickers-followed.md."
           bash scripts/upsert-workflow-failure-issue.sh
