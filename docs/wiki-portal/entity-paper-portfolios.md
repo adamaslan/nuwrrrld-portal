@@ -403,3 +403,14 @@ existing production-database guard for paper runs applies to it unchanged.
 ## Mirror visibility (2026-10-05)
 
 The Firestore mirror and settle-slot reconcile were found never to have written: the service-account secret is absent on every host, so the `paper/*` collections do not exist. Run detail now records a `not_configured` mirror state in `mirror_error` instead of leaving it blank, so a missing credential no longer looks like a healthy run. Provisioning is tracked in the manual setup todo.
+
+## Arena comparison page (2026-10-11)
+
+A second read-only surface, `/dashboard/council/portfolios/arena`, sits beside the leaderboard and answers "which account is best, and why did it trade?" across all eight accounts at once. It is deliberately a separate route and file set so it does not contend with leaderboard edits.
+
+- **Judging.** Only the six trading accounts are contestants; `equal` and `spy` are yardsticks that appear in the table but are never ranked. Each contestant's rank is the mean of its rank on five metrics (total return, Sharpe, max drawdown, hit rate, active return vs SPY), so one lucky metric cannot win. The column leader in each metric is badged, but only when there is more than one contestant.
+- **Metrics source.** Computed live from the settle NAV series and order history (`computeMetricsForAccount`), not read from the last settle run's stored detail, so the page never shows a stale snapshot. A failed computation degrades that account to "—" rather than failing the page.
+- **Why they traded.** The merged trade feed carries each fill's engine reason with a plain-English gloss, card score, deciding actor (rule or model) and, while still held, the position thesis. A per-account breakdown totals count and realized P&L by reason, which shows whether an account's losses come from stops or from score exits.
+- **Pure/IO split.** All ranking, curve rebasing and gloss logic lives in `lib/shared/paper-arena-view.ts` (DB-free, unit-tested); `lib/paper-arena.ts` is the only I/O. The public cached route is `/api/paper/arena`; the page keeps the leaderboard's pro-signals gate.
+- **Known limits.** The trade feed is capped at the newest 200 across accounts and 100 orders per account. The curve chart reads settle marks only, so intraday moves are not shown.
+- **Surface parity.** Web-only; there is no mobile equivalent, so this is a one-surface feature in the parity matrix.

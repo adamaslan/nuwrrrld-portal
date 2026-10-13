@@ -1,0 +1,27 @@
+.pa-page { max-width: 1280px; }
+.pa-stack { display: grid; gap: 2rem; margin-top: 1.5rem; }
+.pa-note { opacity: 0.75; max-width: 75ch; line-height: 1.5; font-size: 0.9rem; margin: 0 0 0.75rem; }
+.pa-scroll { overflow-x: auto; }
+.pa-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.pa-table th, .pa-table td { padding: 0.5rem 0.65rem; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--pp-border, rgba(127,127,127,0.2)); }
+.pa-th { background: none; border: 0; color: inherit; font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+.pa-th--active { text-decoration: underline; }
+.pa-row { cursor: pointer; }
+.pa-row:hover { background: var(--pp-row-hover, rgba(127,127,127,0.12)); }
+.pa-row--selected { background: var(--pp-row-bg, rgba(99,102,241,0.14)); }
+.pa-row--baseline { opacity: 0.8; font-style: italic; }
+.pa-best { font-weight: 700; box-shadow: inset 0 -2px 0 #eab308; }
+.pa-n { opacity: 0.6; font-size: 0.8rem; }
+.pa-dot { display: inline-block; width: 0.65rem; height: 0.65rem; border-radius: 50%; margin-right: 0.4rem; }
+.pa-chart { width: 100%; height: auto; max-height: 280px; border: 1px solid var(--pp-border, rgba(127,127,127,0.2)); border-radius: 8px; }
+.pa-baseline { stroke: currentColor; opacity: 0.25; stroke-dasharray: 2 4; }
+.pa-axis { font-size: 10px; fill: currentColor; opacity: 0.6; }
+.pa-legend { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+.pa-legend-item { background: none; color: inherit; border: 1px solid var(--pp-border, rgba(127,127,127,0.3)); border-radius: 999px; padding: 0.2rem 0.7rem; cursor: pointer; font: inherit; font-size: 0.8rem; }
+.pa-legend-item--off { opacity: 0.4; }
+.pa-filters { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 0.5rem 0 0.75rem; font-size: 0.85rem; }
+.pa-filters select { background: inherit; color: inherit; border: 1px solid var(--pp-border, rgba(127,127,127,0.3)); border-radius: 6px; padding: 0.15rem 0.4rem; }
+.pa-breakdown { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+.pa-chip { border: 1px solid var(--pp-border, rgba(127,127,127,0.3)); border-radius: 6px; padding: 0.2rem 0.55rem; font-size: 0.8rem; }
+.pa-why td { background: var(--pp-row-bg, rgba(127,127,127,0.06)); white-space: normal; }
+.pa-why p { margin: 0.15rem 0; }
