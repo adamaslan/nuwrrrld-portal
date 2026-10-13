@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+import { getStoredSignals } from "@/app/dashboard/holdfold/stored-signals";
+import { getCouncilSample } from "@/app/dashboard/holdfold/council-sample";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
@@ -15,75 +18,15 @@ import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
 import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 import "./landing.css";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-
-interface CouncilSample {
-  ticker?: string;
-  fundName?: string;
-  simulatedCapitalUsd?: number;
-  shortTerm?: { answer?: string };
-  longTerm?: { answer?: string };
-  generatedAt?: string;
-}
-
-async function fetchCouncilSample(): Promise<CouncilSample | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5_000);
-  try {
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://financial.nuwrrrld.com";
-    const res = await fetch(`${base}/api/council/sample`, {
-      signal: controller.signal,
-      next: { revalidate: 21600 },
-    });
-    if (!res.ok) return null;
-    return await res.json() as CouncilSample;
-  } catch { return null; } finally { clearTimeout(timer); }
-}
-
-/**
- * Bounds a promise that has no native cancellation (e.g. the Neon track-record
- * query, unlike the MCP fetches above which use AbortController) so the
- * landing page's Promise.allSettled can never wait indefinitely on it. This
- * doesn't cancel the underlying request — Neon's HTTP driver has no signal
- * param — it just stops the render path from waiting past `ms`.
- */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ]);
-}
-
 async function fetchLandingData() {
-  const fetchWithTimeout = async (url: string, cache: number) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5_000);
-    try {
-      return await fetch(url, { signal: controller.signal, next: { revalidate: cache } });
-    } finally { clearTimeout(timer); }
-  };
-
-  const [sigRes, council, trackRecord] = await Promise.allSettled([
-    fetchWithTimeout(`${MCP_URL}/signals`, 3600),
-    fetchCouncilSample(),
-    withTimeout(getAggregateTrackRecord(), 5_000),
+  const [signals, council, trackRecord] = await Promise.allSettled([
+    getStoredSignals(), getCouncilSample(), getAggregateTrackRecord(),
   ]);
-  const sigRaw = sigRes.status === "fulfilled" && sigRes.value.ok
-    ? await sigRes.value.json().catch(() => null)
-    : null;
-  const digest = sigRaw ? adaptLiveSignals(sigRaw) : null;
-  const topSignals = digest
-    ? [...digest.signals].sort((a, b) => {
-        const score = (s: typeof a) => s.confidence === "high" ? 3 : s.confidence === "medium" ? 2 : 1;
-        return score(b) - score(a);
-      }).slice(0, 4)
-    : null;
-  const councilData: CouncilSample | null = council.status === "fulfilled" ? council.value : null;
-  const trackRecordData = trackRecord.status === "fulfilled" ? trackRecord.value : null;
+  const digest = signals.status === "fulfilled" ? adaptLiveSignals(signals.value) : null;
   return {
-    topSignals,
-    council: councilData,
-    trackRecord: trackRecordData,
+    topSignals: digest?.signals.slice(0, 4) ?? null,
+    council: council.status === "fulfilled" ? council.value : null,
+    trackRecord: trackRecord.status === "fulfilled" ? trackRecord.value : null,
     coverage: coverageFromDigest(digest),
   };
 }
@@ -108,6 +51,10 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Six AI analysts. One straight answer.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+}
+
+async function LandingContent() {
   const { topSignals, council, trackRecord, coverage } = await fetchLandingData();
 
   return (
@@ -223,12 +170,12 @@ export default async function Home() {
       <div className="peek-band" aria-label="Key platform metrics">
         <div className="metric"><StatCounter value={6} /><span>AI analysts arguing every call — including one against you.</span></div>
         <div className="metric">
-          <StatCounter value={coverage?.checks ?? 250} suffix={coverage ? "" : "+"} />
-          <span>Individual checks run today before we tell you buy, sell, or hold.</span>
+          {coverage ? <StatCounter value={coverage.checks} /> : <strong>—</strong>}
+          <span>Stored signal checks in this preview.</span>
         </div>
         <div className="metric">
-          <StatCounter value={coverage?.tickers ?? 54} />
-          <span>Sector and industry ETFs tracked and re-scored every day.</span>
+          {coverage ? <StatCounter value={coverage.tickers} /> : <strong>—</strong>}
+          <span>Stocks in this stored signal preview.</span>
         </div>
         <div className="metric"><strong>Live</strong><span>One account for the web and the mobile app.</span></div>
       </div>
@@ -454,8 +401,8 @@ export default async function Home() {
             <div className="council-layout" style={{ marginTop: "2rem" }}>
               {council?.ticker && council?.simulatedCapitalUsd && (
                 <p className="section-copy" style={{ marginBottom: "0.75rem" }}>
-                  Live simulation: ${council.simulatedCapitalUsd.toLocaleString()} into {council.ticker}
-                  {council.fundName ? ` (${council.fundName})` : ""} today.
+                  Stored sample: ${council.simulatedCapitalUsd.toLocaleString()} into {council.ticker}
+                  {council.fundName ? ` (${council.fundName})` : ""}.
                 </p>
               )}
               {[
@@ -463,10 +410,10 @@ export default async function Home() {
                 { seat: "T2", horizon: "Long-term",  answer: council?.longTerm?.answer },
               ].map(({ seat, horizon, answer }) => answer && (
                 <article className="council-panel" key={seat}>
-                  <h3>{seat} · {horizon} · live sample</h3>
-                  <p className="section-copy">{council?.ticker ?? "MOO"} · council in session</p>
+                  <h3>{seat} · {horizon} · stored sample</h3>
+                  <p className="section-copy">{council?.ticker ?? "MOO"} · stored commentary</p>
                   <div className="council-live-output">
-                    <div className="council-live-label">{seat} seat · live</div>
+                    <div className="council-live-label">{seat} seat · stored</div>
                     <p>{answer}</p>
                   </div>
                 </article>
