@@ -1944,3 +1944,36 @@ unset DATABASE_URL
 ```
 
 Expect (2026-10-13): newest is 2026-10-11 or earlier. A newer row means a writer still skips status.
+
+## Deactivate the 25 symbols the vendor never serves (hydrate-universe)
+
+Owner decision, production write. The nightly `hydrate-universe` run now counts these as `unservable` (skipped, not failed), but they still sit in the active universe. Added 2026-10-13.
+
+**Step 1 - list active tickers with zero cards ever (read-only).**
+
+```bash
+cd ~/code/nuwrrrld-portal
+export DATABASE_URL=$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)
+node -e '
+const {neon}=require("@neondatabase/serverless");const sql=neon(process.env.DATABASE_URL);
+sql`SELECT u.ticker, u.universe FROM ticker_universe u
+    WHERE u.active = true AND NOT EXISTS (SELECT 1 FROM ticker_cards c WHERE c.ticker = u.ticker)
+    ORDER BY u.universe, u.ticker`
+ .then(r=>console.table(r)).catch(e=>console.error(e.message))'
+unset DATABASE_URL
+```
+
+Expect: 25 rows (21 stock, 4 etf). `SCHW-PD` may be a symbology miss (Yahoo hyphen preferred vs Alpaca's format) rather than a dead symbol; check it before deactivating.
+
+**Step 2 - dry-run the deactivation (rolls back; shows the row count).**
+
+```bash
+cd ~/code/nuwrrrld-portal
+export DATABASE_URL=$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)
+psql "$DATABASE_URL" -c "BEGIN; UPDATE ticker_universe SET active = false WHERE active = true AND NOT EXISTS (SELECT 1 FROM ticker_cards c WHERE c.ticker = ticker_universe.ticker); ROLLBACK;"
+unset DATABASE_URL
+```
+
+Expect: `UPDATE 25`, then `ROLLBACK`. **If the count is not exactly 25, stop**: the criterion (active, zero cards ever) would also catch a symbol added today that has not been hydrated yet. To apply for real, change `ROLLBACK` to `COMMIT` in that command and re-run.
+
+**Separate bug (not fixed here):** `barDate` is derived from the UTC clock (`new Date().toISOString().split("T")[0]`). A cron delayed past UTC midnight (Oct 12 session, run at 03:07Z) stamps final cards with the next day's `bar_date`, and the next intraday run's partial cards for that date are rejected by `shouldReplaceCard`. Fix in its own PR: derive from the last Alpaca bar's `t` or the US/Eastern session date.

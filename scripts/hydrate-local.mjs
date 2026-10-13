@@ -32,6 +32,7 @@ import {
   confluence,
   macdCross,
   rsi,
+  unservableRow,
   volatilityPercentile,
 } from "./lib/hydrate-indicators.mjs";
 import {
@@ -307,12 +308,15 @@ function frameStatsFor(sorted) {
 }
 
 function rowFor(symbol, barData) {
-  if (!barData || barData.length < MIN_BARS) {
+  const unservable = unservableRow(symbol, barData);
+  if (unservable) return unservable;
+
+  if (barData.length < MIN_BARS) {
     return {
       ticker: symbol,
       status: "error",
       error: "insufficient history",
-      frameStats: barData ? { barCount: barData.length, nanRatio: 1, staleTradingDays: null } : undefined,
+      frameStats: { barCount: barData.length, nanRatio: 1, staleTradingDays: null },
     };
   }
 
@@ -443,6 +447,7 @@ async function main() {
   // rows that failed to *compute* locally, and rows lost to a failed POST.
   // Collapsing these made a fully-failed chunk report written=10 failed=10.
   let written = 0,
+    unservable = 0,
     calcErrors = 0,
     postFailures = 0;
 
@@ -458,6 +463,7 @@ async function main() {
       try {
         const barsBySymbol = await fetchBars(chunk);
         const rows = chunk.map(sym => rowFor(sym, barsBySymbol[sym]));
+        unservable += rows.filter(r => r.errorKind === "unservable").length;
 
         // Phase 2.1 observability: a chunk that comes back short — fewer symbols
         // than asked for, or more than one page — is the observable form of
@@ -499,7 +505,7 @@ async function main() {
             );
           } else {
             console.log(`  ${row.ticker}: ERROR ${row.error}`);
-            calcErrors++;
+            if (row.errorKind !== "unservable") calcErrors++;
           }
         }
 
@@ -518,7 +524,7 @@ async function main() {
 
   console.log(
     `\n[done] written=${written} calc-errors=${calcErrors} ` +
-      `post-failures=${postFailures} total=${total}`
+      `post-failures=${postFailures} unservable=${unservable} total=${total}`
   );
 }
 

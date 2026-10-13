@@ -206,6 +206,7 @@ jobs:
           calc=$(sed -nE 's/.*calc-errors=([0-9]+).*/\1/p' <<<"$done_line")
           post=$(sed -nE 's/.*post-failures=([0-9]+).*/\1/p' <<<"$done_line")
           total=$(sed -nE 's/.*total=([0-9]+).*/\1/p' <<<"$done_line")
+          unservable=$(sed -nE 's/.*unservable=([0-9]+).*/\1/p' <<<"$done_line")
 
           {
             echo "### Nightly universe hydration"
@@ -214,6 +215,7 @@ jobs:
             echo "- symbols attempted: **${total:-?}**"
             echo "- compute errors: **${calc:-?}**"
             echo "- post failures: **${post:-?}**"
+            echo "- unservable symbols: **${unservable:-?}**"
           } >> "$GITHUB_STEP_SUMMARY"
 
           # A run that wrote nothing "succeeded" while producing no coverage.
@@ -221,6 +223,18 @@ jobs:
           # ranking that went unnoticed for a full day in PR #70.
           if [ "${written:-0}" -eq 0 ] && [ "${total:-0}" -gt 0 ]; then
             echo "::error::attempted ${total} symbol(s) but wrote no cards"
+            exit 1
+          fi
+
+          # Symbols the vendor returns no bars for. A universe-hygiene issue, not
+          # a run failure, so warn once per run and never fail the job on it.
+          if [ "${unservable:-0}" -gt 0 ]; then
+            echo "::warning::${unservable} symbol(s) have no vendor bars (unservable); consider deactivating them in ticker_universe"
+          fi
+
+          # Far more than the ~25 known dead symbols is not universe hygiene.
+          if [ "${unservable:-0}" -gt 50 ]; then
+            echo "::error::${unservable} unservable symbols (cap 50) — this much missing bar data looks like a vendor degradation, not dead symbols"
             exit 1
           fi
 

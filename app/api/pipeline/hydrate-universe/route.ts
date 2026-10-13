@@ -39,6 +39,7 @@ import {
 } from "@/lib/ticker-cards-db";
 import type { Horizon, SignalStateInput, VerdictDirection } from "@/lib/grounding/taxonomy";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
+import { isUnservableRow, settleUnservable } from "@/lib/shared/hydrate-rows";
 import { computeBatchCoverage, computeRunStatus } from "@/lib/shared/run-status";
 
 /** Which compute host actually ran the batch. Optional: an older caller that
@@ -75,6 +76,9 @@ interface HydrateRow {
     staleTradingDays?: number | null;
   } | null;
   error?: string;
+  /** "unservable" = the vendor has no bars for the symbol (not a run fault).
+   *  Hosts that omit it keep the old behaviour: counted as an upstream error. */
+  errorKind?: "unservable" | "compute";
 }
 
 interface HydrateBody {
@@ -242,6 +246,11 @@ export async function POST(req: NextRequest) {
    *  untouched, so a vendor miss degrades to "yesterday's data" not "no data". */
   const upstreamErrors: { ticker: string; reason: string }[] = [];
 
+  /** Symbols the vendor cannot serve at all. Not an upstream fault: they are
+   *  excluded from batch coverage and logged as `skip`, so a fixed set of dead
+   *  symbols cannot stamp every batch holding two of them `fail`. */
+  const unservable: { ticker: string; reason: string }[] = [];
+
   for (const row of rows) {
     // Same shape rejection as PUT above: an authenticated compute host could
     // otherwise persist a crypto-shaped card straight through POST, bypassing
@@ -253,6 +262,10 @@ export async function POST(req: NextRequest) {
     const ticker = normalizeTicker(row?.ticker);
     if (!ticker) {
       rejected.push({ ticker: String(row?.ticker ?? ""), reason: "invalid ticker" });
+      continue;
+    }
+    if (isUnservableRow(row)) {
+      unservable.push({ ticker, reason: row.error ?? "no vendor bars" });
       continue;
     }
     if (row.status === "error") {
@@ -280,6 +293,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // A few dead symbols are normal; a large share of a request with no bars is
+  // what a vendor outage looks like. Past the ceiling they count as upstream
+  // errors again so the run cannot go green on skips.
+  settleUnservable(unservable, upstreamErrors, rows.length);
+
   // Register every ticker we are about to card. `ticker_cards` has a foreign
   // key onto `ticker_universe`, so a symbol seen for the first time must be
   // admitted before its card can land.
@@ -296,7 +314,7 @@ export async function POST(req: NextRequest) {
   console.log(
     `[hydrate-universe] run=${body.runId ?? "-"} source=${source} bar=${barDate} ` +
       `tickers=${seen.length} written=${written} skipped=${skipped} failed=${failed.length} ` +
-      `upstreamErrors=${upstreamErrors.length} coverage=${coverage.covered}/${coverage.active}`,
+      `upstreamErrors=${upstreamErrors.length} unservable=${unservable.length} coverage=${coverage.covered}/${coverage.active}`,
   );
 
   // Design 1 (docs/modal-pipeline-status.md): every pipeline reports coverage,
@@ -325,6 +343,7 @@ export async function POST(req: NextRequest) {
       outcome: (o.outcome === "written" ? "ok" : o.outcome === "failed" ? "fail" : "skip") as RunItem["outcome"],
     })),
     ...upstreamErrors.map((e) => ({ subject: e.ticker, model: null, outcome: "fail" as const })),
+    ...unservable.map((u) => ({ subject: u.ticker, model: null, outcome: "skip" as const })),
     ...rejected.map((r) => ({ subject: r.ticker, model: null, outcome: "skip" as const })),
   ];
   await logPipelineRun({
@@ -343,6 +362,8 @@ export async function POST(req: NextRequest) {
       written,
       skipped,
       failed: failed.length,
+      unservable: unservable.length,
+      unservableTickers: unservable.slice(0, 25).map((u) => u.ticker),
       batchCoverage,
       coverageQueryFailed: queryFailed,
     },
@@ -359,6 +380,8 @@ export async function POST(req: NextRequest) {
     failed: failed.length,
     failures: failed.slice(0, 25),
     upstreamErrors: upstreamErrors.slice(0, 25),
+    unservable: unservable.slice(0, 25),
+    unservableCount: unservable.length,
     rejected: rejected.slice(0, 25),
     coverage,
     // Stated explicitly so the contract is visible in every response: this lane

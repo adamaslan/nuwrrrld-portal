@@ -185,3 +185,14 @@ export function confluence(rsiVal, macdVal, adxVal) {
   return { score, direction };
 }
 
+
+/**
+ * Error row for a symbol the vendor returned no bars for (never listed, OTC
+ * ordinary, delisted, bad symbology). Tagged `unservable` so the portal can
+ * tell "nothing to fetch" apart from a run fault. Returns null when there are
+ * some bars: a short history is a different fact and keeps its own path.
+ */
+export function unservableRow(symbol, barData) {
+  if (barData && barData.length > 0) return null;
+  return { ticker: symbol, status: "error", error: "no vendor bars", errorKind: "unservable" };
+}
