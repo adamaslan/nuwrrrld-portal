@@ -22,9 +22,23 @@ export function calendarDecision(body, clock) {
     session_open: String(clock.minute >= open && clock.minute < close), source: 'alpaca' };
 }
 
-export function paperDecision({ clock, calendar, cron = '', slot = '', force = false }) {
+// Resolve the latest daily occurrence, without rolling a weekend back to Friday.
+// The workflow creation time stays fixed across queued jobs and re-runs.
+export function settleSession(cron, eventTime) {
+  if (!['30 20 * * 1-5', '30 21 * * 1-5'].includes(cron)) return null;
+  const fired = new Date(eventTime);
+  if (!Number.isFinite(fired.getTime())) return null;
+  const intended = new Date(fired);
+  intended.setUTCHours(Number(cron.split(' ')[1]), 30, 0, 0);
+  if (intended > fired) intended.setUTCDate(intended.getUTCDate() - 1);
+  return nyClock(intended);
+}
+
+export function paperDecision({ clock, calendar, cron = '', slot = '', force = false, eventTime }) {
   const starts = { preopen: 540, midday: 750, preclose: 945, settle: 990 };
-  const crons = clock.offset === 'GMT-4'
+  const intended = settleSession(cron, eventTime);
+  const sessionClock = intended || clock;
+  const crons = sessionClock.offset === 'GMT-4'
     ? ['0 13 * * 1-5', '30 16 * * 1-5', '45 19 * * 1-5', '30 20 * * 1-5']
     : ['0 14 * * 1-5', '30 17 * * 1-5', '45 20 * * 1-5', '30 21 * * 1-5'];
   if (cron) slot = Object.keys(starts)[crons.indexOf(cron)] ?? '';
@@ -33,12 +47,12 @@ export function paperDecision({ clock, calendar, cron = '', slot = '', force = f
   if (!(slot in starts)) return skip('no slot or off-season cron');
   // A scheduled event can never opt into a manual override.
   force = force && !cron;
-  if (!force && (['Sat', 'Sun'].includes(clock.weekday) || calendar.is_trading_day !== 'true')) return skip('closed day or unavailable calendar');
-  const late = clock.minute < starts[slot] || clock.minute > starts[slot] + 15;
+  if (!force && (['Sat', 'Sun'].includes(sessionClock.weekday) || calendar.is_trading_day !== 'true')) return skip('closed day or unavailable calendar');
+  const late = clock.date !== sessionClock.date || clock.minute < starts[slot] || clock.minute > starts[slot] + 15;
   if (!force && slot !== 'settle' && late) return skip('outside the 15-minute slot window');
   if (!force && slot === 'preopen' && clock.minute >= minutes(calendar.open)) return skip('session already opened');
   if (!force && ['midday', 'preclose'].includes(slot) && !(clock.minute >= minutes(calendar.open) && clock.minute < minutes(calendar.close))) return skip('session is closed');
-  if (!force && slot === 'settle' && clock.minute < Math.max(starts.settle, minutes(calendar.close))) return skip('settle before close');
+  if (!force && slot === 'settle' && (clock.date < sessionClock.date || (clock.date === sessionClock.date && clock.minute < Math.max(starts.settle, minutes(calendar.close))))) return skip('settle before close');
   return { is_trading_day: 'true', slot, late: String(late), reason: force ? 'manual force' : 'eligible' };
 }
 
@@ -53,7 +67,9 @@ export function policyMatches(body, expected) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const clock = nyClock();
   let result;
-  if (process.argv[2] === 'calendar') {
+  if (process.argv[2] === 'session') {
+    result = { session_date: settleSession(process.env.FIRED_CRON, process.env.EVENT_TIME)?.date || clock.date };
+  } else if (process.argv[2] === 'calendar') {
     let body;
     try {
       const url = new URL('https://paper-api.alpaca.markets/v2/calendar');
@@ -66,8 +82,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const sessionClock = /^\d{4}-\d{2}-\d{2}$/.test(date) ? nyClock(new Date(`${date}T12:00:00-05:00`)) : clock;
     result = calendarDecision(body, { ...sessionClock, date, minute: date === clock.date ? clock.minute : -1 });
   } else {
-    result = paperDecision({ clock, calendar: { is_trading_day: process.env.CALENDAR_DAY, open: process.env.CALENDAR_OPEN, close: process.env.CALENDAR_CLOSE }, cron: process.env.FIRED_CRON, slot: process.env.SLOT, force: process.env.FORCE === 'true' });
+    result = paperDecision({ clock, calendar: { is_trading_day: process.env.CALENDAR_DAY, open: process.env.CALENDAR_OPEN, close: process.env.CALENDAR_CLOSE }, cron: process.env.FIRED_CRON, eventTime: process.env.EVENT_TIME, slot: process.env.SLOT, force: process.env.FORCE === 'true' });
   }
   for (const [key, value] of Object.entries(result)) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Market gate (${clock.date} ET): ${result.reason || result.source}; allowed=${result.is_trading_day}\n`);
+  const summary = result.session_date
+    ? `Intended market session: ${result.session_date} ET`
+    : `Market gate (${clock.date} ET): ${result.reason || result.source}; allowed=${result.is_trading_day}`;
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
 }

@@ -51,8 +51,13 @@ jobs:
       - id: market
         name: New York trading weekday
         env:
+          CALENDAR_SOURCE: ${{ steps.calendar.outputs.source }}
           CALENDAR_TRADING_DAY: ${{ steps.calendar.outputs.is_trading_day }}
         run: |
+          if [[ "$CALENDAR_SOURCE" == "unavailable" ]]; then
+            echo "::warning::Alpaca calendar unavailable — freshness check skipped; signal freshness was not verified."
+            echo "⚠️ Alpaca calendar unavailable — freshness check skipped; signal freshness was not verified." >> "$GITHUB_STEP_SUMMARY"
+          fi
           DAY=$(TZ=America/New_York date +%u)
           if [[ "$DAY" -lt 6 && "$CALENDAR_TRADING_DAY" == "true" ]]; then
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"

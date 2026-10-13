@@ -54,7 +54,7 @@ test('freshness retains backup cron but gates API call on NY weekday/calendar wi
   assert.match(freshness, /node-version: '22'/);
 });
 
-function runWeekdayGate(name, stepId, overrides = {}) {
+function runWeekdayGate(name, stepId, overrides = {}, details = false) {
   const contents = workflow(name);
   const marker = contents.indexOf(`- id: ${stepId}`);
   const start = contents.indexOf('        run: |\n', marker) + '        run: |\n'.length;
@@ -72,12 +72,19 @@ function runWeekdayGate(name, stepId, overrides = {}) {
   // Reject a UTC/default-zone date call: the weekday must come from New York.
   writeFileSync(join(dir, 'date'), '#!/bin/bash\n[[ "$TZ" == "America/New_York" ]] || exit 1\ncase "$1" in +%u) echo "$TEST_DAY";; +%H) echo "$TEST_HOUR";; *) exit 1;; esac\n', { mode: 0o755 });
   const result = spawnSync('bash', ['-e', '-c', script], {
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: output, TEST_DAY: '5', TEST_HOUR: '15', CALENDAR_TRADING_DAY: 'true', SKIP_MARKET_CHECK: 'false', ...overrides },
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: join(dir, 'summary'), CALENDAR_SOURCE: 'alpaca', TEST_DAY: '5', TEST_HOUR: '15', CALENDAR_TRADING_DAY: 'true', SKIP_MARKET_CHECK: 'false', ...overrides },
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
-  return readFileSync(output, 'utf8').trim();
+  return details ? { output: readFileSync(output, 'utf8').trim(), stdout: result.stdout, summary: readFileSync(join(dir, 'summary'), 'utf8') } : readFileSync(output, 'utf8').trim();
 }
+
+test('freshness outage emits an annotation and visible summary', () => {
+  const result = runWeekdayGate('signal-freshness-check', 'market', { CALENDAR_TRADING_DAY: 'false', CALENDAR_SOURCE: 'unavailable' }, true);
+  assert.equal(result.output, 'is_trading_day=false');
+  assert.match(result.stdout, /::warning::Alpaca calendar unavailable/);
+  assert.match(result.summary, /freshness check skipped; signal freshness was not verified/);
+});
 
 test('freshness executes on confirmed ET weekdays and skips weekends/unknown calendar', () => {
   const run = (overrides) => runWeekdayGate('signal-freshness-check', 'market', overrides);
@@ -99,4 +106,19 @@ test('afternoon shell enforces ET weekday/calendar/preclose hour and explicit ho
   assert.equal(run({ TEST_HOUR: '14' }), 'is_trading_day=false');
   assert.equal(run({ TEST_HOUR: '16' }), 'is_trading_day=false');
   assert.equal(run({ TEST_HOUR: '14', SKIP_MARKET_CHECK: 'true' }), 'is_trading_day=true');
+});
+
+
+test('paper pre-POST refusal fails before any network request', () => {
+  const contents = workflow('paper-portfolios');
+  const marker = contents.indexOf('        id: run');
+  const start = contents.indexOf('        run: |\n', marker) + '        run: |\n'.length;
+  const end = contents.indexOf('          URL=', start);
+  const script = contents.slice(start, end).replace(/^          /gm, '');
+  const result = spawnSync('bash', ['-c', script], {
+    env: { ...process.env, RECHECK_ALLOWED: 'false', RECHECK_REASON: 'outside the 15-minute slot window' }, encoding: 'utf8',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /::error::Paper slot refused.*15-minute slot window.*No POST was sent/);
+  assert.doesNotMatch(contents.slice(marker, start), /if: steps\.recheck/);
 });

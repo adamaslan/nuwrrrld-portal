@@ -1,19 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { nyClock, calendarDecision, paperDecision, policyMatches, priceCoverage } from './gate.mjs';
+import { nyClock, settleSession, calendarDecision, paperDecision, policyMatches, priceCoverage } from './gate.mjs';
 const clock = value => nyClock(new Date(value));
 const regular = [{ date: '2026-10-09', open: '09:30', close: '16:00' }];
 function paper(time, overrides = {}, body = regular) {
   const c = clock(time);
-  return paperDecision({ clock: c, calendar: calendarDecision(body, c), slot: 'preopen', ...overrides });
+  const eventTime = overrides.eventTime || time;
+  const intended = settleSession(overrides.cron, eventTime) || c;
+  return paperDecision({ clock: c, calendar: calendarDecision(body, intended), slot: 'preopen', eventTime, ...overrides });
 }
 test('ET Friday survives UTC Saturday, with a late mark-only settle', () => {
   const c = clock('2026-10-10T01:00:00Z');
   assert.equal(c.date, '2026-10-09');
   assert.equal(c.weekday, 'Fri');
   assert.equal(paper('2026-10-10T01:00:00Z', { cron: '30 20 * * 1-5' }).is_trading_day, 'true');
+  assert.equal(paper('2026-10-10T04:01:00Z', { cron: '30 20 * * 1-5' }).is_trading_day, 'true');
+  assert.equal(paper('2026-10-10T04:01:00Z', { cron: '30 20 * * 1-5' }).late, 'true');
   assert.equal(paper('2026-10-10T04:01:00Z', { slot: 'settle' }).is_trading_day, 'false');
+});
+test('intended settle date remains fixed across rechecks and refuses non-sessions', () => {
+  const eventTime = '2026-10-10T04:01:00Z';
+  assert.equal(settleSession('30 20 * * 1-5', eventTime).date, '2026-10-09');
+  assert.equal(paper('2026-10-10T21:00:00Z', { cron: '30 20 * * 1-5', eventTime }).is_trading_day, 'true');
+  for (const body of [[], null, [{ ...regular[0], close: 'bad' }]]) {
+    assert.equal(paper(eventTime, { cron: '30 20 * * 1-5' }, body).is_trading_day, 'false');
+  }
+  assert.equal(paper('2026-10-11T04:01:00Z', { cron: '30 20 * * 1-5' }, [{ date: '2026-10-10', open: '09:30', close: '16:00' }]).is_trading_day, 'false');
+  assert.equal(paper(eventTime, { cron: '30 21 * * 1-5' }).is_trading_day, 'false');
+  const winter = [{ date: '2026-12-04', open: '09:30', close: '16:00' }];
+  assert.equal(paper('2026-12-05T05:01:00Z', { cron: '30 21 * * 1-5' }, winter).is_trading_day, 'true');
+  // A queued trading slot does not gain the settle exception.
+  assert.equal(paper(eventTime, { cron: '0 13 * * 1-5' }).is_trading_day, 'false');
 });
 test('holiday, outage, malformed session and weekend fail closed', () => {
   const c = clock('2026-10-09T13:00:00Z');
@@ -59,7 +77,9 @@ test('policy comparison allows different SHAs but rejects different or missing p
 test('paper workflow connects safety checks, rechecks and bounded runtime', () => {
   const s=readFileSync(new URL('../../workflows/paper-portfolios.yml',import.meta.url),'utf8');
   assert.doesNotMatch(s,/continue-on-error|github\.sha|node-version: 20/);
-  assert.match(s,/if: steps\.recheck\.outputs\.is_trading_day == 'true'/);
+  assert.match(s,/RECHECK_ALLOWED: \$\{\{ steps\.recheck\.outputs\.is_trading_day \}\}/);
+  assert.match(s,/date: \$\{\{ steps\.session\.outputs\.session_date \}\}/);
+  assert.match(s,/EVENT_TIME: \$\{\{ needs\.gate\.outputs\.event_time \}\}/);
   assert.match(s,/priceCoverage\(readFileSync/);
   assert.match(s,/policyMatches\(JSON.parse/);
   assert.match(s,/node scripts\/push-alpaca-live-prices\.mjs[^\n]*\|\|/);
