@@ -1,5 +1,24 @@
 {
   "permissions": {
+    "deny": [
+      "Read(**/.env*)",
+      "Read(**/auth.json)",
+      "Read(**/.codex/config.toml)",
+      "Read(~/.aws/**)",
+      "Read(~/.ssh/**)",
+      "Edit(**/.git/**)",
+      "Edit(**/.claude/settings*.json)",
+      "Edit(**/.claude/agents/**)",
+      "Edit(**/.codex/**)",
+      "Edit(**/AGENTS.md)",
+      "Edit(**/CLAUDE.md)",
+      "Write(**/.git/**)",
+      "Write(**/.claude/settings*.json)",
+      "Write(**/.claude/agents/**)",
+      "Write(**/.codex/**)",
+      "Write(**/AGENTS.md)",
+      "Write(**/CLAUDE.md)"
+    ],
     "allow": [
       "Bash(cp /Users/adamaslan/code/homebase/.claude/commands/sync-pr.md /Users/adamaslan/code/nuwrrrld-portal/.claude/commands/sync-pr.md)",
       "Bash(cp /Users/adamaslan/code/homebase/.claude/commands/sync-pr.md /Users/adamaslan/code/gcp3-mobile/.claude/commands/sync-pr.md)",
