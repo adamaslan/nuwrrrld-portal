@@ -69,6 +69,8 @@ import {
   fillOrders,
   selectArbitrationCandidates,
   applyArbitrationResults,
+  isArbitrationDeadlinePassed,
+  decidedByForArbitration,
   type EngineCandidate,
   type EnginePosition,
   type ArbitrationResult,
@@ -419,7 +421,7 @@ export async function runAccountSlot(
     );
     for (const candidate of arbitrationCandidates) {
       if (options.globalBudget.remaining <= 0) break;
-      if (options.deadlineMs !== undefined && Date.now() >= options.deadlineMs) {
+      if (isArbitrationDeadlinePassed(options.deadlineMs, Date.now())) {
         arbitrationErrors.push({ ticker: candidate.order.ticker, error: "skipped: arbitration deadline reached" });
         continue;
       }
@@ -436,6 +438,8 @@ export async function runAccountSlot(
         // failure after 2026-10-02 invisible (detail.arbitration was just []).
         arbitrationErrors.push({ ticker: candidate.order.ticker, error: message.slice(0, 300) });
       } finally {
+        // NB: one counted call can fan out to up to 5 OpenRouter requests via
+        // runSeat's chain walk, so real usage can exceed this counter.
         // Count the attempt against both budgets whether or not it answered
         // usefully — a call that timed out or errored still spent quota.
         modelCallsUsed++;
@@ -547,7 +551,7 @@ export async function runAccountSlot(
         VALUES (
           ${o.id}, ${runId}, ${account}, ${o.ticker}, ${o.side}, ${o.quantity},
           ${o.refPrice}, ${o.fillPrice}, ${o.slippageBps}, ${o.notional}, ${o.realizedPnl},
-          ${o.reason}, ${decision && decision.parsed !== false ? "model" : "rule"}, ${decision?.model ?? null},
+          ${o.reason}, ${decidedByForArbitration(decision)}, ${decision?.model ?? null},
           ${cardScoreByTicker.get(o.ticker) ?? null}
         )
       `;
@@ -662,7 +666,7 @@ export async function runAccountSlot(
     notional: o.notional,
     realizedPnl: o.realizedPnl,
     reason: o.reason,
-    decidedBy: arbitrationResults.get(o.ticker)?.parsed === false || !arbitrationResults.has(o.ticker) ? "rule" : "model",
+    decidedBy: decidedByForArbitration(arbitrationResults.get(o.ticker)),
     model: arbitrationResults.get(o.ticker)?.model ?? null,
     cardScore: cardScoreByTicker.get(o.ticker) ?? null,
     createdAt: new Date().toISOString(),

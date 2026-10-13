@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { PAPER_POLICY } from "@/lib/shared/paper-policy";
 import {
   applyArbitrationResults,
+  decidedByForArbitration,
+  isArbitrationDeadlinePassed,
   fillOrders,
   planChairConsensus,
   planRun,
@@ -536,4 +538,21 @@ describe("planChairConsensus", () => {
     const weight = (plan.orders[0].quantity * 100) / 10_000;
     expect(weight).toBeLessThanOrEqual(CHAIR.maxPositionWeight + 1e-9);
   });
+});
+
+describe("isArbitrationDeadlinePassed", () => {
+  it("is false when no deadline is set", () => expect(isArbitrationDeadlinePassed(undefined, 1000)).toBe(false));
+  it("is false before the deadline", () => expect(isArbitrationDeadlinePassed(2000, 1000)).toBe(false));
+  it("is true at or after the deadline", () => {
+    expect(isArbitrationDeadlinePassed(1000, 1000)).toBe(true);
+    expect(isArbitrationDeadlinePassed(500, 1000)).toBe(true);
+  });
+});
+
+describe("decidedByForArbitration", () => {
+  const base = { ticker: "AAA", action: "veto" as const, model: "m" };
+  it("is model when parsed is true", () => expect(decidedByForArbitration({ ...base, parsed: true })).toBe("model"));
+  it("is rule when parsed is false", () => expect(decidedByForArbitration({ ...base, parsed: false })).toBe("rule"));
+  it("is model when parsed is undefined (legacy results)", () => expect(decidedByForArbitration(base)).toBe("model"));
+  it("is rule when there is no decision", () => expect(decidedByForArbitration(undefined)).toBe("rule"));
 });

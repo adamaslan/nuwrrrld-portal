@@ -89,15 +89,15 @@ function interpretArbitration(parsed: unknown): ParsedArbitration | null {
   return null;
 }
 
-/** Every top-level balanced `{...}` substring that mentions "action", in order.
- *  Reasoning models often emit prose and then the JSON; the last object wins. */
-function balancedObjectsWithAction(text: string): string[] {
-  const found: string[] = [];
+const MAX_OBJECT_STARTS = 50;
+
+/** Matching-brace end index (inclusive) for the `{` at `start`, string/escape
+ *  aware, or -1 when it never closes. */
+function matchingBraceEnd(text: string, start: number): number {
   let depth = 0;
-  let start = -1;
   let inString = false;
   let escaped = false;
-  for (let i = 0; i < text.length; i++) {
+  for (let i = start; i < text.length; i++) {
     const ch = text[i];
     if (inString) {
       if (escaped) escaped = false;
@@ -105,14 +105,25 @@ function balancedObjectsWithAction(text: string): string[] {
       else if (ch === '"') inString = false;
       continue;
     }
-    if (ch === '"' && depth > 0) inString = true;
-    else if (ch === "{") {
-      if (depth === 0) start = i;
-      depth++;
-    } else if (ch === "}" && depth > 0) {
-      depth--;
-      if (depth === 0 && text.slice(start, i + 1).includes('"action"')) found.push(text.slice(start, i + 1));
-    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** Balanced `{...}` substrings that mention "action", ordered by start
+ *  position. Every `{` is tried independently (capped) so a stray brace in
+ *  the model's prose cannot hide the real JSON after it. */
+function balancedObjectsWithAction(text: string): string[] {
+  const found: string[] = [];
+  let starts = 0;
+  for (let i = text.indexOf("{"); i !== -1 && starts < MAX_OBJECT_STARTS; i = text.indexOf("{", i + 1)) {
+    starts++;
+    const end = matchingBraceEnd(text, i);
+    if (end === -1) continue;
+    const candidate = text.slice(i, end + 1);
+    if (candidate.includes('"action"')) found.push(candidate);
   }
   return found;
 }

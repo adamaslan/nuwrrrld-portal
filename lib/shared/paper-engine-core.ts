@@ -570,6 +570,17 @@ export interface ArbitrationResult {
   parsed?: boolean;
 }
 
+/** True when the run's arbitration deadline has passed (no deadline = never). */
+export function isArbitrationDeadlinePassed(deadlineMs: number | undefined, nowMs: number): boolean {
+  return deadlineMs !== undefined && nowMs >= deadlineMs;
+}
+
+/** `decided_by` for a filled order: "model" when an arbitration decision exists
+ *  and was not flagged unparseable (`parsed === false`), otherwise "rule". */
+export function decidedByForArbitration(decision: ArbitrationResult | undefined): "model" | "rule" {
+  return decision && decision.parsed !== false ? "model" : "rule";
+}
+
 /**
  * Apply arbitration results to the (already RANK/PROPOSE/CLIP'd) order list.
  * `confirm` and "no decision recorded for this ticker" are equivalent — both

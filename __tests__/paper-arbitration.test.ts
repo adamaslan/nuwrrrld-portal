@@ -116,3 +116,26 @@ describe("arbitrateOne", () => {
     expect(result).toMatchObject({ action: "confirm", parsed: false });
   });
 });
+
+describe("tryParseArbitrationResponse extraction", () => {
+  it("finds the JSON after a stray unbalanced brace in prose", () => {
+    expect(tryParseArbitrationResponse('Consider set {a, b. Final: {"action":"veto","why":"x"}')).toEqual({
+      action: "veto",
+      why: "x",
+    });
+  });
+
+  it("parses fenced JSON with nested objects", () => {
+    const raw = 'Thinking...\n```json\n{"action":"confirm","meta":{"k":1},"why":"ok"}\n```';
+    expect(tryParseArbitrationResponse(raw)).toEqual({ action: "confirm", why: "ok" });
+  });
+
+  it("returns null when no object has a valid action", () => {
+    expect(tryParseArbitrationResponse('I think {"action":"maybe"} and {"foo":1}')).toBeNull();
+  });
+
+  it("KNOWN LIMITATION: a veto cut off mid-object falls back to the earlier valid confirm", () => {
+    const raw = '{"action":"confirm"} then on reflection {"action":"veto","why":"cut of';
+    expect(tryParseArbitrationResponse(raw)).toEqual({ action: "confirm" });
+  });
+});
