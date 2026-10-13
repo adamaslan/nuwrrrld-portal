@@ -7,8 +7,7 @@
  *   - council_verdicts (WS1)   → the council's own prior calls on this ticker
  *   - grounding_pack (PR 3)    → compiled tier-ladder corpus lookups (zero model cost)
  *
- * When nothing is available the brief is just the user's question — the council
- * still runs, ungrounded, rather than failing.
+ * Ticker questions require grounding; free-form questions may run without it.
  *
  * Per-seat slicing (docs/ai-council-timeline.html, "Seat wiring"): each seat
  * gets a different slice of the same compiled pack instead of one shared
@@ -24,6 +23,13 @@ import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup"
 import { getCard } from "@/lib/ticker-cards-db";
 
 type VerdictDirection = "bullish" | "bearish" | "neutral";
+
+export class NoGroundingError extends Error {
+  constructor(public readonly ticker: string) {
+    super(`No grounding data available for ${ticker}.`);
+    this.name = "NoGroundingError";
+  }
+}
 
 function directionFromAction(action: unknown): VerdictDirection | null {
   const a = typeof action === "string" ? action.toLowerCase() : "";
@@ -206,7 +212,7 @@ export async function buildGroundedBrief(
   if (priors) parts.push(priors);
   if (compiled) parts.push(compiled);
   if (!signalData?.text && !hitRates && !priors && !compiled) {
-    parts.push(`(No grounding data available for ${ticker} — reason from general knowledge and say so.)`);
+    throw new NoGroundingError(ticker);
   }
 
   return parts.join("\n\n");

@@ -28,7 +28,7 @@ import {
   type CouncilResponse,
   type CouncilSeat,
 } from "@/lib/openrouter";
-import { buildGroundedBrief } from "@/lib/council-grounding";
+import { buildGroundedBrief, NoGroundingError } from "@/lib/council-grounding";
 import { computeDisagreements, type VerdictDirection } from "@/lib/council-critique";
 import { parseStructuredVerdict } from "@/lib/council-verdict";
 import { validateStructuredVerdict, buildRepairMessage } from "@/lib/council-validate";
@@ -43,6 +43,13 @@ import {
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 25;
 const CHAIR_VERDICT_RUNS = 3;
+
+function noGroundingResponse(error: NoGroundingError) {
+  return NextResponse.json(
+    { error: "no_grounding", ticker: error.ticker, message: error.message },
+    { status: 422 },
+  );
+}
 
 interface ChairVerdictJson {
   direction?: string;
@@ -235,6 +242,7 @@ export async function POST(req: NextRequest) {
 
   const answers: Partial<Record<CouncilSeat, CouncilResponse>> = {};
   const emptySeats: CouncilSeat[] = [];
+  const noGroundingErrors: NoGroundingError[] = [];
   round1.forEach((r, i) => {
     const seat = DEBATE_SEATS[i];
     if (r.status === "fulfilled" && r.value.answer.trim()) {
@@ -242,10 +250,18 @@ export async function POST(req: NextRequest) {
       if (sessionId) void saveMessage(sessionId, { seat, round: 1, role: "answer", model: r.value.model, content: r.value.answer, latencyMs: r.value.latencyMs });
     } else {
       emptySeats.push(seat);
+      if (r.status === "rejected" && r.reason instanceof NoGroundingError) {
+        noGroundingErrors.push(r.reason);
+      }
     }
   });
 
   const answeredSeats = DEBATE_SEATS.filter((s) => answers[s]);
+  // Refuse only when *every* empty seat is empty for lack of grounding; a mix
+  // with real model failures should surface as the usual degraded run instead.
+  if (!answeredSeats.length && noGroundingErrors.length === emptySeats.length) {
+    return noGroundingResponse(noGroundingErrors[0]);
+  }
 
   // ── Round 2: diff-shaped critique — code decides who actually disagrees ──
   const { majority, directions, disagreeing } = computeDisagreements(
@@ -296,7 +312,16 @@ export async function POST(req: NextRequest) {
       return `[${s}] answer: ${answers[s]!.answer}\n${note}`;
     })
     .join("\n\n");
-  const chairBrief = await buildGroundedBrief(question.trim(), cleanTicker, "CHAIR");
+  let chairBrief: string;
+  try {
+    chairBrief = await buildGroundedBrief(question.trim(), cleanTicker, "CHAIR");
+  } catch (error) {
+    if (!(error instanceof NoGroundingError)) throw error;
+    // Some seat had data (otherwise we would have refused above) and the chair
+    // synthesizes from that grounded transcript, so don't discard answers that
+    // were already paid for just because the chair's own slice is empty.
+    chairBrief = `QUESTION: ${question.trim()}`;
+  }
 
   let chairText = "";
   let chairModel = "";
