@@ -49,7 +49,7 @@ describe("U9 route latency regressions", () => {
     expect((await response.json()).neon.status).toBe("down");
   });
   it("keeps the missing webhook-secret configuration check", async () => {
-    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_" + "test".repeat(8));
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_placeholder_set_after_creating_endpoint");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
     expect((await (await GET()).json()).stripe.status).toBe("not_configured");
   });
