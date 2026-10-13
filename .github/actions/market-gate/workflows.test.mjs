@@ -6,14 +6,65 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const workflow = (name) => readFileSync(new URL(`../../workflows/${name}.yml`, import.meta.url), 'utf8');
+// Extract only a step's literal run block, without relying on job comments or shell markers.
+function shellStep(contents, stepId) {
+  const lines = contents.split(/\r?\n/);
+  const ids = lines.flatMap((line, index) => {
+    const match = line.match(/^( *)(- )?id: ['"]?([\w-]+)['"]?\s*(?:#.*)?$/);
+    return match?.[3] === stepId ? [{ index, indent: match[1].length, first: Boolean(match[2]) }] : [];
+  });
+  assert.equal(ids.length, 1, `Expected exactly one step id: ${stepId}`);
+  const id = ids[0];
+  const indent = id.indent - (id.first ? 0 : 2);
+  let start = id.index;
+  while (start >= 0 && !lines[start].startsWith(`${' '.repeat(indent)}- `)) start--;
+  assert.ok(start >= 0, `Missing sequence entry for step ${stepId}`);
+  let end = start + 1;
+  while (end < lines.length) {
+    const line = lines[end];
+    if (line.trim() && !line.trimStart().startsWith('#') && line.search(/\S/) <= indent) break;
+    end++;
+  }
+  const step = lines.slice(start, end);
+  const runs = step.flatMap((line, index) =>
+    line.match(new RegExp(`^ {${indent + 2}}run: \\|[+-]?\\s*(?:#.*)?$`)) ? [index] : []);
+  assert.equal(runs.length, 1, `Expected one literal run block for step ${stepId}`);
+  const body = [];
+  let bodyIndent;
+  for (const line of step.slice(runs[0] + 1)) {
+    if (!line.trim()) { body.push(''); continue; }
+    const currentIndent = line.search(/\S/);
+    if (currentIndent <= indent + 2) break;
+    bodyIndent ??= currentIndent;
+    assert.ok(currentIndent >= bodyIndent, `Invalid run indentation for step ${stepId}`);
+    body.push(line.slice(bodyIndent));
+  }
+  assert.ok(body.some(line => line.trim()), `Empty run block for step ${stepId}`);
+  return { script: body.join('\n'), metadata: step.slice(0, runs[0]).join('\n') };
+}
+test('shell extraction follows step boundaries and asserts missing or ambiguous blocks', () => {
+  const contents = `steps:
+  - name: Example
+    id: 'check'
+    run: |- # literal shell
+      echo first
+        echo nested
+
+  - id: next
+    run: |
+      echo second
+`;
+  assert.equal(shellStep(contents, 'check').script.trimEnd(), 'echo first\n  echo nested');
+  assert.throws(() => shellStep(contents, 'missing'), /Expected exactly one step id/);
+  assert.throws(() => shellStep(contents.replace("id: 'check'", 'id: next'), 'next'), /Expected exactly one step id/);
+  assert.throws(() => shellStep(contents.replace('run: |- # literal shell', 'uses: example/action'), 'check'), /Expected one literal run block/);
+});
 const track = workflow('track-followed-tickers');
 function runTrack(overrides = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'track-gate-'));
   const output = join(dir, 'output');
   writeFileSync(join(dir, 'date'), '#!/bin/bash\ncase "$1" in +%u) echo "$TEST_DAY";; +%z) echo "$TEST_OFFSET";; +%H:%M) echo "$TEST_TIME";; *) exit 1;; esac\n', { mode: 0o755 });
-  const start = track.indexOf('          set -euo pipefail', track.indexOf('- id: check'));
-  const end = track.indexOf('\n  # ── Track', start);
-  const script = track.slice(start, end).split('\n').map(line => line.replace(/^          /, '')).join('\n');
+  const { script } = shellStep(track, 'check');
   const result = spawnSync('bash', ['-c', script], { env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: output, TEST_DAY: '5', TEST_OFFSET: '-0400', TEST_TIME: '21:35', EVENT_NAME: 'schedule', FIRED_CRON: '30 20 * * 1-5', SKIP_MARKET_CHECK: 'false', CALENDAR_TRADING_DAY: 'true', SESSION_CLOSE: '16:00', ...overrides }, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   return readFileSync(output, 'utf8').trim();
@@ -56,15 +107,7 @@ test('freshness retains backup cron but gates API call on NY weekday/calendar wi
 
 function runWeekdayGate(name, stepId, overrides = {}, details = false) {
   const contents = workflow(name);
-  const marker = contents.indexOf(`- id: ${stepId}`);
-  const start = contents.indexOf('        run: |\n', marker) + '        run: |\n'.length;
-  const lines = contents.slice(start).split('\n');
-  const scriptLines = [];
-  for (const line of lines) {
-    if (line && !line.startsWith('          ')) break;
-    scriptLines.push(line.replace(/^          /, ''));
-  }
-  const script = scriptLines.join('\n')
+  const script = shellStep(contents, stepId).script
     .replaceAll('${{ steps.calendar.outputs.is_trading_day }}', '$CALENDAR_TRADING_DAY')
     .replaceAll('${{ inputs.skip_market_check }}', '$SKIP_MARKET_CHECK');
   const dir = mkdtempSync(join(tmpdir(), 'weekday-gate-'));
@@ -111,14 +154,14 @@ test('afternoon shell enforces ET weekday/calendar/preclose hour and explicit ho
 
 test('paper pre-POST refusal fails before any network request', () => {
   const contents = workflow('paper-portfolios');
-  const marker = contents.indexOf('        id: run');
-  const start = contents.indexOf('        run: |\n', marker) + '        run: |\n'.length;
-  const end = contents.indexOf('          URL=', start);
-  const script = contents.slice(start, end).replace(/^          /gm, '');
+  const step = shellStep(contents, 'run');
+  const end = step.script.search(/^URL=/m);
+  assert.ok(end > 0, 'Expected URL construction after the pre-POST refusal');
+  const script = step.script.slice(0, end);
   const result = spawnSync('bash', ['-c', script], {
     env: { ...process.env, RECHECK_ALLOWED: 'false', RECHECK_REASON: 'outside the 15-minute slot window' }, encoding: 'utf8',
   });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /::error::Paper slot refused.*15-minute slot window.*No POST was sent/);
-  assert.doesNotMatch(contents.slice(marker, start), /if: steps\.recheck/);
+  assert.doesNotMatch(step.metadata, /if: steps\.recheck/);
 });

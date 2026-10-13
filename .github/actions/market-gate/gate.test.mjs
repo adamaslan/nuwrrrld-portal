@@ -1,15 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { nyClock, settleSession, calendarDecision, paperDecision, policyMatches, priceCoverage } from './gate.mjs';
+import { nyClock, settleSession, calendarDecision, completedSession, paperDecision, policyMatches, priceCoverage } from './gate.mjs';
 const clock = value => nyClock(new Date(value));
 const regular = [{ date: '2026-10-09', open: '09:30', close: '16:00' }];
 function paper(time, overrides = {}, body = regular) {
   const c = clock(time);
   const eventTime = overrides.eventTime || time;
   const intended = settleSession(overrides.cron, eventTime) || c;
-  return paperDecision({ clock: c, calendar: calendarDecision(body, intended), slot: 'preopen', eventTime, ...overrides });
+  return paperDecision({ clock: c, calendar: { ...calendarDecision(body, intended), latest_completed_session: completedSession(body, c) }, slot: 'preopen', eventTime, ...overrides });
 }
+test('three ET calendar days late is skipped, including Monday after Friday', () => {
+  const result = paper('2026-10-12T13:00:00Z', { cron: '30 20 * * 1-5', eventTime: '2026-10-09T20:30:00Z' });
+  assert.equal(result.is_trading_day, 'false');
+  assert.match(result.reason, /more than 2 ET calendar days/);
+  assert.equal(paper('2026-10-11T23:59:00Z', { cron: '30 20 * * 1-5', eventTime: '2026-10-09T20:30:00Z' }).is_trading_day, 'true');
+});
+test('holiday-adjacent settle within two days requires the latest completed session', () => {
+  const wednesday = { date: '2026-11-25', open: '09:30', close: '16:00' };
+  const friday = { date: '2026-11-27', open: '09:30', close: '13:00' };
+  const options = { cron: '30 21 * * 1-5', eventTime: '2026-11-25T21:30:00Z' };
+  // Thanksgiving has no row; Wednesday remains the latest until Friday closes.
+  assert.equal(paper('2026-11-27T17:59:00Z', options, [wednesday, friday]).is_trading_day, 'true');
+  const closed = paper('2026-11-27T18:00:00Z', options, [wednesday, friday]);
+  assert.equal(closed.is_trading_day, 'false');
+  assert.match(closed.reason, /not the most recent completed/);
+  assert.equal(paper('2026-11-28T14:00:00Z', options, [wednesday, friday]).is_trading_day, 'false');
+});
+test('late settle fails closed when the completed-session evidence is unavailable', () => {
+  const result = paperDecision({ clock: clock('2026-10-10T14:00:00Z'), calendar: calendarDecision(regular, clock('2026-10-09T21:00:00Z')), cron: '30 20 * * 1-5', eventTime: '2026-10-09T20:30:00Z' });
+  assert.equal(result.is_trading_day, 'false');
+  assert.match(result.reason, /calendar unavailable/);
+});
 test('ET Friday survives UTC Saturday, with a late mark-only settle', () => {
   const c = clock('2026-10-10T01:00:00Z');
   assert.equal(c.date, '2026-10-09');
@@ -80,6 +102,9 @@ test('paper workflow connects safety checks, rechecks and bounded runtime', () =
   assert.match(s,/RECHECK_ALLOWED: \$\{\{ steps\.recheck\.outputs\.is_trading_day \}\}/);
   assert.match(s,/date: \$\{\{ steps\.session\.outputs\.session_date \}\}/);
   assert.match(s,/EVENT_TIME: \$\{\{ needs\.gate\.outputs\.event_time \}\}/);
+  assert.equal((s.match(/CALENDAR_LATEST_COMPLETED_SESSION:/g) || []).length, 2);
+  assert.match(s, /trade_date=\$\{SESSION_DATE\}/);
+  assert.match(s, /group: paper-portfolios\n  cancel-in-progress: false/);
   assert.match(s,/priceCoverage\(readFileSync/);
   assert.match(s,/policyMatches\(JSON.parse/);
   assert.match(s,/node scripts\/push-alpaca-live-prices\.mjs[^\n]*\|\|/);

@@ -112,6 +112,7 @@ jobs:
           CALENDAR_DAY: ${{ steps.calendar.outputs.is_trading_day }}
           CALENDAR_OPEN: ${{ steps.calendar.outputs.open }}
           CALENDAR_CLOSE: ${{ steps.calendar.outputs.close }}
+          CALENDAR_LATEST_COMPLETED_SESSION: ${{ steps.calendar.outputs.latest_completed_session }}
         run: node .github/actions/market-gate/gate.mjs paper
 
   # ── Run ─────────────────────────────────────────────────────────────────
@@ -201,6 +202,7 @@ jobs:
           CALENDAR_DAY: ${{ steps.calendar.outputs.is_trading_day }}
           CALENDAR_OPEN: ${{ steps.calendar.outputs.open }}
           CALENDAR_CLOSE: ${{ steps.calendar.outputs.close }}
+          CALENDAR_LATEST_COMPLETED_SESSION: ${{ steps.calendar.outputs.latest_completed_session }}
         run: node .github/actions/market-gate/gate.mjs paper
 
       - name: Run ${{ needs.gate.outputs.slot }} slot across all accounts
@@ -210,6 +212,7 @@ jobs:
           PAPER_CRON_SECRET: ${{ secrets.PAPER_CRON_SECRET }}
           SLOT: ${{ needs.gate.outputs.slot }}
           ACCOUNT: ${{ inputs.account }}
+          SESSION_DATE: ${{ needs.gate.outputs.session_date }}
           RECHECK_ALLOWED: ${{ steps.recheck.outputs.is_trading_day }}
           RECHECK_REASON: ${{ steps.recheck.outputs.reason }}
         run: |
@@ -219,6 +222,9 @@ jobs:
             exit 1
           fi
           URL="$PORTAL_URL/api/pipeline/paper-portfolios?slot=$SLOT"
+          if [[ "$SLOT" == "settle" ]]; then
+            URL="${URL}&trade_date=${SESSION_DATE}"
+          fi
           if [[ -n "${ACCOUNT:-}" ]]; then
             URL="${URL}&account=${ACCOUNT}"
           fi

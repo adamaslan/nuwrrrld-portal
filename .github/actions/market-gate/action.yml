@@ -11,6 +11,9 @@ inputs:
     description: YYYY-MM-DD; empty means today in America/New_York
     default: ''
 outputs:
+  latest_completed_session:
+    description: Most recent confirmed session completed as of the current ET clock
+    value: ${{ steps.cal.outputs.latest_completed_session }}
   is_trading_day:
     description: Whether the calendar confirms an ET trading day
     value: ${{ steps.cal.outputs.is_trading_day }}

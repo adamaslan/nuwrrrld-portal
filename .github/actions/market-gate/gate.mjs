@@ -10,6 +10,18 @@ export function nyClock(now = new Date()) {
     minute: Number(parts.hour) * 60 + Number(parts.minute), offset: parts.timeZoneName };
 }
 const minutes = time => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time ?? '') ? Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) : NaN;
+const calendarDays = (from, to) => (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+
+export function completedSession(body, clock) {
+  if (!Array.isArray(body)) return '';
+  const completed = body.filter(row => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row?.date ?? '') || row.date > clock.date) return false;
+    const sessionClock = nyClock(new Date(`${row.date}T12:00:00-05:00`));
+    const valid = calendarDecision([row], sessionClock).is_trading_day === 'true';
+    return valid && (row.date < clock.date || clock.minute >= minutes(row.close));
+  });
+  return completed.map(row => row.date).sort().at(-1) || '';
+}
 
 export function calendarDecision(body, clock) {
   const closed = { is_trading_day: 'false', open: '', close: '', session_open: 'false', source: 'unavailable' };
@@ -53,6 +65,10 @@ export function paperDecision({ clock, calendar, cron = '', slot = '', force = f
   if (!force && slot === 'preopen' && clock.minute >= minutes(calendar.open)) return skip('session already opened');
   if (!force && ['midday', 'preclose'].includes(slot) && !(clock.minute >= minutes(calendar.open) && clock.minute < minutes(calendar.close))) return skip('session is closed');
   if (!force && slot === 'settle' && (clock.date < sessionClock.date || (clock.date === sessionClock.date && clock.minute < Math.max(starts.settle, minutes(calendar.close))))) return skip('settle before close');
+  if (!force && slot === 'settle' && clock.date > sessionClock.date) {
+    if (calendarDays(sessionClock.date, clock.date) > 2) return skip('settle more than 2 ET calendar days late');
+    if (calendar.latest_completed_session !== sessionClock.date) return skip('intended settle is not the most recent completed trading session (or calendar unavailable)');
+  }
   return { is_trading_day: 'true', slot, late: String(late), reason: force ? 'manual force' : 'eligible' };
 }
 
@@ -74,15 +90,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     try {
       const url = new URL('https://paper-api.alpaca.markets/v2/calendar');
       url.searchParams.set('start', process.env.IN_DATE || clock.date);
-      url.searchParams.set('end', process.env.IN_DATE || clock.date);
+      url.searchParams.set('end', clock.date);
       const res = await fetch(url, { headers: { 'APCA-API-KEY-ID': process.env.APCA_KEY || '', 'APCA-API-SECRET-KEY': process.env.APCA_SECRET || '' }, signal: AbortSignal.timeout(15_000) });
       if (res.ok) body = await res.json();
     } catch { /* Missing calendar data fails closed; never log request credentials. */ }
     const date = process.env.IN_DATE || clock.date;
     const sessionClock = /^\d{4}-\d{2}-\d{2}$/.test(date) ? nyClock(new Date(`${date}T12:00:00-05:00`)) : clock;
-    result = calendarDecision(body, { ...sessionClock, date, minute: date === clock.date ? clock.minute : -1 });
+    result = { ...calendarDecision(body, { ...sessionClock, date, minute: date === clock.date ? clock.minute : -1 }),
+      latest_completed_session: completedSession(body, clock) };
   } else {
-    result = paperDecision({ clock, calendar: { is_trading_day: process.env.CALENDAR_DAY, open: process.env.CALENDAR_OPEN, close: process.env.CALENDAR_CLOSE }, cron: process.env.FIRED_CRON, eventTime: process.env.EVENT_TIME, slot: process.env.SLOT, force: process.env.FORCE === 'true' });
+    result = paperDecision({ clock, calendar: { is_trading_day: process.env.CALENDAR_DAY, open: process.env.CALENDAR_OPEN, close: process.env.CALENDAR_CLOSE, latest_completed_session: process.env.CALENDAR_LATEST_COMPLETED_SESSION }, cron: process.env.FIRED_CRON, eventTime: process.env.EVENT_TIME, slot: process.env.SLOT, force: process.env.FORCE === 'true' });
   }
   for (const [key, value] of Object.entries(result)) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
   const summary = result.session_date
