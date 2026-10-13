@@ -95,6 +95,8 @@ export async function POST(req: NextRequest) {
   const tradeDate = todayEasternDate();
   const accounts: PaperAccount[] = accountParam ? [accountParam] : PAPER_ACCOUNTS;
 
+  // Stop starting new arbitration calls at half of maxDuration so the run can finish.
+  const routeDeadlineMs = Date.now() + (maxDuration * 1000) / 2;
   const apiKey = process.env.OPENROUTER_API_KEY;
   const callsToday = apiKey ? await getModelCallsToday(tradeDate) : 0;
   const globalBudget: ModelCallBudget = {
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
 
   for (const account of accounts) {
     try {
-      results.push(await runAccountSlot(account, tradeDate, slotParam, { apiKey, globalBudget, late }));
+      results.push(await runAccountSlot(account, tradeDate, slotParam, { apiKey, globalBudget, late, deadlineMs: routeDeadlineMs }));
     } catch (err) {
       // One account's DB failure must not take the other seven down — same
       // per-item isolation as followed-tickers' per-pick loop.

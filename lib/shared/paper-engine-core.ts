@@ -565,6 +565,20 @@ export interface ArbitrationResult {
    *  lib/paper-arbitration.ts's parseArbitrationResponse for why that case is
    *  `undefined`, not an empty string. */
   why?: string;
+  /** False when the model answered but its output could not be parsed, so
+   *  `action` is the CONFIRM-none fallback rather than a real decision. */
+  parsed?: boolean;
+}
+
+/** True when the run's arbitration deadline has passed (no deadline = never). */
+export function isArbitrationDeadlinePassed(deadlineMs: number | undefined, nowMs: number): boolean {
+  return deadlineMs !== undefined && nowMs >= deadlineMs;
+}
+
+/** `decided_by` for a filled order: "model" when an arbitration decision exists
+ *  and was not flagged unparseable (`parsed === false`), otherwise "rule". */
+export function decidedByForArbitration(decision: ArbitrationResult | undefined): "model" | "rule" {
+  return decision && decision.parsed !== false ? "model" : "rule";
 }
 
 /**

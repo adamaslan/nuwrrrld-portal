@@ -545,17 +545,20 @@ function isUnavailableToUsStatus(status: number): boolean {
  * degrade it, even while every chain model was healthy (2026-08-18: five of
  * six seats were in this state).
  *
- * Within the **chain** the same status means something different: those ids
- * are rewritten weekly by scripts/refresh-free-models.mjs against the live
- * catalog, so a 404 there points at a malformed request — a bad prompt shape,
- * an unsupported parameter — that will fail identically on every remaining
- * model. Retrying it burns the whole chain's latency to reach the same error.
+ * Within the **chain** a 404 used to be treated as fatal (a malformed request
+ * would fail identically on every model). That broke when a chain id was
+ * withdrawn between weekly refreshes, so 404 now advances in every position;
+ * the cost of a genuinely malformed request is only extra chain latency.
  *
  * Auth (401/403) is fatal in both positions: it is a property of the key, not
  * the model.
  */
 function isRetryableStatus(status: number, isPrimary: boolean): boolean {
-  if (status === 402 || status === 429 || status >= 500) return true;
+  // 404 advances in every position (2026-10-13): a withdrawn `:free` chain id
+  // answers 404 instantly, and breaking on it let a primary 429 followed by one
+  // dead chain head fail paper arbitration on every call (same fix as #239's
+  // isWalkAdvanceStatus). 401/403 stay fatal on chain models.
+  if (status === 402 || status === 404 || status === 429 || status >= 500) return true;
   return isPrimary && isUnavailableToUsStatus(status);
 }
 
