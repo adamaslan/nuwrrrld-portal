@@ -5,9 +5,9 @@ import Link from "next/link";
 import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
-import { listAccounts, getLatestRun, getNavSeries, type NavPoint } from "@/lib/paper-db";
+import { listAccounts, getLatestRun, getLatestRunAnySlot, getNavSeries, type NavPoint } from "@/lib/paper-db";
 import { PAPER_ACCOUNTS, type PaperAccount } from "@/lib/shared/paper-policy";
-import { buildLeaderboardView, type AccountMetrics } from "@/lib/shared/paper-view";
+import { buildLeaderboardView, RUN_LOOKUP_FAILED, type AccountMetrics, type LatestRunSummary } from "@/lib/shared/paper-view";
 import { PaperPortfoliosClient } from "./PaperPortfoliosClient";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "./paper-portfolios.css";
@@ -41,14 +41,23 @@ export default async function PaperPortfoliosPage() {
   const accounts = await listAccounts();
   const metricsByAccount = new Map<PaperAccount, AccountMetrics | null>();
   const latestNavByAccount = new Map<PaperAccount, NavPoint | null>();
+  const latestRunByAccount = new Map<PaperAccount, LatestRunSummary | null>();
   await Promise.all(
     PAPER_ACCOUNTS.map(async (account) => {
-      const [run, [latestNav]] = await Promise.all([getLatestRun(account, "settle"), getNavSeries(account, 1)]);
+      const [run, [latestNav], anyRun] = await Promise.all([
+        getLatestRun(account, "settle"),
+        getNavSeries(account, 1),
+        getLatestRunAnySlot(account).catch((err) => {
+          console.error("[paper] latest run lookup failed", account, err);
+          return RUN_LOOKUP_FAILED;
+        }),
+      ]);
       metricsByAccount.set(account, (run?.detail?.metrics as AccountMetrics | undefined) ?? null);
       latestNavByAccount.set(account, latestNav ?? null);
+      latestRunByAccount.set(account, anyRun ? { status: anyRun.status, startedAt: anyRun.startedAt } : null);
     }),
   );
-  const initial = buildLeaderboardView(accounts, metricsByAccount, latestNavByAccount);
+  const initial = buildLeaderboardView(accounts, metricsByAccount, latestNavByAccount, latestRunByAccount);
 
   return (
     <main className="pp-page">

@@ -57,6 +57,15 @@ export interface LeaderboardRowVM {
   lastRunStatus: string;
 }
 
+/** The two fields of a `paper_runs` row the leaderboard needs. */
+export interface LatestRunSummary {
+  status: string;
+  startedAt: string | null;
+}
+
+/** Shown when the latest-run lookup itself failed, so it is never mistaken for "no run yet". */
+export const RUN_LOOKUP_FAILED: LatestRunSummary = { status: "error", startedAt: null };
+
 export interface LeaderboardVM {
   rows: LeaderboardRowVM[];
   generatedAt: string;
@@ -72,10 +81,14 @@ export function buildLeaderboardView(
   accounts: Account[],
   metricsByAccount: ReadonlyMap<PaperAccount, AccountMetrics | null>,
   latestNavByAccount: ReadonlyMap<PaperAccount, NavPoint | null>,
+  /** Each account's most recent run, any slot. Omitted by callers that have not
+   *  loaded it; those rows read "unknown" rather than a guess. */
+  latestRunByAccount: ReadonlyMap<PaperAccount, LatestRunSummary | null> = new Map(),
 ): LeaderboardVM {
   const rows: LeaderboardRowVM[] = accounts.map((a) => {
     const m = metricsByAccount.get(a.account) ?? null;
     const latestNav = latestNavByAccount.get(a.account) ?? null;
+    const latestRun = latestRunByAccount.get(a.account) ?? null;
     return {
       account: a.account,
       seat: a.seat,
@@ -90,8 +103,8 @@ export function buildLeaderboardView(
       hitRatePct: m?.hitRate != null ? m.hitRate * 100 : null,
       activeReturnVsSpyPct: m?.activeReturnVsSpy != null ? m.activeReturnVsSpy * 100 : null,
       activeReturnVsEqualPct: m?.activeReturnVsEqual != null ? m.activeReturnVsEqual * 100 : null,
-      lastRunAt: a.updatedAt,
-      lastRunStatus: "unknown",
+      lastRunAt: latestRun?.startedAt ?? a.updatedAt,
+      lastRunStatus: latestRun?.status ?? "unknown",
     };
   });
   rows.sort((a, b) => {

@@ -515,6 +515,20 @@ export async function getLatestRun(account: PaperAccount, slot: Slot): Promise<R
   }
 }
 
+/** Most recent run row for one account across every slot — what the leaderboard
+ *  shows as "last run". `getLatestRun` is slot-scoped (it exists to read the
+ *  settle slot's metrics), so it cannot answer "did the last attempt work". */
+export async function getLatestRunAnySlot(account: PaperAccount): Promise<RunRow | null> {
+  // Unlike its siblings this does not swallow query errors: null means "no run
+  // yet", and a failure must not be shown (or cached) as that.
+  const rows = await sql`
+    SELECT * FROM paper_runs
+    WHERE account = ${account}
+    ORDER BY started_at DESC, trade_date DESC LIMIT 1
+  `;
+  return rows[0] ? rowToRun(rows[0]) : null;
+}
+
 export interface NewRun {
   account: PaperAccount;
   tradeDate: string;
