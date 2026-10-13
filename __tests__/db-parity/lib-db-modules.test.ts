@@ -189,7 +189,26 @@ describe("council-db", () => {
     const first = await mod.checkAndBumpQuota("u1", 5);
     expect(first).toMatchObject({ allowed: true, used: 1, limit: 5 });
     const second = await mod.checkAndBumpQuota("u1", 5);
-    expect(second).toMatchObject({ allowed: true, used: 2, limit: 5 });
+    expect(second).toMatchObject({ allowed: true, used: 2, limit: 5, bumped: true });
+
+    // Refund then re-bump lands back on 2.
+    await mod.refundQuota("u1");
+    expect(await mod.checkAndBumpQuota("u1", 5)).toMatchObject({ allowed: true, used: 2 });
+
+    // Refund with no row is a no-op and never drives the count negative.
+    await mod.refundQuota("u2");
+    await mod.refundQuota("u2");
+    await mod.refundQuota("u2");
+    expect(await mod.checkAndBumpQuota("u2", 1)).toMatchObject({ allowed: true, used: 1, bumped: true });
+    expect(await mod.checkAndBumpQuota("u2", 1)).toMatchObject({ allowed: false, used: 1, bumped: false });
+
+    // The floor really bites: an existing row refunded past zero stays at zero
+    // (without `deliberations > 0` the second refund would leave -1, and the
+    // next bump would report used: 0).
+    expect(await mod.checkAndBumpQuota("u3", 5)).toMatchObject({ allowed: true, used: 1, bumped: true });
+    await mod.refundQuota("u3");
+    await mod.refundQuota("u3");
+    expect(await mod.checkAndBumpQuota("u3", 5)).toMatchObject({ allowed: true, used: 1, bumped: true });
   };
 
   it("round-trips against SQLite", () => run(loadWithSqlite));

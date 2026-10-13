@@ -109,7 +109,7 @@ export async function recentVerdicts(
 export async function checkAndBumpQuota(
   userId: string,
   dailyLimit: number,
-): Promise<{ allowed: boolean; used: number; limit: number }> {
+): Promise<{ allowed: boolean; used: number; limit: number; bumped: boolean }> {
   try {
     const rows = await sql`
       INSERT INTO council_usage (user_id, usage_date, deliberations)
@@ -121,14 +121,30 @@ export async function checkAndBumpQuota(
     const used = (rows[0]?.deliberations as number) ?? 1;
     if (used > dailyLimit) {
       // Over limit — roll the increment back so a blocked attempt doesn't consume quota.
-      await sql`
-        UPDATE council_usage SET deliberations = deliberations - 1
-        WHERE user_id = ${userId} AND usage_date = CURRENT_DATE
-      `;
-      return { allowed: false, used: used - 1, limit: dailyLimit };
+      await decrementUsage(userId);
+      return { allowed: false, used: used - 1, limit: dailyLimit, bumped: false };
     }
-    return { allowed: true, used, limit: dailyLimit };
+    return { allowed: true, used, limit: dailyLimit, bumped: true };
   } catch {
-    return { allowed: true, used: 0, limit: dailyLimit };
+    return { allowed: true, used: 0, limit: dailyLimit, bumped: false };
+  }
+}
+
+async function decrementUsage(userId: string): Promise<void> {
+  await sql`
+    UPDATE council_usage SET deliberations = deliberations - 1
+    WHERE user_id = ${userId} AND usage_date = CURRENT_DATE AND deliberations > 0
+  `;
+}
+
+/** Give back one deliberation unit for a request that was admitted but then
+ *  refused before any model call (e.g. no_grounding). Non-fatal; never
+ *  drives the count below zero. Uses CURRENT_DATE like checkAndBumpQuota's
+ *  rollback — a refusal straddling midnight may credit the new day by one. */
+export async function refundQuota(userId: string): Promise<void> {
+  try {
+    await decrementUsage(userId);
+  } catch {
+    /* non-fatal */
   }
 }
