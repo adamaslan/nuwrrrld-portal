@@ -13,6 +13,7 @@ name: Signal freshness check
 # (30 22 * * 1-5) has had all night to land.
 on:
   schedule:
+    # Backup schedule retained until an exact-time external scheduler is deployed.
     - cron: '0 13 * * 1-5' # 13:00 UTC = 08:00–09:00 ET
   workflow_dispatch:
     inputs:
@@ -40,7 +41,28 @@ jobs:
         with:
           node-version: '22'
 
+      - id: calendar
+        name: NYSE calendar
+        uses: ./.github/actions/market-gate
+        with:
+          alpaca-key: ${{ secrets.ALPACA_API_KEY }}
+          alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
+
+      - id: market
+        name: New York trading weekday
+        env:
+          CALENDAR_TRADING_DAY: ${{ steps.calendar.outputs.is_trading_day }}
+        run: |
+          DAY=$(TZ=America/New_York date +%u)
+          if [[ "$DAY" -lt 6 && "$CALENDAR_TRADING_DAY" == "true" ]]; then
+            echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+            echo "Not a confirmed NYSE trading weekday — skipping freshness check."
+          fi
+
       - name: Check ranked-universe freshness
+        if: steps.market.outputs.is_trading_day == 'true'
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
