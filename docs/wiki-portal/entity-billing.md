@@ -172,17 +172,25 @@ web-Pro / mobile-Free asymmetry for testers is unchanged.
   `NuWrrrld_Monthly` product: `price_1U9tjM…NC2Ff3TZ` ($9.99/mo) and
   `price_1U9tjM…FynIImG5` ($79.99/yr), matching the "Save 33%" copy already
   hardcoded in `app/pricing` and `app/dashboard/{upgrade,billing}`.
-- ⚠️ **No webhook endpoint exists for the portal.** The account's only live
-  endpoint (`we_1ThMVu…`) targets the `gcp3-backend` Cloud Run service, so
-  nothing is registered for `/api/webhooks/stripe` and **no events reach the
-  sync engine described above**. This reframes the long-open
-  `STRIPE_WEBHOOK_SECRET` gap: the missing secret was a symptom, not the cause
-  — there was no endpoint to have a secret for. That endpoint also omits
-  `customer.subscription.created`, which this repo's handler switches on.
-  `scripts/create-stripe-webhook.sh` provisions it with all five event types
-  and captures the once-shown `whsec_…` into `.env.local`. Until it is run and
-  the secret propagated to Vercel, a completed checkout charges the card and
-  never grants entitlement.
+- ✅ **Resolved — a portal endpoint now exists (contradicts the entry below
+  this was written to replace).** As of the
+  [[incident-2026-10-12-stripe-webhook-secret-placeholder]] investigation,
+  Stripe has **two** registered endpoints, both `status=enabled`:
+  `/api/webhooks/stripe` on `financial.nuwrrrld.com` *and* the `gcp3-backend`
+  one. `scripts/create-stripe-webhook.sh` was run at some point between this
+  bullet's original write-up and 2026-10-12 — the "no endpoint" diagnosis
+  below is now stale.
+- ⚠️ **Current real gap: `STRIPE_WEBHOOK_SECRET` is a placeholder in both
+  deployed environments, not missing an endpoint to point at.** Both
+  receivers fail closed *before* signature verification and return
+  `500` (`webhook not configured` / `Webhook secret not configured`), so
+  **no event reaches `syncSubscriptionToClerk()`** — same end effect as the
+  superseded bullet (a completed checkout charges the card and never grants
+  entitlement), different cause. `/api/health`'s `checkStripe()` never
+  checked this var, so health reported `stripe: ok` throughout — fixed in
+  PR #270, which adds the same `not_configured` check this function already
+  does for price IDs. Full remediation:
+  `homebase/docs/stripe-down-nwf-2026-10-12.md`.
 
 ## Open questions
 
@@ -205,6 +213,7 @@ web-Pro / mobile-Free asymmetry for testers is unchanged.
 ## See also
 
 - [[incident-2026-07-27-stripe-checkout-invalid-header]] — the production incident this entity page was written alongside
+- [[incident-2026-10-12-stripe-webhook-secret-placeholder]] — the follow-on incident: webhook endpoints registered, secrets not
 - [[concept-mobile-web-parity]] — the Subscription/billing matrix row (`lib/subscription.ts` byte-identical since mobile PR #29)
 - [[concept-sync-requirements]] — the de-drift priority list `lib/subscription.ts` was item 1 on
 - `docs/clerk-stripe-auth.md` — full architecture + CLI reference

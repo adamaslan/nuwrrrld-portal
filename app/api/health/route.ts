@@ -60,6 +60,21 @@ async function checkStripe(): Promise<DepResult> {
     };
   }
 
+  // Inbound sync (checkout.session.completed, subscription created/updated/
+  // deleted, invoice.payment_failed) is dead until this is a real signing
+  // secret — app/api/webhooks/stripe/route.ts fails closed on the same
+  // placeholder check. Without this, health can report "ok" (key valid,
+  // prices valid) while every Stripe webhook 500s and no subscription ever
+  // activates — the outbound path looks fine and the inbound path is silent.
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret || webhookSecret.startsWith("whsec_placeholder")) {
+    return {
+      status: "not_configured",
+      latencyMs: null,
+      error: "STRIPE_WEBHOOK_SECRET is unset or a placeholder — webhook events will 500",
+    };
+  }
+
   const start = Date.now();
   try {
     // Lightweight, cheap call just to confirm the key is valid and Stripe is reachable.
