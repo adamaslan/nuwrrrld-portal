@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
 
   const answers: Partial<Record<CouncilSeat, CouncilResponse>> = {};
   const emptySeats: CouncilSeat[] = [];
-  let noGroundingError: NoGroundingError | null = null;
+  const noGroundingErrors: NoGroundingError[] = [];
   round1.forEach((r, i) => {
     const seat = DEBATE_SEATS[i];
     if (r.status === "fulfilled" && r.value.answer.trim()) {
@@ -251,14 +251,16 @@ export async function POST(req: NextRequest) {
     } else {
       emptySeats.push(seat);
       if (r.status === "rejected" && r.reason instanceof NoGroundingError) {
-        noGroundingError = r.reason;
+        noGroundingErrors.push(r.reason);
       }
     }
   });
 
   const answeredSeats = DEBATE_SEATS.filter((s) => answers[s]);
-  if (!answeredSeats.length && noGroundingError) {
-    return noGroundingResponse(noGroundingError);
+  // Refuse only when *every* empty seat is empty for lack of grounding; a mix
+  // with real model failures should surface as the usual degraded run instead.
+  if (!answeredSeats.length && noGroundingErrors.length === emptySeats.length) {
+    return noGroundingResponse(noGroundingErrors[0]);
   }
 
   // ── Round 2: diff-shaped critique — code decides who actually disagrees ──
@@ -314,8 +316,11 @@ export async function POST(req: NextRequest) {
   try {
     chairBrief = await buildGroundedBrief(question.trim(), cleanTicker, "CHAIR");
   } catch (error) {
-    if (error instanceof NoGroundingError) return noGroundingResponse(error);
-    throw error;
+    if (!(error instanceof NoGroundingError)) throw error;
+    // Some seat had data (otherwise we would have refused above) and the chair
+    // synthesizes from that grounded transcript, so don't discard answers that
+    // were already paid for just because the chair's own slice is empty.
+    chairBrief = `QUESTION: ${question.trim()}`;
   }
 
   let chairText = "";

@@ -78,16 +78,30 @@ describe("POST /api/council/deliberate grounding", () => {
     expect(vi.mocked(runSeat).mock.calls.every(([seat]) => seat === "MACRO" || seat === "CHAIR")).toBe(true);
   });
 
-  it("handles missing chair grounding without calling the chair model", async () => {
+  it("keeps paid-for seat answers when only the chair slice has no grounding", async () => {
     vi.spyOn(grounding, "buildGroundedBrief").mockImplementation(async (_question, ticker, seat) => {
       if (seat !== "MACRO") throw new grounding.NoGroundingError(ticker!);
       return "Grounded brief";
     });
     const res = await POST(request());
-    expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({ error: "no_grounding", ticker: "ZZZZ" });
-    expect(runSeat).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(runSeat).mock.calls[0][0]).toBe("MACRO");
+    expect(res.status).not.toBe(422);
+    const chairCall = vi.mocked(runSeat).mock.calls.find(([seat]) => seat === "CHAIR");
+    expect(chairCall).toBeDefined();
+    const userMessage = chairCall![1].find((m: { role: string }) => m.role === "user")!.content as string;
+    expect(userMessage).toContain("QUESTION: Outlook?");
+    expect(userMessage).not.toMatch(/reason from general knowledge/i);
+  });
+
+  it("does not report no_grounding when a grounded seat failed for another reason", async () => {
+    vi.spyOn(grounding, "buildGroundedBrief").mockImplementation(async (_question, ticker, seat) => {
+      if (seat !== "MACRO") throw new grounding.NoGroundingError(ticker!);
+      return "Grounded brief";
+    });
+    vi.mocked(runSeat).mockRejectedValue(new Error("upstream down"));
+    const res = await POST(request());
+    // Same outcome as any all-seats-failed run: the pre-existing synthesis 503.
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Council synthesis unavailable" });
   });
 
   it("preserves propagation of other chair grounding errors", async () => {
