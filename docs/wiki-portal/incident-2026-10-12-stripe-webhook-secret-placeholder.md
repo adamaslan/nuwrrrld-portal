@@ -24,7 +24,7 @@ receivers rejecting every delivery:
 
 ```
 POST financial.nuwrrrld.com/api/webhooks/stripe        -> 500 {"error":"webhook not configured"}
-POST gcp3-backend-cif7ppahzq-uc.a.run.app/webhooks/stripe -> 500 {"detail":"Webhook secret not configured"}
+POST {gcp3-backend-url}/webhooks/stripe -> 500 {"detail":"Webhook secret not configured"}
 ```
 
 ## Root cause
