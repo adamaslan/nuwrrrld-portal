@@ -1,44 +1,7 @@
 name: Council Paper Portfolios (4x daily)
 
-# Runs the deterministic paper-trading loop (docs/council-paper-portfolios.md
-# §4) across all 8 seat accounts, four times a trading day. Each of the four
-# slots (preopen/midday/preclose/settle) gets its own EST+EDT cron pair, per
-# §4.1's cadence table — both fire year-round and the gate below picks the
-# slot whose NY-time *window* the wall clock falls in (not an exact-minute
-# match — GHA scheduled runs start late often enough that exact matching left
-# every recorded run skipped, see the gate step's own comment), so the
-# off-season entry is a no-op rather than a duplicate run an hour apart (same
-# convention as afternoon-pipeline.yml / track-followed-tickers.yml).
-#
-# `/api/pipeline/paper-portfolios` (Phase 3, PR #128) does the actual
-# LOAD/MARK/SCREEN/RANK/PROPOSE/CLIP/FILL/PERSIST loop per account, with
-# per-account try/catch so one account's failure doesn't abort the other
-# seven. This workflow only gates on market hours, resolves which slot fired,
-# calls that route once, and reports.
-#
-# MANUAL STEPS: PAPER_CRON_SECRET, PORTAL_PUSH_SECRET, ALPACA_API_KEY and
-# ALPACA_API_SECRET must be GitHub Actions secrets (secrets-sync skill), and
-# paper_accounts must be seeded (scripts/seed-paper-portfolios.mjs).
-#
-# docs/paper-trading-v3.md §5.2 fixes applied here:
-#   1. The slot is resolved from which `github.event.schedule` cron actually
-#      fired, not the wall clock at whatever time GHA got around to starting
-#      the job — GHA commonly starts 30-90 min late, and the wall-clock gate
-#      mislabeled 6 of 8 runs as `settle` on 2026-09-28 (F6). The original
-#      wall-clock window logic is kept ONLY for a manual `workflow_dispatch`
-#      with no `slot` input, where there is no cron event to read.
-#   2. A trading slot that starts well outside its intended window (this
-#      workflow, however triggered) still runs, but flags itself `late=true`
-#      via the ?late= query param so the route can decide how to treat it
-#      rather than silently trading at a stale mark.
-#   3. Before calling the run route, poll GET /api/paper/version until its
-#      `sha` matches this workflow's own `github.sha` — closes F2 (a run
-#      executing 2 seconds after a merge finished, before the new deploy had
-#      actually rolled out, and getting labeled with the new policy version
-#      anyway).
-#   4. The failure-issue step finds-or-comments on an existing open issue for
-#      this failure signature instead of opening a new one every time (F11 —
-#      35 open near-duplicate issues on 2026-09-29, all the same root cause).
+# GHA is the manual/backup path; scheduled trading slots refuse starts >15m late.
+# An external exact-time dispatcher remains an ops follow-up.
 
 on:
   schedule:
@@ -66,7 +29,12 @@ on:
         required: false
         type: string
       skip_market_check:
-        description: 'Skip weekday/market-hours gate'
+        description: 'Legacy manual force override (weekday, holiday and slot window)'
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: 'Force a manual slot outside its calendar/window (operator override)'
         required: false
         type: boolean
         default: false
@@ -88,6 +56,7 @@ jobs:
   gate:
     name: Market-hours gate + slot resolution
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
       slot: ${{ steps.check.outputs.slot }}
@@ -99,6 +68,12 @@ jobs:
           sparse-checkout: .github
           persist-credentials: false
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Market gate regression tests
+        run: node --test .github/actions/market-gate/*.test.mjs
+
       - id: calendar
         name: NYSE calendar (holidays, early closes)
         uses: ./.github/actions/market-gate
@@ -107,119 +82,15 @@ jobs:
           alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
 
       - id: check
-        name: Slot resolution (from the cron that fired) + weekday gate
+        name: Resolve slot and refuse unsafe trading windows
         env:
-          # github.event.schedule is only set on a `schedule` trigger; empty
-          # on workflow_dispatch, which is exactly when the fallback below
-          # (an explicit input, or the wall-clock window) is needed instead.
           FIRED_CRON: ${{ github.event.schedule }}
-        run: |
-          DAY=$(date -u +%u)   # 1=Mon … 7=Sun
-          NY_TIME=$(TZ="America/New_York" date +%H:%M)
-          NY_MIN=$(( 10#$(TZ="America/New_York" date +%H) * 60 + 10#$(TZ="America/New_York" date +%M) ))
-          echo "NY local time: ${NY_TIME}"
-
-          if [[ "$DAY" -ge 6 && "${{ inputs.skip_market_check }}" != "true" ]]; then
-            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "Weekend — skipping."
-            exit 0
-          fi
-
-          # Weekday holidays passed the weekday-only gate (docs/gha-tests-and-cloud-parity.md §3.3 E).
-          if [[ "${{ steps.calendar.outputs.is_trading_day }}" == "false" && "${{ inputs.skip_market_check }}" != "true" ]]; then
-            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NYSE holiday per the Alpaca calendar — skipping."
-            exit 0
-          fi
-
-          if [[ -n "${{ inputs.slot }}" ]]; then
-            SLOT="${{ inputs.slot }}"
-          elif [[ -n "$FIRED_CRON" ]]; then
-            # docs/paper-trading-v3.md F6/§5.2 item 1: resolve from which cron
-            # entry actually fired, not the wall clock at whenever GHA got
-            # around to starting the job. GHA commonly starts 30-90 minutes
-            # late, and the wall-clock window this replaced mislabeled 6 of 8
-            # runs as `settle` on 2026-09-28 alone — every one of them fired
-            # inside a *different* slot's own cron but landed after that
-            # slot's window had already rolled into the next one.
-            #
-            # CodeRabbit review, PR #204: matching EITHER cron in a pair to
-            # the same slot regardless of season reintroduced the exact bug
-            # this fix was meant to close, in the other direction — every
-            # slot would now fire TWICE a day (once at the correct NY time,
-            # once an hour off), because both the EST and EDT cron for a slot
-            # match year-round and there was nothing left to reject the
-            # off-season one. `paper_runs`' idempotency absorbed the second
-            # fire as `alreadyRan` rather than double-trading, but it still
-            # doubled the GHA runs and API calls every slot, every day — the
-            # exact "off-season entry is a no-op" behavior the original
-            # wall-clock gate provided and this rewrite dropped. Fixed by
-            # validating the cron against NY's *currently active* UTC offset:
-            # only the cron matching today's real DST state resolves to a
-            # slot; the other one now correctly falls through to SLOT="".
-            NY_OFFSET=$(TZ="America/New_York" date +%z)  # "-0500" (EST) or "-0400" (EDT)
-            case "$FIRED_CRON" in
-              '0 14 * * 1-5')   [[ "$NY_OFFSET" == "-0500" ]] && SLOT="preopen"  ;;
-              '0 13 * * 1-5')   [[ "$NY_OFFSET" == "-0400" ]] && SLOT="preopen"  ;;
-              '30 17 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="midday"   ;;
-              '30 16 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="midday"   ;;
-              '45 20 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="preclose" ;;
-              '45 19 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="preclose" ;;
-              '30 21 * * 1-5')  [[ "$NY_OFFSET" == "-0500" ]] && SLOT="settle"   ;;
-              '30 20 * * 1-5')  [[ "$NY_OFFSET" == "-0400" ]] && SLOT="settle"   ;;
-              *) SLOT="" ;;
-            esac
-          else
-            # Manual dispatch, no explicit slot — fall back to the wall-clock
-            # window (unchanged from before this fix), since there is no cron
-            # event to read. Each slot claims the window up to the next
-            # slot's start; `settle` extends to end-of-day. Re-running the
-            # same slot within its window is safe: the route's own
-            # idempotency (unique constraint on paper_runs(account,
-            # trade_date, slot) + an early getRun() check in
-            # lib/paper-engine.ts::runAccountSlot) absorbs a duplicate
-            # trigger without double-running.
-            PREOPEN=$((9 * 60))
-            MIDDAY=$((12 * 60 + 30))
-            PRECLOSE=$((15 * 60 + 45))
-            SETTLE=$((16 * 60 + 30))
-            if   (( NY_MIN >= PREOPEN  && NY_MIN < MIDDAY   )); then SLOT="preopen"
-            elif (( NY_MIN >= MIDDAY   && NY_MIN < PRECLOSE )); then SLOT="midday"
-            elif (( NY_MIN >= PRECLOSE && NY_MIN < SETTLE   )); then SLOT="preclose"
-            elif (( NY_MIN >= SETTLE   && NY_MIN < 24 * 60  )); then SLOT="settle"
-            else SLOT=""
-            fi
-          fi
-
-          if [[ -z "$SLOT" ]]; then
-            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NY local time ${NY_TIME}, cron '${FIRED_CRON:-none}' matches no slot — off-season cron entry, skipping."
-          else
-            echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
-            echo "slot=${SLOT}" >> "$GITHUB_OUTPUT"
-            echo "Resolved slot: ${SLOT} (from ${FIRED_CRON:+cron}${FIRED_CRON:-wall-clock/manual})"
-
-            # docs/paper-trading-v3.md §5.2 item 2: a trading slot starting
-            # well outside its own window (late GHA start, or a manual
-            # dispatch at an odd hour) still runs, but is flagged so the
-            # sanity-check step downstream reads a real trade as "late",
-            # never as invisible.
-            declare -A SLOT_START=( [preopen]=$((9*60)) [midday]=$((12*60+30)) [preclose]=$((15*60+45)) [settle]=$((16*60+30)) )
-            START=${SLOT_START[$SLOT]}
-            LATE_MINUTES=$(( NY_MIN - START ))
-            # CodeRabbit review, PR #204: an explicit manual dispatch BEFORE a
-            # slot's own start (e.g. "midday" fired at 09:00 ET) produced a
-            # negative LATE_MINUTES, which is not > 60 and so was reported as
-            # on-time — the opposite of what the comment above promises. Both
-            # directions count as outside the intended window; only a
-            # same-side-or-later dispatch within 60 minutes stays on-time.
-            if (( LATE_MINUTES > 60 || LATE_MINUTES < 0 )); then
-              echo "late=true" >> "$GITHUB_OUTPUT"
-              echo "Slot '${SLOT}' is ${LATE_MINUTES} minutes from its intended start — flagging as outside the window."
-            else
-              echo "late=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
+          SLOT: ${{ inputs.slot }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && (inputs.force || inputs.skip_market_check) }}
+          CALENDAR_DAY: ${{ steps.calendar.outputs.is_trading_day }}
+          CALENDAR_OPEN: ${{ steps.calendar.outputs.open }}
+          CALENDAR_CLOSE: ${{ steps.calendar.outputs.close }}
+        run: node .github/actions/market-gate/gate.mjs paper
 
   # ── Run ─────────────────────────────────────────────────────────────────
   run-slot:
@@ -227,6 +98,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.is_trading_day == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: production
     permissions:
       contents: read
@@ -245,67 +117,71 @@ jobs:
           [ -n "$PORTAL_URL" ] || { echo "::error::PORTAL_URL secret missing"; exit 1; }
           [ -n "$PAPER_CRON_SECRET" ] || { echo "::error::PAPER_CRON_SECRET secret missing — see docs/paper-portfolios-remaining-todo.md Phase 4"; exit 1; }
 
-      # The engine only fills at a live_prices row and that table has no other
-      # writer running. Non-fatal: a missing price already means "no trade", so a
-      # price outage must not block the run's mark-to-market and reconcile.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
 
-      # docs/paper-trading-v3.md F2/§5.2 item 3: a run must never execute
-      # against a Vercel deployment that hasn't finished rolling out yet. On
-      # 2026-09-29 the manual trigger for the first real v2 slot hit the
-      # route 2 seconds after Vercel's build finished, not after the alias
-      # had actually moved — every result that run produced matched v1's
-      # thresholds while being stamped v2. Polls up to 5 minutes; on timeout,
-      # proceeds anyway and records the mismatch (`::warning`) rather than
-      # blocking every run on a slow or genuinely stuck deploy.
-      - name: Wait for the deployed commit to match this run's commit
+      - name: Verify deployed policy version
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
-          DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
-          if [[ "$DRY_RUN" == "true" ]]; then
-            # A dry run writes nothing, and one dispatched from a branch can never
-            # match prod's SHA — report the comparison instead of polling it.
-            LIVE_SHA=$(curl -sS --max-time 10 "$PORTAL_URL/api/paper/version" | jq -r '.sha // empty')
-            echo "Dry run: deployed=${LIVE_SHA:-unknown} run=${{ github.sha }} ($([[ "$LIVE_SHA" == "${{ github.sha }}" ]] && echo match || echo 'no match — a real run would wait, then fail'))."
-            exit 0
-          fi
-          for i in $(seq 1 30); do
-            LIVE_SHA=$(curl -sS --max-time 10 "$PORTAL_URL/api/paper/version" | jq -r '.sha // empty')
-            if [[ "$LIVE_SHA" == "${{ github.sha }}" ]]; then
-              echo "Deployed commit matches (${LIVE_SHA:0:7}) after $(( (i - 1) * 10 ))s."
-              exit 0
-            fi
-            sleep 10
-          done
-          # CodeRabbit review, PR #204: this step exists specifically to
-          # prevent a run executing against a still-rolling-out deploy (F2 —
-          # the exact failure this poll was added to close). Warning and
-          # proceeding anyway permits that failure whenever a deploy is
-          # unusually slow or stuck; failing the job is the correct default
-          # for a scheduled job that writes real (paper) capital state — an
-          # operator can re-dispatch this exact slot once the deploy catches
-          # up (paper_runs' idempotency makes that safe: a slot that never
-          # ran has nothing to double-run).
-          echo "::error::Deployed commit (${LIVE_SHA:-unknown}) still doesn't match ${{ github.sha }} after 5 minutes — refusing to run against a deploy that may not have finished rolling out. Re-dispatch this slot once the deploy is live."
-          exit 1
+          curl -fsS --max-time 15 "$PORTAL_URL/api/paper/version" -o /tmp/paper-version.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { policyMatches } from './.github/actions/market-gate/gate.mjs';
+          const expected = readFileSync('lib/shared/paper-policy.ts', 'utf8').match(/export const PAPER_POLICY_VERSION = ["']([^"']+)["']/)?.[1];
+          if (!policyMatches(JSON.parse(readFileSync('/tmp/paper-version.json', 'utf8')), expected)) {
+            console.error('Deployed paper policy does not match the checked-out policy; refusing the slot.');
+            process.exit(1);
+          }
+          console.log('Deployed paper policy matches.');
+          NODE
 
-      - name: Refresh live_prices from Alpaca (IEX latest trades)
+      - name: Refresh live_prices and require at least 95% coverage
         if: ${{ !inputs.dry_run }}
-        continue-on-error: true
         timeout-minutes: 5
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-        run: node scripts/push-alpaca-live-prices.mjs
+        run: |
+          set -euo pipefail
+          # Capture the response privately; publish only the coverage decision.
+          node scripts/push-alpaca-live-prices.mjs > /tmp/paper-prices.log 2>&1 || { echo "::error::Live-price refresh failed; refusing the slot."; exit 1; }
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { priceCoverage } from './.github/actions/market-gate/gate.mjs';
+          if (!priceCoverage(readFileSync('/tmp/paper-prices.log', 'utf8'))) {
+            console.error('Live-price coverage below 95% or missing; refusing the slot.');
+            process.exit(1);
+          }
+          console.log('Live-price coverage meets 95% floor.');
+          NODE
+
+      # Re-check after queuing, setup and refresh; the first gate may now be stale.
+      - id: calendar
+        uses: ./.github/actions/market-gate
+        with:
+          alpaca-key: ${{ secrets.ALPACA_API_KEY }}
+          alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
+      - id: recheck
+        name: Re-check slot immediately before POST
+        env:
+          FIRED_CRON: ${{ github.event.schedule }}
+          SLOT: ${{ inputs.slot || needs.gate.outputs.slot }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && (inputs.force || inputs.skip_market_check) }}
+          CALENDAR_DAY: ${{ steps.calendar.outputs.is_trading_day }}
+          CALENDAR_OPEN: ${{ steps.calendar.outputs.open }}
+          CALENDAR_CLOSE: ${{ steps.calendar.outputs.close }}
+        run: node .github/actions/market-gate/gate.mjs paper
 
       - name: Run ${{ needs.gate.outputs.slot }} slot across all accounts
         id: run
+        if: steps.recheck.outputs.is_trading_day == 'true'
         env:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
           PAPER_CRON_SECRET: ${{ secrets.PAPER_CRON_SECRET }}
@@ -317,7 +193,7 @@ jobs:
           if [[ -n "${ACCOUNT:-}" ]]; then
             URL="${URL}&account=${ACCOUNT}"
           fi
-          if [[ "${{ needs.gate.outputs.late }}" == "true" ]]; then
+          if [[ "${{ steps.recheck.outputs.late }}" == "true" ]]; then
             URL="${URL}&late=true"
           fi
           if [[ "${{ inputs.dry_run || false }}" == "true" ]]; then
@@ -391,6 +267,7 @@ jobs:
     needs: [gate, run-slot]
     if: always() && !cancelled() && (failure() || (needs.gate.result == 'success' && needs.run-slot.result == 'success' && inputs.dry_run != true && !inputs.account))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
