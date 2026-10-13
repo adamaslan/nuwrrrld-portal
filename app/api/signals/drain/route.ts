@@ -15,7 +15,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
-import { fetchTickerEntry, saveTickerEntry, normalizeTicker } from "@/lib/shared/signal-lookup";
+import { fetchTickerEntry, enqueueUncachedActiveSignals, normalizeTicker } from "@/lib/shared/signal-lookup";
 import {
   claimPendingSignals,
   markSignalDone,
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
   if (authError) return authError;
 
   const startedAt = Date.now();
+  const enqueued = await enqueueUncachedActiveSignals();
   const pending = await claimPendingSignals(BATCH_SIZE);
   let done = 0;
   let retried = 0;
@@ -75,10 +76,8 @@ export async function POST(req: NextRequest) {
         tallyFailure(row.attempts);
         continue;
       }
-      // fetchTickerEntry already warms signal_cache on a live hit, but the
-      // cache-hit path returns without writing — upsert explicitly so a queued
-      // ticker is always freshened.
-      await saveTickerEntry(symbol, entry);
+      // The read-through writes live hits itself. Re-saving a cache hit here
+      // would make stale outage fallback data look newly generated.
       await markSignalDone(row.id);
       done++;
     } catch (err) {
@@ -91,9 +90,9 @@ export async function POST(req: NextRequest) {
 
   const remaining = await countPendingSignals().catch(() => null);
   console.log(
-    `[signals/drain] claimed=${pending.length} done=${done} retried=${retried} failed=${failed} remaining=${remaining} ms=${Date.now() - startedAt}`,
+    `[signals/drain] enqueued=${enqueued} claimed=${pending.length} done=${done} retried=${retried} failed=${failed} remaining=${remaining} ms=${Date.now() - startedAt}`,
   );
-  return NextResponse.json({ claimed: pending.length, done, retried, failed, remaining });
+  return NextResponse.json({ enqueued, claimed: pending.length, done, retried, failed, remaining });
 }
 
 export async function GET() {

@@ -18,6 +18,34 @@ export { normalizeTicker, isCacheFresh } from "@/lib/shared/signal-policy";
 
 const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const FETCH_TIMEOUT_MS = 8_000;
+const WARM_BATCH_SIZE = 8;
+
+/**
+ * Seed a bounded cold-cache batch from the existing active universe. Queue
+ * history (including errors) suppresses reseeding until normal queue hygiene
+ * removes it, so warm-up cannot bypass backoff, leases, or the retry cap.
+ * Existing cache rows are left to the volatility-aware read-through policy.
+ */
+export async function enqueueUncachedActiveSignals(): Promise<number> {
+  try {
+    const rows = await sql`
+      INSERT INTO pending_signals (ticker, requested_by)
+      SELECT u.ticker, 'signal-cache-warm' FROM ticker_universe u
+      WHERE u.active
+        AND NOT EXISTS (SELECT 1 FROM signal_cache c WHERE c.ticker = u.ticker)
+        AND NOT EXISTS (SELECT 1 FROM pending_signals p WHERE p.ticker = u.ticker)
+      ORDER BY u.ticker
+      LIMIT ${WARM_BATCH_SIZE}
+      ON CONFLICT DO NOTHING
+      RETURNING ticker
+    `;
+    return rows.length;
+  } catch (err) {
+    // Warming is optional; an unavailable universe must not block user work.
+    console.error(`[signal-cache] warm_enqueue_failed err=${err instanceof Error ? err.message : String(err)}`);
+    return 0;
+  }
+}
 
 interface CachedEntry {
   payload: Record<string, unknown>;
