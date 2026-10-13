@@ -1,8 +1,8 @@
 ---
-date: 2026-07-24
+date: 2026-10-12
 type: concept
 tags: [sync, parity, mobile, web, cross-surface, shared]
-sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-mobile/lib, gcp3-mobile/screens]
+sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-mobile/lib, gcp3-mobile/screens, ../../app/dashboard/page.tsx, ../../app/page.tsx]
 ---
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
@@ -11,6 +11,8 @@ Companion page: [[concept-sync-requirements]] — the concrete work each surface
 Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
 
 ## The pattern
+
+**2026-10-12 portal slowness assessment:** portal `app/dashboard/page.tsx` now requests `/market-overview?sections=brief`, and `app/page.tsx` bounds its optional council sample fetch at 5 seconds. No feature domain or shared module is added, removed, or edited; no interactive council budget changes. For this change, the existing domain matrix and recorded feature-domain ≈76%, code-identical ≈40%, blended ~62% figures remain unchanged. This is a scoped change assessment, not a fresh audit of all shared modules. Mobile’s existing full-overview briefing and council implementation remain separate; no new mobile port or de-drift item is introduced.
 
 NuWrrrld Financial ships as **two surfaces over one product**: the Expo/React
 Native app (`gcp3-mobile`) and this Next.js 16 portal (`nuwrrrld-portal`). Both

@@ -1,8 +1,8 @@
 ---
-date: 2026-07-24
+date: 2026-10-12
 type: concept
 tags: [cache, resilience, neon, cold-start, failure-policy]
-sources: [../../lib/holdfold-cache-db.ts, ../../lib/watchlist-store.ts, ../../lib/backtest.ts, ../../lib/shared/signal-lookup.ts]
+sources: [../../lib/holdfold-cache-db.ts, ../../lib/watchlist-store.ts, ../../lib/backtest.ts, ../../lib/shared/signal-lookup.ts, ../../app/dashboard/page.tsx]
 ---
 
 # Concept — Cache, Then Degrade (and the Two Failure Policies)
@@ -28,6 +28,11 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
 
 ## Where it appears
 
+- `app/dashboard/page.tsx` requests `/market-overview?sections=brief` for its
+  summary and index prices, retaining 900-second revalidation and the 8-second
+  abort fallback to `null`. Selecting the consumed section avoids waiting for
+  unrelated overview sections that can invoke LLM generation; cached reads
+  should request only the data the renderer needs.
 - [[entity-holdfold-cache]] — the canonical two-policy pair (cache vs. watchlist).
 - [[entity-portfolio-intelligence]] — a **fourth** shape, new 2026-09-11: not a
   cache at all, but a *substitute computation*. `/api/portfolio/health` prefers

@@ -27,14 +27,17 @@ interface CouncilSample {
 }
 
 async function fetchCouncilSample(): Promise<CouncilSample | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5_000);
   try {
     const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://financial.nuwrrrld.com";
     const res = await fetch(`${base}/api/council/sample`, {
+      signal: controller.signal,
       next: { revalidate: 21600 },
     });
     if (!res.ok) return null;
     return await res.json() as CouncilSample;
-  } catch { return null; }
+  } catch { return null; } finally { clearTimeout(timer); }
 }
 
 /**

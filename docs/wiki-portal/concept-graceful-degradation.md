@@ -1,8 +1,8 @@
 ---
-date: 2026-07-20
+date: 2026-10-12
 type: concept
 tags: [resilience, degradation, fallback, non-fatal, persistence]
-sources: [../../lib/shared/portfolio-health-policy.ts, ../../lib/council-grounding.ts, ../../lib/council-db.ts, ../../lib/grounding/resolve.ts, ../../app/api/council/deliberate/route.ts, ../../app/error.tsx, ../../app/global-error.tsx, ../../app/not-found.tsx, PR#37, PR#82]
+sources: [../../lib/shared/portfolio-health-policy.ts, ../../lib/council-grounding.ts, ../../lib/council-db.ts, ../../lib/grounding/resolve.ts, ../../app/api/council/deliberate/route.ts, ../../app/page.tsx, ../../app/error.tsx, ../../app/global-error.tsx, ../../app/not-found.tsx, PR#37, PR#82]
 ---
 
 # Concept: Graceful Degradation
@@ -10,6 +10,13 @@ sources: [../../lib/shared/portfolio-health-policy.ts, ../../lib/council-groundi
 Across the council stack, every dependency that *can* be missing degrades to a lesser-but-honest result rather than failing the request. The user always gets an answer; the system tells them (or logs) what was unavailable.
 
 ## The pattern
+
+The homepage's optional council sample has a 5-second fetch budget, including
+response-body parsing. Abort, transport failure, or a non-success response
+returns `null`, so the landing render can omit the live sample instead of
+waiting indefinitely. Its timer is cleared in `finally`, and the existing
+6-hour revalidation remains. This bounds the homepage caller's wait; it does
+not change interactive council model budgets. See [[entity-ai-council]].
 
 The same stance appears at every layer:
 

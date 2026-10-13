@@ -1,8 +1,8 @@
 ---
-date: 2026-09-02
+date: 2026-10-12
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
@@ -38,6 +38,14 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 5. **Persist** — session, messages, verdict → Neon (`lib/council-db.ts`), non-fatal if unavailable.
 
 ## The landing sample (PR #97)
+
+As of 2026-10-12, `app/page.tsx` caps its sample fetch at 5 seconds with an
+`AbortController`, keeps the timer active through JSON parsing, and clears it
+in `finally`. Timeout or failure yields `null`, omitting the optional live
+sample while the landing page continues. The 6-hour revalidation and sample
+route are unchanged; this caller deadline does not shorten the interactive
+council's model budget or guarantee cancellation of server-side generation.
+See [[concept-graceful-degradation]].
 
 `/api/council/sample` previously ran T1/T2 against a bare `Analyze SPY...` prompt built from a single `GET {gcp3}/signals/SPY` fetch. It now runs the same two seats against an explicit **$10,000 MOO investment simulation** framing (`buildSimulationPrompt`), grounded in whatever live `ai_summary`/`ai_score`/`ai_action` GCP3 returns for MOO, with `SIMULATED_CAPITAL_USD = 10_000` hardcoded server-side — never user input, preserving the same "server-built prompt only" constraint `/api/council/public` documents. The response now carries `ticker`, `fundName`, and `simulatedCapitalUsd`, and `app/page.tsx`'s `#council` panel renders "Live simulation: $10,000 into MOO (VanEck Agribusiness ETF) today" instead of a hardcoded "SPY" label.
 

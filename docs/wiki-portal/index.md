@@ -1,8 +1,10 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-09-29 (paper-portfolios engine correctness, personas, CHAIR consensus, real backtest)_
+_Last updated: 2026-10-12 (portal dashboard/homepage slowness assessment; parity metrics unchanged for this change)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
+
+**2026-10-12 portal slowness assessment:** portal `app/dashboard/page.tsx` now requests `/market-overview?sections=brief`, and `app/page.tsx` bounds its optional council sample fetch at 5 seconds. No feature domain or shared module is added, removed, or edited; no interactive council budget changes. For this change, the existing domain matrix and recorded feature-domain ≈76%, code-identical ≈40%, blended ~62% figures remain unchanged. This is a scoped change assessment, not a fresh audit of all shared modules. Mobile’s existing full-overview briefing and council implementation remain separate; no new mobile port or de-drift item is introduced. See [[concept-mobile-web-parity]] and [[concept-sync-requirements]].
 
 Catalog is organized by page type. Read `index.md` (or [[START-HERE]]) first on any query to find relevant pages, then drill in. This wiki is portal-only; cross-repo references link by path (see [[SCHEMA]] → Cross-Repo Boundary).
 
