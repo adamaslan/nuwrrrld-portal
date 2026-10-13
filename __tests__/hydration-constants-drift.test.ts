@@ -32,7 +32,7 @@ describe("hydration constants are single-sourced", () => {
   it("holds the Phase 2.2 agreed values", () => {
     expect(json.LOOKBACK_DAYS).toBe(365);
     expect(json.CHUNK_SIZE).toBe(35);
-    expect(json.ALPACA_FEED).toBe("iex");
+    expect(json.ALPACA_FEED).toBe("sip");
     expect(json.ALPACA_ADJUSTMENT).toBe("split");
     expect(json.MIN_BARS).toBe(40);
     expect(json.MIN_COVERAGE_RATIO).toBe(0.95);

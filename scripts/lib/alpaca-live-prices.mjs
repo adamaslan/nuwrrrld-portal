@@ -11,7 +11,7 @@ const SHARE_CLASS_RE = /^([A-Z]+)-([A-Z])$/;
 
 export const ALPACA_TRADES_URL = "https://data.alpaca.markets/v2/stocks/trades/latest";
 export const ALPACA_FEED = "iex";
-export const SYMBOLS_PER_REQUEST = 100;
+export const SYMBOLS_PER_REQUEST = 150;
 // A long holiday weekend leaves the last trade 4 days old (Fri close, Tue
 // open); anything older is a stale or pre-symbol-change print, not a price.
 export const MAX_TRADE_AGE_MS = 5 * 24 * 60 * 60 * 1000;

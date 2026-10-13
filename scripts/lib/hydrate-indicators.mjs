@@ -196,3 +196,32 @@ export function unservableRow(symbol, barData) {
   if (barData && barData.length > 0) return null;
   return { ticker: symbol, status: "error", error: "no vendor bars", errorKind: "unservable" };
 }
+
+/** Calendar date at the exchange, including UTC rollover and daylight saving.
+ * @param {Date|string|number} value
+ */
+export function newYorkDate(value = new Date()) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid bar timestamp");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date);
+  const part = type => parts.find(p => p.type === type).value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/** The free SIP history entitlement excludes the most recent 15 minutes.
+ * @param {Date|string|number} now
+ */
+export function sipHistoryEnd(now = new Date(), delayMinutes = 15) {
+  return new Date(new Date(now).getTime() - delayMinutes * 60_000).toISOString();
+}
+
+/** Alpaca's clock incorporates holidays and early closes. Fail closed on bad data. */
+export function intradaySessionOpen(clock, now = new Date()) {
+  const timestamp = Date.parse(clock?.timestamp);
+  const close = Date.parse(clock?.next_close);
+  return clock?.is_open === true && Number.isFinite(timestamp) &&
+    Number.isFinite(close) && close > new Date(now).getTime() &&
+    Math.abs(timestamp - new Date(now).getTime()) < 60_000;
+}

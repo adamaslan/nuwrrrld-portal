@@ -25,6 +25,9 @@
  * URL or a model key.
  */
 import { NextRequest, NextResponse } from "next/server";
+import sql from "@/lib/db";
+import { ALPACA_FEED, LOOKBACK_DAYS } from "@/lib/shared/hydration-constants";
+import { newYorkDate } from "@/scripts/lib/hydrate-indicators.mjs";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { buildCard, type CardUniverse, type FrameStats } from "@/lib/shared/card-policy";
 import { isCryptoShaped, normalizeTicker } from "@/lib/shared/signal-policy";
@@ -39,8 +42,8 @@ import {
 } from "@/lib/ticker-cards-db";
 import type { Horizon, SignalStateInput, VerdictDirection } from "@/lib/grounding/taxonomy";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
-import { isUnservableRow, settleUnservable } from "@/lib/shared/hydrate-rows";
-import { computeBatchCoverage, computeRunStatus } from "@/lib/shared/run-status";
+import { isUnservableRow, settleUnservable, unservableWithinCeiling } from "@/lib/shared/hydrate-rows";
+import { computeBatchCoverage, computeRunStatus, deriveRunStatus } from "@/lib/shared/run-status";
 
 /** Which compute host actually ran the batch. Optional: an older caller that
  *  omits it logs `host: null` rather than failing the request — this is
@@ -83,6 +86,10 @@ interface HydrateRow {
 
 interface HydrateBody {
   runId?: string;
+  deferRunLog?: boolean;
+  complete?: boolean;
+  items?: RunItem[];
+  summary?: Record<string, unknown>;
   source?: string;
   universe?: CardUniverse;
   barDate?: string;
@@ -121,6 +128,26 @@ export async function GET(req: NextRequest) {
     const latestBarDate = await latestCardBarDate();
     const staleTradingDays = latestBarDate ? tradingDaysBetween(latestBarDate, todayIso()) : null;
     return NextResponse.json({ ok: true, latestBarDate, staleTradingDays });
+  }
+
+  if (params.get("meta") === "bars") {
+    const symbols = (params.get("symbols") ?? "").split(",").map(normalizeTicker);
+    if (!symbols.length || symbols.length > 150 || symbols.some((s) => !s)) {
+      return NextResponse.json({ error: "1–150 valid symbols required" }, { status: 400 });
+    }
+    const history = await sql`
+      SELECT ticker, bar_date::text, open, high, low, close, volume
+      FROM daily_bars WHERE ticker = ANY(${symbols})
+        AND feed = ${ALPACA_FEED} AND adjustment = 'split'
+        AND bar_date >= CURRENT_DATE - ${LOOKBACK_DAYS}::int
+      ORDER BY ticker, bar_date
+    `;
+    const bars: Record<string, { t: string; o: number; h: number; l: number; c: number; v: number }[]> = {};
+    for (const row of history) {
+      (bars[row.ticker] ??= []).push({ t: row.bar_date + "T12:00:00Z", o: row.open,
+        h: row.high, l: row.low, c: row.close, v: row.volume });
+    }
+    return NextResponse.json({ ok: true, feed: ALPACA_FEED, bars });
   }
 
   const universeParam = params.get("universe");
@@ -229,6 +256,24 @@ export async function POST(req: NextRequest) {
   if (!barDate) {
     return NextResponse.json({ error: "barDate must be YYYY-MM-DD" }, { status: 400 });
   }
+  if (body.complete === true) {
+    if (!body.runId || !Array.isArray(body.items) || body.items.length > 20_000 ||
+        body.items.some((item) => !item || typeof item.subject !== "string" ||
+          item.model !== null || !["ok", "fail", "skip", "empty"].includes(item.outcome))) {
+      return NextResponse.json({ error: "valid runId and zero-model items required" }, { status: 400 });
+    }
+    const unservableCount = Number(body.summary?.unservable ?? 0);
+    const total = Number(body.summary?.total ?? body.items.length);
+    const status = unservableWithinCeiling(unservableCount, total)
+      ? deriveRunStatus(body.items) : "fail";
+    const logged = await logPipelineRun({ pipeline: "hydrate-universe", dryRun: false,
+      session: body.runId, upsertSession: true, itemsTotal: body.items.length,
+      items: body.items, status, host: body.host ?? null,
+      coverage: { expected: body.items.filter((item) => item.outcome !== "skip").length,
+        filled: body.items.filter((item) => item.outcome === "ok").length },
+      summary: { ...body.summary, source, barDate, complete: true } });
+    return NextResponse.json({ ok: logged, logged, status, runId: body.runId });
+  }
   if (rows.length === 0) {
     return NextResponse.json({ ok: true, written: 0, skipped: 0, failed: 0, rejected: [], note: "empty batch" });
   }
@@ -296,7 +341,7 @@ export async function POST(req: NextRequest) {
   // A few dead symbols are normal; a large share of a request with no bars is
   // what a vendor outage looks like. Past the ceiling they count as upstream
   // errors again so the run cannot go green on skips.
-  settleUnservable(unservable, upstreamErrors, rows.length);
+  if (!body.deferRunLog) settleUnservable(unservable, upstreamErrors, rows.length);
 
   // Register every ticker we are about to card. `ticker_cards` has a foreign
   // key onto `ticker_universe`, so a symbol seen for the first time must be
@@ -337,8 +382,8 @@ export async function POST(req: NextRequest) {
   );
   const runStatus = computeRunStatus(batchCoverage);
   const items: RunItem[] = [
-    ...outcomes.map((o) => ({
-      subject: o.ticker,
+    ...outcomes.map((o, index) => ({
+      subject: `${o.ticker}:${cards[index].horizon}`,
       model: null,
       outcome: (o.outcome === "written" ? "ok" : o.outcome === "failed" ? "fail" : "skip") as RunItem["outcome"],
     })),
@@ -346,7 +391,7 @@ export async function POST(req: NextRequest) {
     ...unservable.map((u) => ({ subject: u.ticker, model: null, outcome: "skip" as const })),
     ...rejected.map((r) => ({ subject: r.ticker, model: null, outcome: "skip" as const })),
   ];
-  await logPipelineRun({
+  if (!body.deferRunLog) await logPipelineRun({
     pipeline: "hydrate-universe",
     dryRun: false,
     session: body.runId ?? null,
@@ -375,6 +420,9 @@ export async function POST(req: NextRequest) {
     source,
     barDate,
     tickers: seen.length,
+    runItems: items,
+    status: runStatus,
+    batchCoverage,
     written,
     skipped,
     failed: failed.length,
@@ -443,7 +491,7 @@ function normalizeBarDate(v: unknown): string | null {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return newYorkDate(new Date());
 }
 
 /** Weekdays strictly between two ISO dates (UTC), i.e. trading sessions the

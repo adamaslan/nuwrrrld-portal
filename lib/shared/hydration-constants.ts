@@ -18,12 +18,10 @@ import constants from "./hydration-constants.json";
  *  50/200-day MAs, and stabilizes the volatility percentile. */
 export const LOOKBACK_DAYS: number = constants.LOOKBACK_DAYS;
 
-/** Symbols per Alpaca request. 35 is the largest chunk that still fits inside
- *  one 10k-bar page at a 365-day lookback (~252 trading days × 35 ≈ 8,820). */
+/** Rows per portal POST; independent of the vendor fetch batch size. */
 export const CHUNK_SIZE: number = constants.CHUNK_SIZE;
 
-/** Alpaca data feed. `iex` is today's plan default; pinning it here makes a
- *  feed upgrade a one-line diff rather than an unstated assumption. */
+/** Consolidated SIP history; requests end at least 15 minutes in the past. */
 export const ALPACA_FEED: string = constants.ALPACA_FEED;
 
 /** Bar adjustment. `split` matches Modal and removes split discontinuities
@@ -41,3 +39,6 @@ export const MIN_COVERAGE_RATIO: number = constants.MIN_COVERAGE_RATIO;
 export const ALPACA_PAGE_LIMIT: number = constants.ALPACA_PAGE_LIMIT;
 
 export default constants;
+
+export const FETCH_CHUNK_SIZE = constants.FETCH_CHUNK_SIZE;
+export const SIP_DELAY_MINUTES = constants.SIP_DELAY_MINUTES;
