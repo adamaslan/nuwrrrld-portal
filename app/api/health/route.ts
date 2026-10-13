@@ -35,7 +35,7 @@ async function checkMcp(): Promise<DepResult> {
     const res = await withTimeout((signal) => fetch(`${MCP_URL}/health`, { signal }));
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
+    return { status: unreachableStatus(err), latencyMs: null, error: "unreachable" };
   }
 }
 
@@ -45,7 +45,7 @@ async function checkNeon(): Promise<DepResult> {
     await sql`SELECT 1`;
     return { status: "ok", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "query failed" };
+    return { status: unreachableStatus(err), latencyMs: null, error: "query failed" };
   }
 }
 
@@ -95,7 +95,7 @@ async function checkStripe(): Promise<DepResult> {
     );
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
+    return { status: unreachableStatus(err), latencyMs: null, error: "unreachable" };
   }
 }
 
@@ -137,7 +137,7 @@ async function checkOpenRouter(): Promise<DepResult> {
     );
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
-    return { status: unreachableStatus(err), latencyMs: null, error: err instanceof Error ? err.message : "unreachable" };
+    return { status: unreachableStatus(err), latencyMs: null, error: "unreachable" };
   }
 }
 

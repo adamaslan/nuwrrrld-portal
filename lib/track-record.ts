@@ -7,6 +7,10 @@
  */
 import sql from "@/lib/db";
 
+const MIN_TRACK_RECORD_CALLS = 100;
+const MIN_TRACK_RECORD_TICKERS = 10;
+const MAX_TRACK_RECORD_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface AggregateTrackRecord {
   hitRatePct: number;
   totalCalls: number;
@@ -25,9 +29,10 @@ export async function getAggregateTrackRecord(): Promise<AggregateTrackRecord | 
     const oldest = Date.parse(String(rows[0]?.oldest_computed_at ?? ""));
     // Every contributing row must be recent; one refreshed ticker cannot
     // make an otherwise stale aggregate look current.
-    if (totalCalls < 100 || Number(rows[0]?.ticker_count ?? 0) < 10 ||
+    if (totalCalls < MIN_TRACK_RECORD_CALLS ||
+        Number(rows[0]?.ticker_count ?? 0) < MIN_TRACK_RECORD_TICKERS ||
         !Number.isFinite(oldest) || oldest > Date.now() ||
-        Date.now() - oldest > 30 * 24 * 60 * 60 * 1000 ||
+        Date.now() - oldest > MAX_TRACK_RECORD_AGE_MS ||
         totalHits < 0 || totalHits > totalCalls) return null;
     return { hitRatePct: Math.round((totalHits / totalCalls) * 100), totalCalls };
   } catch {
