@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-12 (portal dashboard/homepage slowness assessment; parity metrics unchanged for this change)_
+_Last updated: 2026-10-13 (paper arena query reduction; parity metrics unchanged)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -92,6 +92,7 @@ Cross-cutting patterns and design choices.
 
 Recorded design decisions — the *why* behind the architecture.
 
+- [[decision-paper-arena-settle-metrics]] — reuse validated settle metrics and batch fallback reads for the arena; keep per-account failure isolation
 - [[decision-four-field-verdict-scaffold]] — 4 verdict fields, not 6 (small models drop later directives)
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
