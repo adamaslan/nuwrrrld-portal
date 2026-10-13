@@ -261,6 +261,27 @@ export interface OrderRow extends NewOrder {
   createdAt: string;
 }
 
+function rowToOrder(r: Record<string, unknown>): OrderRow {
+  return {
+    id: r.id as string,
+    runId: r.run_id as string,
+    account: r.account as PaperAccount,
+    ticker: r.ticker as string,
+    side: r.side as OrderSide,
+    quantity: Number(r.quantity),
+    refPrice: Number(r.ref_price),
+    fillPrice: Number(r.fill_price),
+    slippageBps: Number(r.slippage_bps),
+    notional: Number(r.notional),
+    realizedPnl: r.realized_pnl == null ? null : Number(r.realized_pnl),
+    reason: r.reason as string,
+    decidedBy: r.decided_by as DecidedBy,
+    model: (r.model as string) ?? null,
+    cardScore: r.card_score == null ? null : Number(r.card_score),
+    createdAt: new Date(r.created_at as string).toISOString(),
+  };
+}
+
 /** Newest-first, paginated — the same rows mirrored to Firestore (§5.1). */
 export async function listOrders(
   account: PaperAccount,
@@ -272,24 +293,7 @@ export async function listOrders(
       SELECT * FROM paper_orders WHERE account = ${account}
       ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
     `;
-    return rows.map((r) => ({
-      id: r.id as string,
-      runId: r.run_id as string,
-      account: r.account as PaperAccount,
-      ticker: r.ticker as string,
-      side: r.side as OrderSide,
-      quantity: Number(r.quantity),
-      refPrice: Number(r.ref_price),
-      fillPrice: Number(r.fill_price),
-      slippageBps: Number(r.slippage_bps),
-      notional: Number(r.notional),
-      realizedPnl: r.realized_pnl == null ? null : Number(r.realized_pnl),
-      reason: r.reason as string,
-      decidedBy: r.decided_by as DecidedBy,
-      model: (r.model as string) ?? null,
-      cardScore: r.card_score == null ? null : Number(r.card_score),
-      createdAt: new Date(r.created_at as string).toISOString(),
-    }));
+    return rows.map(rowToOrder);
   } catch {
     return [];
   }
@@ -423,30 +427,81 @@ export async function getOrdersForMetrics(account: PaperAccount, limit = 5000): 
       SELECT * FROM paper_orders WHERE account = ${account}
       ORDER BY created_at ASC LIMIT ${limit}
     `;
-    return rows.map((r) => ({
-      id: r.id as string,
-      runId: r.run_id as string,
-      account: r.account as PaperAccount,
-      ticker: r.ticker as string,
-      side: r.side as OrderSide,
-      quantity: Number(r.quantity),
-      refPrice: Number(r.ref_price),
-      fillPrice: Number(r.fill_price),
-      slippageBps: Number(r.slippage_bps),
-      notional: Number(r.notional),
-      realizedPnl: r.realized_pnl == null ? null : Number(r.realized_pnl),
-      reason: r.reason as string,
-      decidedBy: r.decided_by as DecidedBy,
-      model: (r.model as string) ?? null,
-      cardScore: r.card_score == null ? null : Number(r.card_score),
-      createdAt: new Date(r.created_at as string).toISOString(),
-    }));
+    return rows.map(rowToOrder);
   } catch {
     return [];
   }
 }
 
 // ── Runs ─────────────────────────────────────────────────────────────────────
+
+/** Batched arena reads retain per-account windows instead of a global LIMIT. */
+export async function getArenaNav(accounts: PaperAccount[], limit: number, settle = false, newest = true): Promise<NavPoint[]> {
+  if (!accounts.length) return [];
+  try {
+    const rows = await sql`
+      SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (
+          PARTITION BY account ORDER BY
+            CASE WHEN ${newest} THEN trade_date END DESC,
+            CASE WHEN ${!newest} THEN trade_date END ASC, slot DESC
+        ) AS arena_rank
+        FROM paper_nav WHERE account = ANY(${accounts}::text[])
+          AND (${!settle} OR slot = 'settle')
+      ) ranked WHERE arena_rank <= ${limit}
+      ORDER BY account, arena_rank
+    `;
+    return rows.map(rowToNavPoint);
+  } catch {
+    return [];
+  }
+}
+
+export async function getArenaOrders(accounts: PaperAccount[], limit: number, newest = true): Promise<OrderRow[]> {
+  if (!accounts.length) return [];
+  try {
+    const rows = await sql`
+      SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (
+          PARTITION BY account ORDER BY
+            CASE WHEN ${newest} THEN created_at END DESC,
+            CASE WHEN ${!newest} THEN created_at END ASC
+        ) AS arena_rank
+        FROM paper_orders WHERE account = ANY(${accounts}::text[])
+      ) ranked WHERE arena_rank <= ${limit}
+      ORDER BY account, arena_rank
+    `;
+    return rows.map(rowToOrder);
+  } catch {
+    return [];
+  }
+}
+
+export async function getArenaPositions(accounts: PaperAccount[]): Promise<Position[]> {
+  if (!accounts.length) return [];
+  try {
+    const rows = await sql`
+      SELECT * FROM paper_positions WHERE account = ANY(${accounts}::text[]) ORDER BY account, ticker
+    `;
+    return rows.map(rowToPosition);
+  } catch {
+    return [];
+  }
+}
+
+export async function getArenaSettleRuns(accounts: PaperAccount[]): Promise<RunRow[]> {
+  if (!accounts.length) return [];
+  try {
+    const rows = await sql`
+      SELECT DISTINCT ON (account) * FROM paper_runs
+      WHERE account = ANY(${accounts}::text[]) AND slot = 'settle'
+      ORDER BY account, trade_date DESC
+    `;
+    return rows.map(rowToRun);
+  } catch {
+    return [];
+  }
+}
 
 export interface RunRow {
   id: string;
