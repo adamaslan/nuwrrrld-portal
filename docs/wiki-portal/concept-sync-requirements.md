@@ -1,8 +1,8 @@
 ---
-date: 2026-07-24
+date: 2026-10-12
 type: concept
 tags: [sync, parity, requirements, roadmap, mobile, web, shared]
-sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens]
+sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../../app/dashboard/page.tsx, ../../app/page.tsx]
 ---
 
 # Concept — What Each Surface Needs to Sync
@@ -12,6 +12,8 @@ page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
 ## The pattern
+
+**2026-10-12 portal slowness assessment:** portal `app/dashboard/page.tsx` now requests `/market-overview?sections=brief`, and `app/page.tsx` bounds its optional council sample fetch at 5 seconds. No feature domain or shared module is added, removed, or edited; no interactive council budget changes. For this change, the existing domain matrix and recorded feature-domain ≈76%, code-identical ≈40%, blended ~62% figures remain unchanged. This is a scoped change assessment, not a fresh audit of all shared modules. Mobile’s existing full-overview briefing and council implementation remain separate; no new mobile port or de-drift item is introduced.
 
 Closing the parity gap is not one project — it is three distinct kinds of work,
 each with a different owner and risk profile:

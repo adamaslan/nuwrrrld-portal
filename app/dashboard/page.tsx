@@ -29,7 +29,7 @@ async function fetchMarketOverview(): Promise<MarketOverview | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/market-overview`, { signal: ctrl.signal, next: { revalidate: 900 } });
+    const res = await fetch(`${MCP_URL}/market-overview?sections=brief`, { signal: ctrl.signal, next: { revalidate: 900 } });
     if (!res.ok) return null;
     return await res.json() as MarketOverview;
   } catch { return null; } finally { clearTimeout(t); }
