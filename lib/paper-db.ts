@@ -382,9 +382,12 @@ function rowToNavPoint(r: Record<string, unknown>): NavPoint {
  *  CAGR/vol/Sharpe/drawdown are computed against (`lib/paper-metrics.ts`,
  *  Phase 8). Using every slot instead would treat four intraday marks a day
  *  as four independent daily returns, badly overstating annualized vol. */
-export async function getSettleNavSeries(account: PaperAccount, limit = 2000): Promise<NavPoint[]> {
+export async function getSettleNavSeries(account: PaperAccount, limit = 2000, newest = false): Promise<NavPoint[]> {
   try {
-    const rows = await sql`
+    const rows = newest ? (await sql`
+      SELECT * FROM paper_nav WHERE account = ${account} AND slot = 'settle'
+      ORDER BY trade_date DESC LIMIT ${limit}
+    `).reverse() : await sql`
       SELECT * FROM paper_nav WHERE account = ${account} AND slot = 'settle'
       ORDER BY trade_date ASC LIMIT ${limit}
     `;

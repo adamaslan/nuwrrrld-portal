@@ -20,7 +20,7 @@ export async function loadArena(): Promise<ArenaVM> {
       .map(async (a): Promise<ArenaAccountInput> => {
         const [metrics, nav, [latestNav], orders, positions] = await Promise.all([
           computeMetricsForAccount(a.account).catch(() => null),
-          getSettleNavSeries(a.account, NAV_POINTS_PER_ACCOUNT),
+          getSettleNavSeries(a.account, NAV_POINTS_PER_ACCOUNT, true),
           getNavSeries(a.account, 1),
           listOrders(a.account, ORDERS_PER_ACCOUNT),
           getPositions(a.account),

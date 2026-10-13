@@ -146,7 +146,7 @@ function MetricsTable({
               <td>{r.isBaseline ? "base" : r.judgeRank != null ? `#${r.judgeRank}` : "—"}</td>
               <td>
                 <span className="pa-dot" style={{ background: ACCOUNT_COLORS[r.account] }} aria-hidden />
-                <strong>{r.label}</strong> <span className="pp-seat">{r.seat ?? "control"}</span>
+                <button type="button" className="pa-th" aria-label={`Select ${r.label} account`} aria-pressed={selected === r.account}><strong>{r.label}</strong></button> <span className="pp-seat">{r.seat ?? "control"}</span>
               </td>
               <td>{fmtUsd(r.nav)}</td>
               {JUDGE_COLUMNS.map((c) => {
@@ -247,7 +247,7 @@ function TradeFeed({ data, selected }: { data: ArenaVM; selected: PaperAccount |
                   <td>{new Date(t.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
                   <td><span className="pa-dot" style={{ background: ACCOUNT_COLORS[t.account] }} aria-hidden />{t.account}</td>
                   <td className={t.side === "buy" ? "pp-pos" : "pp-neg"}>{t.side}</td>
-                  <td><strong>{t.ticker}</strong></td>
+                  <td><button type="button" className="pa-th" aria-label={`Trade details: ${t.account} ${t.side} ${t.ticker} at ${t.when}`} aria-expanded={open === t.id}><strong>{t.ticker}</strong></button></td>
                   <td>${t.fillPrice.toFixed(2)}</td>
                   <td>{fmtUsd(t.notional)}</td>
                   <td className={signClass(t.realizedPnl)}>{t.realizedPnl == null ? "—" : fmtUsd(t.realizedPnl)}</td>
