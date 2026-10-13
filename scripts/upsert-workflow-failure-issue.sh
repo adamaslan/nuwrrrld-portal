@@ -7,6 +7,7 @@ set -euo pipefail
 : "${ISSUE_BODY:?ISSUE_BODY is required}"
 
 existing_issue=""
+legacy_issue=""
 results=$(
   gh issue list \
     --repo "$GITHUB_REPOSITORY" \
@@ -19,10 +20,19 @@ results=$(
 )
 while IFS=$'\t' read -r number title; do
   if [[ "$title" == "$ISSUE_TITLE" ]]; then
-    existing_issue="$number"
-    break
+    if [[ -z "$existing_issue" ]] || (( number < existing_issue )); then
+      existing_issue="$number"
+    fi
+  elif [[ "$title" == "$ISSUE_TITLE "* ]]; then
+    suffix=${title#"$ISSUE_TITLE"}
+    if [[ "$suffix" =~ ^\ [0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+      if [[ -z "$legacy_issue" ]] || (( number < legacy_issue )); then
+        legacy_issue="$number"
+      fi
+    fi
   fi
 done <<< "$results"
+existing_issue=${existing_issue:-$legacy_issue}
 
 if [[ -n "$existing_issue" ]]; then
   gh issue comment "$existing_issue" \

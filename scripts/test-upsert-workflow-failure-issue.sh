@@ -36,7 +36,25 @@ if grep -Fq 'issue create' "$GH_MOCK_LOG"; then
 fi
 
 : > "$GH_MOCK_LOG"
-GH_MOCK_LIST=$'41\tNightly AI precompute failed yesterday\n' \
+GH_MOCK_LIST=$'51\tNightly AI precompute failed 2026-10-13\n41\tNightly AI precompute failed 2026-10-12\n49\tNightly AI precompute failed 2026-10-11\n' \
+  bash "$SCRIPT_DIR/upsert-workflow-failure-issue.sh"
+grep -Fq 'issue comment 41 --repo owner/repo' "$GH_MOCK_LOG"
+if grep -Fq 'issue create' "$GH_MOCK_LOG"; then
+  echo "expected the lowest-numbered legacy dated issue to be reused" >&2
+  exit 1
+fi
+
+: > "$GH_MOCK_LOG"
+GH_MOCK_LIST=$'41\tNightly AI precompute failed 2026-10-12\n60\tNightly AI precompute failed\n42\tNightly AI precompute failed\n40\tNightly AI precompute failed 2026-10-11\n' \
+  bash "$SCRIPT_DIR/upsert-workflow-failure-issue.sh"
+grep -Fq 'issue comment 42 --repo owner/repo' "$GH_MOCK_LOG"
+if grep -Fq 'issue create' "$GH_MOCK_LOG"; then
+  echo "expected the lowest-numbered exact match to take precedence" >&2
+  exit 1
+fi
+
+: > "$GH_MOCK_LOG"
+GH_MOCK_LIST=$'41\tNightly AI precompute failed yesterday\n42\tNightly AI precompute failed 2026-10-12 extra\n43\tNightly AI precompute failed  2026-10-12\n44\tNightly AI precompute failed 2026-1-12\n45\tNightly AI precompute failed2026-10-12\n' \
   bash "$SCRIPT_DIR/upsert-workflow-failure-issue.sh"
 grep -Fq 'issue create --repo owner/repo --title Nightly AI precompute failed' "$GH_MOCK_LOG"
 grep -Fq 'https://example.test/run/123' "$GH_MOCK_LOG"
