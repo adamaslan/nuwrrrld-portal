@@ -1977,3 +1977,72 @@ unset DATABASE_URL
 Expect: `UPDATE 25`, then `ROLLBACK`. **If the count is not exactly 25, stop**: the criterion (active, zero cards ever) would also catch a symbol added today that has not been hydrated yet. To apply for real, change `ROLLBACK` to `COMMIT` in that command and re-run.
 
 **Separate bug (not fixed here):** `barDate` is derived from the UTC clock (`new Date().toISOString().split("T")[0]`). A cron delayed past UTC midnight (Oct 12 session, run at 03:07Z) stamps final cards with the next day's `bar_date`, and the next intraday run's partial cards for that date are rejected by `shouldReplaceCard`. Fix in its own PR: derive from the last Alpaca bar's `t` or the US/Eastern session date.
+
+## Corrected 2026-10-13 — two entries from #272 are superseded
+
+Later the same day, read-only diagnosis found the causes of two items above and
+fixed both in code. The earlier entries are left as written; this section
+replaces them. Nothing here prints a secret value.
+
+### Paper arbitration: it was code bugs, not a missing key (fixed in #276)
+
+- **From**: read-only code and data diagnosis, 2026-10-13. Supersedes "Find out why paper arbitration stopped after 2026-10-02" and its key-presence check.
+- **What was wrong**: the model-call output limit (160 tokens) was far below `runSeat`'s 1200 floor, so reasoning models returned empty or cut-off replies; `runSeat` stopped the fallback chain on a 404 from a withdrawn model; and failures went only to `console.warn`. The key was present and the call caps were never reached.
+- **Fixed**: #276 (limit 1200, tolerant JSON parsing, chain advances on 404, failures recorded in `paper_runs.detail.arbitration_errors`, `decided_by='model'` only for parsed replies).
+- **Blocked on**: the next live trading-slot runs of `paper-portfolios` — mocked tests passed, but nothing has run against live OpenRouter since the fix.
+- **Unblocks**: confidence that the council seats decide differently from QUANT (Phase 5).
+- **Added**: 2026-10-13
+
+**Step 1 — after the next weekday paper runs, check model decisions (read-only).**
+
+```bash
+cd ~/code/nuwrrrld-portal
+export DATABASE_URL=$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)
+node -e '
+const {neon}=require("@neondatabase/serverless");const sql=neon(process.env.DATABASE_URL);
+sql`SELECT decided_by, count(*) AS n, max(created_at) AS newest FROM paper_orders GROUP BY decided_by`
+ .then(r=>console.table(r)).catch(e=>console.error(e.message))'
+unset DATABASE_URL
+```
+
+Expect: the `model` row's `newest` is later than 2026-10-02 (it was 2026-10-02 on 2026-10-13). If it is not, go to Step 2.
+
+**Step 2 — recent runs that made model calls, with recorded failures (read-only).**
+
+```bash
+cd ~/code/nuwrrrld-portal
+export DATABASE_URL=$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)
+node -e '
+const {neon}=require("@neondatabase/serverless");const sql=neon(process.env.DATABASE_URL);
+sql`SELECT trade_date, slot, account, model_calls, jsonb_array_length(COALESCE(detail->$$arbitration_errors$$, $$[]$$::jsonb)) AS arbitration_errors_n
+    FROM paper_runs WHERE model_calls > 0 ORDER BY started_at DESC LIMIT 8`
+ .then(r=>console.table(r)).catch(e=>console.error(e.message))'
+unset DATABASE_URL
+```
+
+Expect: `arbitration_errors_n` mostly 0. A non-zero count means calls still fail; read `detail->'arbitration_errors'` on that run for the reason (it now records one).
+
+### `hydrate-universe`: 25 dead symbols, not a status bug (fixed in #277)
+
+- **From**: read-only code and data diagnosis, 2026-10-13. Supersedes "Classify the remaining `hydrate-universe` fails and the null-status writers".
+- **What was wrong**: the same 25 active symbols (21 stocks, 4 ETFs) return no bars every night and never had a card, so any batch holding several of them fell below the 0.95 coverage threshold. #260's per-batch grading works; the "batch rows graded against the whole slice" lead was **disproved** (the 800-versus-filled numbers are the stored running total, not what is graded). The 27 null-status rows belong to `precompute-ai` and `followed-tickers*` pipelines, and none is newer than 2026-10-11.
+- **Fixed**: #277 counts vendor-has-no-bars symbols as `unservable` (logged as skip, outside batch coverage), with a ceiling of max(5, 15%) per request and a workflow failure above 50 unservable per run.
+- **Still yours**: deactivating the 25 symbols (the owner entry added in #277 stays; stop unless its dry run says exactly 25). `SCHW-PD` may be a symbology miss, check it first.
+- **Still open, not fixed**: `barDate` comes from the UTC clock, so a run delayed past 00:00 UTC labels cards with the next calendar date (2,016 cards were stamped 2026-10-13 for the 2026-10-12 session). The earlier "ticker_cards is fresh" reading was wrong for that reason.
+- **Added**: 2026-10-13
+
+**Step 1 — after the next nightly run, `fail` rows should be gone (read-only).**
+
+```bash
+cd ~/code/nuwrrrld-portal
+export DATABASE_URL=$(awk -F= '/^DATABASE_URL=/{sub(/^[^=]*=/,""); gsub(/^"|"$/,""); print; exit}' .env.local)
+node -e '
+const {neon}=require("@neondatabase/serverless");const sql=neon(process.env.DATABASE_URL);
+sql`SELECT date_trunc($$day$$, run_at) AS day, status, count(*) AS n FROM pipeline_run_log
+    WHERE pipeline = $$hydrate-universe$$ AND run_at > now() - interval $$3 days$$
+    GROUP BY 1,2 ORDER BY 1 DESC, 2`
+ .then(r=>console.table(r)).catch(e=>console.error(e.message))'
+unset DATABASE_URL
+```
+
+Expect: no `fail` rows for the first night after #277 runs (on 2026-10-13 it was 6 `fail`, 14 `ok`, 10 `partial`). The run's workflow summary should show `unservable` near 25 and a warning.
