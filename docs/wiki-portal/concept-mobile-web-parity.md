@@ -1,5 +1,5 @@
 ---
-date: 2026-10-12
+date: 2026-10-13
 type: concept
 tags: [sync, parity, mobile, web, cross-surface, shared]
 sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-mobile/lib, gcp3-mobile/screens, ../../app/dashboard/page.tsx, ../../app/page.tsx]
@@ -22,6 +22,8 @@ and its denominator remain unchanged.
 | --- | --- | --- |
 | Pipeline issue lifecycle | Nine existing alert workflows gain eligible recovery close and optional transition push | No mobile client or shared-module change; no port required |
 | Validation | Mocked issue/push lifecycle and workflow checks passed | Client and deployed behavior unverified |
+
+> ℹ️ **Portal PRs #261–#272 (2026-10-13) assessed — portal-only changes, headline unchanged at ~62%.** A drain of the portal PR queue: a paper-arena comparison page (with nav links and a real last-run status for paper portfolios), a `/api/health` check that flags a placeholder Stripe webhook secret, lighter data loading on the dashboard and homepage, the CI alert lifecycle (deduplicated issues, closed on recovery, optional push), plus a skipped malformed-digest e2e case, agent-tier docs, a model-usage report and a free-model chain refresh. No `lib/shared/` module changed, so the feature-domain matrix and its denominator did not move. The arena page extends the paper-trading domain on the web only; porting it to mobile is optional and creates no new sync requirement. Each PR had a static review by a second model; none were verified on a deployed environment.
 
 ## The pattern
 
