@@ -201,6 +201,14 @@ describe("council-db", () => {
     await mod.refundQuota("u2");
     expect(await mod.checkAndBumpQuota("u2", 1)).toMatchObject({ allowed: true, used: 1, bumped: true });
     expect(await mod.checkAndBumpQuota("u2", 1)).toMatchObject({ allowed: false, used: 1, bumped: false });
+
+    // The floor really bites: an existing row refunded past zero stays at zero
+    // (without `deliberations > 0` the second refund would leave -1, and the
+    // next bump would report used: 0).
+    expect(await mod.checkAndBumpQuota("u3", 5)).toMatchObject({ allowed: true, used: 1, bumped: true });
+    await mod.refundQuota("u3");
+    await mod.refundQuota("u3");
+    expect(await mod.checkAndBumpQuota("u3", 5)).toMatchObject({ allowed: true, used: 1, bumped: true });
   };
 
   it("round-trips against SQLite", () => run(loadWithSqlite));
