@@ -10,7 +10,8 @@ vi.mock("@/lib/subscription-admin", () => ({ resolveTier: vi.fn().mockReturnValu
 vi.mock("@/lib/db", () => ({ default: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/council-db", () => ({
   recentVerdicts: vi.fn().mockResolvedValue([]),
-  checkAndBumpQuota: vi.fn().mockResolvedValue({ allowed: true, used: 1, limit: 5 }),
+  checkAndBumpQuota: vi.fn().mockResolvedValue({ allowed: true, used: 1, limit: 5, bumped: true }),
+  refundQuota: vi.fn().mockResolvedValue(undefined),
   createSession: vi.fn().mockResolvedValue(null),
   saveMessage: vi.fn(),
   saveVerdict: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("@/lib/openrouter", () => ({
 import { POST } from "@/app/api/council/deliberate/route";
 import * as grounding from "@/lib/council-grounding";
 import { runSeat } from "@/lib/openrouter";
+import { checkAndBumpQuota, createSession, refundQuota, saveMessage } from "@/lib/council-db";
 
 function request() {
   return new NextRequest("http://localhost/api/council/deliberate", {
@@ -63,6 +65,23 @@ describe("POST /api/council/deliberate grounding", () => {
       error: "no_grounding", ticker: "ZZZZ", message: "No grounding data available for ZZZZ.",
     });
     expect(runSeat).not.toHaveBeenCalled();
+    expect(refundQuota).toHaveBeenCalledTimes(1);
+    expect(refundQuota).toHaveBeenCalledWith("test-user");
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("does not refund when the quota bump never happened (fail-open)", async () => {
+    vi.mocked(checkAndBumpQuota).mockResolvedValueOnce({ allowed: true, used: 0, limit: 5, bumped: false });
+    const res = await POST(request());
+    expect(res.status).toBe(422);
+    expect(refundQuota).not.toHaveBeenCalled();
+  });
+
+  it("keeps the 422 response when the refund itself rejects", async () => {
+    vi.mocked(refundQuota).mockRejectedValueOnce(new Error("db down"));
+    const res = await POST(request());
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("no_grounding");
   });
 
   it("records ungrounded seats in degradedSeats when another seat answers", async () => {
@@ -76,6 +95,17 @@ describe("POST /api/council/deliberate grounding", () => {
     expect(body.degradedSeats).toEqual(["T1", "T2", "RISK", "QUANT"]);
     expect(body.seats.map((seat: { seat: string }) => seat.seat)).toEqual(["MACRO"]);
     expect(vi.mocked(runSeat).mock.calls.every(([seat]) => seat === "MACRO" || seat === "CHAIR")).toBe(true);
+    expect(refundQuota).not.toHaveBeenCalled();
+    expect(createSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists round-1 answers against the session created after the refusal check", async () => {
+    vi.mocked(createSession).mockResolvedValueOnce("s1");
+    vi.spyOn(grounding, "buildGroundedBrief").mockResolvedValue("Grounded brief");
+    await POST(request());
+    const round1 = vi.mocked(saveMessage).mock.calls.filter(([, m]) => m.round === 1);
+    expect(round1.length).toBeGreaterThan(0);
+    expect(round1.every(([id, m]) => id === "s1" && m.role === "answer")).toBe(true);
   });
 
   it("keeps paid-for seat answers when only the chair slice has no grounding", async () => {
@@ -102,6 +132,7 @@ describe("POST /api/council/deliberate grounding", () => {
     // Same outcome as any all-seats-failed run: the pre-existing synthesis 503.
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "Council synthesis unavailable" });
+    expect(refundQuota).not.toHaveBeenCalled();
   });
 
   it("preserves propagation of other chair grounding errors", async () => {

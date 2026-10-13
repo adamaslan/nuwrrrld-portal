@@ -35,6 +35,7 @@ import { validateStructuredVerdict, buildRepairMessage } from "@/lib/council-val
 import {
   checkAndBumpQuota,
   createSession,
+  refundQuota,
   saveMessage,
   saveVerdict,
   type CouncilVerdict,
@@ -228,8 +229,6 @@ export async function POST(req: NextRequest) {
   }
 
   const cleanTicker = ticker ? ticker.trim().toUpperCase() : null;
-  const sessionId = await createSession(userId, cleanTicker ?? question.trim().slice(0, 80));
-
   // ── Ground + Round 1: each seat gets its own sliced brief ────────────────
   const briefBySeat = new Map<CouncilSeat, string>();
   const round1 = await Promise.allSettled(
@@ -247,7 +246,6 @@ export async function POST(req: NextRequest) {
     const seat = DEBATE_SEATS[i];
     if (r.status === "fulfilled" && r.value.answer.trim()) {
       answers[seat] = r.value;
-      if (sessionId) void saveMessage(sessionId, { seat, round: 1, role: "answer", model: r.value.model, content: r.value.answer, latencyMs: r.value.latencyMs });
     } else {
       emptySeats.push(seat);
       if (r.status === "rejected" && r.reason instanceof NoGroundingError) {
@@ -260,7 +258,19 @@ export async function POST(req: NextRequest) {
   // Refuse only when *every* empty seat is empty for lack of grounding; a mix
   // with real model failures should surface as the usual degraded run instead.
   if (!answeredSeats.length && noGroundingErrors.length === emptySeats.length) {
+    // Zero model calls were made, so give the quota unit back (only if it was
+    // actually bumped — the fail-open path never incremented anything).
+    if (quota.bumped) await refundQuota(userId).catch(() => {});
     return noGroundingResponse(noGroundingErrors[0]);
+  }
+
+  // Created only after the refusal check so a refused request leaves no orphan session.
+  const sessionId = await createSession(userId, cleanTicker ?? question.trim().slice(0, 80));
+  if (sessionId) {
+    for (const seat of answeredSeats) {
+      const a = answers[seat]!;
+      void saveMessage(sessionId, { seat, round: 1, role: "answer", model: a.model, content: a.answer, latencyMs: a.latencyMs });
+    }
   }
 
   // ── Round 2: diff-shaped critique — code decides who actually disagrees ──
