@@ -232,6 +232,12 @@ jobs:
             echo "::warning::${unservable} symbol(s) have no vendor bars (unservable); consider deactivating them in ticker_universe"
           fi
 
+          # Far more than the ~25 known dead symbols is not universe hygiene.
+          if [ "${unservable:-0}" -gt 50 ]; then
+            echo "::error::${unservable} unservable symbols (cap 50) — this much missing bar data looks like a vendor degradation, not dead symbols"
+            exit 1
+          fi
+
           # Post failures mean the portal rejected writes the compute produced —
           # a different fault from a symbol Alpaca could not serve, and worth
           # surfacing separately rather than folding into the error above.

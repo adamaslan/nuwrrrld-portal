@@ -39,7 +39,7 @@ import {
 } from "@/lib/ticker-cards-db";
 import type { Horizon, SignalStateInput, VerdictDirection } from "@/lib/grounding/taxonomy";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
-import { isUnservableRow, unservableWithinCeiling } from "@/lib/shared/hydrate-rows";
+import { isUnservableRow, settleUnservable } from "@/lib/shared/hydrate-rows";
 import { computeBatchCoverage, computeRunStatus } from "@/lib/shared/run-status";
 
 /** Which compute host actually ran the batch. Optional: an older caller that
@@ -296,9 +296,7 @@ export async function POST(req: NextRequest) {
   // A few dead symbols are normal; a large share of a request with no bars is
   // what a vendor outage looks like. Past the ceiling they count as upstream
   // errors again so the run cannot go green on skips.
-  if (!unservableWithinCeiling(unservable.length, rows.length)) {
-    upstreamErrors.push(...unservable.splice(0));
-  }
+  settleUnservable(unservable, upstreamErrors, rows.length);
 
   // Register every ticker we are about to card. `ticker_cards` has a foreign
   // key onto `ticker_universe`, so a symbol seen for the first time must be

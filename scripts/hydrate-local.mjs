@@ -505,7 +505,7 @@ async function main() {
             );
           } else {
             console.log(`  ${row.ticker}: ERROR ${row.error}`);
-            calcErrors++;
+            if (row.errorKind !== "unservable") calcErrors++;
           }
         }
 

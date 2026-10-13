@@ -16,8 +16,8 @@ export function isUnservableRow(row: { status?: string; errorKind?: string } | n
 /** Share of a request that may be classified `unservable` before it stops
  *  looking like a handful of dead symbols and starts looking like a vendor or
  *  network outage that returned empty bars for everything. */
-const UNSERVABLE_MAX_FRACTION = 0.25;
-const UNSERVABLE_MIN_ALLOWANCE = 8;
+const UNSERVABLE_MAX_FRACTION = 0.15;
+const UNSERVABLE_MIN_ALLOWANCE = 5;
 
 /**
  * True when `unservableCount` is plausible as dead symbols. Above the ceiling
@@ -27,4 +27,14 @@ const UNSERVABLE_MIN_ALLOWANCE = 8;
 export function unservableWithinCeiling(unservableCount: number, totalRows: number): boolean {
   if (unservableCount <= 0) return true;
   return unservableCount <= Math.max(UNSERVABLE_MIN_ALLOWANCE, Math.floor(totalRows * UNSERVABLE_MAX_FRACTION));
+}
+
+/**
+ * Applies the ceiling: when too many rows are unservable to be plausible dead
+ * symbols, moves every one of them into `upstreamErrors` (mutating both
+ * arrays) so an outage cannot pass as a run of skips.
+ */
+export function settleUnservable<T>(unservable: T[], upstreamErrors: T[], totalRows: number): void {
+  if (unservableWithinCeiling(unservable.length, totalRows)) return;
+  upstreamErrors.push(...unservable.splice(0));
 }

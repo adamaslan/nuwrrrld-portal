@@ -40,20 +40,37 @@ describe("unservableRow (hydrate-local rowFor gate)", () => {
   });
 });
 
-import { unservableWithinCeiling } from "@/lib/shared/hydrate-rows";
+import { settleUnservable, unservableWithinCeiling } from "@/lib/shared/hydrate-rows";
 
 describe("unservableWithinCeiling", () => {
   it("allows none and a few dead symbols", () => {
     expect(unservableWithinCeiling(0, 35)).toBe(true);
     expect(unservableWithinCeiling(2, 35)).toBe(true);
-    expect(unservableWithinCeiling(8, 35)).toBe(true);
+    expect(unservableWithinCeiling(5, 35)).toBe(true);
   });
   it("rejects a share that looks like an outage", () => {
-    expect(unservableWithinCeiling(9, 35)).toBe(false);
+    expect(unservableWithinCeiling(6, 35)).toBe(false);
     expect(unservableWithinCeiling(35, 35)).toBe(false);
   });
   it("scales the allowance with large requests", () => {
-    expect(unservableWithinCeiling(200, 800)).toBe(true);
-    expect(unservableWithinCeiling(201, 800)).toBe(false);
+    expect(unservableWithinCeiling(120, 800)).toBe(true);
+    expect(unservableWithinCeiling(121, 800)).toBe(false);
+  });
+});
+
+describe("settleUnservable", () => {
+  it("leaves both arrays alone within the ceiling", () => {
+    const unservable = ["A", "B"];
+    const upstream = ["X"];
+    settleUnservable(unservable, upstream, 35);
+    expect(unservable).toEqual(["A", "B"]);
+    expect(upstream).toEqual(["X"]);
+  });
+  it("moves every unservable entry into upstream errors above the ceiling", () => {
+    const unservable = ["A", "B", "C", "D", "E", "F"];
+    const upstream = ["X"];
+    settleUnservable(unservable, upstream, 35);
+    expect(unservable).toEqual([]);
+    expect(upstream).toEqual(["X", "A", "B", "C", "D", "E", "F"]);
   });
 });
