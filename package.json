@@ -11,6 +11,8 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "test": "vitest run --project unit --project components",
     "test:unit": "vitest run --project unit",
+    "test:ttfb": "node --test __tests__/ttfb-guard.test.mjs",
+    "ttfb:guard": "node scripts/ttfb-guard.mjs",
     "test:components": "vitest run --project components",
     "test:integration": "vitest run __tests__/signal-queue.integration.test.ts",
     "test:live": "vitest run --project live",
