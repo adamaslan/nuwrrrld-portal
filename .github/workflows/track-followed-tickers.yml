@@ -196,21 +196,24 @@ jobs:
 
   # ── Notify on failure ──────────────────────────────────────────────────
   notify:
-    name: Failure notification
+    name: Failure or recovery notification
     needs: [gate, track]
-    if: failure()
+    if: always() && !cancelled() && (failure() || (needs.gate.result == 'success' && needs.track.result == 'success' && inputs.dry_run != true))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Open or update failure issue
+      - name: Update pipeline alert
         env:
           GH_TOKEN: ${{ github.token }}
+          ALERT_MODE: ${{ contains(needs.*.result, 'failure') && 'failure' || 'recovery' }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           export ISSUE_TITLE="Followed-tickers daily tracking failed"
           export ISSUE_BODY="**Run:** ${RUN_URL}
 
