@@ -28,7 +28,8 @@ The arena previously recomputed metrics for every account through repeated datab
 
 - Arena score metrics can reflect the last settle rather than the latest NAV. Current NAV is still loaded separately for current values.
 - Accounts without usable stored metrics still produce scores when the fallback succeeds.
-- A single fallback computation error affects that account's score only. A failed shared batch read can still fail the request.
+- A single fallback computation error affects that account's score only. A shared batch read failure currently returns an empty result, so it can silently blank data for all accounts in that category.
+- Active returns against SPY or equal-weight can lag further than total return because the accounts settle sequentially.
 - The new SQL has focused test coverage but has not been exercised against production Neon.
 
 ## Validated by
