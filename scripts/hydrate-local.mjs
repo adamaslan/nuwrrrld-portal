@@ -454,39 +454,6 @@ async function getUniverse(universe) {
 }
 
 async function main() {
-  if (INTRADAY) {
-    await acquireAlpacaBudget();
-    const clockResponse = await fetch("https://paper-api.alpaca.markets/v2/clock", {
-      headers: { "APCA-API-KEY-ID": ALPACA_API_KEY, "APCA-API-SECRET-KEY": ALPACA_API_SECRET },
-      signal: AbortSignal.timeout(ALPACA_REQUEST_TIMEOUT_MS),
-    });
-    if (!clockResponse.ok) throw new Error(`Alpaca clock returned ${clockResponse.status}`);
-    if (!intradaySessionOpen(await clockResponse.json())) {
-      console.log("[skip] status=skipped intraday hydration: exchange session is closed");
-      console.log("[done] status=skipped written=0 calc-errors=0 post-failures=0 unservable=0 total=0");
-      return;
-    }
-  }
-  // Each lane carries its own `universe` label all the way to the POST body,
-  // so an ETF's card is stored as an ETF. --symbols= is treated as stocks
-  // unless --universe= says otherwise: the flag is for spot-checking, and
-  // guessing a mixed list's membership per-symbol would need a DB round trip.
-  const lanes = [];
-  if (SYMBOLS) {
-    lanes.push({ universe: UNIVERSE ?? "stock", targets: SYMBOLS });
-  } else {
-    for (const universe of UNIVERSE ? [UNIVERSE] : ["stock", "etf"]) {
-      const tickers = await getUniverse(universe);
-      lanes.push({ universe, targets: LIMIT ? tickers.slice(0, LIMIT) : tickers });
-    }
-  }
-
-  const total = lanes.reduce((n, lane) => n + lane.targets.length, 0);
-  if (!total) {
-    console.error("No targets to hydrate");
-    process.exit(1);
-  }
-
   const barDate = newYorkDate();
   // Captured once, before any chunk is computed or posted — this is the batch's
   // immutable generation time. Using it (rather than the portal's write-time
@@ -494,9 +461,6 @@ async function main() {
   // same-quality tie-break to a newer one that was POSTed first.
   const observedAt = new Date().toISOString();
   const runId = `hydrate-local:${barDate}:${INTRADAY ? "intraday:" : ""}${new Date().getTime()}`;
-
-  const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
-  console.log(`[hydrate] run=${runId} host=${HOST} ${laneSummary} chunk=${CHUNK_SIZE}`);
 
   // Three counters, deliberately distinct: rows the portal confirmed it wrote,
   // rows that failed to *compute* locally, and rows lost to a failed POST.
@@ -509,106 +473,165 @@ async function main() {
     calcErrors = 0,
     postFailures = 0;
 
-  for (const { universe, targets } of lanes) {
-    if (!targets.length) continue;
-    console.log(`\n=== ${universe} (${targets.length} symbols) ===`);
-
-    const chunkCount = Math.ceil(targets.length / FETCH_CHUNK_SIZE);
-    for (let i = 0; i < targets.length; i += FETCH_CHUNK_SIZE) {
-      const chunk = targets.slice(i, i + FETCH_CHUNK_SIZE);
-      console.log(`\n[${universe} ${i + 1}–${Math.min(i + FETCH_CHUNK_SIZE, targets.length)}]`);
-
-      try {
-        const barsBySymbol = await fetchBars(chunk);
-        const rows = chunk.map(sym => rowFor(sym, barsBySymbol[sym]));
-        unservable += rows.filter(r => r.errorKind === "unservable").length;
-
-        // Phase 2.1 observability: a chunk that comes back short — fewer symbols
-        // than asked for, or more than one page — is the observable form of
-        // every vendor problem in the parity doc, so it gets its own line.
-        const symbolsWithBars = chunk.filter(
-          s => Array.isArray(barsBySymbol[s]) && barsBySymbol[s].length > 0,
-        ).length;
-        const barsTotal = chunk.reduce(
-          (n, s) => n + (barsBySymbol[s]?.length ?? 0), 0,
-        );
-        console.log(
-          `  [hydrate] chunk ${i / FETCH_CHUNK_SIZE + 1}/${chunkCount}  ` +
-            `pages=${lastFetchPageCount}  symbols=${symbolsWithBars}/${chunk.length}  ` +
-            `bars=${barsTotal.toLocaleString()}`,
-        );
-        if (lastFetchPageCount > 1) {
-          // fetchBarsOnce walks next_page_token to completion — a multi-page
-          // response is fully handled, not truncated. Reporting it as a
-          // truncation risk was accurate before pagination existed but is now
-          // a false data-loss alert that advises an unnecessary CHUNK_SIZE
-          // reduction. The real truncation signal is the symbolsWithBars
-          // check below. CodeRabbit review, PR #101.
-          console.log(
-            `  [hydrate] chunk needed ${lastFetchPageCount} pages (over the ` +
-              `${ALPACA_PAGE_LIMIT}-bar cap) — pagination completed normally`,
-          );
-        }
-        if (symbolsWithBars < chunk.length) {
-          console.warn(
-            `  ::warning:: ${chunk.length - symbolsWithBars} symbol(s) in this ` +
-              `chunk returned no bars`,
-          );
-        }
-
-        for (const row of rows) {
-          if (row.status === "ok") {
-            console.log(
-              `  ${row.ticker}: score=${row.confluenceScore} direction=${row.direction}`
-            );
-          } else {
-            console.log(`  ${row.ticker}: ERROR ${row.error}`);
-            if (row.errorKind !== "unservable") calcErrors++;
-          }
-        }
-
-        // Persistence counters come from the portal's response, and only after
-        // it has actually answered — never from the count we optimistically sent.
-        const byDate = new Map();
-        for (const row of rows) {
-          const date = row.barDate ?? barDate;
-          if (row.barDate) runBarDates.add(row.barDate);
-          if (!byDate.has(date)) byDate.set(date, []);
-          byDate.get(date).push(row);
-        }
-        for (const [date, datedRows] of byDate) {
-          for (let offset = 0; offset < datedRows.length; offset += CHUNK_SIZE) {
-            const result = await postChunk(datedRows.slice(offset, offset + CHUNK_SIZE), runId, date, universe, observedAt);
-            runItems.push(...(result.runItems ?? []));
-            skipped += result.skipped ?? 0;
-            written += result.written ?? 0;
-            postFailures += result.failed ?? 0;
-            console.log(`  → posted: written=${result.written} failed=${result.failed}`);
-          }
-        }
-      } catch (e) {
-        console.error(`  ERROR: ${e.message}`);
-        postFailures += chunk.length;
-        runItems.push(...chunk.map(ticker => ({ subject: ticker, model: null, outcome: "fail" })));
+  let total = 0;
+  let skipFinalization = false;
+  let fatalError;
+  let runStatus = DRY_RUN ? "dry-run" : "fail";
+  try {
+    if (INTRADAY) {
+      await acquireAlpacaBudget();
+      const clockResponse = await fetch("https://paper-api.alpaca.markets/v2/clock", {
+        headers: { "APCA-API-KEY-ID": ALPACA_API_KEY, "APCA-API-SECRET-KEY": ALPACA_API_SECRET },
+        signal: AbortSignal.timeout(ALPACA_REQUEST_TIMEOUT_MS),
+      });
+      if (!clockResponse.ok) throw new Error(`Alpaca clock returned ${clockResponse.status}`);
+      if (!intradaySessionOpen(await clockResponse.json())) {
+        console.log("[skip] status=skipped intraday hydration: exchange session is closed");
+        console.log("[done] status=skipped written=0 calc-errors=0 post-failures=0 unservable=0 total=0");
+        skipFinalization = true;
+        return;
       }
     }
-  }
+    // Each lane carries its own `universe` label all the way to the POST body,
+    // so an ETF's card is stored as an ETF. --symbols= is treated as stocks
+    // unless --universe= says otherwise: the flag is for spot-checking, and
+    // guessing a mixed list's membership per-symbol would need a DB round trip.
+    const lanes = [];
+    if (SYMBOLS) {
+      lanes.push({ universe: UNIVERSE ?? "stock", targets: SYMBOLS });
+    } else {
+      for (const universe of UNIVERSE ? [UNIVERSE] : ["stock", "etf"]) {
+        const tickers = await getUniverse(universe);
+        lanes.push({ universe, targets: LIMIT ? tickers.slice(0, LIMIT) : tickers });
+      }
+    }
 
-  let runStatus = DRY_RUN ? "dry-run" : "fail";
-  if (!DRY_RUN) {
-    const response = await fetch(`${PORTAL_URL}/api/pipeline/hydrate-universe`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${PORTAL_PUSH_SECRET}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ runId, source: "hydrate-local", barDate: [...runBarDates].sort().at(-1) ?? barDate, host: HOST,
-        complete: true, rows: [], items: runItems,
-        summary: { written, skipped, failed: postFailures + calcErrors, unservable, total, calcErrors, postFailures } }),
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!response.ok) throw new Error(`Run finalization returned ${response.status}`);
-    const result = await response.json();
-    runStatus = result.status;
-    console.log(`[run-status] ${result.status} logged=${result.logged}`);
-    if (result.status === "fail" || result.logged === false) process.exitCode = 1;
+    total = lanes.reduce((n, lane) => n + lane.targets.length, 0);
+    if (!total) {
+      throw new Error("No targets to hydrate");
+    }
+
+
+    const laneSummary = lanes.map(l => `${l.universe}=${l.targets.length}`).join(" ");
+    console.log(`[hydrate] run=${runId} host=${HOST} ${laneSummary} chunk=${CHUNK_SIZE}`);
+
+    for (const { universe, targets } of lanes) {
+      if (!targets.length) continue;
+      console.log(`\n=== ${universe} (${targets.length} symbols) ===`);
+
+      const chunkCount = Math.ceil(targets.length / FETCH_CHUNK_SIZE);
+      for (let i = 0; i < targets.length; i += FETCH_CHUNK_SIZE) {
+        const chunk = targets.slice(i, i + FETCH_CHUNK_SIZE);
+        console.log(`\n[${universe} ${i + 1}–${Math.min(i + FETCH_CHUNK_SIZE, targets.length)}]`);
+
+        try {
+          const barsBySymbol = await fetchBars(chunk);
+          const rows = chunk.map(sym => rowFor(sym, barsBySymbol[sym]));
+          unservable += rows.filter(r => r.errorKind === "unservable").length;
+
+          // Phase 2.1 observability: a chunk that comes back short — fewer symbols
+          // than asked for, or more than one page — is the observable form of
+          // every vendor problem in the parity doc, so it gets its own line.
+          const symbolsWithBars = chunk.filter(
+            s => Array.isArray(barsBySymbol[s]) && barsBySymbol[s].length > 0,
+          ).length;
+          const barsTotal = chunk.reduce(
+            (n, s) => n + (barsBySymbol[s]?.length ?? 0), 0,
+          );
+          console.log(
+            `  [hydrate] chunk ${i / FETCH_CHUNK_SIZE + 1}/${chunkCount}  ` +
+              `pages=${lastFetchPageCount}  symbols=${symbolsWithBars}/${chunk.length}  ` +
+              `bars=${barsTotal.toLocaleString()}`,
+          );
+          if (lastFetchPageCount > 1) {
+            // fetchBarsOnce walks next_page_token to completion — a multi-page
+            // response is fully handled, not truncated. Reporting it as a
+            // truncation risk was accurate before pagination existed but is now
+            // a false data-loss alert that advises an unnecessary CHUNK_SIZE
+            // reduction. The real truncation signal is the symbolsWithBars
+            // check below. CodeRabbit review, PR #101.
+            console.log(
+              `  [hydrate] chunk needed ${lastFetchPageCount} pages (over the ` +
+                `${ALPACA_PAGE_LIMIT}-bar cap) — pagination completed normally`,
+            );
+          }
+          if (symbolsWithBars < chunk.length) {
+            console.warn(
+              `  ::warning:: ${chunk.length - symbolsWithBars} symbol(s) in this ` +
+                `chunk returned no bars`,
+            );
+          }
+
+          for (const row of rows) {
+            if (row.status === "ok") {
+              console.log(
+                `  ${row.ticker}: score=${row.confluenceScore} direction=${row.direction}`
+              );
+            } else {
+              console.log(`  ${row.ticker}: ERROR ${row.error}`);
+              if (row.errorKind !== "unservable") calcErrors++;
+            }
+          }
+
+          // Persistence counters come from the portal's response, and only after
+          // it has actually answered — never from the count we optimistically sent.
+          const byDate = new Map();
+          for (const row of rows) {
+            const date = row.barDate ?? barDate;
+            if (row.barDate) runBarDates.add(row.barDate);
+            if (!byDate.has(date)) byDate.set(date, []);
+            byDate.get(date).push(row);
+          }
+          for (const [date, datedRows] of byDate) {
+            for (let offset = 0; offset < datedRows.length; offset += CHUNK_SIZE) {
+              const result = await postChunk(datedRows.slice(offset, offset + CHUNK_SIZE), runId, date, universe, observedAt);
+              runItems.push(...(result.runItems ?? []));
+              skipped += result.skipped ?? 0;
+              written += result.written ?? 0;
+              postFailures += result.failed ?? 0;
+              console.log(`  → posted: written=${result.written} failed=${result.failed}`);
+            }
+          }
+        } catch (e) {
+          console.error(`  ERROR: ${e.message}`);
+          postFailures += chunk.length;
+          runItems.push(...chunk.map(ticker => ({ subject: ticker, model: null, outcome: "fail" })));
+        }
+      }
+    }
+
+  } catch (error) {
+    fatalError = error;
+    // A run aborted before completion is failed even if some cards were
+    // persisted. Mark its run items failed without changing the stored cards.
+    for (const item of runItems) item.outcome = "fail";
+    if (!runItems.length) runItems.push({ subject: "hydrate-local", model: null, outcome: "fail" });
+    process.exitCode = 1;
+    throw error;
+  } finally {
+    // Attempt a run-log write on exceptions as well as normal completion.
+    // SIGKILL or a host crash cannot execute finally; this covers caught failures.
+    if (!DRY_RUN && !skipFinalization) {
+      try {
+        const response = await fetch(`${PORTAL_URL}/api/pipeline/hydrate-universe`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PORTAL_PUSH_SECRET}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ runId, source: "hydrate-local", barDate: [...runBarDates].sort().at(-1) ?? barDate, host: HOST,
+            complete: true, rows: [], items: runItems,
+            summary: { written, skipped, failed: fatalError ? Math.max(total, 1) : postFailures + calcErrors, unservable, total, calcErrors, postFailures, aborted: Boolean(fatalError) } }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (!response.ok) throw new Error(`Run finalization returned ${response.status}`);
+        const result = await response.json();
+        runStatus = result.status;
+        console.log(`[run-status] ${result.status} logged=${result.logged}`);
+        if (result.status === "fail" || result.logged === false) process.exitCode = 1;
+      } catch (error) {
+        process.exitCode = 1;
+        if (!fatalError) throw error;
+        console.error("Run failure finalization also failed:", error.message);
+      }
+    }
   }
   console.log(
     `\n[done] status=${runStatus} written=${written} calc-errors=${calcErrors} ` +
@@ -618,5 +641,5 @@ async function main() {
 
 main().catch(e => {
   console.error(e);
-  process.exit(1);
+  process.exitCode = 1;
 });

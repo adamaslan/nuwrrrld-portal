@@ -14,7 +14,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { ALPACA_ADJUSTMENT, ALPACA_FEED, ALPACA_PAGE_LIMIT, CHUNK_SIZE } from "../lib/shared/hydration-constants.mjs";
+import { ALPACA_ADJUSTMENT, ALPACA_FEED, ALPACA_PAGE_LIMIT, CHUNK_SIZE, LOOKBACK_DAYS, SIP_DELAY_MINUTES } from "../lib/shared/hydration-constants.mjs";
+
+import { sipHistoryEnd } from "./lib/hydrate-indicators.mjs";
 
 const OVERLAP_DAYS = 7;
 const ALPACA_REQUEST_TIMEOUT_MS = 15_000;
@@ -88,18 +90,24 @@ async function startDate() {
   const res = await portal("/api/pipeline/daily-bars");
   if (!res.ok) throw new Error(`latest-bar lookup failed: ${res.status}`);
   const latest = (await res.json()).latest?.[FEED];
-  if (!latest) fail(`no stored ${FEED} bars — pass --backfill-days=N for the first run`);
+  if (!latest) {
+    // One-time migration backfill: IEX history cannot seed the SIP watermark.
+    console.warn(`[backfill] no stored ${FEED} bars — fetching ${LOOKBACK_DAYS} days`);
+    return back(LOOKBACK_DAYS);
+  }
   return day(new Date(Date.parse(`${latest}T00:00:00Z`) - OVERLAP_DAYS * 86_400_000));
 }
 
 async function fetchBarsOnce(symbols, start) {
   const merged = {};
   let pageToken = null;
+  const end = FEED === "sip" ? sipHistoryEnd(new Date(), SIP_DELAY_MINUTES) : null;
   do {
     const url = new URL("https://data.alpaca.markets/v2/stocks/bars");
     url.searchParams.set("symbols", symbols.join(","));
     url.searchParams.set("timeframe", "1Day");
     url.searchParams.set("start", start);
+    if (end) url.searchParams.set("end", end);
     url.searchParams.set("limit", String(ALPACA_PAGE_LIMIT));
     url.searchParams.set("feed", FEED);
     url.searchParams.set("adjustment", ALPACA_ADJUSTMENT);

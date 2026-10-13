@@ -163,3 +163,32 @@ describe("late intraday runner", () => {
     expect(logs.some(line => line.includes("[done] status=skipped"))).toBe(true);
   });
 });
+
+
+describe("hydration unexpected failure logging", () => {
+  it.each(["clock", "universe", "finalization"])("attempts failure finalization for a %s exception", async failure => {
+    const originalError = new Error("unexpected " + failure);
+    const posts: Record<string, unknown>[] = [];
+    const dependencies = {
+      process: { argv: ["node", "hydrate-local", ...(failure === "clock" ? ["--intraday"] : [])],
+        env: { PORTAL_PUSH_SECRET: "test", ALPACA_API_KEY: "test", ALPACA_API_SECRET: "test" }, cwd: () => "/unused", exitCode: 0 },
+      readFileSync: () => { throw new Error("no credential files"); }, join: () => "/unused",
+      ...indicators, ...constants, acquireAlpacaBudget: async () => {},
+      console: { log: () => {}, warn: () => {}, error: () => {} },
+      fetch: async (_input: unknown, init?: { body?: string }) => {
+        if (!init?.body) throw originalError;
+        posts.push(JSON.parse(init.body));
+        if (failure === "finalization") throw new Error("logging unavailable");
+        return { ok: true, json: async () => ({ status: "fail", logged: true }) };
+      },
+    };
+    const script = readFileSync(new URL("../scripts/hydrate-local.mjs", import.meta.url), "utf8")
+      .replace(/^#!.*\n/, "").replace(/^import[\s\S]*?;$/gm, "")
+      .replace(/main\(\)\.catch\([\s\S]*$/, "await main();");
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    await expect(new AsyncFunction(...Object.keys(dependencies), script)(...Object.values(dependencies))).rejects.toBe(originalError);
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({ complete: true, items: [{ subject: "hydrate-local", model: null, outcome: "fail" }] });
+    expect(dependencies.process.exitCode).toBe(1);
+  });
+});

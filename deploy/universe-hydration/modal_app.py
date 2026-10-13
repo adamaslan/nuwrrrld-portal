@@ -39,7 +39,7 @@ Run once manually (bypasses the cron):
 """
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import modal
 
@@ -55,7 +55,11 @@ _SECRET = modal.Secret.from_name("nuwrrrld-hydration")
 
 # Symbols per vendor request and per portal POST. The portal caps batches at 500
 # rows; staying under it means a chunk failure costs one chunk, not the night.
-CHUNK_SIZE = 200
+CHUNK_SIZE = 35
+ALPACA_FEED = "sip"
+ALPACA_ADJUSTMENT = "split"
+ALPACA_PAGE_LIMIT = 10_000
+SIP_DELAY_MINUTES = 15
 
 # Calendar days of history to pull. The binding constraint is the 50/200
 # moving-average detector (_ma_position_votes), which needs >= 200 daily bars
@@ -544,6 +548,7 @@ def _fetch_bars(symbols: list[str], key: str, secret: str) -> dict:
     import pandas as pd
 
     start = (date.today() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    end = (datetime.now(timezone.utc) - timedelta(minutes=SIP_DELAY_MINUTES)).isoformat()
     out: dict = {}
     page_token = None
 
@@ -553,8 +558,10 @@ def _fetch_bars(symbols: list[str], key: str, secret: str) -> dict:
                 "symbols": ",".join(symbols),
                 "timeframe": "1Day",
                 "start": start,
-                "limit": 10_000,
-                "adjustment": "split",
+                "end": end,
+                "feed": ALPACA_FEED,
+                "limit": ALPACA_PAGE_LIMIT,
+                "adjustment": ALPACA_ADJUSTMENT,
             }
             if page_token:
                 params["page_token"] = page_token
