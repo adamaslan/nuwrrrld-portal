@@ -76,10 +76,10 @@ and evaluates 2,016 combinations of status, event, cancellation and inputs.
 ```sh
 bash -n scripts/upsert-workflow-failure-issue.sh scripts/test-upsert-workflow-failure-issue.sh
 bash scripts/test-upsert-workflow-failure-issue.sh
-/opt/homebrew/Caskroom/miniforge/base/bin/python scripts/test-workflow-alert-wiring.py
+python3 scripts/test-workflow-alert-wiring.py
 ```
 
-The Python wiring test requires PyYAML (available in the mamba base environment).
+The Python wiring test needs Python 3 with PyYAML installed (for example `python3 -m pip install pyyaml` inside your active environment, or the mamba base environment).
 Actionlint 1.7.7 also passes all nine changed workflows with optional shellcheck
 and pyflakes integration disabled. No real issues or ntfy messages were used for
 verification; delivery and deployed permissions remain operator setup checks.
