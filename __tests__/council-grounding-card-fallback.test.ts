@@ -16,7 +16,8 @@ vi.mock("@/lib/shared/signal-lookup", () => ({
 }));
 vi.mock("@/lib/ticker-cards-db", () => ({ getCard: vi.fn() }));
 
-import { buildGroundedBrief } from "@/lib/council-grounding";
+import { buildGroundedBrief, NoGroundingError } from "@/lib/council-grounding";
+import sql from "@/lib/db";
 import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup";
 import { getCard } from "@/lib/ticker-cards-db";
 
@@ -54,8 +55,25 @@ describe("buildGroundedBrief card fallback", () => {
     expect(getCard).not.toHaveBeenCalled();
   });
 
-  it("still reports no data when neither source has the ticker", async () => {
-    const brief = await buildGroundedBrief("Outlook?", "ZZZZ", "T1");
-    expect(brief).toContain("No grounding data available for ZZZZ");
+  it("throws with the ticker when every grounding source is empty", async () => {
+    const brief = buildGroundedBrief("Outlook?", "ZZZZ", "T1");
+    await expect(brief).rejects.toBeInstanceOf(NoGroundingError);
+    await expect(brief).rejects.toMatchObject({ ticker: "ZZZZ" });
+  });
+
+  it("grounds on historical hit-rates when every other source is empty", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([
+      { bucket_kind: "action", bucket_key: "BUY", hits: 7, total: 10, hit_rate: 0.7 },
+    ] as never);
+    const brief = await buildGroundedBrief("Outlook?", "ADI", "T1");
+    expect(brief).toContain("Historical hit-rates (signals-app backtest)");
+    expect(brief).toContain("action/BUY: 70% (n=10)");
+  });
+
+  it("keeps a free-form question unchanged when the ticker is null", async () => {
+    const brief = await buildGroundedBrief("Outlook?", null, "T1");
+    expect(brief).toBe("QUESTION: Outlook?");
+    expect(fetchTickerEntry).not.toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
   });
 });
