@@ -582,7 +582,14 @@ def _row_for(symbol: str, frame) -> dict:
     """Compute one symbol's indicator row. Never raises — an indicator failure
     becomes a per-row error so one bad symbol cannot poison 4,299 good ones."""
     try:
-        if frame is None or len(frame) < 30:
+        if frame is None or len(frame) == 0:
+            return {
+                "ticker": symbol,
+                "status": "error",
+                "error": "no vendor bars",
+                "errorKind": "unservable",
+            }
+        if len(frame) < 30:
             return {"ticker": symbol, "status": "error", "error": "insufficient history"}
 
         frame = frame.sort_values("t")

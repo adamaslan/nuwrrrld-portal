@@ -106,3 +106,12 @@ describe("deriveRunStatus", () => {
     }
   });
 });
+
+describe("computeBatchCoverage with unservable tickers", () => {
+  it("is ok when 2 of 35 are unservable and passed separately", () => {
+    const requested = Array.from({ length: 33 }, (_, i) => `T${i}`);
+    const coverage = computeBatchCoverage(requested, new Set(), new Set());
+    expect(coverage).toEqual({ expected: 33, filled: 33 });
+    expect(computeRunStatus(coverage)).toBe("ok");
+  });
+});

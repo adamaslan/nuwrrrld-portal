@@ -88,7 +88,8 @@ export interface BatchCoverage {
  * `expected` = valid tickers in the request (written, failed, or reported as
  * an upstream error). `filled` = those with no failed card write and no
  * upstream error. Rejected tickers (crypto-shaped, malformed) are excluded:
- * they were never writable.
+ * they were never writable. Unservable tickers (vendor has no bars) are
+ * likewise left out of `requestedTickers` by the caller.
  */
 export function computeBatchCoverage(
   requestedTickers: readonly string[],
