@@ -17,14 +17,14 @@
 import { runSeat, seatSystemPrompt, type CouncilSeat } from "@/lib/openrouter";
 import type { ArbitrationCandidate, ArbitrationResult } from "@/lib/shared/paper-engine-core";
 
-/** Per-attempt call budget. Bumped from 80 to 160 (docs/paper-trading-v3.md
- *  §4.2) to make room for the required one-line `why` — the model's veto or
- *  downsize previously left no trace of its reasoning anywhere, which is
- *  exactly the layer this feature's per-bot "personality" was supposed to
- *  come from (F8). Temperature 0.2 — this is a judgment call on one
+/** Per-attempt call budget. Matches runSeat's own 1200 default: at 160 (which
+ *  replaced 80 for the one-line `why`, docs/paper-trading-v3.md §4.2/F8)
+ *  reasoning models spent the whole budget on hidden thinking and returned an
+ *  empty completion, or leaked chain-of-thought cut off mid-sentence that
+ *  could not be parsed (2026-10-13 live probe). Temperature 0.2 — this is a judgment call on one
  *  already-sized trade, not a debate seat's open-ended prose, so it should be
  *  closer to deterministic than SEAT_SYSTEM's default 0.4. */
-const ARBITRATION_MAX_TOKENS = 160;
+const ARBITRATION_MAX_TOKENS = 1200;
 const ARBITRATION_TEMPERATURE = 0.2;
 
 export const ARBITRATION_SYSTEM = [
@@ -72,27 +72,77 @@ function extractWhy(parsed: Record<string, unknown>): string | undefined {
   return typeof why === "string" && why.trim().length > 0 ? why.trim().slice(0, WHY_MAX_CHARS) : undefined;
 }
 
-export function parseArbitrationResponse(
-  raw: string,
-): { action: "veto" | "downsize" | "confirm"; downsizePct?: number; why?: string } {
-  try {
-    const parsed = JSON.parse(raw.trim());
-    if (parsed.action === "veto" || parsed.action === "confirm") {
-      return { action: parsed.action, why: extractWhy(parsed) };
-    }
-    if (parsed.action === "downsize") {
-      const pct = Number(parsed.downsize_pct);
-      if (Number.isFinite(pct) && pct > 0 && pct < 1) {
-        return { action: "downsize", downsizePct: pct, why: extractWhy(parsed) };
-      }
-    }
-  } catch {
-    // Not JSON at all — fall through to CONFIRM-none below.
+type ParsedArbitration = { action: "veto" | "downsize" | "confirm"; downsizePct?: number; why?: string };
+
+function interpretArbitration(parsed: unknown): ParsedArbitration | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const obj = parsed as Record<string, unknown>;
+  if (obj.action === "veto" || obj.action === "confirm") {
+    return { action: obj.action, why: extractWhy(obj) };
   }
+  if (obj.action === "downsize") {
+    const pct = Number(obj.downsize_pct);
+    if (Number.isFinite(pct) && pct > 0 && pct < 1) {
+      return { action: "downsize", downsizePct: pct, why: extractWhy(obj) };
+    }
+  }
+  return null;
+}
+
+/** Every top-level balanced `{...}` substring that mentions "action", in order.
+ *  Reasoning models often emit prose and then the JSON; the last object wins. */
+function balancedObjectsWithAction(text: string): string[] {
+  const found: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"' && depth > 0) inString = true;
+    else if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}" && depth > 0) {
+      depth--;
+      if (depth === 0 && text.slice(start, i + 1).includes('"action"')) found.push(text.slice(start, i + 1));
+    }
+  }
+  return found;
+}
+
+/** Returns the decision, or null when nothing in `raw` parses to a valid one. */
+export function tryParseArbitrationResponse(raw: string): ParsedArbitration | null {
+  const text = raw.replace(/```(?:json)?/gi, "").trim();
+  try {
+    const direct = interpretArbitration(JSON.parse(text));
+    if (direct) return direct;
+  } catch {
+    // Prose around the JSON — fall through to substring extraction.
+  }
+  const candidates = balancedObjectsWithAction(text);
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    try {
+      const result = interpretArbitration(JSON.parse(candidates[i]));
+      if (result) return result;
+    } catch {
+      // Malformed candidate — try the previous one.
+    }
+  }
+  return null;
+}
+
+export function parseArbitrationResponse(raw: string): ParsedArbitration {
   // Unparseable/malformed = CONFIRM-none per the module doc; `why` is
   // deliberately absent here (not a placeholder string) so a caller can tell
   // "the model explained itself" apart from "the model's output was unusable".
-  return { action: "confirm" };
+  return tryParseArbitrationResponse(raw) ?? { action: "confirm" };
 }
 
 /**
@@ -112,6 +162,13 @@ export async function arbitrateOne(
     { role: "user" as const, content: buildUserPrompt(candidate, nav) },
   ];
   const response = await runSeat(seat, messages, apiKey, ARBITRATION_MAX_TOKENS, ARBITRATION_TEMPERATURE);
-  const parsed = parseArbitrationResponse(response.answer);
-  return { ticker: candidate.order.ticker, ...parsed, model: response.model, why: parsed.why };
+  const decision = tryParseArbitrationResponse(response.answer);
+  const parsed = decision ?? { action: "confirm" as const };
+  return {
+    ticker: candidate.order.ticker,
+    ...parsed,
+    model: response.model,
+    why: parsed.why,
+    parsed: decision !== null,
+  };
 }

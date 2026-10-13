@@ -391,20 +391,18 @@ describe("runSeat — per-seat chain composition", () => {
     expect(modelsTried).toHaveLength(2);
   });
 
-  it("does NOT retry a 404 that comes from a chain model", async () => {
-    // Chain ids are refreshed weekly against the live catalog, so a 404 there
-    // indicates a malformed request that will fail identically on every
-    // remaining model — retrying burns the whole chain to reach the same error.
+  it("advances past a 404 from a chain model (withdrawn :free id)", async () => {
+    // 2026-10-13: primary 429, then a retired chain head (404) used to throw
+    // here and silently fail paper arbitration. The walk must continue.
     const { modelsTried } = stubFetchSequence([
       () => errorResponse(429), // primary: transient, advances
-      () => errorResponse(404), // first chain model: fatal, must stop
-      () => jsonCompletion("should never be reached"),
+      () => errorResponse(404), // first chain model: retired, advances
+      () => jsonCompletion("from chain[1]"),
     ]);
 
-    await expect(runSeat("QUANT", [{ role: "user", content: "hi" }], KEY, 32)).rejects.toThrow(
-      /OpenRouter 404/,
-    );
-    expect(modelsTried).toHaveLength(2);
+    const result = await runSeat("QUANT", [{ role: "user", content: "hi" }], KEY, 32);
+    expect(result.answer).toBe("from chain[1]");
+    expect(modelsTried).toHaveLength(3);
   });
 
   it("still treats auth failures as fatal on the primary", async () => {

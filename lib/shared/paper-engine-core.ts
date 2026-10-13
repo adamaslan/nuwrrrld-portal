@@ -565,6 +565,9 @@ export interface ArbitrationResult {
    *  lib/paper-arbitration.ts's parseArbitrationResponse for why that case is
    *  `undefined`, not an empty string. */
   why?: string;
+  /** False when the model answered but its output could not be parsed, so
+   *  `action` is the CONFIRM-none fallback rather than a real decision. */
+  parsed?: boolean;
 }
 
 /**

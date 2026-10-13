@@ -110,6 +110,10 @@ export interface RunAccountSlotOptions {
    *  see this option's own doc on the route for what it does and doesn't
    *  change about trading behavior yet. */
   late?: boolean;
+  /** Absolute epoch-ms after which no NEW arbitration call is started (the
+   *  route has maxDuration 300s and each call may walk several models). Set by
+   *  the route; absent = no deadline. */
+  deadlineMs?: number;
 }
 
 export interface RunResult {
@@ -399,6 +403,7 @@ export async function runAccountSlot(
   // honors guardrail #5. QUANT (maxModelCallsPerRun === 0) never enters this
   // block; neither does settle (tradingSlot is false there).
   const arbitrationResults = new Map<string, ArbitrationResult>();
+  const arbitrationErrors: { ticker: string; error: string }[] = [];
   let modelCallsUsed = 0;
   const positionsByTicker = new Map(markedPositions.map((p) => [p.ticker, p]));
   if (tradingSlot && policy && policy.maxModelCallsPerRun > 0 && options.apiKey && options.globalBudget) {
@@ -414,6 +419,10 @@ export async function runAccountSlot(
     );
     for (const candidate of arbitrationCandidates) {
       if (options.globalBudget.remaining <= 0) break;
+      if (options.deadlineMs !== undefined && Date.now() >= options.deadlineMs) {
+        arbitrationErrors.push({ ticker: candidate.order.ticker, error: "skipped: arbitration deadline reached" });
+        continue;
+      }
       try {
         const result = await arbitrateOne(seat, candidate, nav, options.apiKey);
         arbitrationResults.set(result.ticker, result);
@@ -421,10 +430,11 @@ export async function runAccountSlot(
         // One failed model call degrades to CONFIRM-none for that ticker,
         // not a failed run — same per-item isolation as the route's
         // per-account try/catch.
-        console.warn(
-          `[paper-engine] arbitration call failed for ${account}/${candidate.order.ticker}: ` +
-            `${err instanceof Error ? err.message : String(err)}`,
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[paper-engine] arbitration call failed for ${account}/${candidate.order.ticker}: ${message}`);
+        // Also recorded on the run row — console.warn alone left every
+        // failure after 2026-10-02 invisible (detail.arbitration was just []).
+        arbitrationErrors.push({ ticker: candidate.order.ticker, error: message.slice(0, 300) });
       } finally {
         // Count the attempt against both budgets whether or not it answered
         // usefully — a call that timed out or errored still spent quota.
@@ -501,8 +511,10 @@ export async function runAccountSlot(
     downsizePct: r.downsizePct ?? null,
     model: r.model,
     why: r.why ?? null,
+    parsed: r.parsed !== false,
   }));
   const runDetail: Record<string, unknown> = { turnoverUsed: turnoverUsedActual, arbitration: arbitrationDetail };
+  if (arbitrationErrors.length > 0) runDetail.arbitration_errors = arbitrationErrors;
   // F2 (docs/paper-trading-v3.md): the code's own PAPER_POLICY_VERSION is
   // what actually ran, not whatever paper_accounts.policy_version happens to
   // say — the 2026-09-29 "first v2 trade" ran v1 thresholds under a v2 label
@@ -535,7 +547,7 @@ export async function runAccountSlot(
         VALUES (
           ${o.id}, ${runId}, ${account}, ${o.ticker}, ${o.side}, ${o.quantity},
           ${o.refPrice}, ${o.fillPrice}, ${o.slippageBps}, ${o.notional}, ${o.realizedPnl},
-          ${o.reason}, ${decision ? "model" : "rule"}, ${decision?.model ?? null},
+          ${o.reason}, ${decision && decision.parsed !== false ? "model" : "rule"}, ${decision?.model ?? null},
           ${cardScoreByTicker.get(o.ticker) ?? null}
         )
       `;
@@ -650,7 +662,7 @@ export async function runAccountSlot(
     notional: o.notional,
     realizedPnl: o.realizedPnl,
     reason: o.reason,
-    decidedBy: arbitrationResults.has(o.ticker) ? "model" : "rule",
+    decidedBy: arbitrationResults.get(o.ticker)?.parsed === false || !arbitrationResults.has(o.ticker) ? "rule" : "model",
     model: arbitrationResults.get(o.ticker)?.model ?? null,
     cardScore: cardScoreByTicker.get(o.ticker) ?? null,
     createdAt: new Date().toISOString(),
