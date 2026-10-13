@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# Serialize the full run, including alerts, so failure/recovery cannot race.
+concurrency:
+  group: refresh-free-models
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -71,21 +76,24 @@ jobs:
   # a 50/day key, and a stale chain is a dead one). A failed *scheduled*
   # refresh means the chain is silently frozen — worth an issue.
   notify:
-    name: Failure notification
+    name: Failure or recovery notification
     needs: [refresh]
-    if: failure() && github.event_name == 'schedule'
+    if: always() && !cancelled() && github.event_name == 'schedule' && (failure() || (needs.refresh.result == 'success'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Open or update failure issue
+      - name: Update pipeline alert
         env:
           GH_TOKEN: ${{ github.token }}
+          ALERT_MODE: ${{ contains(needs.*.result, 'failure') && 'failure' || 'recovery' }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           export ISSUE_TITLE="Weekly free-model chain refresh failed"
           export ISSUE_BODY="**Run:** ${RUN_URL}
 

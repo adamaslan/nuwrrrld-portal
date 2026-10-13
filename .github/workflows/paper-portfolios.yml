@@ -387,13 +387,14 @@ jobs:
 
   # ── Notify on failure ──────────────────────────────────────────────────
   notify:
-    name: Failure notification
+    name: Failure or recovery notification
     needs: [gate, run-slot]
-    if: failure()
+    if: always() && !cancelled() && (failure() || (needs.gate.result == 'success' && needs.run-slot.result == 'success' && inputs.dry_run != true && !inputs.account))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
+      actions: read
     steps:
       # docs/paper-trading-v3.md F11/§5.2 item 5: every failure used to open a
       # brand-new issue, even when the previous one for the exact same slot
@@ -402,11 +403,13 @@ jobs:
       # existing open issue for this slot instead of opening a new one.
       - uses: actions/checkout@v4
 
-      - name: Open or update failure issue
+      - name: Update pipeline alert
         env:
           GH_TOKEN: ${{ github.token }}
+          ALERT_MODE: ${{ contains(needs.*.result, 'failure') && 'failure' || 'recovery' }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           SLOT="${{ needs.gate.outputs.slot || 'unresolved slot' }}"
           export ISSUE_TITLE="Paper portfolios (${SLOT}) failed"
           export ISSUE_BODY="**Run:** ${RUN_URL}

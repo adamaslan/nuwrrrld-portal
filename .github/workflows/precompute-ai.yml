@@ -110,21 +110,24 @@ jobs:
   # red is necessary, not sufficient"). Skip the noise on manual runs — the
   # operator is already watching those.
   notify:
-    name: Failure notification
+    name: Failure or recovery notification
     needs: [precompute]
-    if: failure() && github.event_name == 'schedule'
+    if: always() && !cancelled() && github.event_name == 'schedule' && (failure() || (needs.precompute.result == 'success'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Open or update failure issue
+      - name: Update pipeline alert
         env:
           GH_TOKEN: ${{ github.token }}
+          ALERT_MODE: ${{ contains(needs.*.result, 'failure') && 'failure' || 'recovery' }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           export ISSUE_TITLE="Nightly AI precompute failed"
           export ISSUE_BODY="**Run:** ${RUN_URL}
 
