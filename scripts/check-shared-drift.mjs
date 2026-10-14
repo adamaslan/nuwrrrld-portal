@@ -24,6 +24,7 @@ const PAIRS = [
   { path: "lib/shared/consent.ts", normalize: null },
   { path: "lib/shared/legal-consent.ts", normalize: null },
   { path: "lib/retention.ts", normalize: null },
+  { path: "lib/portfolio.ts", normalize: null },
 ];
 
 function read(root, path) {

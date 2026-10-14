@@ -13,7 +13,7 @@ page is a plan to raise. Mobile mirror:
 
 ## Drift-gate coverage — 2026-10-14
 
-De-drift enforcement now runs in both directions for attribution, consent, legal-consent and retention: the portal gate gates the same files as mobile's. Remaining gate work: add `lib/portfolio.ts` once the pending mobile PR makes it identical; `lib/nuai.ts` stays out until the divergence is resolved. No requirement percentages changed (~62% headline stands).
+De-drift enforcement now runs in both directions for attribution, consent, legal-consent and retention: the portal gate gates the same files as mobile's. `lib/portfolio.ts` joined the gate later the same day (13 gated) once mobile PR #53 made it byte-identical, closing the "claimed identical but never gated" gap. Remaining gate work: `lib/nuai.ts` stays out until the divergence is resolved. No requirement percentages changed (~62% headline stands).
 
 ## Portal PR #271 — CI alerting, no client port
 
