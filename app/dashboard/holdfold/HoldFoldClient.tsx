@@ -156,8 +156,8 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
       </div>
 
       <div className="hf-detail-conf">
-        <span className="hf-conf-num">{v.confidence}</span>
-        <span className="hf-conf-pct">%</span>
+        <span className="hf-conf-num">{Number.isFinite(v.confidence) ? v.confidence : "—"}</span>
+        <span className="hf-conf-pct">{Number.isFinite(v.confidence) ? "%" : ""}</span>
         <span className="hf-conf-label">confidence · {v.bias}</span>
       </div>
 

@@ -1,3 +1,4 @@
+import { getStoredHoldFold } from "./holdfold/stored-signals";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
@@ -36,41 +37,9 @@ async function fetchMarketOverview(): Promise<MarketOverview | null> {
 }
 
 async function fetchTopMovers(): Promise<MoverChip[]> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 7_000);
-  try {
-    const res = await fetch(`${MCP_URL}/signals`, { signal: ctrl.signal, next: { revalidate: 900 } });
-    if (!res.ok) return [];
-    const raw = await res.json() as Record<string, unknown>;
-    if (!raw?.symbols || typeof raw.symbols !== "object" || Array.isArray(raw.symbols)) return [];
-
-    const symbols = raw.symbols as Record<string, unknown>;
-    const verdicts = Object.entries(symbols)
-      .filter(([, s]) => s !== null && typeof s === "object" && !Array.isArray(s))
-      .map(([key, s]) => {
-      const entry = s as Record<string, unknown>;
-      const ticker = String(key || entry.symbol || "").trim().toUpperCase();
-      const action = String(entry.ai_action ?? "").toUpperCase();
-      const confLabel = String(entry.ai_confidence ?? "LOW").toUpperCase();
-      const verdict = action === "BUY" ? "HOLD EM" : action === "SELL" ? "FOLD EM" : "NEUTRAL";
-      const confNum = confLabel === "HIGH" ? 80 : confLabel === "MEDIUM" ? 55 : 30;
-      return { ticker, verdict, confidenceLabel: confLabel, confidence: confNum };
-    });
-
-    // Top 3: highest-confidence HOLD EM first, then FOLD EM
-    verdicts.sort((a, b) => {
-      const order = { "HOLD EM": 0, "FOLD EM": 1, "NEUTRAL": 2 };
-      const od = order[a.verdict as keyof typeof order] - order[b.verdict as keyof typeof order];
-      return od !== 0 ? od : b.confidence - a.confidence;
-    });
-
-    return verdicts.slice(0, 4).map(v => ({
-      ticker: v.ticker,
-      verdict: v.verdict,
-      confidenceLabel: v.confidenceLabel,
-      href: `/dashboard/holdfold/${encodeURIComponent(v.ticker)}`,
-    }));
-  } catch { return []; } finally { clearTimeout(t); }
+  const { verdicts } = await getStoredHoldFold();
+  return verdicts.slice(0, 4).map(v => ({ ticker: v.ticker, verdict: v.verdict,
+    confidenceLabel: v.confidenceLabel, href: `/dashboard/holdfold/${encodeURIComponent(v.ticker)}` }));
 }
 
 export default async function Dashboard({

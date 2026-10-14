@@ -1,3 +1,4 @@
+import { getStoredSignals } from "@/app/dashboard/holdfold/stored-signals";
 import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -12,20 +13,8 @@ export const metadata: Metadata = {
   openGraph: { title: "AI Stock Signals · NuWrrrld Financial", description: "Daily signals, explained." },
 };
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-
 async function fetchPublicSignals(): Promise<SignalPayload[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
-  try {
-    const res = await fetch(`${MCP_URL}/signals`, {
-      signal: controller.signal,
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return [];
-    const digest = adaptLiveSignals(await res.json());
-    return digest?.signals ?? [];
-  } catch { return []; } finally { clearTimeout(timer); }
+  return adaptLiveSignals(await getStoredSignals()).signals;
 }
 
 export default async function SignalsLandingPage() {
@@ -52,7 +41,7 @@ export default async function SignalsLandingPage() {
 
       {(topBuy.length > 0 || topSell.length > 0) && (
         <section className="landing-signals-preview">
-          <h2>Today&apos;s signals <span className="live-badge">Live</span></h2>
+          <h2>Stored signals <span className="live-badge">Latest stored</span></h2>
           {topBuy.length > 0 && (
             <div className="signals-preview-group">
               <div className="signals-preview-label bullish">Bullish</div>

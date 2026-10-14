@@ -7,6 +7,10 @@
  */
 import sql from "@/lib/db";
 
+const MIN_TRACK_RECORD_CALLS = 100;
+const MIN_TRACK_RECORD_TICKERS = 10;
+const MAX_TRACK_RECORD_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface AggregateTrackRecord {
   hitRatePct: number;
   totalCalls: number;
@@ -15,12 +19,21 @@ export interface AggregateTrackRecord {
 export async function getAggregateTrackRecord(): Promise<AggregateTrackRecord | null> {
   try {
     const rows = await sql`
-      SELECT sum(hits)::int AS total_hits, sum(total)::int AS total_calls
+      SELECT sum(hits)::int AS total_hits, sum(total)::int AS total_calls,
+             count(DISTINCT ticker)::int AS ticker_count,
+             min(computed_at) AS oldest_computed_at
       FROM backtest_hit_rates
     `;
     const totalHits = (rows[0]?.total_hits as number) ?? 0;
     const totalCalls = (rows[0]?.total_calls as number) ?? 0;
-    if (totalCalls === 0) return null;
+    const oldest = Date.parse(String(rows[0]?.oldest_computed_at ?? ""));
+    // Every contributing row must be recent; one refreshed ticker cannot
+    // make an otherwise stale aggregate look current.
+    if (totalCalls < MIN_TRACK_RECORD_CALLS ||
+        Number(rows[0]?.ticker_count ?? 0) < MIN_TRACK_RECORD_TICKERS ||
+        !Number.isFinite(oldest) || oldest > Date.now() ||
+        Date.now() - oldest > MAX_TRACK_RECORD_AGE_MS ||
+        totalHits < 0 || totalHits > totalCalls) return null;
     return { hitRatePct: Math.round((totalHits / totalCalls) * 100), totalCalls };
   } catch {
     return null;
