@@ -11,6 +11,10 @@ Companion page: [[concept-mobile-web-parity]] — the historical ~62% measuremen
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
+## Drift-gate coverage — 2026-10-14
+
+De-drift enforcement now runs in both directions for attribution, consent, legal-consent and retention: the portal gate gates the same files as mobile's. Remaining gate work: add `lib/portfolio.ts` once the pending mobile PR makes it identical; `lib/nuai.ts` stays out until the divergence is resolved. No requirement percentages changed (~62% headline stands).
+
 ## Portal PR #271 — CI alerting, no client port
 
 The open PR layers recovery closure and optional ntfy onto portal deduplication
