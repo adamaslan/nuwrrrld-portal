@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-const mocks = vi.hoisted(() => ({ sql: vi.fn(), card: vi.fn() }));
+const mocks = vi.hoisted(() => ({ sql: vi.fn(), card: vi.fn(), save: vi.fn() }));
 vi.mock("@/lib/db", () => ({ default: mocks.sql }));
 vi.mock("@/lib/ticker-cards-db", () => ({ getCard: mocks.card }));
+vi.mock("@/lib/precomputed-ai-db", () => ({ savePrecomputed: mocks.save }));
 import { getAggregateTrackRecord } from "@/lib/track-record";
-import { getCouncilSample } from "@/app/dashboard/holdfold/council-sample";
+import { getCouncilSample, refreshCouncilSample } from "@/app/dashboard/holdfold/council-sample";
 import { GET } from "@/app/api/council/sample/route";
 
 beforeEach(() => { vi.clearAllMocks(); mocks.card.mockResolvedValue(null); });
@@ -54,6 +55,25 @@ describe("council sample reads", () => {
     mocks.sql.mockResolvedValue([]);
     mocks.card.mockResolvedValue({ isFinal: false, dataQuality: 0.5, missingFields: ["rsi"], barDate: "2026-07-24" });
     expect(await getCouncilSample()).toBeNull();
+  });
+  it("rejects an expired artifact even if the database returns it", async () => {
+    mocks.sql.mockResolvedValue([{ payload: { ticker: "MOO", shortTerm: { answer: "old short" }, longTerm: { answer: "old long" } }, generated_at: "2026-07-24" }]);
+    expect(await getCouncilSample()).toBeNull();
+  });
+  it("persists a complete card-grounded sample for the scheduled reader", async () => {
+    mocks.save.mockResolvedValue(true);
+    mocks.card.mockImplementation(async (_ticker, horizon) => ({ isFinal: true, dataQuality: 1, missingFields: [], barDate: new Date().toISOString().slice(0, 10), computedAt: aggregate.oldest_computed_at, action: horizon === "t1" ? "BUY" : "HOLD", score: 20, tokens: { rsi: "neutral", macd: "none", adx: "ranging" } }));
+    expect(await refreshCouncilSample()).toBe(true);
+    expect(mocks.save).toHaveBeenCalledWith(
+      "council_sample", "MOO",
+      expect.objectContaining({ source: "stored-card", shortTerm: { answer: expect.stringContaining("BUY") }, longTerm: { answer: expect.stringContaining("HOLD") } }),
+      null, expect.any(Date),
+    );
+  });
+  it("does not persist a sample without both usable cards", async () => {
+    mocks.card.mockResolvedValue(null);
+    expect(await refreshCouncilSample()).toBe(false);
+    expect(mocks.save).not.toHaveBeenCalled();
   });
 });
 it("keeps landing data reads inside the streamed content boundary", () => {

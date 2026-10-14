@@ -21,7 +21,7 @@ export { subjectFromTickers } from "@/lib/shared/precompute-policy";
 
 /** Artifact types the precompute job produces. Extend deliberately — each
  *  new kind needs a producer in the job and a consumer in a route. */
-export type PrecomputedKind = "portfolio_health_ai" | "digest_commentary";
+export type PrecomputedKind = "portfolio_health_ai" | "digest_commentary" | "council_sample";
 
 export interface PrecomputedRecord<T = unknown> {
   payload: T;
