@@ -2,7 +2,7 @@
 date: 2026-09-22
 type: concept
 tags: [observability, pipelines, coverage, status]
-sources: [../../lib/shared/run-status.ts, ../../lib/db/schema.sql, ../../lib/pipeline-run-log-db.ts, ../modal-pipeline-status.md, PR#155]
+sources: [../../lib/shared/run-status.ts, ../../lib/db/schema.sql, ../../lib/pipeline-run-log-db.ts, ../modal-pipeline-status.md, ../pain-points-100-2026-10-13.md, PR#155, PR#284]
 ---
 
 # Concept: Run Coverage Status
@@ -55,6 +55,15 @@ ratio, `expected: 0`, throw-with-full-coverage) are unit-tested directly
 rather than only reachable through a live pipeline run.
 
 ## Contradictions / tensions
+
+> ⚠️ **October 13 audit snapshot:** the intended per-chunk status contract above
+> did not match production observations. Of 329 hydration run-log rows in the
+> prior 14 days, 300 were non-`ok`; each nightly run included six `fail`
+> batches with zero failed symbols. The workflow still passed because it
+> checked write counts rather than the run-log result. The audit also found
+> writers that left `status` null. See
+> `docs/pain-points-100-2026-10-13.md` items 52–54. PR #280 proposes fixes;
+> this page does not treat them as deployed while that PR remains open.
 
 - The classifier treats `expected: 0` as automatically `ok` (a pipeline with
   nothing to do can't be short of coverage). That's correct for a genuinely

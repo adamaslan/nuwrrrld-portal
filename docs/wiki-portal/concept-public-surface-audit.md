@@ -2,7 +2,7 @@
 date: 2026-08-30
 type: concept
 tags: [security, public-endpoints, auth, amplification, methodology]
-sources: [../../app/api/signals/card/route.ts, ../../app/api/council/public/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/health/route.ts, ../../lib/rate-limit.ts, ../../__tests__/signal-card-route.test.ts, PR#82]
+sources: [../../app/api/signals/card/route.ts, ../../app/api/council/public/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/health/route.ts, ../../lib/rate-limit.ts, ../../__tests__/signal-card-route.test.ts, ../pain-points-100-2026-10-13.md, PR#82, PR#284]
 ---
 
 # Concept: Auditing the Public Surface
@@ -57,6 +57,13 @@ its own defense sized to what it costs to serve:
 - **`signals/card`** — pure string templating into an SVG. No DB, no model call.
   This is the cheapest route in the app *and* the one that turned out to have
   the real bug.
+
+> ⚠️ **October 13 audit snapshot:** the `council/sample` cache is per instance,
+> so cold instances can still run two model calls. One cold request did not
+> answer within 40 seconds, while a warm request took 0.09 seconds. The
+> estimated four regenerations per day above is therefore per instance, not
+> a service-wide bound. The audit proposes a persisted sample; PR #281 is
+> open, and its description leaves the persisted writer as follow-up work.
 
 ## The bug the audit found
 

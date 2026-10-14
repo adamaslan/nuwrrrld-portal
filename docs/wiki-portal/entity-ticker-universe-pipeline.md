@@ -2,7 +2,7 @@
 date: 2026-08-18
 type: entity
 tags: [pipeline, universe, hydration, modal, alpaca, cards, coverage, seeding]
-sources: [../../app/api/pipeline/hydrate-universe/route.ts, ../../lib/ticker-cards-db.ts, ../../lib/shared/card-policy.ts, ../../deploy/universe-hydration/modal_app.py, ../../scripts/seed-universe.mjs, ../../scripts/seed-etf-cards.mjs, ../../scripts/seed-yahoo-portfolio.mjs, ../../scripts/gen-portal-push-secret.sh, ../pipeline-todo-blockers.md, ../max-coverage-simplest-path.md]
+sources: [../../app/api/pipeline/hydrate-universe/route.ts, ../../lib/ticker-cards-db.ts, ../../lib/shared/card-policy.ts, ../../deploy/universe-hydration/modal_app.py, ../../scripts/seed-universe.mjs, ../../scripts/seed-etf-cards.mjs, ../../scripts/seed-yahoo-portfolio.mjs, ../../scripts/gen-portal-push-secret.sh, ../pipeline-todo-blockers.md, ../max-coverage-simplest-path.md, ../pain-points-100-2026-10-13.md, PR#284]
 ---
 
 # Entity — Ticker Universe & Coverage Pipeline
@@ -109,6 +109,15 @@ failures #3 for why).
   API consumer, not a screen.
 
 ## Known failures
+
+> ⚠️ **October 13 audit snapshot:** `scripts/hydrate-local.mjs` stamped cards
+> with the UTC calendar date instead of the last market bar's session date.
+> This can label October 12 price data as October 13 and makes a recent
+> `ticker_cards.bar_date` insufficient proof of price freshness. The same
+> audit found the hydration workflow could pass despite `fail` run-log rows.
+> See `docs/pain-points-100-2026-10-13.md` items 6 and 53 and
+> [[concept-run-coverage-status]]. PR #280 proposes corrections and remains
+> open as of this ingest.
 
 1. **All three pieces of `app/api/pipeline/`, `deploy/universe-hydration/`,
    and the seed scripts were untracked in git until 2026-08-18 (PR #66).**
