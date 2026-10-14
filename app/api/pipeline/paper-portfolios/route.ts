@@ -92,7 +92,17 @@ export async function POST(req: NextRequest) {
   }
   const late = searchParams.get("late") === "true";
 
-  const tradeDate = todayEasternDate();
+  // Queued settles retain the intended session's idempotency key.
+  const intendedDate = searchParams.get("trade_date");
+  const today = todayEasternDate();
+  if (intendedDate != null && (slotParam !== "settle" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(intendedDate) ||
+    !Number.isFinite(Date.parse(`${intendedDate}T00:00:00Z`)) ||
+    new Date(`${intendedDate}T00:00:00Z`).toISOString().slice(0, 10) !== intendedDate ||
+    intendedDate > today)) {
+    return NextResponse.json({ error: "trade_date must be a valid, non-future settle session date" }, { status: 400 });
+  }
+  const tradeDate = intendedDate ?? today;
   const accounts: PaperAccount[] = accountParam ? [accountParam] : PAPER_ACCOUNTS;
 
   // Stop starting new arbitration calls at half of maxDuration so the run can finish.

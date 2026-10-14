@@ -1,11 +1,7 @@
 name: Afternoon Pre-Close Pipeline
 
 on:
-  schedule:
-    # 3:15 PM EST (UTC-5) — active approx Nov–Mar
-    - cron: '15 20 * * 1-5'
-    # 3:15 PM EDT (UTC-4) — active approx Mar–Nov
-    - cron: '15 19 * * 1-5'
+  # Scheduled execution is paused until the four pipeline routes exist.
   workflow_dispatch:
     inputs:
       skip_market_check:
@@ -19,7 +15,7 @@ on:
         type: boolean
         default: false
 
-# Finish the run already in flight; queue the next scheduled fire.
+# Finish the run already in flight; queue the next manual dispatch.
 concurrency:
   group: afternoon-pipeline
   cancel-in-progress: false
@@ -33,6 +29,7 @@ jobs:
   gate:
     name: Market-hours gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
     steps:
@@ -52,21 +49,18 @@ jobs:
       - id: check
         name: Weekday + single-fire (America/New_York 15:xx) check
         run: |
-          DAY=$(date -u +%u)   # 1=Mon … 7=Sun
-          # Two schedule entries (EST/EDT) fire year-round; only one is the
-          # correct local hour on any given day. Gate on the actual NY wall
-          # clock hour so the off-season entry is a no-op instead of a
-          # duplicate live run an hour apart (each doing real writes).
+          DAY=$(TZ=America/New_York date +%u)   # 1=Mon … 7=Sun
+          # Manual runs retain the pre-close hour guard unless explicitly bypassed.
           NY_HOUR=$(TZ="America/New_York" date +%H)
           if [[ "$DAY" -ge 6 ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
             echo "Weekend — skipping pipeline."
-          elif [[ "${{ steps.calendar.outputs.is_trading_day }}" == "false" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+          elif [[ "${{ steps.calendar.outputs.is_trading_day }}" != "true" && "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NYSE holiday per the Alpaca calendar — skipping pipeline."
+            echo "No confirmed NYSE session — skipping pipeline."
           elif [[ "$NY_HOUR" != "15" && "${{ inputs.skip_market_check }}" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NY local hour is ${NY_HOUR}, not 15 — this is the off-season cron entry, skipping."
+            echo "NY local hour is ${NY_HOUR}, not 15 — outside the pre-close hour, skipping."
           else
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
           fi
@@ -77,6 +71,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.is_trading_day == 'true' || inputs.skip_market_check
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: production
     permissions:
       contents: read
@@ -210,6 +205,7 @@ jobs:
     needs: [gate, pipeline]
     if: always() && !cancelled() && (failure() || (needs.gate.result == 'success' && needs.pipeline.result == 'success' && inputs.dry_run != true))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write

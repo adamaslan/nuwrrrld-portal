@@ -7,24 +7,18 @@ name: Track Followed Tickers (daily)
 #
 # Pattern copied from afternoon-pipeline.yml (see
 # docs/wiki-portal/decision-afternoon-pipeline-cron-split.md): market-hours
-# gate on the real NY wall clock (both EST/EDT cron entries fire year-round;
-# the gate makes the off-season one a no-op instead of a duplicate live run),
+# gate on the New York weekday and active UTC offset; only the seasonal cron
+# passes, even when GitHub delivers both entries after the close,
 # workflow_dispatch with dry_run, secret verification, concurrency guard, step
 # summary, artifact upload, failure issue.
 #
-# ROUTE STATUS: /api/pipeline/followed-tickers does NOT exist yet. Orchestration
-# shipped ahead of its endpoint. Passes gate + secret check, then 404s on the
-# trigger call until a follow-up PR lands the handler. Path namespaced under
-# /api/pipeline/ so the 404 is loud, not a silent 401 against an unrelated
-# working route (the /api/signals/refresh reuse bug that decision doc records).
 
 on:
   schedule:
-    # 3:30 PM EST (UTC-5) — active approx Nov–Mar. 15 min after afternoon-pipeline
-    # so the signal refresh it depends on has landed.
+    # 4:30 PM EST (UTC-5) — post-close backup
+    - cron: '30 21 * * 1-5'
+    # 4:30 PM EDT (UTC-4) — post-close backup
     - cron: '30 20 * * 1-5'
-    # 3:30 PM EDT (UTC-4) — active approx Mar–Nov.
-    - cron: '30 19 * * 1-5'
   workflow_dispatch:
     inputs:
       skip_market_check:
@@ -50,6 +44,7 @@ jobs:
   gate:
     name: Market-hours gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       is_trading_day: ${{ steps.check.outputs.is_trading_day }}
     steps:
@@ -67,28 +62,40 @@ jobs:
           alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
 
       - id: check
-        name: Weekday + single-fire (America/New_York 15:xx) check
+        name: New York weekday, active cron, and session-close check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FIRED_CRON: ${{ github.event.schedule }}
+          SKIP_MARKET_CHECK: ${{ inputs.skip_market_check }}
+          CALENDAR_TRADING_DAY: ${{ steps.calendar.outputs.is_trading_day }}
+          SESSION_CLOSE: ${{ steps.calendar.outputs.close }}
         run: |
-          DAY=$(date -u +%u)   # 1=Mon … 7=Sun
-          # Two schedule entries (EST/EDT) fire year-round; only one is the
-          # correct local hour on any given day. Gate on the actual NY wall
-          # clock so the off-season entry is a no-op, not a duplicate live run
-          # an hour apart.
-          # GitHub's cron fires late (observed ~19:00 ET), so the window is
-          # 16:00–23:59 ET (after the close), not one hour. The route only
-          # records prices traded after 16:00 ET, and it skips picks already
-          # observed today, so a double fire from the EST/EDT entries makes no
-          # duplicate council calls.
-          NY_HOUR=$(TZ="America/New_York" date +%H)
-          if [[ "$DAY" -ge 6 ]]; then
+          set -euo pipefail
+          DAY=$(TZ=America/New_York date +%u)
+          NY_OFFSET=$(TZ=America/New_York date +%z)
+          NY_TIME=$(TZ=America/New_York date +%H:%M)
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$SKIP_MARKET_CHECK" == "true" ]]; then
+            echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$DAY" -ge 6 || "$CALENDAR_TRADING_DAY" != "true" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "Weekend — skipping."
-          elif [[ "${{ steps.calendar.outputs.is_trading_day }}" == "false" && "${{ inputs.skip_market_check }}" != "true" ]]; then
+            echo "Not a confirmed NYSE trading weekday — skipping."
+            exit 0
+          fi
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            case "$NY_OFFSET:$FIRED_CRON" in
+              '-0500:30 21 * * 1-5'|'-0400:30 20 * * 1-5') ;;
+              *)
+                echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
+                echo "Off-season cron entry — skipping."
+                exit 0
+                ;;
+            esac
+          fi
+          if [[ -z "$SESSION_CLOSE" || "$NY_TIME" < "$SESSION_CLOSE" ]]; then
             echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NYSE holiday per the Alpaca calendar — skipping."
-          elif (( 10#$NY_HOUR < 16 )) && [[ "${{ inputs.skip_market_check }}" != "true" ]]; then
-            echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-            echo "NY local hour is ${NY_HOUR}, before the 16:00 ET close — skipping."
+            echo "Before the confirmed session close — skipping."
           else
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
           fi
@@ -97,8 +104,9 @@ jobs:
   track:
     name: Score the cohort through backtest + signal + council
     needs: gate
-    if: needs.gate.outputs.is_trading_day == 'true' || inputs.skip_market_check
+    if: needs.gate.outputs.is_trading_day == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
     permissions:
       contents: read
@@ -200,6 +208,7 @@ jobs:
     needs: [gate, track]
     if: always() && !cancelled() && (failure() || (needs.gate.result == 'success' && needs.track.result == 'success' && inputs.dry_run != true))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
