@@ -130,6 +130,9 @@ jobs:
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
           # Explicit even though GITHUB_ACTIONS=true already makes the script
           # auto-detect 'gha' — stated here so the pipeline_run_log host value
           # doesn't depend on an env var GitHub could stop setting.
@@ -141,6 +144,11 @@ jobs:
           SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
+
+          if ! command -v aws >/dev/null 2>&1; then
+            echo "::error::AWS CLI is unavailable — cannot reserve the shared Alpaca budget."
+            exit 1
+          fi
 
           # Named individually rather than in a loop so the error says which
           # one is missing — "a secret is unset" costs a round trip to find out.
@@ -160,7 +168,8 @@ jobs:
           [ -n "${IN_UNIVERSE}" ] && [ "${IN_UNIVERSE}" != "all" ] && args+=("--universe=${IN_UNIVERSE}")
           [ -n "${IN_LIMIT}" ] && args+=("--limit=${IN_LIMIT}")
           [ "${IN_DRY_RUN}" = "true" ] && args+=("--dry-run")
-          # The 15:00 UTC cron is the only schedule that runs mid-session.
+          # Request the intraday lane for this cron; the script validates the
+          # actual New York clock so delayed runs cannot write partial bars.
           if [ "${IN_INTRADAY}" = "true" ] || [ "${SCHEDULE}" = "0 15 * * 1-5" ]; then
             args+=("--intraday")
           fi
@@ -207,6 +216,7 @@ jobs:
           post=$(sed -nE 's/.*post-failures=([0-9]+).*/\1/p' <<<"$done_line")
           total=$(sed -nE 's/.*total=([0-9]+).*/\1/p' <<<"$done_line")
           unservable=$(sed -nE 's/.*unservable=([0-9]+).*/\1/p' <<<"$done_line")
+          status=$(sed -nE 's/.*status=([a-z]+).*/\1/p' <<<"$done_line")
 
           {
             echo "### Nightly universe hydration"
@@ -216,7 +226,20 @@ jobs:
             echo "- compute errors: **${calc:-?}**"
             echo "- post failures: **${post:-?}**"
             echo "- unservable symbols: **${unservable:-?}**"
+            echo "- run status: **${status:-?}**"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${status:-}" = "skipped" ] && [ "${total:-0}" -eq 0 ]; then
+            echo "::notice::hydration lane skipped by the runtime clock gate"
+            exit 0
+          fi
+          if [ "${status:-}" = "fail" ]; then
+            echo "::error::hydration completion status is fail"
+            exit 1
+          fi
+          if [ "${status:-}" = "partial" ] || [ "${status:-}" = "degraded" ]; then
+            echo "::warning::hydration completion status is ${status}"
+          fi
 
           # A run that wrote nothing "succeeded" while producing no coverage.
           # That must not read as green — it is the exact shape of the empty

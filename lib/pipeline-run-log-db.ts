@@ -1,5 +1,6 @@
 /**
- * pipeline-run-log-db — one append-only row per model-spending pipeline run.
+ * pipeline-run-log-db — one row per model-spending pipeline run; final
+ * session aggregates can opt into replacement on retries.
  *
  * Unlike followed-tickers-db (the eval's system of record, where a failed write
  * is fatal), this table is pure observability: scripts/model-usage-report.mjs
@@ -61,6 +62,8 @@ export interface PipelineRunLog {
   pipeline: PipelineName;
   dryRun: boolean;
   session?: string | null;
+  /** Replace the final aggregate for this pipeline/session on retries. Requires a session. */
+  upsertSession?: boolean;
   itemsTotal: number;
   items: RunItem[];
   summary: Record<string, unknown>;
@@ -115,6 +118,36 @@ export async function logPipelineRun(run: PipelineRunLog): Promise<boolean> {
   // derived from its item outcomes.
   const status = run.status ?? deriveRunStatus(run.items);
   try {
+    if (run.upsertSession) {
+      if (!run.session?.trim()) throw new Error("Session upsert requires a non-empty session");
+      // Take the lock in a separate statement: at READ COMMITTED the write's
+      // snapshot then includes the preceding writer's committed aggregate.
+      await sql.transaction((tx) => [
+        tx`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([run.pipeline, run.session])}, 0))`,
+        tx`
+          WITH updated AS (
+            UPDATE pipeline_run_log
+            SET dry_run = ${run.dryRun}, items_total = ${run.itemsTotal},
+                items_ai = ${itemsAi}, models = ${JSON.stringify(models)}::jsonb,
+                items = ${JSON.stringify(run.items)}::jsonb,
+                summary = ${JSON.stringify(run.summary)}::jsonb,
+                host = ${run.host ?? null}, status = ${status},
+                coverage = ${JSON.stringify(run.coverage ?? {})}::jsonb
+            WHERE pipeline = ${run.pipeline} AND session = ${run.session}
+            RETURNING id
+          )
+          INSERT INTO pipeline_run_log
+            (id, pipeline, dry_run, session, items_total, items_ai, models, items, summary,
+             host, status, coverage)
+          SELECT ${randomUUID()}, ${run.pipeline}, ${run.dryRun}, ${run.session},
+                 ${run.itemsTotal}, ${itemsAi}, ${JSON.stringify(models)}::jsonb,
+                 ${JSON.stringify(run.items)}::jsonb, ${JSON.stringify(run.summary)}::jsonb,
+                 ${run.host ?? null}, ${status}, ${JSON.stringify(run.coverage ?? {})}::jsonb
+          WHERE NOT EXISTS (SELECT 1 FROM updated)
+        `,
+      ], { isolationLevel: "ReadCommitted" });
+      return true;
+    }
     // Generate the id application-side rather than leaning on the column
     // default. Postgres has `DEFAULT gen_random_uuid()`, but the generated
     // SQLite schema (lib/db/schema.sqlite.sql, used by the backup/parity path)
