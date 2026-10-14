@@ -2,7 +2,7 @@
 date: 2026-10-12
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
@@ -11,7 +11,10 @@ The portal's six-seat AI deliberation system. Four entry points share the same s
 
 - **`POST /api/council`** — single-seat quick-ask (T1 or T2 only), used by the Hold/Fold ticker detail panel. Returns one structured verdict.
 - **`POST /api/council/deliberate`** — the full six-seat debate: parallel round-1 answers → diff-shaped round-2 critique → CHAIR synthesis → separate verdict-only vote.
-- **`GET /api/council/sample`** — unauthenticated, cached (6h) T1+T2 pair for the public landing page's `#council` section. As of PR #97, simulates a **$10,000 position in MOO** (VanEck Agribusiness ETF) rather than a bare SPY signal prompt — see "The landing sample" below.
+- **`GET /api/council/sample`** — unauthenticated, stored MOO T1/T2 signal
+  overview for the landing page's `#council` section. Since PR #281, it reads
+  persisted data or fresh stored cards and never calls a model on a public GET.
+  PR #285 proposes generating the persisted row during nightly precompute.
 - **`POST /api/council/public`** — unauthenticated, ticker-only, single RISK-seat demo with a 1/day IP quota; the prompt is built entirely server-side (never from free-text input) to close the prompt-injection door a public endpoint would otherwise open.
 
 ## What it is
@@ -38,6 +41,14 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 5. **Persist** — session, messages, verdict → Neon (`lib/council-db.ts`), non-fatal if unavailable.
 
 ## The landing sample (PR #97)
+
+> **Current path, proposed by PR #285:** the nightly precompute job saves a
+> 26-hour `council_sample` artifact from two final, high-quality MOO cards.
+> The public route validates its age and content, then falls back to those
+> cards if the artifact is missing. Both narratives identify themselves as
+> stored signal overviews, not AI deliberation. This changes the older live
+> model behavior described below; deployment and a scheduled write remain to
+> be verified after merge.
 
 As of 2026-10-12, `app/page.tsx` caps its sample fetch at 5 seconds with an
 `AbortController`, keeps the timer active through JSON parsing, and clears it
