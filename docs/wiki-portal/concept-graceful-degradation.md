@@ -33,6 +33,7 @@ The consistent rule: **the request path has exactly one hard dependency — the 
 - [[entity-grounding-tier-ladder]] — miss → ungrounded; stale → degraded flag
 - [[entity-ai-council]] — per-seat isolation, `degradedSeats`, CHAIR informed of gaps
 - `lib/council-db.ts` — non-fatal persistence
+- [[entity-paper-portfolios]] — arena metrics prefer each account's latest validated settle snapshot. Missing or malformed snapshots use batched recomputation; a single account's computation error leaves its score empty while the other accounts and trade data remain available. See [[decision-paper-arena-settle-metrics]].
 - `app/dashboard/HealthBanner.tsx` (PR #65) — the **UI-facing** end of the pattern: turns `/api/health`'s `down`/`degraded` verdict into a user-visible banner, the "and say so" clause made visible rather than logged. Asserted by [[entity-playwright-e2e]]'s health EXPOSE test.
 - `app/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx` (PR #82) — the **render-time** end of the pattern. `error.tsx` catches a thrown route segment; `global-error.tsx` catches the root layout itself (which `error.tsx` cannot see, since it does not wrap the layout above it in its own segment); `not-found.tsx` catches the typo'd dynamic segment, reachable on `/verdict/[ticker]` and `/dashboard/holdfold/[ticker]`, which accept arbitrary strings.
 - `app/api/signals/[ticker]/chat/route.ts` + `lib/signal-chat-local.ts` (2026-09-11)
