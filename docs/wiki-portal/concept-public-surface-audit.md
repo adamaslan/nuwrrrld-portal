@@ -2,7 +2,7 @@
 date: 2026-08-30
 type: concept
 tags: [security, public-endpoints, auth, amplification, methodology]
-sources: [../../app/api/signals/card/route.ts, ../../app/api/council/public/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/health/route.ts, ../../lib/rate-limit.ts, ../../__tests__/signal-card-route.test.ts, ../pain-points-100-2026-10-13.md, PR#82, PR#284]
+sources: [../../app/api/signals/card/route.ts, ../../app/api/council/public/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/health/route.ts, ../../lib/rate-limit.ts, ../../__tests__/signal-card-route.test.ts, ../pain-points-100-2026-10-13.md, PR#82, PR#284, PR#285]
 ---
 
 # Concept: Auditing the Public Surface
@@ -50,8 +50,10 @@ its own defense sized to what it costs to serve:
   No free-text prompt from an anonymous caller means the prompt template is
   built entirely server-side, which closes the prompt-injection door a public
   LLM endpoint would otherwise stand wide open. See [[concept-free-tier-resilience]].
-- **`council/sample`** — a 6-hour in-process cache in front of a single upstream
-  fetch. The expensive path runs at most 4×/day per instance.
+- **`council/sample`** — a read of a dated `precomputed_ai` sample, with a
+  card-grounded fallback. Since PR #281, this public route makes no model call.
+  PR #285 proposes the missing scheduled artifact writer; it is not deployed
+  as of this ingest.
 - **`health`** — reports dependency status by name, never a secret value. Its
   whole purpose is to be reachable by an external monitor.
 - **`signals/card`** — pure string templating into an SVG. No DB, no model call.
@@ -62,8 +64,8 @@ its own defense sized to what it costs to serve:
 > so cold instances can still run two model calls. One cold request did not
 > answer within 40 seconds, while a warm request took 0.09 seconds. The
 > estimated four regenerations per day above is therefore per instance, not
-> a service-wide bound. The audit proposes a persisted sample; PR #281 is
-> open, and its description leaves the persisted writer as follow-up work.
+> a service-wide bound. PR #281 removed the live model path; PR #285 proposes
+> the persisted writer. These timings describe the older implementation.
 
 ## The bug the audit found
 

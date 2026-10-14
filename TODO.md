@@ -78,6 +78,11 @@ Rules live in [`AGENTS.md`](AGENTS.md) (tiers, delegation, session budget). In s
 
 ## Now — production and pipeline health
 
+- [ ] `W` Finish the public council sample cold-path fix — PR #285 adds the
+  nightly stored-card producer and 26-hour persisted read; #281 already removed
+  model calls from the public request. Focused tests pass. Await independent
+  Claude verification and a scheduled producer run after merge before marking
+  production behavior verified. Source: `docs/pain-points-100-2026-10-13.md` #26.
 - [x] `W` Fix the missing dependency install in `compile-grounding-pack` —
   landed on `main` in PR #253 (`00ccb4e`). A branch dispatch
   [succeeded](https://github.com/adamaslan/nuwrrrld-portal/actions/runs/38096257723)
