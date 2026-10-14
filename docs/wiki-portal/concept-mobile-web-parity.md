@@ -12,7 +12,9 @@ Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
 
 ## Drift-gate coverage note — 2026-10-14
 
-The portal's shared-drift gate now also covers `lib/shared/attribution.ts`, `lib/shared/consent.ts`, `lib/shared/legal-consent.ts` and `lib/retention.ts` (all byte-identical across surfaces), bringing it to 12 gated files and matching the mobile gate for those paths. This closes the one-directional gap where a portal-only edit left the portal gate green while mobile's went red. `lib/portfolio.ts` (identical only after a pending mobile PR) and `lib/nuai.ts` (known divergent) stay ungated. Headline unchanged at ~62%; no percentages recomputed, since enforcement changed and shared code did not.
+The portal's shared-drift gate now also covers `lib/shared/attribution.ts`, `lib/shared/consent.ts`, `lib/shared/legal-consent.ts` and `lib/retention.ts` (all byte-identical across surfaces), bringing it to 12 gated files and matching the mobile gate for those paths. This closes the one-directional gap where a portal-only edit left the portal gate green while mobile's went red. `lib/nuai.ts` (known divergent) stays ungated. Headline unchanged at ~62%; no percentages recomputed, since enforcement changed and shared code did not.
+
+**Follow-up, same day:** the gate now also covers `lib/portfolio.ts` (13 gated files), after mobile PR #53 ported the portal copy byte-identically. This closes the gap where `portfolio.ts` was *claimed* identical but never gated: mobile had silently drifted about 30 lines behind the portal's `isPortfolioHealth` guards with nothing failing. `lib/nuai.ts` remains divergent and ungated. Headline still ~62%; nothing recomputed.
 
 ## PR #271 assessment — 2026-10-12
 
