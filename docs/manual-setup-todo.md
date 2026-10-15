@@ -902,14 +902,26 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       `stripe: not_configured` and named this variable. The portal and gcp3
       endpoints have different signing secrets. Do not assume the value in
       `.env.local` matches either production endpoint.
-      🖱 Dashboard: https://dashboard.stripe.com/webhooks — reveal each
-      endpoint's signing secret privately, then replace the corresponding
-      production secret in Vercel and GCP Secret Manager and redeploy each
-      receiver. Expect each endpoint's test event to show a successful delivery.
-      The exact CLI and verification sequence is in
-      `homebase/docs/stripe-down-nwf-2026-10-12.md` §4. Replacing an existing
-      secret requires the owner's explicit confirmation immediately before the
-      replacement.
+      🖱 Dashboard: https://dashboard.stripe.com/webhooks — select the portal
+      endpoint and the gcp3 endpoint separately, reveal each signing secret,
+      and keep both values private. Expect two distinct `whsec_` values.
+
+      ⚠️ **This will replace existing production webhook credentials and
+      redeploy both receivers. The prior values require provider version
+      history or a saved backup to recover. Do you want to proceed?** Wait for
+      the owner's explicit confirmation immediately before changing either one.
+
+      🖱 Dashboard: https://vercel.com/dashboard — select the portal project,
+      replace `STRIPE_WEBHOOK_SECRET` in Production with the **portal endpoint's**
+      signing secret, then redeploy Production. Expect the deployment to reach
+      Ready and the portal health check below to print `ok`.
+
+      🖱 Dashboard: https://console.cloud.google.com/security/secret-manager —
+      add a version to the backend's `STRIPE_WEBHOOK_SECRET` using the **gcp3
+      endpoint's** signing secret, then roll a new backend Cloud Run revision so
+      it reads the new version. Expect a successful Stripe Dashboard test
+      delivery for that endpoint. The CLI variant and deeper checks are in
+      `homebase/docs/stripe-down-nwf-2026-10-12.md` §4.
 
       Read-only verification after deployment:
 

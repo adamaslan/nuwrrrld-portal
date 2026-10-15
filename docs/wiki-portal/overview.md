@@ -75,7 +75,7 @@ CI (GitHub Actions, weekly)
 
 **Known gaps / risks (billing):**
 
-- ⚠️ **Production webhook signing secrets remain placeholders** — the
+- ⚠️ **Production webhook signing secrets remain unset or placeholders** — the
   2026-10-14 health check reported `stripe: not_configured`; the detection
   shipped, but subscription event delivery still needs owner setup
   ([[incident-2026-10-12-stripe-webhook-secret-placeholder]]).
