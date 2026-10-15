@@ -75,6 +75,16 @@ jobs:
           echo "HTTP ${http_status}"
           cat response.json
 
+          echo "### Nightly AI precompute" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          council_sample_saved=$(jq -r 'if has("councilSampleSaved") then .councilSampleSaved else empty end' response.json 2>/dev/null || true)
+          if [ -n "${council_sample_saved}" ]; then
+            echo "- council sample saved: **${council_sample_saved}**" >> "$GITHUB_STEP_SUMMARY"
+            if [ "${council_sample_saved}" != "true" ]; then
+              echo "::warning::No fresh council sample was saved; check MOO card availability and the precomputed_ai write."
+            fi
+          fi
+
           if [ "${http_status}" -lt 200 ] || [ "${http_status}" -ge 300 ]; then
             echo "::error::precompute endpoint returned ${http_status}"
             exit 1
@@ -83,17 +93,9 @@ jobs:
           generated=$(jq -r '.generated // 0' response.json)
           attempted=$(jq -r '.attempted // 0' response.json)
           quota=$(jq -r '.quotaExhausted // false' response.json)
-          council_sample_saved=$(jq -r '.councilSampleSaved // false' response.json)
 
-          echo "### Nightly AI precompute" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- generated: **${generated}/${attempted}**" >> "$GITHUB_STEP_SUMMARY"
           echo "- quota exhausted: **${quota}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "- council sample saved: **${council_sample_saved}**" >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "${council_sample_saved}" != "true" ]; then
-            echo "::warning::No fresh council sample was saved; check MOO card availability and the precomputed_ai write."
-          fi
 
           if [ "${quota}" = "true" ]; then
             # Not a failure — the artifacts that were generated are still
