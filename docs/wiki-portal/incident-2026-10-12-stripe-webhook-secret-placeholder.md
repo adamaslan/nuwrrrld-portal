@@ -79,6 +79,10 @@ Clerk's `auth.protect()` 404s an unauthenticated caller by design
   references resolve at instance start, not live).
 - Full copy-paste remediation steps: `homebase/docs/stripe-down-nwf-2026-10-12.md`.
 
+On 2026-10-14, a read-only production health check still reported
+`stripe: not_configured`. The code-side detection is deployed; the
+endpoint-specific production secrets still need the owner action above.
+
 ## Impact on design
 
 - **`/api/health`'s Stripe check now covers the full lifecycle a transaction

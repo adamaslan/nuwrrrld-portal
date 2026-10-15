@@ -75,6 +75,10 @@ CI (GitHub Actions, weekly)
 
 **Known gaps / risks (billing):**
 
+- ⚠️ **Production webhook signing secrets remain placeholders** — the
+  2026-10-14 health check reported `stripe: not_configured`; the detection
+  shipped, but subscription event delivery still needs owner setup
+  ([[incident-2026-10-12-stripe-webhook-secret-placeholder]]).
 - ⚠️ **Production checkout was silently broken** — [[incident-2026-07-27-stripe-checkout-invalid-header]]; code-side fix shipped (PR #45), two manual dashboard steps still outstanding as of this ingest.
 - ⚠️ **`lib/subscription.ts` newly drifted from mobile** — PR #45 added `parseSubscriptionMetadata()` to the portal copy only, breaking a previously byte-identical shared module ([[concept-mobile-web-parity]]).
 

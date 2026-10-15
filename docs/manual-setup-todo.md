@@ -21,6 +21,12 @@ re-run successfully and its output is recorded in §2.
 
 Ordered by what unblocks the most.
 
+**Updated 2026-10-14:** the 2026-09-14 closed status for
+`STRIPE_WEBHOOK_SECRET` covered the local file and GitHub Actions only.
+Production `/api/health` now reports `stripe: not_configured` because the
+deployed webhook secret is unset or a placeholder. The production fix in §4
+is open; the older verification below remains a dated historical record.
+
 **Updated 2026-09-14** — a full verification pass ran every check in this file
 against live state (`gh secret list`, `gh run list`, the production
 `/api/health` and `?meta=freshness` endpoints, and the Neon database directly).
@@ -890,10 +896,31 @@ this app cannot currently take a paying customer end-to-end. Full reasoning and
 retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
 [docs/ship-to-clients-top-25.md](ship-to-clients-top-25.md) items 1–6.
 
-- [x] ~~**`STRIPE_WEBHOOK_SECRET` — a real `whsec_…` for the production endpoint.**~~
-      — **Resolved**: a real `whsec_` value was pushed to GHA 2026-09-14 (see
-      §-1); `.env.local` no longer holds `whsec_placeholder_*`. Kept below for
-      the rotation procedure, still relevant if this value is ever rotated.
+- [ ] **`STRIPE_WEBHOOK_SECRET` — real, endpoint-specific values in production.**
+      The 2026-09-14 local/GHA update did not configure the deployed receivers.
+      On 2026-10-14, the portal's public `/api/health` reported
+      `stripe: not_configured` and named this variable. The portal and gcp3
+      endpoints have different signing secrets. Do not assume the value in
+      `.env.local` matches either production endpoint.
+      🖱 Dashboard: https://dashboard.stripe.com/webhooks — reveal each
+      endpoint's signing secret privately, then replace the corresponding
+      production secret in Vercel and GCP Secret Manager and redeploy each
+      receiver. Expect each endpoint's test event to show a successful delivery.
+      The exact CLI and verification sequence is in
+      `homebase/docs/stripe-down-nwf-2026-10-12.md` §4. Replacing an existing
+      secret requires the owner's explicit confirmation immediately before the
+      replacement.
+
+      Read-only verification after deployment:
+
+      ```bash
+      curl --silent --show-error --max-time 20 https://financial.nuwrrrld.com/api/health \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["stripe"]["status"])'
+      ```
+
+      Expected after the portal secret is correct: `ok`. A 400 response to an
+      intentionally invalid webhook signature, followed by a successful
+      Stripe Dashboard test delivery, verifies the receiver more directly.
       Previously: until it was real, `app/api/webhooks/stripe/route.ts` logged
       a `CONFIG_ERROR` and **rejected every event Stripe sends** — a customer
       would complete checkout, Stripe would charge their card, the portal
@@ -917,9 +944,10 @@ retrieval steps: [docs/stripe-todo.md](stripe-todo.md); business framing:
       replacement: Stripe price objects are immutable, so changing one later
       means archive-and-recreate, and archiving only affects new
       subscriptions — you would be grandfathering the wrong number.
-      This blocker is closed alongside `STRIPE_WEBHOOK_SECRET` (also real
-      as of 2026-09-14, see §-1) — the remaining live-mode confirmation above
-      is what still gates re-enabling the `preflight-billing` Playwright tier;
+      The local/GHA secret was real as of 2026-09-14, but its production
+      replacement remains open. The live-mode confirmation above and the
+      production webhook repair both gate re-enabling the `preflight-billing`
+      Playwright tier;
       do that only after `/api/health` reports Stripe healthy.
 - [ ] **Rotate `STRIPE_SECRET_KEY` — before §2 pushes secrets, or re-push
       after.** Recorded as already exposed in
