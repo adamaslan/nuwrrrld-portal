@@ -2,7 +2,7 @@
 date: 2026-10-12
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
@@ -11,7 +11,10 @@ The portal's six-seat AI deliberation system. Four entry points share the same s
 
 - **`POST /api/council`** — single-seat quick-ask (T1 or T2 only), used by the Hold/Fold ticker detail panel. Returns one structured verdict.
 - **`POST /api/council/deliberate`** — the full six-seat debate: parallel round-1 answers → diff-shaped round-2 critique → CHAIR synthesis → separate verdict-only vote.
-- **`GET /api/council/sample`** — unauthenticated, cached (6h) T1+T2 pair for the public landing page's `#council` section. As of PR #97, simulates a **$10,000 position in MOO** (VanEck Agribusiness ETF) rather than a bare SPY signal prompt — see "The landing sample" below.
+- **`GET /api/council/sample`** — unauthenticated, stored MOO T1/T2 signal
+  overview for the landing page's `#council` section. Since PR #281, it reads
+  persisted data or fresh stored cards and never calls a model on a public GET.
+  PR #285 proposes generating the persisted row during nightly precompute.
 - **`POST /api/council/public`** — unauthenticated, ticker-only, single RISK-seat demo with a 1/day IP quota; the prompt is built entirely server-side (never from free-text input) to close the prompt-injection door a public endpoint would otherwise open.
 
 ## What it is
@@ -39,15 +42,23 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 
 ## The landing sample (PR #97)
 
-As of 2026-10-12, `app/page.tsx` caps its sample fetch at 5 seconds with an
+> **Current path, proposed by PR #285:** the nightly precompute job saves a
+> 26-hour `council_sample` artifact from two final, high-quality MOO cards.
+> The public route validates its age and content, then falls back to those
+> cards if the artifact is missing. Both narratives identify themselves as
+> stored signal overviews, not AI deliberation. This changes the older live
+> model behavior described below; deployment and a scheduled write remain to
+> be verified after merge.
+
+`app/page.tsx` caps its sample fetch at 5 seconds with an
 `AbortController`, keeps the timer active through JSON parsing, and clears it
-in `finally`. Timeout or failure yields `null`, omitting the optional live
-sample while the landing page continues. The 6-hour revalidation and sample
-route are unchanged; this caller deadline does not shorten the interactive
-council's model budget or guarantee cancellation of server-side generation.
+in `finally`. Timeout or failure yields `null`, omitting the optional stored
+sample while the landing page continues. The public sample route now reads the
+persisted artifact or stored cards; the interactive council has its own model
+budget.
 See [[concept-graceful-degradation]].
 
-`/api/council/sample` previously ran T1/T2 against a bare `Analyze SPY...` prompt built from a single `GET {gcp3}/signals/SPY` fetch. It now runs the same two seats against an explicit **$10,000 MOO investment simulation** framing (`buildSimulationPrompt`), grounded in whatever live `ai_summary`/`ai_score`/`ai_action` GCP3 returns for MOO, with `SIMULATED_CAPITAL_USD = 10_000` hardcoded server-side — never user input, preserving the same "server-built prompt only" constraint `/api/council/public` documents. The response now carries `ticker`, `fundName`, and `simulatedCapitalUsd`, and `app/page.tsx`'s `#council` panel renders "Live simulation: $10,000 into MOO (VanEck Agribusiness ETF) today" instead of a hardcoded "SPY" label.
+**Historical path before PR #281:** `/api/council/sample` first ran T1/T2 against a bare `Analyze SPY...` prompt built from a single `GET {gcp3}/signals/SPY` fetch. It later used a **$10,000 MOO investment simulation** framing (`buildSimulationPrompt`) grounded in live GCP3 output. The route was unauthenticated, so its 6-hour fetch revalidation slowed repeat loads but did not cap first-hit or post-expiry model spend. PR #281 removed the public model calls; the stored-card path above supersedes this behavior.
 
 The real yfinance scan + 10y investment/backtest simulation this was built from — and a much deeper full six-seat run (all `DEBATE_SEATS` + CHAIR + verdict) against the same MOO data — live in `docs/moo-council-simulation-todo.md` and `docs/moo-council-run/`. That deeper run is what surfaced [[entity-openrouter-client]] failures #8 and #9 (dead `SEAT_MODELS.QUANT`, and `runSeat` accepting an empty 200 as success) — this landing-sample change and those `lib/openrouter.ts` fixes shipped together in the same PR because the fixes were found *while* building this feature, not as separate unrelated work.
 
@@ -60,7 +71,7 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - `app/dashboard/holdfold/HoldFoldClient.tsx` — calls `/api/council` per seat (T1/T2), renders the four-field verdict as a `<dl>`
 - `app/dashboard/signals/SignalsClient.tsx` — calls `/api/council`, renders only the raw answer prose
 - `app/page.tsx` — calls `/api/council/sample` server-side for the public `#council` landing section (see "The landing sample" above)
-- `/api` routes gate `council`/`deliberate` on the `nu_ai` entitlement + a daily quota (`checkAndBumpQuota`); `sample`/`public` are unauthenticated with their own quota/caching
+- `/api` routes gate `council`/`deliberate` on the `nu_ai` entitlement + a daily quota (`checkAndBumpQuota`); `sample` is an unauthenticated stored read, while `public` has its own quota/caching
 
 ## The verdict format
 

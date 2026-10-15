@@ -42,6 +42,7 @@ import {
   resolveUniverseScope,
 } from "@/lib/shared/universe-policy";
 import { gradeFromScore, type PortfolioHealth } from "@/lib/portfolio";
+import { refreshCouncilSample } from "@/app/dashboard/holdfold/council-sample";
 
 export const maxDuration = 300;
 
@@ -211,7 +212,6 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
   const body = (await req.json().catch(() => ({}))) as {
     maxSubjects?: number;
@@ -232,6 +232,13 @@ export async function POST(req: NextRequest) {
     Math.max(1, Number(body.maxSubjects) || DEFAULT_MAX_SUBJECTS),
   );
   const source = resolvePrecomputeSource(body.source);
+  // The public sample is a stored-card read, generated here rather than on a
+  // visitor's request. It consumes no model quota and remains available even
+  // when the narrative batch below runs out of time or model allowance.
+  const councilSampleSaved = dryRun ? null : await refreshCouncilSample();
+  if (!apiKey) {
+    return NextResponse.json({ error: "AI not configured", councilSampleSaved }, { status: 503 });
+  }
 
   // Three ways to choose subjects, in precedence order:
   //   explicit list  — testable against a known portfolio, independent of
@@ -274,6 +281,7 @@ export async function POST(req: NextRequest) {
         selection,
         generated: 0,
         attempted: 0,
+        councilSampleSaved,
         note: source === "ranking" ? "no ranked cards" : "no watchlist subjects",
       },
     });
@@ -281,6 +289,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       dryRun,
       generated: 0,
+      councilSampleSaved,
       results: [],
       selection,
       note: source === "ranking" ? "no ranked cards available" : "no watchlist subjects",
@@ -446,6 +455,7 @@ export async function POST(req: NextRequest) {
       quotaExhausted,
       budgetStopped,
       failureMode,
+      councilSampleSaved,
     },
   });
 
@@ -465,6 +475,7 @@ export async function POST(req: NextRequest) {
       budgetStopped,
       // null on success; otherwise "quota" | "timeout" | "empty" | "auth" | "error".
       failureMode,
+      councilSampleSaved,
       results,
       runLogged,
     },
