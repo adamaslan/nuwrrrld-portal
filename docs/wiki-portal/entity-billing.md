@@ -191,6 +191,9 @@ web-Pro / mobile-Free asymmetry for testers is unchanged.
   PR #270, which adds the same `not_configured` check this function already
   does for price IDs. Full remediation:
   `homebase/docs/stripe-down-nwf-2026-10-12.md`.
+  A 2026-10-14 read-only production check still returned
+  `stripe: not_configured`; the manual secret replacement remains open in
+  `docs/manual-setup-todo.md` §4.
 
 ## Open questions
 
