@@ -11,6 +11,13 @@ Companion page: [[concept-mobile-web-parity]] — the historical ~62% measuremen
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
+## PR #294 — paper portfolio schedule
+
+Four local-time schedules replace eight UTC entries while preserving the four
+paper-trading slots. This portal operations change creates no mobile port or
+shared-code sync requirement. Scheduled end-to-end behavior remains to be
+verified after the existing credential and seed blockers are cleared.
+
 ## Drift-gate coverage — 2026-10-14
 
 De-drift enforcement now runs in both directions for attribution, consent, legal-consent and retention: the portal gate gates the same files as mobile's. `lib/portfolio.ts` joined the gate later the same day (13 gated) once mobile PR #53 made it byte-identical, closing the "claimed identical but never gated" gap. Remaining gate work: `lib/nuai.ts` stays out until the divergence is resolved. No requirement percentages changed (~62% headline stands).

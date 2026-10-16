@@ -10,6 +10,13 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 Companion page: [[concept-sync-requirements]] — the concrete work each surface needs to close the gap.
 Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
 
+## PR #294 assessment — 2026-10-16
+
+Paper portfolio automation now uses four New York timezone schedules in place
+of eight seasonal UTC entries. The change affects portal runner frequency and
+slot resolution; it adds no mobile feature, API contract, or shared module.
+The historical ~62% headline and feature-domain matrix are unchanged.
+
 ## Drift-gate coverage note — 2026-10-14
 
 The portal's shared-drift gate now also covers `lib/shared/attribution.ts`, `lib/shared/consent.ts`, `lib/shared/legal-consent.ts` and `lib/retention.ts` (all byte-identical across surfaces), bringing it to 12 gated files and matching the mobile gate for those paths. This closes the one-directional gap where a portal-only edit left the portal gate green while mobile's went red. `lib/nuai.ts` (known divergent) stays ungated. Headline unchanged at ~62%; no percentages recomputed, since enforcement changed and shared code did not.
