@@ -1,0 +1,2 @@
+bucket = "REPLACE_WITH_PREEXISTING_VERSIONED_STATE_BUCKET"
+prefix = "nwf/new-pipeline/terraform"
