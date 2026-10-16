@@ -11,9 +11,19 @@ sources: [../../infra/slots/new-pipeline, ../../infra/README.md, ../../docs/nwf-
 
 An unapplied Terraform root for a separate NWF pipeline slot. It defines a runtime identity, a deploy identity, an image repository, empty credential containers, and repository-scoped Workload Identity Federation. The reviewed design and operational gates are in `docs/nwf-new-slot-terraform.md`.
 
+The repository has immutable tags and a dry-run retention policy that keeps
+two recent versions per package and proposes deleting untagged versions older
+than one day. Builds must use unique tags and deploy tested digests. No image
+deletion is active in this new-slot configuration.
+
 ## Where used
 
 `infra/slots/new-pipeline/` owns the proposed resources. `infra/README.md` gives the setup and validation sequence. The manual credential preflight in portal PR #291 uses isolated resources in the existing billed project while the dedicated project lacks billing capacity.
+
+`infra/sync-shadow-secrets.mjs` now requires an explicit `shadow` or `new`
+target and checks that it matches the expected project before copying only
+missing credential versions. The dedicated slot remains empty until its
+Terraform foundation has been reviewed and applied.
 
 ## Known failures
 
