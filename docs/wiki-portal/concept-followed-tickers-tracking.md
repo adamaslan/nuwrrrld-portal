@@ -121,8 +121,11 @@ sections are rewritten by `lib/followed-tickers-render.ts`. Two bugs from that
 decision doc are pre-empted:
 route paths namespaced under `/api/pipeline/` (no existing occupant, so a
 misconfig 404s loudly instead of silently 401ing against a working endpoint),
-and the daily job's EST+EDT cron pair gated on NY wall-clock hour so the
-off-season entry is a no-op, not a duplicate live run an hour apart.
+and the daily job's New York timezone schedule, which fires once at 16:30 ET
+through both daylight saving offsets. The gate still requires a confirmed
+session close and rejects an unexpected schedule entry. PR #293 replaces the
+former EST+EDT pair, which started two workflow runs per weekday even though
+the off-season run was gated before the observer.
 
 ## Where it appears
 

@@ -11,6 +11,12 @@ Companion page: [[concept-mobile-web-parity]] — the historical ~62% measuremen
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
+## PR #293 — followed-ticker schedule
+
+The portal's daily observer now has one 16:30 America/New_York schedule in
+place of the EST/EDT pair. Its close and calendar gates remain. This is a
+portal operations change, so it adds no mobile port or shared-code sync task.
+
 ## Drift-gate coverage — 2026-10-14
 
 De-drift enforcement now runs in both directions for attribution, consent, legal-consent and retention: the portal gate gates the same files as mobile's. `lib/portfolio.ts` joined the gate later the same day (13 gated) once mobile PR #53 made it byte-identical, closing the "claimed identical but never gated" gap. Remaining gate work: `lib/nuai.ts` stays out until the divergence is resolved. No requirement percentages changed (~62% headline stands).
