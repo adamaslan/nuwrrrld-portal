@@ -16,7 +16,10 @@ or route production traffic.
   `OPENROUTER_API_KEY` in its local environment and GitHub Actions secrets.
   Values were not printed during inventory or sync. The runtime maps
   `ALPACA_API_SECRET` to its own Secret Manager container; it never assumes
-  the proposed `ALPACA_SECRET_KEY` name exists.
+  the proposed `ALPACA_SECRET_KEY` name exists. Secret containers follow the
+  env var names: `nwf-new-alpaca-api-key`, `nwf-new-alpaca-api-secret`,
+  `nwf-new-openrouter-api-key` (dedicated project) and the matching
+  `nwf-shadow-*` names in `ttb-lang1`.
 - The live backend references an `OPENROUTER_API_KEY` Secret Manager secret.
   The Terraform foundation declares distinct empty containers for a future
   dedicated project. The temporary shadow deployment uses distinct secret
@@ -37,6 +40,45 @@ Execution `nwf-shadow-preflight-w85gh` finished successfully with sanitized
 `alpaca=ok openrouter=ok` status. The job has no schedule and writes no NWF
 data. It is a credential and deployment smoke check; the isolated production
 slot still requires a billed dedicated project or a revised isolation design.
+
+### Shadow resources in `ttb-lang1` (temporary, not in Terraform)
+
+These were created by hand inside the **current production project** and are
+not covered by the isolation guard. They hold copies of the Alpaca and
+OpenRouter credentials. Treat them as temporary and remove them once the
+dedicated project is billed and applied:
+
+| Resource | Name |
+|---|---|
+| Cloud Run Job | `nwf-shadow-preflight` |
+| Artifact Registry repository | the separate shadow repository created for the job |
+| Service account | the shadow runtime service account |
+| Secrets | `nwf-shadow-alpaca-api-key`, `nwf-shadow-alpaca-api-secret`, `nwf-shadow-openrouter-api-key` |
+
+Inventory (read-only; expect the rows above and nothing else with `nwf-shadow`):
+
+```bash
+gcloud run jobs list --project=ttb-lang1 --filter='metadata.name~nwf-shadow' --format='value(metadata.name)'
+gcloud secrets list --project=ttb-lang1 --filter='name~nwf-shadow' --format='value(name)'
+gcloud artifacts repositories list --project=ttb-lang1 --filter='name~nwf' --format='value(name)'
+gcloud iam service-accounts list --project=ttb-lang1 --filter='email~nwf' --format='value(email)'
+```
+
+Teardown is destructive (the secrets lose their only copy in that project;
+the source of truth stays in the portal env). Run it only after confirming the
+inventory above, and with the owner's go-ahead:
+
+```bash
+gcloud run jobs delete nwf-shadow-preflight --project=ttb-lang1 --region=us-central1 --quiet
+for s in nwf-shadow-alpaca-api-key nwf-shadow-alpaca-api-secret nwf-shadow-openrouter-api-key; do
+  gcloud secrets delete "$s" --project=ttb-lang1 --quiet
+done
+```
+
+Then delete the shadow Artifact Registry repo and service account found by the
+inventory. `sync-shadow-secrets.mjs` leaves a secret that already has an
+enabled version unchanged, so a rotated key is not copied; add a new version
+by hand to rotate.
 
 ## Deployable foundation
 

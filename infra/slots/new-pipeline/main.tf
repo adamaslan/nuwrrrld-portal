@@ -134,9 +134,9 @@ resource "google_secret_manager_secret" "alpaca_api_key" {
   }
 }
 
-resource "google_secret_manager_secret" "alpaca_secret_key" {
+resource "google_secret_manager_secret" "alpaca_api_secret" {
   project   = var.new_project_id
-  secret_id = "nwf-new-alpaca-secret-key"
+  secret_id = "nwf-new-alpaca-api-secret"
   labels    = local.labels
 
   replication {
@@ -169,7 +169,7 @@ resource "google_secret_manager_secret" "openrouter_api_key" {
 resource "google_secret_manager_secret_iam_member" "runtime_access" {
   for_each = {
     alpaca_api_key     = google_secret_manager_secret.alpaca_api_key.id
-    alpaca_secret_key  = google_secret_manager_secret.alpaca_secret_key.id
+    alpaca_api_secret  = google_secret_manager_secret.alpaca_api_secret.id
     openrouter_api_key = google_secret_manager_secret.openrouter_api_key.id
   }
 
