@@ -7,18 +7,17 @@ name: Track Followed Tickers (daily)
 #
 # Pattern copied from afternoon-pipeline.yml (see
 # docs/wiki-portal/decision-afternoon-pipeline-cron-split.md): market-hours
-# gate on the New York weekday and active UTC offset; only the seasonal cron
-# passes, even when GitHub delivers both entries after the close,
+# gate on the New York weekday and confirmed session close; the timezone-aware
+# schedule runs at 4:30 PM New York time across daylight saving changes,
 # workflow_dispatch with dry_run, secret verification, concurrency guard, step
 # summary, artifact upload, failure issue.
 #
 
 on:
   schedule:
-    # 4:30 PM EST (UTC-5) — post-close backup
-    - cron: '30 21 * * 1-5'
-    # 4:30 PM EDT (UTC-4) — post-close backup
-    - cron: '30 20 * * 1-5'
+    # 4:30 PM New York time — post-close backup
+    - cron: '30 16 * * 1-5'
+      timezone: America/New_York
   workflow_dispatch:
     inputs:
       skip_market_check:
@@ -62,7 +61,7 @@ jobs:
           alpaca-secret: ${{ secrets.ALPACA_API_SECRET }}
 
       - id: check
-        name: New York weekday, active cron, and session-close check
+        name: New York weekday, scheduled cron, and session-close check
         env:
           EVENT_NAME: ${{ github.event_name }}
           FIRED_CRON: ${{ github.event.schedule }}
@@ -72,7 +71,6 @@ jobs:
         run: |
           set -euo pipefail
           DAY=$(TZ=America/New_York date +%u)
-          NY_OFFSET=$(TZ=America/New_York date +%z)
           NY_TIME=$(TZ=America/New_York date +%H:%M)
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$SKIP_MARKET_CHECK" == "true" ]]; then
             echo "is_trading_day=true" >> "$GITHUB_OUTPUT"
@@ -84,11 +82,11 @@ jobs:
             exit 0
           fi
           if [[ "$EVENT_NAME" == "schedule" ]]; then
-            case "$NY_OFFSET:$FIRED_CRON" in
-              '-0500:30 21 * * 1-5'|'-0400:30 20 * * 1-5') ;;
+            case "$FIRED_CRON" in
+              '30 16 * * 1-5') ;;
               *)
                 echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
-                echo "Off-season cron entry — skipping."
+                echo "Unexpected cron entry — skipping."
                 exit 0
                 ;;
             esac
