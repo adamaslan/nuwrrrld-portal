@@ -10,13 +10,14 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 Companion page: [[concept-sync-requirements]] — the concrete work each surface needs to close the gap.
 Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
 
-## PR #291 assessment — 2026-10-15
+## PR #291 and homebase PR #8 assessment — 2026-10-15
 
 **Headline remains ~62% synced.** The new [[entity-gcp-credential-preflight]]
 checks provider credentials in a manual Cloud Run Job. It changes no portal or
 mobile client, shared module, data contract, or domain behavior. This is a
-scoped PR assessment, not a fresh parity audit; the domain matrix below and
-its denominator remain unchanged.
+scoped PR assessment, not a fresh parity audit. Homebase PR #8 adds an
+unapplied Terraform foundation for the dedicated slot, also with no client
+change. The domain matrix below and its denominator remain unchanged.
 
 | Operational dimension (outside the domain matrix) | Portal/GCP | Mobile impact |
 | --- | --- | --- |

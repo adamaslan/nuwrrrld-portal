@@ -2,7 +2,8 @@
 
 _Last updated: 2026-10-15 (PR #291 cloud credential preflight; parity remains ~62%)_
 
-**PR #291 scope:** the manual GCP provider preflight changed no client or
+**PR #291 and homebase PR #8 scope:** the manual GCP provider preflight and
+unapplied Terraform foundation changed no client or
 shared module. The [[concept-mobile-web-parity]] headline and domain matrix
 remain ~62% and unchanged; [[concept-sync-requirements]] adds no mobile port.
 

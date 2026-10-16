@@ -11,12 +11,12 @@ Companion page: [[concept-mobile-web-parity]] — the historical ~62% measuremen
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
-## PR #291 — cloud credential preflight
+## PR #291 and homebase PR #8 — cloud credential preflight
 
 The manual [[entity-gcp-credential-preflight]] verifies existing provider
 credentials from GCP without changing client behavior or a shared module.
 There is no mobile port or de-drift task. Its open work is infrastructure:
-obtain billing for a dedicated slot and connect the later pipeline worker to
+obtain billing for the dedicated slot defined by homebase PR #8 and connect the later pipeline worker to
 the shared Alpaca rate budget before running scheduled ingestion. The ~62%
 client-parity headline and domain requirements below are unchanged.
 

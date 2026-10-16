@@ -2,7 +2,7 @@
 date: 2026-10-15
 type: entity
 tags: [gcp, pipeline, alpaca, openrouter, credentials]
-sources: [../../deploy/new-pipeline/preflight.mjs, ../../deploy/new-pipeline/Dockerfile, ../../deploy/new-pipeline/build-image.sh, ../../deploy/new-pipeline/deploy-job.sh, PR#291]
+sources: [../../deploy/new-pipeline/preflight.mjs, ../../deploy/new-pipeline/Dockerfile, ../../deploy/new-pipeline/build-image.sh, ../../deploy/new-pipeline/deploy-job.sh, PR#291, homebase-PR#8]
 ---
 
 # Entity — GCP credential preflight
@@ -23,7 +23,8 @@ cannot enter the image upload. The job runs under a dedicated identity with
 access to three slot-specific Secret Manager secrets. The initial deployment
 uses the existing billed GCP project while the dedicated new-slot project
 awaits billing quota. See [[concept-gha-cloud-parity]] for the wider execution
-and observation boundary.
+and observation boundary. Homebase PR #8 records the unapplied Terraform
+foundation for the eventual dedicated project.
 
 ## Known failures
 
