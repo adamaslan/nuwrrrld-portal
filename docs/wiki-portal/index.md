@@ -1,6 +1,10 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-13 (paper arena query reduction; parity metrics unchanged)_
+_Last updated: 2026-10-15 (PR #291 cloud credential preflight; parity remains ~62%)_
+
+**PR #291 scope:** the manual GCP provider preflight changed no client or
+shared module. The [[concept-mobile-web-parity]] headline and domain matrix
+remain ~62% and unchanged; [[concept-sync-requirements]] adds no mobile port.
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -58,6 +62,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`, `/local-check`, `/nulogdash`; guardrails + the pre-PR conflict guard
 - [[entity-nulogdash]] — the self-audit surface: `FEATURE_META` inventory ↔ `app/api/**` filesystem scan with bidirectional drift warnings, the sweep runner, and the MFA-gated admin console at `/dashboard/nulogdash`
 - [[entity-playwright-e2e]] — the fourth test layer above vitest: `e2e/` credential-gated fault injection (preflight/health/ci/frontend tiers), `e2e-resiliency.yml` CI, and the nulogdash browser-tier merge
+- [[entity-gcp-credential-preflight]] — manual Cloud Run check of existing Alpaca and OpenRouter credentials; no production data writes
 
 ---
 
