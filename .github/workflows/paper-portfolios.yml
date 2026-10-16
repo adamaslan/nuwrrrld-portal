@@ -5,18 +5,19 @@ name: Council Paper Portfolios (4x daily)
 
 on:
   schedule:
+    # Local schedules follow DST without duplicate off-season gate runs.
     # preopen 09:00 ET
-    - cron: '0 14 * * 1-5'   # EST (UTC-5)
-    - cron: '0 13 * * 1-5'   # EDT (UTC-4)
+    - cron: '0 9 * * 1-5'
+      timezone: America/New_York
     # midday 12:30 ET
-    - cron: '30 17 * * 1-5'  # EST
-    - cron: '30 16 * * 1-5'  # EDT
+    - cron: '30 12 * * 1-5'
+      timezone: America/New_York
     # preclose 15:45 ET
-    - cron: '45 20 * * 1-5'  # EST
-    - cron: '45 19 * * 1-5'  # EDT
+    - cron: '45 15 * * 1-5'
+      timezone: America/New_York
     # settle 16:30 ET — mark-to-market close, no trading
-    - cron: '30 21 * * 1-5'  # EST
-    - cron: '30 20 * * 1-5'  # EDT
+    - cron: '30 16 * * 1-5'
+      timezone: America/New_York
   workflow_dispatch:
     inputs:
       slot:
