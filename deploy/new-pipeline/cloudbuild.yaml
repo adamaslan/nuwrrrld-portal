@@ -1,0 +1,5 @@
+# build-image.sh supplies only Dockerfile and preflight.mjs.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'Dockerfile', '-t', '${_IMAGE}', '.']
+images: ['${_IMAGE}']
