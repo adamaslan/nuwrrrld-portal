@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-13 (paper arena query reduction; parity metrics unchanged)_
+_Last updated: 2026-10-15 (PR #292 new pipeline infrastructure; parity metrics unchanged)_
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -55,6 +55,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-consent-system]] — cookie/tracking consent (`nu_consent` cookie, `consent_records`), express ToS/Privacy consent at sign-up (`legal_consent_events`), and data-subject-rights endpoints (`/api/privacy/{export,profile,delete}`); `lib/shared/consent.ts`, `lib/consent-db.ts`, `app/api/consent`, PR #77
 
 **Dev Tooling / Workflow**
+- [[entity-new-pipeline-infrastructure]] — proposed isolated GCP slot, Terraform foundation, validation and billing gate; PR #292
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`, `/local-check`, `/nulogdash`; guardrails + the pre-PR conflict guard
 - [[entity-nulogdash]] — the self-audit surface: `FEATURE_META` inventory ↔ `app/api/**` filesystem scan with bidirectional drift warnings, the sweep runner, and the MFA-gated admin console at `/dashboard/nulogdash`
 - [[entity-playwright-e2e]] — the fourth test layer above vitest: `e2e/` credential-gated fault injection (preflight/health/ci/frontend tiers), `e2e-resiliency.yml` CI, and the nulogdash browser-tier merge
