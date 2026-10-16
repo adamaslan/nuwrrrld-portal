@@ -17,11 +17,6 @@ resource "terraform_data" "isolation_guard" {
   }
 }
 
-data "google_project" "new_slot" {
-  project_id = var.new_project_id
-  depends_on = [terraform_data.isolation_guard]
-}
-
 resource "google_project_service" "required" {
   for_each = toset([
     "artifactregistry.googleapis.com",
@@ -81,6 +76,27 @@ resource "google_artifact_registry_repository" "images" {
 
   docker_config {
     immutable_tags = true
+  }
+
+  cleanup_policy_dry_run = true
+
+  cleanup_policies {
+    id     = "keep-recent-versions"
+    action = "KEEP"
+
+    most_recent_versions {
+      keep_count = 2
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-untagged-after-1d"
+    action = "DELETE"
+
+    condition {
+      tag_state  = "UNTAGGED"
+      older_than = "86400s"
+    }
   }
 
   depends_on = [google_project_service.required]

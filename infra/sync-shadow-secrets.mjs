@@ -2,18 +2,29 @@
 /** Copy only named NWF credentials into empty, slot-specific Secret Manager containers. */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
+import * as nodeUtil from "node:util";
 
-const [envPath, projectId] = process.argv.slice(2);
-if (!envPath || !projectId) {
-  console.error("Usage: node infra/sync-shadow-secrets.mjs PATH_TO_NWF_ENV GCP_PROJECT_ID");
+const [envPath, projectId, slot] = process.argv.slice(2);
+const slotProjects = new Map([
+  ["shadow", "ttb-lang1"],
+  ["new", "nwf-new-pipeline-20261015"],
+]);
+if (!envPath || !projectId || slotProjects.get(slot) !== projectId) {
+  console.error("Usage: node infra/sync-shadow-secrets.mjs PATH_TO_NWF_ENV GCP_PROJECT_ID shadow|new");
+  console.error("The slot must match its expected project ID.");
   process.exit(2);
 }
 
+const [nodeMajor, nodeMinor] = process.versions.node.split(".").map(Number);
+if (nodeMajor < 20 || (nodeMajor === 20 && nodeMinor < 12)) {
+  throw new Error("Node.js 20.12 or newer is required for parseEnv");
+}
+const { parseEnv } = nodeUtil;
+
 const names = new Map([
-  ["ALPACA_API_KEY", "nwf-shadow-alpaca-api-key"],
-  ["ALPACA_API_SECRET", "nwf-shadow-alpaca-api-secret"],
-  ["OPENROUTER_API_KEY", "nwf-shadow-openrouter-api-key"],
+  ["ALPACA_API_KEY", `nwf-${slot}-alpaca-api-key`],
+  ["ALPACA_API_SECRET", `nwf-${slot}-alpaca-api-secret`],
+  ["OPENROUTER_API_KEY", `nwf-${slot}-openrouter-api-key`],
 ]);
 
 const source = readFileSync(envPath, "utf8");

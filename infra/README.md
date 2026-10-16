@@ -24,7 +24,8 @@ or route production traffic.
   The Terraform foundation declares distinct empty containers for a future
   dedicated project. The temporary shadow deployment uses distinct secret
   containers in the billed `ttb-lang1` project, with versions copied from
-  the portal's local environment via `sync-shadow-secrets.mjs`.
+  the portal's local environment via `sync-shadow-secrets.mjs` with the
+  explicit `shadow` slot argument.
 
 ## Cloud deployment status
 
@@ -80,6 +81,18 @@ inventory. `sync-shadow-secrets.mjs` leaves a secret that already has an
 enabled version unchanged, so a rotated key is not copied; add a new version
 by hand to rotate.
 
+After the dedicated project's Terraform foundation is applied, populate its
+empty secret containers with Node.js 20.12 or newer:
+
+```bash
+node infra/sync-shadow-secrets.mjs .env.local nwf-new-pipeline-20261015 new
+```
+
+The script requires the slot and its matching project ID, checks for existing
+enabled versions, and does not print credential values. The temporary shadow
+slot uses `ttb-lang1 shadow` instead. Do not run either command before its
+secret containers exist.
+
 ## Deployable foundation
 
 1. Choose a dedicated, existing GCP project with billing enabled. Record its
@@ -113,6 +126,14 @@ can read only the new slot's three secret containers. No identity receives a
 role on the current project's resources. Cloud Run, Firestore, scheduling,
 monitoring, and application code remain to be connected after the target
 project and state ownership are verified.
+
+The new image repository has immutable tags. Builds must use a unique tag for
+each image, and deployments must pin the tested digest. Its cleanup policy is
+in dry-run mode: it retains the two newest versions per package and proposes
+deleting untagged versions older than one day. Review the dry-run findings
+before allowing deletion; tagged historical images are outside that delete
+rule. The artifact bucket and credential containers retain `prevent_destroy`;
+rollback needs an explicit reviewed Terraform change before removing them.
 
 ## Local checks already run
 
