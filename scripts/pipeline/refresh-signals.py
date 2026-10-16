@@ -38,16 +38,19 @@ from pathlib import Path
 # Load env from mcp-finance1 project
 # scripts/pipeline/ -> repo root -> ~/code; mcp-finance1 is a sibling checkout of this repo
 _ROOT = Path(__file__).resolve().parents[3] / "gcp-app-w-mcp1" / "mcp-finance1"
+
+import logging
+
+from market_data import MIN_BARS, PERIOD_CHOICES, PORTAL_ENV_FILE, load_market_data
+
 try:
     from dotenv import load_dotenv
     load_dotenv(_ROOT / ".env")
     load_dotenv(_ROOT / ".env.local", override=False)
+    # PORTAL_PUSH_SECRET and EXPO_PUBLIC_PORTAL_URL live in the portal env (or its primary checkout).
+    load_dotenv(PORTAL_ENV_FILE, override=False)
 except ImportError:
     pass
-
-import logging
-
-from market_data import load_market_data
 
 logging.basicConfig(level=logging.INFO, format="  %(levelname)s %(message)s")
 
@@ -93,7 +96,7 @@ def analyze_ticker(ticker: str, md: dict) -> dict | None:
     try:
         import ta
         df = md["df"]
-        if len(df) < 30:
+        if len(df) < MIN_BARS:
             print(f"  ⚠  {ticker}: insufficient data ({len(df)} bars)")
             return None
 
@@ -167,11 +170,12 @@ def get_news_sentiment(ticker: str, finnhub_key: str | None) -> str | None:
 # Firestore write
 # ---------------------------------------------------------------------------
 
-def push_to_firestore(signals: list[dict], dry_run: bool) -> None:
+def push_to_firestore(signals: list[dict], dry_run: bool) -> bool:
+    """Return True when the digest was written (or nothing was requested in dry-run)."""
     print("\n📦 Firestore push...")
     if dry_run:
         print("  [dry-run] Would write", len(signals), "signals to Firestore collection 'nwf_digest'")
-        return
+        return True
     try:
         from google.cloud import firestore
         db = firestore.Client(project="ttb-lang1")
@@ -187,17 +191,20 @@ def push_to_firestore(signals: list[dict], dry_run: bool) -> None:
         })
         batch.commit()
         print(f"  ✓  Wrote digest to nwf_digest/{date_key}")
+        return True
     except ImportError:
         print("  ⚠  google-cloud-firestore not installed. Run: mamba install -c conda-forge google-cloud-firestore")
     except Exception as e:
         print(f"  ✗  Firestore error: {e}")
+    return False
 
 
 # ---------------------------------------------------------------------------
 # Portal cache push (hits /refresh/bake on the live backend, or a custom endpoint)
 # ---------------------------------------------------------------------------
 
-def push_to_portal(signals: list[dict], dry_run: bool) -> None:
+def push_to_portal(signals: list[dict], dry_run: bool) -> bool:
+    """Return True when the portal accepted the digest (or nothing was requested in dry-run)."""
     import requests
     portal_url = os.getenv("EXPO_PUBLIC_PORTAL_URL", "https://financial.nuwrrrld.com")
     secret = os.getenv("PORTAL_PUSH_SECRET", "")
@@ -214,8 +221,9 @@ def push_to_portal(signals: list[dict], dry_run: bool) -> None:
     if dry_run:
         print("  [dry-run] Would POST", len(signals), "signals to portal")
         print(json.dumps(digest, indent=2)[:800])
-        return
+        return True
 
+    published = False
     try:
         res = requests.post(
             f"{portal_url}/api/signals/refresh",
@@ -223,6 +231,7 @@ def push_to_portal(signals: list[dict], dry_run: bool) -> None:
             headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"},
             timeout=10,
         )
+        published = res.ok
         if res.ok:
             print(f"  ✓  Portal responded {res.status_code}")
         else:
@@ -235,12 +244,13 @@ def push_to_portal(signals: list[dict], dry_run: bool) -> None:
     print(f"\n🔄 GCP3 backend refresh → {gcp3_url}/refresh/bake")
     if dry_run:
         print("  [dry-run] Would POST to GCP3 /refresh/bake")
-        return
+        return published
     try:
         res2 = requests.post(f"{gcp3_url}/refresh/bake", timeout=30)
         print(f"  GCP3 /refresh/bake: {res2.status_code} {res2.text[:100]}")
     except Exception as e:
         print(f"  GCP3 refresh failed: {e}")
+    return published
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +265,8 @@ def main() -> None:
     parser.add_argument("--push", action="store_true", help="Push digest to portal")
     parser.add_argument("--firestore", action="store_true", help="Write to Firestore")
     parser.add_argument("--dry-run", action="store_true", help="No writes — print only")
-    parser.add_argument("--period", default="3mo", help="history window: 1mo, 3mo, 6mo or 1y (default: 3mo)")
+    parser.add_argument("--period", default="3mo", choices=PERIOD_CHOICES,
+                        help="history window: 3mo, 6mo or 1y (default: 3mo)")
     args = parser.parse_args()
 
     tickers = args.tickers or UNIVERSES[args.universe]
@@ -286,16 +297,24 @@ def main() -> None:
     for s in sorted(signals, key=lambda x: ("bearish", "neutral", "bullish").index(x["direction"])):
         print(f"  {s['ticker']:<6} {s['direction']:<8} {s['confidence']:<6} RSI={s['rsi']:.0f}")
 
-    if args.firestore:
-        push_to_firestore(signals, dry_run=args.dry_run)
-
-    if args.push:
-        push_to_portal(signals, dry_run=args.dry_run)
-
     if not args.push and not args.firestore:
         print("\n💡 Add --push to push to portal, --firestore to write to Firestore")
         print("   Add --dry-run to preview without writing")
 
+    # An empty digest would replace the cached/persisted one, so publish nothing and fail loudly.
+    publication_failed = False
+    if (args.firestore or args.push) and not signals:
+        print("\n✗  No signals generated; skipping publication so the previous digest is kept.")
+        publication_failed = True
+    else:
+        if args.firestore and not push_to_firestore(signals, dry_run=args.dry_run):
+            publication_failed = True
+        if args.push and not push_to_portal(signals, dry_run=args.dry_run):
+            publication_failed = True
+
+    if publication_failed:
+        print(f"\nFailed. {len(signals)} signals ready, but a requested publication did not complete.\n")
+        sys.exit(1)
     print(f"\nDone. {len(signals)} signals ready.\n")
 
 

@@ -60,8 +60,9 @@ except ImportError as e:
     sys.exit(f"Missing dependency: {e}\nRun: mamba install -c conda-forge yfinance pandas ta requests boto3")
 
 import logging
+from html import escape as html_escape
 
-from market_data import load_market_data
+from market_data import MIN_BARS, PERIOD_CHOICES, load_market_data
 
 logging.basicConfig(level=logging.INFO, format="  %(levelname)s %(message)s")
 
@@ -70,7 +71,7 @@ logging.basicConfig(level=logging.INFO, format="  %(levelname)s %(message)s")
 def analyze(ticker: str, md: dict) -> dict | None:
     try:
         df = md["df"]
-        if len(df) < 30:
+        if len(df) < MIN_BARS:  # below this, MACD signal and histogram are NaN
             return None
         c = df["Close"]; v = df["Volume"]
         rsi  = float(ta.momentum.RSIIndicator(c, 14).rsi().iloc[-1])
@@ -197,7 +198,8 @@ def trigger_gcp3_refresh(dry_run: bool) -> dict:
 
 # ── Firestore write ───────────────────────────────────────────────────────
 
-def write_firestore(results: list[dict], universe: str, elapsed: float, dry_run: bool) -> dict:
+def write_firestore(results: list[dict], universe: str, elapsed: float, dry_run: bool,
+                    expected: int) -> dict:
     summary: dict[str, Any] = {}
     if dry_run:
         print("  [dry-run] Would write to Firestore")
@@ -206,6 +208,11 @@ def write_firestore(results: list[dict], universe: str, elapsed: float, dry_run:
         from google.cloud import firestore as fs
         db = fs.Client(project="ttb-lang1")
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # A partial run must not replace the day's complete publication; it gets its own key.
+        complete = len(results) == expected
+        day_key = today if complete else f"{today}-partial-{datetime.now(timezone.utc):%H%M%S}"
+        if not complete:
+            print(f"  ⚠ Firestore: partial run ({len(results)}/{expected}); day docs go to {day_key}")
         batch = db.batch()
 
         # analysis collection — one doc per symbol
@@ -231,19 +238,19 @@ def write_firestore(results: list[dict], universe: str, elapsed: float, dry_run:
         bullish = [r for r in results if r["direction"] == "bullish"]
         bearish = [r for r in results if r["direction"] == "bearish"]
         high_conf = [r for r in results if r["confidence"] == "high"]
-        batch.set(db.collection("summaries").document(today), {
+        batch.set(db.collection("summaries").document(day_key), {
             "date": today,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_analyzed": len(results),
             "successful": len(results),
-            "errors": 0,
+            "errors": expected - len(results),
             "top_bullish": sorted(bullish, key=lambda x: x["ai_score"], reverse=True)[:5],
             "top_bearish": sorted(bearish, key=lambda x: x["ai_score"])[:5],
             "high_confidence": high_conf,
         })
 
         # scans collection
-        batch.set(db.collection("scans").document(today), {
+        batch.set(db.collection("scans").document(day_key), {
             "universe": universe,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_scanned": len(results),
@@ -253,7 +260,7 @@ def write_firestore(results: list[dict], universe: str, elapsed: float, dry_run:
         })
 
         # gcp3_cache
-        batch.set(db.collection("gcp3_cache").document(today), {
+        batch.set(db.collection("gcp3_cache").document(day_key), {
             "date": today,
             "updated_at": fs.SERVER_TIMESTAMP,
             "count": len(results),
@@ -261,7 +268,7 @@ def write_firestore(results: list[dict], universe: str, elapsed: float, dry_run:
         })
 
         # nwf_digest — NuWrrrld portal digest
-        batch.set(db.collection("nwf_digest").document(today), {
+        batch.set(db.collection("nwf_digest").document(day_key), {
             "schemaVersion": 1,
             "periodLabel": f"Week of {datetime.now(timezone.utc).strftime('%b %-d')}",
             "signals": [{k: r[k] for k in ("id","ticker","direction","timeframe","confidence",
@@ -289,6 +296,9 @@ def push_portal(results: list[dict], dry_run: bool) -> dict:
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "sources": _sources(results),
     }
+    if not results:  # the portal replaces its cached digest; an empty run must not blank it
+        print("  ✗ Portal push skipped: no signals generated")
+        return {"skipped": "no signals"}
     if dry_run:
         print(f"  [dry-run] Would POST {len(results)} signals to {PORTAL_URL}/api/signals/refresh")
         return {"skipped": True}
@@ -361,7 +371,7 @@ def generate_html(results: list[dict], gcp3_data: dict, meta: dict, out_path: Pa
           <td><span style="color:{'#16a34a' if action=='BUY' else '#dc2626' if action=='SELL' else '#888'};font-weight:700">{action}</span></td>
           <td>{score}</td>
           <td style="color:{'#16a34a' if chg>=0 else '#dc2626'}">{chg:+.1f}%</td>
-          <td style="font-size:.75rem;color:#555">{str(sig.get('ai_summary',''))[:80]}</td>
+          <td style="font-size:.75rem;color:#555">{html_escape(str(sig.get('ai_summary',''))[:80])}</td>
         </tr>"""
 
     html = f"""<!DOCTYPE html>
@@ -467,6 +477,13 @@ def generate_html(results: list[dict], gcp3_data: dict, meta: dict, out_path: Pa
     out_path.write_text(html, encoding="utf-8")
     return out_path
 
+def _firestore_doc_count(firestore_result: dict) -> int:
+    """Docs actually committed: zero for dry-run, skipped, or failed writes."""
+    if firestore_result.get("skipped") or "error" in firestore_result:
+        return 0
+    return sum(v for v in firestore_result.values() if isinstance(v, int))
+
+
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -479,13 +496,17 @@ def main() -> None:
     p.add_argument("--output", default=os.path.expanduser("~/Desktop"))
     p.add_argument("--open", action="store_true", dest="open_browser")
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--period", default="3mo")
+    p.add_argument("--period", default="3mo", choices=PERIOD_CHOICES)
     args = p.parse_args()
+    # Create the report directory before any remote write, so a bad path fails before publication.
+    Path(args.output).mkdir(parents=True, exist_ok=True)
 
-    if args.universe == "all":
+    if args.tickers:
+        tickers = args.tickers
+    elif args.universe == "all":
         tickers = sorted({t for lst in UNIVERSES.values() for t in lst})
     else:
-        tickers = args.tickers or UNIVERSES[args.universe]
+        tickers = UNIVERSES[args.universe]
 
     print(f"\n{'='*60}")
     print(f"  locrun — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
@@ -527,7 +548,8 @@ def main() -> None:
     firestore_result: dict = {}
     if not args.no_firestore:
         print("── Firestore ─────────────────────────────────────")
-        firestore_result = write_firestore(results, args.universe, elapsed, dry_run=args.dry_run)
+        firestore_result = write_firestore(results, args.universe, elapsed, dry_run=args.dry_run,
+                                           expected=len(tickers))
         print()
 
     # Portal push
@@ -542,7 +564,7 @@ def main() -> None:
     out_file = Path(args.output) / f"locrun-{date_str}.html"
     meta = {
         "universe": args.universe, "total": len(results),
-        "elapsed": elapsed, "firestore_docs": len(results) + 4,
+        "elapsed": elapsed, "firestore_docs": _firestore_doc_count(firestore_result),
     }
     generate_html(results, gcp3_signals, meta, out_file)
     print(f"  ✓ Report saved: {out_file}")

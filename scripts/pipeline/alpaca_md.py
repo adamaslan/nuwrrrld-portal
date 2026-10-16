@@ -104,7 +104,7 @@ def _take_token(n: int = 1) -> None:
             time.sleep(wait)
         _last_request_at = time.monotonic()
         return
-    from botocore.exceptions import ClientError
+    from botocore.exceptions import BotoCoreError, ClientError
 
     for _ in range(BUDGET_MAX_WAITS):
         now = time.time()
@@ -121,6 +121,9 @@ def _take_token(n: int = 1) -> None:
                 log.warning("alpaca rate budget write failed (%s); pacing locally", exc)
                 return
             time.sleep(60 - (time.time() % 60) + 1)  # wait for the next minute, never switch vendor
+        except BotoCoreError as exc:  # endpoint down or credential refresh failed: pace locally
+            log.warning("alpaca rate budget unreachable (%s); pacing locally", exc)
+            return
     raise AlpacaBudgetExhausted("shared Alpaca budget still exhausted after waiting")
 
 
@@ -144,7 +147,10 @@ def _get(path: str, params: dict) -> dict:
             elif resp.status_code >= 400:
                 raise AlpacaError(f"alpaca {resp.status_code}: {resp.text[:200]}")
             else:
-                return resp.json()
+                try:
+                    return resp.json()
+                except ValueError as exc:  # 200 with a non-JSON body, e.g. a proxy or captive portal
+                    raise AlpacaError(f"alpaca non-JSON response: {exc}") from exc
         time.sleep(min(2 ** attempt, 20))
     raise AlpacaError(f"alpaca request failed after {MAX_RETRIES} attempts: {last}")
 

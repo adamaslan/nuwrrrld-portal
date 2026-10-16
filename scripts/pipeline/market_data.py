@@ -43,9 +43,12 @@ def _load_alpaca_keys() -> None:
 _load_alpaca_keys()
 
 # Calendar days to request per --period; 3mo of daily bars plus a buffer for holidays.
-PERIOD_DAYS = {"1mo": 45, "3mo": 120, "6mo": 220, "1y": 400}
-DEFAULT_PERIOD_DAYS = 120
+# 1mo is deliberately absent: ~21 trading days can never reach MIN_BARS.
+PERIOD_DAYS = {"3mo": 120, "6mo": 220, "1y": 400}
+PERIOD_CHOICES = tuple(PERIOD_DAYS)
 
+# MACD(12, 26) plus its 9-bar signal line first has a valid value at bar 34.
+MIN_BARS = 34
 
 
 def load_market_data(tickers: list[str], period: str) -> dict[str, dict]:
@@ -53,7 +56,7 @@ def load_market_data(tickers: list[str], period: str) -> dict[str, dict]:
 
     Returns {ticker: {"df", "price", "prev_close", "data_as_of", "source"}}.
     """
-    days = PERIOD_DAYS.get(period, DEFAULT_PERIOD_DAYS)
+    days = PERIOD_DAYS[period]
     data: dict[str, dict] = {}
     if alpaca_md.is_configured():
         try:
@@ -63,6 +66,8 @@ def load_market_data(tickers: list[str], period: str) -> dict[str, dict]:
             frames, quotes = {}, {}
             alpaca_md.warn_fallback("daily bars", tickers, exc)
         for t, df in frames.items():
+            if len(df) < MIN_BARS:  # too short for the indicators: let yfinance try, else "no data"
+                continue
             q = quotes.get(t, {})
             data[t] = {
                 "df": df,
@@ -81,7 +86,7 @@ def load_market_data(tickers: list[str], period: str) -> dict[str, dict]:
         try:
             t_obj = yf.Ticker(t)
             df = t_obj.history(period=period)
-            if df is None or len(df) < 30:
+            if df is None or len(df) < MIN_BARS:
                 continue
             fi = t_obj.fast_info
             data[t] = {
