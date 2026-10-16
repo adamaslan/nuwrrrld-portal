@@ -42,6 +42,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
 - [[entity-live-price-tier]] — `/api/signals/live` + `live_prices`; Finnhub WS lane + the Modal drain cron
+- [[entity-local-signal-pipeline-scripts]] — `scripts/pipeline/`: Alpaca-first local signal pipeline (`locrun.py`, `refresh-signals.py`, `market_data.py`, `alpaca_md.py`), moved from homebase
 - [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
 - [[entity-sqlite-backup]] — `scripts/backup-to-sqlite.mjs` + `lib/db/schema.sqlite.sql`; point-in-time Neon → local SQLite snapshot export, zero new dependencies
 - [[entity-db-parity-suite]] — `scripts/gen-sqlite-schema.mjs` (generates the SQLite schema instead of hand-maintaining it) + `test/db-parity/`; contract-tests 10 of 14 `lib/*-db.ts` modules against both engines
