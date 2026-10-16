@@ -11,11 +11,16 @@ Companion page: [[concept-mobile-web-parity]] — the historical ~62% measuremen
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
-## PR #293 — followed-ticker schedule
+## PR #293 — portal schedule consolidation
 
 The portal's daily observer now has one 16:30 America/New_York schedule in
 place of the EST/EDT pair. Its close and calendar gates remain. This is a
 portal operations change, so it adds no mobile port or shared-code sync task.
+
+Four local-time schedules replace eight UTC entries while preserving the four
+paper-trading slots. This portal operations change creates no mobile port or
+shared-code sync requirement. Scheduled end-to-end behavior remains to be
+verified after the existing credential and seed blockers are cleared.
 
 ## Drift-gate coverage — 2026-10-14
 
