@@ -27,11 +27,11 @@ Terraform foundation has been reviewed and applied.
 
 ## Known failures
 
-The dedicated project's billing link was rejected by the account's project quota. A local preview plan for the shared-project root showed 17 creates, zero changes, and zero destroys; the remote state bucket and cloud apply are still pending. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts. Same-project placement shares administrators, API enablement, billing, and quotas with the running backend.
+The dedicated project's billing link was rejected by the account's project quota. A versioned state bucket now exists in `ttb-lang1`, and the remote-backend cloud plan shows 17 creates, zero changes, and zero destroys. Terraform apply is still pending independent verification and owner approval. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts. Same-project placement shares administrators, API enablement, billing, and quotas with the running backend.
 
 ## Open questions
 
-- When will the proposed versioned state bucket be created and a remote plan reviewed?
+- When will independent verification and owner review clear the saved plan for apply?
 - When will the pipeline worker, watchdog, and outcome contracts be implemented and tested?
 - How will the shadow deployment be retired after the separate slot is proved?
 

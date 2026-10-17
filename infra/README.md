@@ -105,13 +105,11 @@ secret containers exist.
    project guard. Record it in a local, ignored `terraform.tfvars` based on
    `terraform.tfvars.example`. Do not target a different project without a
    reviewed code change.
-2. Bootstrap a **pre-existing** versioned GCS state bucket with restricted
-   access. The GCS backend cannot create its own bucket. The proposed name is
-   `nwf-tfstate-ttb-lang1-new-pipeline`; confirm it remains available before
-   creating it in `ttb-lang1` with uniform bucket-level access, public access
-   prevention, and versioning. Put its name in a local, ignored `backend.hcl`
-   based on `backend.hcl.example`; keep the `nwf/new-pipeline/terraform`
-   prefix distinct from every other state.
+2. Use the pre-existing `nwf-tfstate-ttb-lang1-new-pipeline` GCS state bucket,
+   created on 2026-10-17 with uniform bucket-level access, public access
+   prevention, and versioning. Verify these controls before each plan. Put its
+   name in a local, ignored `backend.hcl` based on `backend.hcl.example`; keep
+   the `nwf/new-pipeline/terraform` prefix distinct from every other state.
 3. Confirm the trusted GitHub repository and owner numeric IDs, default
    branch, region, bucket name, project APIs, permissions, and billing. Five
    required APIs are already enabled; the plan adds only STS API enablement.
@@ -125,10 +123,12 @@ secret containers exist.
    terraform show phase1.tfplan
    ```
 
-   Review the whole plan for deletion, replacement, IAM scope, and project
-   identity before an authorized `terraform apply phase1.tfplan`. The backend
-   uses state locking and bucket versioning for recovery. Never commit state,
-   plans, backend configuration, or populated tfvars.
+   The 2026-10-17 cloud plan has 17 creates, 0 changes, and 0 destroys, all in
+   `ttb-lang1`. Review the whole saved plan for deletion, replacement, IAM
+   scope, and project identity before an authorized `terraform apply
+   phase1.tfplan`. The backend uses state locking and bucket versioning for
+   recovery. Never commit state, plans, backend configuration, or populated
+   tfvars.
 
 The foundation grants GitHub's trusted numeric repository ID on the chosen
 branch permission to impersonate only the new deploy service account. That
