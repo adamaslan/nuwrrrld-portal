@@ -9,7 +9,7 @@ sources: [../../infra/slots/new-pipeline, ../../infra/README.md, ../../docs/nwf-
 
 ## What it is
 
-An unapplied Terraform root for a separate NWF pipeline slot. It defines a runtime identity, a deploy identity, an image repository, empty credential containers, and repository-scoped Workload Identity Federation. The reviewed design and operational gates are in `docs/nwf-new-slot-terraform.md`.
+An unapplied Terraform root for a separately named NWF pipeline slot in the existing billed project. The owner chose the shared-project placement on 2026-10-16 after the dedicated project's billing quota blocked deployment. It defines a runtime identity, a deploy identity, an image repository, empty credential containers, and repository-scoped Workload Identity Federation. The current design and operational gates are in `docs/nwf-new-slot-terraform.md`.
 
 The repository has immutable tags and a dry-run retention policy that keeps
 two recent versions per package and proposes deleting untagged versions older
@@ -18,20 +18,20 @@ deletion is active in this new-slot configuration.
 
 ## Where used
 
-`infra/slots/new-pipeline/` owns the proposed resources. `infra/README.md` gives the setup and validation sequence. The manual credential preflight in portal PR #291 uses isolated resources in the existing billed project while the dedicated project lacks billing capacity.
+`infra/slots/new-pipeline/` owns the proposed resources and pins the project to `ttb-lang1`. `infra/README.md` gives the setup and validation sequence. The manual credential preflight in portal PR #291 uses separate shadow resources in that same project.
 
 `infra/sync-shadow-secrets.mjs` now requires an explicit `shadow` or `new`
 target and checks that it matches the expected project before copying only
-missing credential versions. The dedicated slot remains empty until its
+missing credential versions. The new slot remains empty until its
 Terraform foundation has been reviewed and applied.
 
 ## Known failures
 
-The dedicated project's billing link was rejected by the account's project quota. No cloud Terraform plan or apply has run. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts.
+The dedicated project's billing link was rejected by the account's project quota. A local preview plan for the shared-project root showed 17 creates, zero changes, and zero destroys; the remote state bucket and cloud apply are still pending. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts. Same-project placement shares administrators, API enablement, billing, and quotas with the running backend.
 
 ## Open questions
 
-- Which billed project and versioned state bucket will own the isolated slot?
+- When will the proposed versioned state bucket be created and a remote plan reviewed?
 - When will the pipeline worker, watchdog, and outcome contracts be implemented and tested?
 - How will the shadow deployment be retired after the separate slot is proved?
 

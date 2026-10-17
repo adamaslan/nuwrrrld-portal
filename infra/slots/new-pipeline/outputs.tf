@@ -1,6 +1,6 @@
 output "slot_project_id" {
-  value       = var.new_project_id
-  description = "Dedicated project for the new-pipeline slot."
+  value       = var.slot_project_id
+  description = "Existing billed project hosting the new-pipeline slot."
 }
 
 output "runtime_service_account" {

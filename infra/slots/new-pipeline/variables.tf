@@ -1,16 +1,11 @@
-variable "new_project_id" {
-  description = "Existing dedicated GCP project for the new-pipeline slot. This configuration never creates or adopts the current project."
+variable "slot_project_id" {
+  description = "Existing billed project hosting the NWF backend. The project guard currently permits only ttb-lang1."
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.new_project_id))
-    error_message = "new_project_id must be a valid GCP project ID."
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.slot_project_id))
+    error_message = "slot_project_id must be a valid GCP project ID."
   }
-}
-
-variable "current_project_id" {
-  description = "Current production project ID, used only for the isolation guard."
-  type        = string
 }
 
 variable "region" {

@@ -12,6 +12,6 @@ terraform {
 }
 
 provider "google" {
-  project = var.new_project_id
+  project = var.slot_project_id
   region  = var.region
 }

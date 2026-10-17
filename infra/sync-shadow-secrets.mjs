@@ -7,7 +7,7 @@ import * as nodeUtil from "node:util";
 const [envPath, projectId, slot] = process.argv.slice(2);
 const slotProjects = new Map([
   ["shadow", "ttb-lang1"],
-  ["new", "nwf-new-pipeline-20261015"],
+  ["new", "ttb-lang1"],
 ]);
 if (!envPath || !projectId || slotProjects.get(slot) !== projectId) {
   console.error("Usage: node infra/sync-shadow-secrets.mjs PATH_TO_NWF_ENV GCP_PROJECT_ID shadow|new");
