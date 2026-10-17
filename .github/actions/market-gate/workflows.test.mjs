@@ -65,16 +65,26 @@ function runTrack(overrides = {}) {
   const output = join(dir, 'output');
   writeFileSync(join(dir, 'date'), '#!/bin/bash\ncase "$1" in +%u) echo "$TEST_DAY";; +%z) echo "$TEST_OFFSET";; +%H:%M) echo "$TEST_TIME";; *) exit 1;; esac\n', { mode: 0o755 });
   const { script } = shellStep(track, 'check');
-  const result = spawnSync('bash', ['-c', script], { env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: output, TEST_DAY: '5', TEST_OFFSET: '-0400', TEST_TIME: '21:35', EVENT_NAME: 'schedule', FIRED_CRON: '30 20 * * 1-5', SKIP_MARKET_CHECK: 'false', CALENDAR_TRADING_DAY: 'true', SESSION_CLOSE: '16:00', ...overrides }, encoding: 'utf8' });
+  const result = spawnSync('bash', ['-c', script], { env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_OUTPUT: output, TEST_DAY: '5', TEST_OFFSET: '-0400', TEST_TIME: '21:35', EVENT_NAME: 'schedule', FIRED_CRON: '30 16 * * 1-5', SKIP_MARKET_CHECK: 'false', CALENDAR_TRADING_DAY: 'true', SESSION_CLOSE: '16:00', ...overrides }, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   return readFileSync(output, 'utf8').trim();
 }
 test('delayed Friday EDT fire is accepted after UTC midnight', () => assert.equal(runTrack(), 'is_trading_day=true'));
-test('off-season EST fire is rejected even after close', () => assert.equal(runTrack({ FIRED_CRON: '30 21 * * 1-5' }), 'is_trading_day=false'));
-test('winter validates the EST entry', () => assert.equal(runTrack({ TEST_OFFSET: '-0500', FIRED_CRON: '30 21 * * 1-5' }), 'is_trading_day=true'));
+test('one New York schedule covers both daylight saving offsets', () => {
+  assert.equal((track.match(/^    - cron:/gm) || []).length, 1);
+  assert.match(track, /cron: '30 16 \* \* 1-5'\n      timezone: America\/New_York/);
+  assert.equal(runTrack({ TEST_OFFSET: '-0500', TEST_TIME: '16:30' }), 'is_trading_day=true');
+  assert.equal(runTrack({ TEST_OFFSET: '-0400', TEST_TIME: '16:30' }), 'is_trading_day=true');
+});
+test('retired UTC schedules are rejected even after close', () => {
+  for (const cron of ['30 20 * * 1-5', '30 21 * * 1-5']) {
+    assert.equal(runTrack({ FIRED_CRON: cron }), 'is_trading_day=false');
+  }
+});
 test('weekends and unconfirmed calendar fail closed', () => {
   assert.equal(runTrack({ TEST_DAY: '6' }), 'is_trading_day=false');
   assert.equal(runTrack({ CALENDAR_TRADING_DAY: '' }), 'is_trading_day=false');
+  assert.equal(runTrack({ SESSION_CLOSE: '' }), 'is_trading_day=false');
 });
 test('post-close gate uses the actual early close', () => {
   assert.equal(runTrack({ TEST_TIME: '13:01', SESSION_CLOSE: '13:00' }), 'is_trading_day=true');

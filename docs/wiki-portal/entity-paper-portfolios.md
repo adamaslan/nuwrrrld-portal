@@ -56,7 +56,7 @@ tracks what's actually built against that 8-phase plan.
 | 1 | Schema (6 tables + trigger) + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` | **Shipped** — PR #124 |
 | 2 | `scripts/seed-paper-portfolios.mjs` | **Shipped** — PR #127, only actually run against production for real on 2026-09-22 (8 accounts, 501 watchlist rows) — see PR #147's companion wiki incident page (rebase note: same-day PR, merge order matters here) |
 | 3 | Deterministic engine + `/api/pipeline/paper-portfolios` | **Shipped** — PR #128 |
-| 4 | GitHub Actions cron (4 slots × 2 DST crons) | **Shipped** — PR #137, but its slot gate never matched a real cron tick (exact-minute equality vs. GHA's typical 30-90min late start) — see [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]. Gate fixed to a window match in PR #147; `PAPER_CRON_SECRET` provisioning and the real account seed remain open, so scheduled runs still don't complete end to end as of 2026-09-22. |
+| 4 | GitHub Actions cron (4 New York slots) | **Shipped** — PR #137 introduced the schedule; PR #147 repaired its slot window; PR #293 replaces paired UTC entries with one local-time schedule per slot. `PAPER_CRON_SECRET` provisioning and the real account seed remain open, so end-to-end scheduled execution is still unverified. See [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]. |
 | 5 | Arbitration layer (model veto/downsize/confirm) | **Shipped** — PR #138 |
 | 6 | Firestore mirror + reconciliation | **Shipped** — PR #138 |
 | 7 | `/api/paper/*` + `/dashboard/council/portfolios` | **Shipped** — this PR (`feat/paper-portfolios-phase-7-api-dashboard`, cut independently from `origin/main`) |
@@ -91,8 +91,8 @@ tracks what's actually built against that 8-phase plan.
   also enforces `lib/pipeline-db-guard.ts`'s prod-DB guard (guardrail #2 —
   Phase 3 shipped without it) and computes the shared ≤36/run, ≤108/day
   model-call budget via `lib/paper-db.ts`'s new `getModelCallsToday`.
-- `.github/workflows/paper-portfolios.yml` (Phase 4) — 8 cron lines (4 slots ×
-  EST/EDT), gate resolves which slot *window* the NY wall-clock time falls in
+- `.github/workflows/paper-portfolios.yml` (Phase 4) — 4 New York timezone
+  cron lines (one per slot), gate resolves which slot *window* the NY wall-clock time falls in
   (PR #147 — originally an exact-minute match that never fired, see
   [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]) rather
   than a fixed hour (unlike `track-followed-tickers.yml`'s single-slot gate),
