@@ -1,6 +1,11 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-15 (PR #292 new pipeline infrastructure; parity metrics unchanged)_
+_Last updated: 2026-10-17 (PR #292 new pipeline infrastructure; parity metrics unchanged)_
+
+**PR #291 and homebase PR #8 scope:** the manual GCP provider preflight and
+unapplied Terraform foundation changed no client or
+shared module. The [[concept-mobile-web-parity]] headline and domain matrix
+remain ~62% and unchanged; [[concept-sync-requirements]] adds no mobile port.
 
 **New here / cold-started? Read [[START-HERE]] first** — it routes you to the right pages for your task in the right order (step 0: Orient, per [[concept-wiki-led-development]]).
 
@@ -42,6 +47,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-holdfold-cache]] — `lib/holdfold-cache-db.ts` + `watchlist-store.ts`; Neon L2 cache vs. user-data store
 - [[entity-portfolio-intelligence]] — `lib/portfolio.ts`; health score, optimizer, watchlist
 - [[entity-live-price-tier]] — `/api/signals/live` + `live_prices`; Finnhub WS lane + the Modal drain cron
+- [[entity-local-signal-pipeline-scripts]] — `scripts/pipeline/`: Alpaca-first local signal pipeline (`locrun.py`, `refresh-signals.py`, `market_data.py`, `alpaca_md.py`), moved from homebase
 - [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
 - [[entity-sqlite-backup]] — `scripts/backup-to-sqlite.mjs` + `lib/db/schema.sqlite.sql`; point-in-time Neon → local SQLite snapshot export, zero new dependencies
 - [[entity-db-parity-suite]] — `scripts/gen-sqlite-schema.mjs` (generates the SQLite schema instead of hand-maintaining it) + `test/db-parity/`; contract-tests 10 of 14 `lib/*-db.ts` modules against both engines
@@ -59,6 +65,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`, `/local-check`, `/nulogdash`; guardrails + the pre-PR conflict guard
 - [[entity-nulogdash]] — the self-audit surface: `FEATURE_META` inventory ↔ `app/api/**` filesystem scan with bidirectional drift warnings, the sweep runner, and the MFA-gated admin console at `/dashboard/nulogdash`
 - [[entity-playwright-e2e]] — the fourth test layer above vitest: `e2e/` credential-gated fault injection (preflight/health/ci/frontend tiers), `e2e-resiliency.yml` CI, and the nulogdash browser-tier merge
+- [[entity-gcp-credential-preflight]] — manual Cloud Run check of existing Alpaca and OpenRouter credentials; no production data writes
 
 ---
 
