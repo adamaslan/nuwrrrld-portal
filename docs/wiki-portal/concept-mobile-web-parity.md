@@ -22,6 +22,19 @@ of eight seasonal UTC entries. The change affects portal runner frequency and
 slot resolution; it adds no mobile feature, API contract, or shared module.
 The historical ~62% headline and feature-domain matrix are unchanged.
 
+## PR #291 and homebase PR #8 assessment — 2026-10-15
+
+**Headline remains ~62% synced.** The new [[entity-gcp-credential-preflight]]
+checks provider credentials in a manual Cloud Run Job. It changes no portal or
+mobile client, shared module, data contract, or domain behavior. This is a
+scoped PR assessment, not a fresh parity audit. Homebase PR #8 adds an
+unapplied Terraform foundation for the dedicated slot, also with no client
+change. The domain matrix below and its denominator remain unchanged.
+
+| Operational dimension (outside the domain matrix) | Portal/GCP | Mobile impact |
+| --- | --- | --- |
+| Provider credential preflight | One bounded Alpaca read plus OpenRouter key metadata; no data publication | No mobile implementation or sync requirement |
+
 ## Drift-gate coverage note — 2026-10-14
 
 The portal's shared-drift gate now also covers `lib/shared/attribution.ts`, `lib/shared/consent.ts`, `lib/shared/legal-consent.ts` and `lib/retention.ts` (all byte-identical across surfaces), bringing it to 12 gated files and matching the mobile gate for those paths. This closes the one-directional gap where a portal-only edit left the portal gate green while mobile's went red. `lib/nuai.ts` (known divergent) stays ungated. Headline unchanged at ~62%; no percentages recomputed, since enforcement changed and shared code did not.
