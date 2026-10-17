@@ -10,6 +10,18 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 Companion page: [[concept-sync-requirements]] — the concrete work each surface needs to close the gap.
 Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
 
+## PR #293 assessment — 2026-10-16
+
+The followed-ticker workflow now schedules once at 16:30 New York time across
+daylight saving changes. This changes portal automation frequency, not a
+mobile feature, shared module, API contract, or matrix row. The historical
+~62% headline is unchanged; no new mobile port is required.
+
+Paper portfolio automation now uses four New York timezone schedules in place
+of eight seasonal UTC entries. The change affects portal runner frequency and
+slot resolution; it adds no mobile feature, API contract, or shared module.
+The historical ~62% headline and feature-domain matrix are unchanged.
+
 ## PR #291 and homebase PR #8 assessment — 2026-10-15
 
 **Headline remains ~62% synced.** The new [[entity-gcp-credential-preflight]]

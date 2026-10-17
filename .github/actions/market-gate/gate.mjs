@@ -37,26 +37,25 @@ export function calendarDecision(body, clock) {
 // Resolve the latest daily occurrence, without rolling a weekend back to Friday.
 // The workflow creation time stays fixed across queued jobs and re-runs.
 export function settleSession(cron, eventTime) {
-  if (!['30 20 * * 1-5', '30 21 * * 1-5'].includes(cron)) return null;
+  if (cron !== '30 16 * * 1-5') return null;
   const fired = new Date(eventTime);
   if (!Number.isFinite(fired.getTime())) return null;
-  const intended = new Date(fired);
-  intended.setUTCHours(Number(cron.split(' ')[1]), 30, 0, 0);
-  if (intended > fired) intended.setUTCDate(intended.getUTCDate() - 1);
-  return nyClock(intended);
+  const local = nyClock(fired);
+  // Work in ET calendar dates, so crossing a DST boundary cannot shift the slot.
+  const intended = new Date(`${local.date}T12:00:00Z`);
+  if (local.minute < 990) intended.setUTCDate(intended.getUTCDate() - 1);
+  return { ...nyClock(intended), minute: 990 };
 }
 
 export function paperDecision({ clock, calendar, cron = '', slot = '', force = false, eventTime }) {
   const starts = { preopen: 540, midday: 750, preclose: 945, settle: 990 };
   const intended = settleSession(cron, eventTime);
   const sessionClock = intended || clock;
-  const crons = sessionClock.offset === 'GMT-4'
-    ? ['0 13 * * 1-5', '30 16 * * 1-5', '45 19 * * 1-5', '30 20 * * 1-5']
-    : ['0 14 * * 1-5', '30 17 * * 1-5', '45 20 * * 1-5', '30 21 * * 1-5'];
+  const crons = ['0 9 * * 1-5', '30 12 * * 1-5', '45 15 * * 1-5', '30 16 * * 1-5'];
   if (cron) slot = Object.keys(starts)[crons.indexOf(cron)] ?? '';
   if (!slot && !cron) slot = Object.keys(starts).find(s => clock.minute >= starts[s] && (s === 'settle' || clock.minute <= starts[s] + 15)) ?? '';
   const skip = reason => ({ is_trading_day: 'false', slot, late: 'false', reason });
-  if (!(slot in starts)) return skip('no slot or off-season cron');
+  if (!(slot in starts)) return skip('no slot or unknown cron');
   // A scheduled event can never opt into a manual override.
   force = force && !cron;
   if (!force && (['Sat', 'Sun'].includes(sessionClock.weekday) || calendar.is_trading_day !== 'true')) return skip('closed day or unavailable calendar');
