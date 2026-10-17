@@ -2086,3 +2086,15 @@ unset DATABASE_URL
 ```
 
 Expect: no `fail` rows for the first night after #277 runs (on 2026-10-13 it was 6 `fail`, 14 `ok`, 10 `partial`). The run's workflow summary should show `unservable` near 25 and a warning.
+
+## Added 2026-10-17 — new pipeline Terraform apply decision
+
+- [ ] Review the saved, freshly regenerated plan for draft PR #292 and approve
+  or decline its apply. The reviewed plan proposes 17 creates, zero changes,
+  and zero destroys for the separately named slot in the existing billed GCP
+  project. It includes service identities, scoped IAM, storage, empty secret
+  containers, and STS API enablement. The state bucket is already created and
+  protected; no Terraform apply or production routing change has occurred.
+- [ ] After any approved apply, verify the outputs and keep the manual shadow
+  job until a replacement preflight and later pipeline acceptance checks pass.
+  Retiring the shadow resources is a separate destructive decision.
