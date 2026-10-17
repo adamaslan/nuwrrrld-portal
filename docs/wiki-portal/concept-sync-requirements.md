@@ -11,6 +11,15 @@ Companion page: [[concept-mobile-web-parity]] — the historical ~62% measuremen
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
 
+## PR #291 and homebase PR #8 — cloud credential preflight
+
+The manual [[entity-gcp-credential-preflight]] verifies existing provider
+credentials from GCP without changing client behavior or a shared module.
+There is no mobile port or de-drift task. Its open work is infrastructure:
+obtain billing for the dedicated slot defined by homebase PR #8 and connect the later pipeline worker to
+the shared Alpaca rate budget before running scheduled ingestion. The ~62%
+client-parity headline and domain requirements below are unchanged.
+
 ## Drift-gate coverage — 2026-10-14
 
 De-drift enforcement now runs in both directions for attribution, consent, legal-consent and retention: the portal gate gates the same files as mobile's. `lib/portfolio.ts` joined the gate later the same day (13 gated) once mobile PR #53 made it byte-identical, closing the "claimed identical but never gated" gap. Remaining gate work: `lib/nuai.ts` stays out until the divergence is resolved. No requirement percentages changed (~62% headline stands).
