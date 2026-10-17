@@ -11,11 +11,14 @@ function alpacaUrl(now) {
   url.searchParams.set("timeframe", "1Day");
   url.searchParams.set("start", start.toISOString());
   url.searchParams.set("end", end.toISOString());
+  url.searchParams.set("sort", "desc");
   url.searchParams.set("limit", "1");
   url.searchParams.set("feed", "iex");
   return url;
 }
 
+// One manual read only. This deliberately skips the shared nwf_rate_budget
+// counter, so it must not be copied as the pattern for scheduled ingestion.
 async function checkAlpaca(env, fetchImpl, now) {
   const response = await fetchImpl(alpacaUrl(now), {
     headers: {
