@@ -42,9 +42,10 @@ target project, and `RUNNER_SERVICE_ACCOUNT` needs
 gcloud secrets get-iam-policy nwf-shadow-alpaca-api-key --project=your-project
 ```
 
-The Alpaca check reads the latest SPY daily bar, so it also shows data is
-fresh. It makes one manual call and skips the shared `nwf_rate_budget`
-counter; do not copy it as the pattern for scheduled ingestion.
+The Alpaca check requests the most recent SPY daily bar in a 14-day window.
+It confirms access to a bar, but does not enforce a freshness threshold. It
+makes one manual call and skips the shared `nwf_rate_budget` counter; do not
+copy it as the pattern for scheduled ingestion.
 
 The job has no schedule. Run it manually with
 `gcloud run jobs execute nwf-shadow-preflight --project=your-project
@@ -53,5 +54,6 @@ The job has no schedule. Run it manually with
 On 2026-10-15 the first image was built and a manual execution succeeded in
 the existing billed project (`alpaca=ok openrouter=ok`). The dedicated
 new-slot project could not be billed because the billing account's project
-quota was exhausted. This is a credential and deployment smoke check, not a
-production pipeline or evidence of new-slot data isolation.
+quota was exhausted; the owner subsequently chose a separately named slot in
+the existing billed project. This is a credential and deployment smoke check,
+not a production pipeline or evidence of project-level data isolation.
