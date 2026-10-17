@@ -10,7 +10,7 @@ sources: [../../deploy/new-pipeline/preflight.mjs, ../../deploy/new-pipeline/Doc
 ## What it is
 
 A manual Cloud Run Job that checks whether the pipeline's existing Alpaca and
-OpenRouter credentials work from GCP. It makes one bounded SPY daily-bars read
+OpenRouter credentials work from GCP. It makes one bounded read of the latest SPY daily bar
 and one OpenRouter current-key metadata read, then logs only `ok`,
 `missing_credentials`, or `request_failed` per provider. It does not call an
 LLM, publish data, or schedule itself. The first shadow execution succeeded;
@@ -27,6 +27,9 @@ and observation boundary. Homebase PR #8 records the unapplied Terraform
 foundation for the eventual dedicated project.
 
 ## Known failures
+
+- Deploy needs the three Secret Manager secrets to exist and the runner identity
+  to hold Secret Accessor on each; secret and job names are overridable.
 
 - Billing-project quota blocks the separate project's billing linkage, so
   this execution does not establish project-level data isolation.

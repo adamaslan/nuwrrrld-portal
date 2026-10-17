@@ -30,12 +30,28 @@ RUNNER_SERVICE_ACCOUNT=nwf-shadow-runner@your-project.iam.gserviceaccount.com \
 bash deploy/new-pipeline/deploy-job.sh
 ```
 
+Before deploying, the three Secret Manager secrets must already exist in the
+target project, and `RUNNER_SERVICE_ACCOUNT` needs
+`roles/secretmanager.secretAccessor` on each. Defaults are
+`nwf-shadow-alpaca-api-key`, `nwf-shadow-alpaca-api-secret` and
+`nwf-shadow-openrouter-api-key`; override them with `ALPACA_KEY_SECRET`,
+`ALPACA_SECRET_SECRET` and `OPENROUTER_KEY_SECRET`. `JOB_NAME` (default
+`nwf-shadow-preflight`) allows a second slot. Check access first:
+
+```sh
+gcloud secrets get-iam-policy nwf-shadow-alpaca-api-key --project=your-project
+```
+
+The Alpaca check reads the latest SPY daily bar, so it also shows data is
+fresh. It makes one manual call and skips the shared `nwf_rate_budget`
+counter; do not copy it as the pattern for scheduled ingestion.
+
 The job has no schedule. Run it manually with
 `gcloud run jobs execute nwf-shadow-preflight --project=your-project
 --region=us-central1 --wait` and check the sanitized status in Cloud Logging.
 
 On 2026-10-15 the first image was built and a manual execution succeeded in
-the existing `ttb-lang1` project (`alpaca=ok openrouter=ok`). The dedicated
+the existing billed project (`alpaca=ok openrouter=ok`). The dedicated
 new-slot project could not be billed because the billing account's project
 quota was exhausted. This is a credential and deployment smoke check, not a
 production pipeline or evidence of new-slot data isolation.
