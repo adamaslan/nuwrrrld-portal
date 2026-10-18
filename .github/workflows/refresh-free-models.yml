@@ -50,6 +50,10 @@ jobs:
             echo "::warning title=SEAT_MODELS has a retired id::Chain refreshed; a seat model no longer exists. Repoint SEAT_MODELS in lib/openrouter.ts. Continuing so the chain PR still opens."
             exit 0
           fi
+          if [ "$code" -eq 4 ]; then
+            echo "::error title=OpenRouter key rejected::OPENROUTER_API_KEY was refused (401/403). Rotate the repo secret, then re-run. Chain left untouched."
+            exit 4
+          fi
           echo "::error title=refresh-free-models failed::Exited $code — chain left untouched."
           exit "$code"
 
@@ -78,7 +82,8 @@ jobs:
   notify:
     name: Failure or recovery notification
     needs: [refresh]
-    if: always() && !cancelled() && github.event_name == 'schedule' && (failure() || (needs.refresh.result == 'success'))
+    # Failures alert on manual runs too. Recovery notes only on the weekly run.
+    if: always() && !cancelled() && (failure() || (github.event_name == 'schedule' && needs.refresh.result == 'success'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -100,5 +105,6 @@ jobs:
           \`scripts/refresh-free-models.mjs\` exited non-zero (not exit 3, which is
           tolerated). \`FREE_MODEL_CHAIN\` was left untouched and may now be stale.
           Likely: OpenRouter catalog unreachable, too few probes passing, or the
-          automation key itself rate-limited."
+          automation key itself rate-limited. Exit 4 means OpenRouter rejected
+          the key (401/403): rotate OPENROUTER_API_KEY, then re-run."
           bash scripts/upsert-workflow-failure-issue.sh

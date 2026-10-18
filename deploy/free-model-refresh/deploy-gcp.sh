@@ -29,11 +29,12 @@ gcloud builds submit "$REPO_ROOT" \
   --project "$PROJECT"
 
 echo "==> Deploying Cloud Run Job"
+# --max-retries 0: a rejected key (exit 4) or a hard failure (exit 1) fails once, no re-probe.
 gcloud run jobs deploy "$JOB" \
   --image "$IMAGE" \
   --region "$REGION" \
   --project "$PROJECT" \
-  --tasks 1 --max-retries 1 --task-timeout 600 \
+  --tasks 1 --max-retries 0 --task-timeout 600 \
   --set-secrets "OPENROUTER_API_KEY=openrouter-api-key:latest,GH_TOKEN=free-model-gh-token:latest"
 
 echo "==> Creating/updating weekly Cloud Scheduler trigger"
