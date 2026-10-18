@@ -72,7 +72,13 @@ fi
 echo "==> Opening/updating PR on branch $PR_BRANCH"
 git checkout -B "$PR_BRANCH"
 git commit -am "$commit_msg"
-git push -f origin "$PR_BRANCH"
+# Plain push, never force. A non-fast-forward rejection means another writer
+# (GitHub Actions, or a second copy of this script) already moved the branch.
+# Overwriting it could replace a good chain with this run's, so fail loudly.
+if ! git push origin "$PR_BRANCH"; then
+  echo "==> Push to $PR_BRANCH was rejected (branch moved). Not forcing; resolve the branch by hand." >&2
+  exit 1
+fi
 
 if command -v gh >/dev/null 2>&1; then
   # `gh pr view` returns exit 0 even for a closed/merged PR on this branch,
@@ -80,7 +86,7 @@ if command -v gh >/dev/null 2>&1; then
   # Only an *open* PR should be treated as "already exists".
   open_pr="$(gh pr list --repo "$REPO" --head "$PR_BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)"
   if [[ -n "$open_pr" ]] && [[ "$open_pr" != "null" ]]; then
-    echo "==> PR #$open_pr already open for $PR_BRANCH — force-push updated it."
+    echo "==> PR #$open_pr already open for $PR_BRANCH — push updated it."
   else
     gh pr create --repo "$REPO" \
       --base "$BASE_BRANCH" --head "$PR_BRANCH" \
