@@ -7,6 +7,13 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #296 assessment — 2026-10-18
+
+The draft slot 2 hydration worker is server-side portal pipeline code. It
+introduces no mobile client feature, shared client module, or cross-surface
+contract. The historical ~62% headline and domain matrix remain unchanged; this
+is a scoped assessment, not a fresh parity audit. The runtime is not deployed.
+
 Companion page: [[concept-sync-requirements]] — the concrete work each surface needs to close the gap.
 Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
 

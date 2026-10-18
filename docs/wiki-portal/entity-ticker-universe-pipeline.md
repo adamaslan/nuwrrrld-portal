@@ -49,6 +49,12 @@ in PR #66:
   `ticker_universe`, pull bars from Alpaca, and push cards for the ~4,300
   non-ETF tickers a full S&P 500 + Nasdaq-100 universe implies. Not yet
   deployed; not yet credentialed (see Known failures).
+- **`deploy/hydration-job/main.ts`** — proposed slot 2 Cloud Run worker
+  (PR #296, draft): reads the active universe from a read-only source URL,
+  fetches SIP daily bars, uses the shared JS indicator/card policy, and writes
+  to the dedicated `nwf-hydration` branch. It is code-only; AWS CLI access for
+  the shared DynamoDB rate budget and branch-scoped Neon credentials are still
+  deployment gates. No scheduled or live run has been verified.
 
 `scripts/gen-portal-push-secret.sh` generates and syncs the `PORTAL_PUSH_SECRET`
 bearer every pipeline route requires (`requirePushSecret()` in
@@ -311,6 +317,11 @@ failures #3 for why).
    `missing`/`staleCount`.
 
 ## Open questions
+
+- ❓ Can the Cloud Run runtime reserve the shared `nwf_rate_budget` through
+  `lib/alpaca-budget.mjs` with a least-privilege identity, and can the image
+  provide that command without broadening the runtime's permissions? PR #296
+  does not provision either dependency.
 
 - ❓ Should `seed-yahoo-portfolio.mjs`'s non-US-suffix filter list
   (`.HK`/`.L`/`.TO`/…) live somewhere shared, if another import source needs

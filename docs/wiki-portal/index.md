@@ -1,6 +1,12 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-15 (PR #291 cloud credential preflight; parity remains ~62%)_
+_Last updated: 2026-10-18 (draft PR #296 slot 2 hydration worker; parity remains ~62%)_
+
+**Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
+JS indicator and card policies and targets `nwf-hydration`. It changes no
+mobile client or shared module, so the ~62% parity headline remains unchanged.
+The deployment gates and unverified status are recorded in
+[[entity-ticker-universe-pipeline]] and [[concept-mobile-web-parity]].
 
 **PR #291 and homebase PR #8 scope:** the manual GCP provider preflight and
 unapplied Terraform foundation changed no client or
