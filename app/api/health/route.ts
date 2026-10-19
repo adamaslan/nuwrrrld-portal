@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { PRICES } from "@/lib/stripe";
+import { tradingDaysBetween } from "@/lib/shared/followed-tickers-policy";
+import { newYorkDate } from "@/scripts/lib/hydrate-indicators.mjs";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+// No default host: slot 1 (gcp3-backend) is being retired, and a hard-coded
+// fallback would keep probing it after cutover. Unset means not_configured.
+const MCP_URL = process.env.MCP_BACKEND_URL;
 const TIMEOUT_MS = 5_000;
+// Sessions behind today before the card data counts as stale. One session is
+// normal (today's bar lands after the close); two means the writer missed a run.
+const CARDS_STALE_TRADING_DAYS = 2;
 
 type DepStatus = "ok" | "degraded" | "down" | "not_configured";
 
@@ -30,6 +37,7 @@ async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<
 }
 
 async function checkMcp(): Promise<DepResult> {
+  if (!MCP_URL) return { status: "not_configured", latencyMs: null, error: "MCP_BACKEND_URL not set" };
   const start = Date.now();
   try {
     const res = await withTimeout((signal) => fetch(`${MCP_URL}/health`, { signal }));
@@ -47,6 +55,34 @@ async function checkNeon(): Promise<DepResult> {
   } catch (err) {
     return { status: unreachableStatus(err), latencyMs: null, error: "query failed" };
   }
+}
+
+/** Freshness of the ticker cards the portal serves. Reads the newest bar date
+ *  directly (not via latestCardBarDate, which hides query errors as null), so
+ *  a dead writer shows up here as stale and a dead database as a query error. */
+async function checkCardFreshness(): Promise<DepResult> {
+  const start = Date.now();
+  let latest: unknown;
+  try {
+    const rows = await sql`SELECT MAX(bar_date) AS latest FROM ticker_cards`;
+    latest = rows[0]?.latest;
+  } catch {
+    return { status: "degraded", latencyMs: null, error: "freshness query failed" };
+  }
+  if (latest == null) {
+    return { status: "degraded", latencyMs: Date.now() - start, error: "ticker_cards is empty" };
+  }
+  const latestIso = latest instanceof Date ? latest.toISOString().slice(0, 10) : String(latest).slice(0, 10);
+  const staleTradingDays = tradingDaysBetween(
+    new Date(`${latestIso}T00:00:00Z`),
+    new Date(`${newYorkDate(new Date())}T00:00:00Z`),
+  );
+  const status: DepStatus = staleTradingDays >= CARDS_STALE_TRADING_DAYS ? "degraded" : "ok";
+  return {
+    status,
+    latencyMs: Date.now() - start,
+    ...(status === "degraded" ? { error: `latest bar ${latestIso} is ${staleTradingDays} trading days old` } : {}),
+  };
 }
 
 async function checkStripe(): Promise<DepResult> {
@@ -142,15 +178,16 @@ async function checkOpenRouter(): Promise<DepResult> {
 }
 
 export async function GET() {
-  const [mcp, neon, stripe, openrouter, clerk] = await Promise.all([
+  const [mcp, neon, cards, stripe, openrouter, clerk] = await Promise.all([
     checkMcp(),
     checkNeon(),
+    checkCardFreshness(),
     checkStripe(),
     checkOpenRouter(),
     checkClerk(),
   ]);
 
-  const deps = { mcp, neon, stripe, openrouter, clerk };
+  const deps = { mcp, neon, cards, stripe, openrouter, clerk };
   // Neon down is a hard failure (every persisted feature breaks); Stripe/OpenRouter
   // not_configured is expected in some previews, so only "down" counts against them.
   const anyDown = Object.values(deps).some((d) => d.status === "down");
