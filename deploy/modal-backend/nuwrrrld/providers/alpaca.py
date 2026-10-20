@@ -11,7 +11,7 @@ import logging
 import os
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Sequence
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
@@ -41,29 +41,24 @@ class AlpacaProvider:
     name = "alpaca"
 
     def __init__(self, key_id: str, secret: str, *, feed_eod: str = "sip", feed_live: str = "iex",
-                 client: httpx.Client | None = None, take_tokens: Callable[[int], None] | None = None,
-                 raw_dir: str | None = None):
+                 client: httpx.Client | None = None, raw_dir: str | None = None):
         if "//api.alpaca.markets" in os.environ.get("ALPACA_BASE_URL", ""):
             raise ProviderError("refusing live Alpaca trading host; paper key pair only")
         self._headers = {"APCA-API-KEY-ID": key_id, "APCA-API-SECRET-KEY": secret}
         self._feed_eod, self._feed_live = feed_eod, feed_live
         self._client = client or httpx.Client(base_url=DATA_URL, timeout=HTTP_TIMEOUT_SECONDS)
-        self._take_tokens = take_tokens or (lambda n: None)  # DynamoDB shared budget hook
         self._raw_dir = raw_dir
 
     @classmethod
     def from_env(cls, **kw) -> "AlpacaProvider":
-        from nuwrrrld import dynamo
         return cls(os.environ["ALPACA_API_KEY"], os.environ["ALPACA_API_SECRET"],
                    feed_eod=os.environ.get("ALPACA_DATA_FEED_EOD", "sip"),
-                   feed_live=os.environ.get("ALPACA_DATA_FEED_LIVE", "iex"),
-                   take_tokens=kw.pop("take_tokens", dynamo.default().wait_for_alpaca_tokens), **kw)
+                   feed_live=os.environ.get("ALPACA_DATA_FEED_LIVE", "iex"), **kw)
 
     # -- http ----------------------------------------------------------------------
     @retry(retry=retry_if_exception_type((_Retryable, RateLimited, httpx.TransportError)),
            stop=stop_after_attempt(4), wait=wait_exponential_jitter(initial=1, max=20), reraise=True)
     def _get(self, path: str, params: dict) -> dict:
-        self._take_tokens(1)
         resp = self._client.get(path, params=params, headers=self._headers)
         if resp.status_code == 429:
             raise RateLimited(float(resp.headers.get("Retry-After", 0)) or None)

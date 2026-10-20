@@ -1,4 +1,4 @@
-"""DynamoDB layer under moto: tables, mirror-everything, shared Alpaca budget, cache, locks."""
+"""DynamoDB layer under moto: tables, mirror-everything, cache, locks."""
 import datetime as dt
 import time
 import uuid
@@ -44,7 +44,7 @@ def kinds(d):
 def test_tables_created_idempotently_within_free_tier(ddb):
     assert ddb.ensure_tables() == []
     names = {t.name for t in ddb.resource.tables.all()}
-    assert names == {dynamo.TABLE_PIPELINE, dynamo.TABLE_LIVE, dynamo.TABLE_BUDGET, dynamo.TABLE_CACHE, dynamo.TABLE_LOCKS}
+    assert names == {dynamo.TABLE_PIPELINE, dynamo.TABLE_LIVE, dynamo.TABLE_CACHE, dynamo.TABLE_LOCKS}
     assert all(n.startswith("nwf_") for n in names)                             # IAM is scoped to table/nwf_*
     assert sum(r for r, w in dynamo.CAPACITY.values()) <= 25 and sum(w for r, w in dynamo.CAPACITY.values()) <= 25
     prov = ddb.resource.meta.client.describe_table(TableName=dynamo.TABLE_PIPELINE)["Table"]["ProvisionedThroughput"]
@@ -91,30 +91,6 @@ def test_every_mirror_kind_has_key_and_sort_specs():
               "feature": "chat", "day": "d"}
     for kind, (k, s) in dynamo.MIRROR_SPECS.items():
         assert k(sample) and s(sample), kind
-
-
-def test_alpaca_budget_caps_at_190_per_minute_and_resets(ddb):
-    t0 = 1_800_000_000
-    for _ in range(19):
-        ddb.take_alpaca_tokens(10, now=t0)                                      # 190 used
-    with pytest.raises(dynamo.AlpacaBudgetExhausted):
-        ddb.take_alpaca_tokens(1, now=t0 + 5)
-    ddb.take_alpaca_tokens(10, now=t0 + 61)                                     # next minute bucket
-
-
-def test_alpaca_budget_waits_for_next_minute_instead_of_falling_back(ddb):
-    sleeps = []
-    calls = {"n": 0}
-    real = ddb.take_alpaca_tokens
-
-    def flaky(n, now=None):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise dynamo.AlpacaBudgetExhausted("full")
-        return real(n, now=now)
-    ddb.take_alpaca_tokens = flaky
-    ddb.wait_for_alpaca_tokens(1, sleep=sleeps.append)
-    assert len(sleeps) == 1 and 0 < sleeps[0] <= 61
 
 
 def test_cache_ttl_and_locks(ddb):

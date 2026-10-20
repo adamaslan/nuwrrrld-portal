@@ -26,9 +26,6 @@ logger = logging.getLogger("nwf4")
 ALPACA_DATA_URL = "https://data.alpaca.markets"
 FINNHUB_URL = "https://finnhub.io/api/v1"
 
-ALPACA_CALLS_PER_MINUTE = 190  # ~200 published; 10 kept as headroom
-BUDGET_TABLE = "nwf_rate_budget"
-BUDGET_TTL_SECONDS = 120
 SEEN_TTL_SECONDS = 14 * 86400
 LOCK_TABLE = "nwf_job_locks"
 SEEN_TABLE = "nwf_seen"
@@ -43,7 +40,7 @@ FINNHUB_MIN_INTERVAL_SECONDS = 1.1
 
 
 class AlpacaBudgetExhausted(Exception):
-    """This minute's shared Alpaca budget is spent; wait for the next minute."""
+    """Alpaca answered 429 (vendor rate limit); stop this run and retry on the next schedule."""
 
 
 class VendorUnavailable(Exception):
@@ -86,28 +83,6 @@ class DynamoStore:
 
             client = boto3.client("dynamodb", region_name=os.environ["AWS_REGION"])
         self._client = client
-
-    def take_alpaca_tokens(self, n: int = 1) -> None:
-        """Atomically reserve n Alpaca calls in the current UTC minute, or raise."""
-        from botocore.exceptions import ClientError
-
-        minute = time.strftime("%Y-%m-%dT%H:%M", time.gmtime())
-        try:
-            self._client.update_item(
-                TableName=BUDGET_TABLE,
-                Key={"bucket": {"S": f"alpaca#{minute}"}},
-                UpdateExpression="ADD calls :n SET expires_at = if_not_exists(expires_at, :ttl)",
-                ConditionExpression="attribute_not_exists(calls) OR calls <= :cap",
-                ExpressionAttributeValues={
-                    ":n": {"N": str(n)},
-                    ":cap": {"N": str(ALPACA_CALLS_PER_MINUTE - n)},
-                    ":ttl": {"N": str(int(time.time()) + BUDGET_TTL_SECONDS)},
-                },
-            )
-        except ClientError as error:
-            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
-                raise AlpacaBudgetExhausted(minute) from error
-            raise
 
     def get_cursor(self, stream: str) -> Optional[datetime]:
         item = self._client.get_item(TableName=CURSOR_TABLE, Key={"stream": {"S": stream}}).get("Item")
@@ -204,7 +179,6 @@ class DynamoStore:
 
 
 def _alpaca_get(store: DynamoStore, path: str, params: Mapping[str, Any]) -> dict:
-    store.take_alpaca_tokens(1)
     response = httpx.get(f"{ALPACA_DATA_URL}{path}", params=params, headers=alpaca_headers(), timeout=HTTP_TIMEOUT_SECONDS)
     if response.status_code in (401, 403):
         raise VendorUnavailable(f"alpaca {path} auth {response.status_code}")
@@ -233,8 +207,7 @@ def fetch_news_page(
 
 
 def is_trading_day(store: DynamoStore, day) -> bool:
-    """Broker calendar lookup (one budgeted call). Resolves exchange holidays the weekday rule can't."""
-    store.take_alpaca_tokens(1)
+    """Broker calendar lookup. Resolves exchange holidays the weekday rule can't."""
     response = httpx.get(
         "https://paper-api.alpaca.markets/v2/calendar",
         params={"start": day.isoformat(), "end": day.isoformat()},

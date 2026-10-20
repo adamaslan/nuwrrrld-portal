@@ -6,7 +6,6 @@ Role (owner decision 2026-10-07: "have Dynamo receive all the data"):
                            snapshots, job runs). Neon stays the system of record; a mirror
                            failure NEVER fails a job (logged at WARNING).
   * `nwf_live_prices`    - latest intraday price per ticker (Alpaca poller).
-  * `nwf_rate_budget`    - shared Alpaca request budget, atomic per-minute counter.
   * `nwf_market_cache`   - short-TTL provider cache (native TTL attribute `expires_at`).
   * `nwf_locks`          - best-effort cross-pipeline locks.
 
@@ -29,26 +28,19 @@ log = logging.getLogger(__name__)
 
 TABLE_PIPELINE = "nwf_pipeline_data"
 TABLE_LIVE = "nwf_live_prices"
-TABLE_BUDGET = "nwf_rate_budget"
 TABLE_CACHE = "nwf_market_cache"
 TABLE_LOCKS = "nwf_locks"
 
-ALPACA_MAX_PER_MINUTE = 190  # Basic data plan is ~200/min across ALL pipelines
 MAX_ITEM_BYTES = 350_000     # DynamoDB hard limit is 400 KB; leave headroom
 BATCH_SIZE = 25
 
-# Provisioned capacity (RCU, WCU) - sums to 25/25, the free-tier ceiling.
+# Provisioned capacity (RCU, WCU) - within the free-tier ceiling of 25/25.
 CAPACITY: dict[str, tuple[int, int]] = {
     TABLE_PIPELINE: (10, 12),
     TABLE_LIVE: (6, 5),
-    TABLE_BUDGET: (3, 4),
     TABLE_CACHE: (4, 3),
     TABLE_LOCKS: (2, 1),
 }
-
-
-class AlpacaBudgetExhausted(Exception):
-    pass
 
 
 def to_ddb(value: Any) -> Any:
@@ -111,7 +103,7 @@ class Dynamo:
         created = []
         existing = {t.name for t in self.resource.tables.all()}
         specs = {
-            TABLE_PIPELINE: ("pk", "sk"), TABLE_LIVE: ("ticker", None), TABLE_BUDGET: ("bucket", None),
+            TABLE_PIPELINE: ("pk", "sk"), TABLE_LIVE: ("ticker", None),
             TABLE_CACHE: ("cache_key", None), TABLE_LOCKS: ("lock_key", None)}
         for name, (hash_key, range_key) in specs.items():
             if name in existing:
@@ -182,34 +174,6 @@ class Dynamo:
         except Exception as exc:
             log.warning("dynamo live price write failed: %s", exc)
         return n
-
-    # -- shared Alpaca rate budget ----------------------------------------------
-    def take_alpaca_tokens(self, n: int, *, now: float | None = None) -> None:
-        """Atomically reserve n requests in the current minute; raise if the cap would be exceeded."""
-        from botocore.exceptions import ClientError
-        bucket = f"alpaca#{int((now or time.time()) // 60)}"
-        try:
-            self.table(TABLE_BUDGET).update_item(
-                Key={"bucket": bucket},
-                UpdateExpression="ADD used :n SET expires_at = :exp",
-                ConditionExpression="attribute_not_exists(used) OR used <= :room",
-                ExpressionAttributeValues={":n": n, ":room": ALPACA_MAX_PER_MINUTE - n,
-                                           ":exp": int((now or time.time())) + 3600})
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
-                raise AlpacaBudgetExhausted(bucket) from exc
-            raise
-
-    def wait_for_alpaca_tokens(self, n: int, *, sleep: Callable[[float], None] = time.sleep,
-                               max_waits: int = 3) -> None:
-        """Wait for the next minute boundary instead of falling through to another vendor."""
-        for _ in range(max_waits):
-            try:
-                self.take_alpaca_tokens(n)
-                return
-            except AlpacaBudgetExhausted:
-                sleep(60 - (time.time() % 60) + 1)
-        raise AlpacaBudgetExhausted("budget still exhausted after waiting")
 
     # -- cache + locks -----------------------------------------------------------
     def cache_get(self, key: str) -> Any | None:
