@@ -29,7 +29,9 @@ The parity effort brings those primitives to GHA without moving ownership:
 
 - **The biggest gap is still open.** GHA cron started 168–234 minutes late on the 22:30 UTC hydration (Oct 3–9), and nothing here fixes on-time start. That needs an external clock (Modal or Cloud Scheduler calling `workflow_dispatch`), which in turn needs a PAT and a shared idempotency ledger (`job_runs`) so the clock and the GHA cron can't double-run. Neither is built.
 - **Green runs that never did anything.** Dispatching every workflow on 2026-10-10 showed that the afternoon pipeline's first route returns 404. Its scheduled runs only looked healthy because the gate skipped them: the late start put the NY hour past 15. See [[decision-afternoon-pipeline-cron-split]]. A run that skips is reported as success, so "8/8 green" said nothing about whether the pipeline works. Checked 2026-10-11: none of the four routes it calls (`signals-refresh`, `council-run`, `theses-score`, `council-validate-distribution`) exists under `app/api/pipeline/`, so the 404 will recur on all of them once the clock fix lets the gate pass. "Never did any work" is inferred from 8 gate-skipped runs plus that listing, not from a run history before 2026-10-10.
-- **Alpaca is metered nowhere in GHA.** The market-data rule requires reserving `nwf_rate_budget` tokens. GHA's hydrate, engine and live-price scripts don't, and the new calendar call adds one more unmetered request per gate.
+- **Alpaca is metered nowhere, by decision.** The shared `nwf_rate_budget` was removed on 2026-10-20 ([[decision-no-shared-alpaca-budget]]); hydration now counts its own requests and logs them.
+
+> ⚠️ Contradiction: the global market-data rule still requires reserving shared budget tokens; the code no longer does. Unresolved until that rule is updated.
 
 ## See also
 
