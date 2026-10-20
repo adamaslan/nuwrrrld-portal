@@ -24,7 +24,6 @@
  */
 import { runSeat } from "@/lib/openrouter";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const GROUNDING_TIMEOUT_MS = 8_000;
 
 /** Answer budget. `runSeat`'s own 1200 is the smallest budget that
@@ -72,10 +71,13 @@ export interface UpstreamSignal {
  * than coerce into a wrong-but-plausible answer.
  */
 async function fetchSignalGrounding(ticker: string): Promise<UpstreamSignal | null> {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), GROUNDING_TIMEOUT_MS);
   try {
-    const res = await fetch(`${MCP_URL}/signals/${encodeURIComponent(ticker)}`, {
+    const res = await fetch(`${mcpUrl}/signals/${encodeURIComponent(ticker)}`, {
       signal: ctrl.signal,
     });
     if (!res.ok) return null;

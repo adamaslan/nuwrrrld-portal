@@ -220,12 +220,16 @@ async function checkDependencies(sessionAuth) {
     deps.stripe = { ok: true };
   }
 
-  const mcpUrl = process.env.MCP_BACKEND_URL?.trim() || "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-  try {
-    const res = await withTimeout((signal) => fetch(`${mcpUrl}/health`, { signal }));
-    deps.mcp = res.ok ? { ok: true } : { ok: false, reason: `MCP backend returned ${res.status}` };
-  } catch (err) {
-    deps.mcp = { ok: false, reason: `MCP backend unreachable: ${err instanceof Error ? err.message : "unknown"}` };
+  const mcpUrl = process.env.MCP_BACKEND_URL?.trim();
+  if (!mcpUrl) {
+    deps.mcp = { ok: false, reason: "MCP_BACKEND_URL not set" };
+  } else {
+    try {
+      const res = await withTimeout((signal) => fetch(`${mcpUrl}/health`, { signal }));
+      deps.mcp = res.ok ? { ok: true } : { ok: false, reason: `MCP backend returned ${res.status}` };
+    } catch (err) {
+      deps.mcp = { ok: false, reason: `MCP backend unreachable: ${err instanceof Error ? err.message : "unknown"}` };
+    }
   }
 
   // Session is a "dependency" in the same sense: without it every auth

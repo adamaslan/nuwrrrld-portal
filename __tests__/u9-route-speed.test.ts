@@ -23,6 +23,7 @@ function request(path: string, body: object) {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("STRIPE_SECRET_KEY", "test-key");
+  vi.stubEnv("MCP_BACKEND_URL", "https://mcp.example.test");
   vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_test_fixture");
   vi.stubEnv("OPENROUTER_API_KEY", "test-key");
   vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "pk_live_fixture");
