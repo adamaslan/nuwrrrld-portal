@@ -8,6 +8,7 @@ interface HealthVerdict {
   status: DepStatus;
   mcp?: { status: DepStatus };
   neon?: { status: DepStatus };
+  cards?: { status: DepStatus };
   stripe?: { status: DepStatus };
   openrouter?: { status: DepStatus };
   clerk?: { status: DepStatus };
@@ -16,6 +17,7 @@ interface HealthVerdict {
 const DEP_LABELS: Record<string, string> = {
   mcp: "market data",
   neon: "database",
+  cards: "signal cards",
   stripe: "billing",
   openrouter: "Nu AI",
   clerk: "sign-in",

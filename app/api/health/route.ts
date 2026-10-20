@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { PRICES } from "@/lib/stripe";
-import { tradingDaysBetween } from "@/lib/shared/followed-tickers-policy";
+import { nyseSessionsBetween } from "@/lib/shared/nyse-calendar";
 import { newYorkDate } from "@/scripts/lib/hydrate-indicators.mjs";
 
 // No default host: slot 1 (gcp3-backend) is being retired, and a hard-coded
 // fallback would keep probing it after cutover. Unset means not_configured.
-const MCP_URL = process.env.MCP_BACKEND_URL;
 const TIMEOUT_MS = 5_000;
 // Sessions behind today before the card data counts as stale. One session is
 // normal (today's bar lands after the close); two means the writer missed a run.
@@ -37,10 +36,11 @@ async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<
 }
 
 async function checkMcp(): Promise<DepResult> {
-  if (!MCP_URL) return { status: "not_configured", latencyMs: null, error: "MCP_BACKEND_URL not set" };
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return { status: "not_configured", latencyMs: null, error: "MCP_BACKEND_URL not set" };
   const start = Date.now();
   try {
-    const res = await withTimeout((signal) => fetch(`${MCP_URL}/health`, { signal }));
+    const res = await withTimeout((signal) => fetch(`${mcpUrl}/health`, { signal }));
     return { status: res.ok ? "ok" : "degraded", latencyMs: Date.now() - start };
   } catch (err) {
     return { status: unreachableStatus(err), latencyMs: null, error: "unreachable" };
@@ -73,7 +73,7 @@ async function checkCardFreshness(): Promise<DepResult> {
     return { status: "degraded", latencyMs: Date.now() - start, error: "ticker_cards is empty" };
   }
   const latestIso = latest instanceof Date ? latest.toISOString().slice(0, 10) : String(latest).slice(0, 10);
-  const staleTradingDays = tradingDaysBetween(
+  const staleTradingDays = nyseSessionsBetween(
     new Date(`${latestIso}T00:00:00Z`),
     new Date(`${newYorkDate(new Date())}T00:00:00Z`),
   );
