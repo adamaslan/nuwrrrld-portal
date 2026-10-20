@@ -2,6 +2,14 @@
 
 Append-only chronological record. Format: `## [{date}] {ingest|query|lint|friction} | {summary} | pages touched: N`
 
+## [2026-10-18] ingest | PR #296 feat: add slot 2 hydration worker | pages touched: 8
+
+Recorded the draft worker as a proposed isolated producer: it shares the
+existing JavaScript indicator and card policy, writes to the `nwf-hydration`
+branch, and adds run-ledger coverage. Branch-scoped database credentials remain
+a deployment gate (the worker needs no AWS access); no live run or
+client/mobile parity change is claimed.
+
 ---
 
 ## [2026-08-16] ingest | PR #60 fix(stripe): checkout/portal error hardening + recovered nulogdash admin console with MFA gate; stash-recovery incident | pages touched: 3

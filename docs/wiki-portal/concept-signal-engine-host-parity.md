@@ -52,6 +52,13 @@ production ranking runs the pre-port engine and Modal's detector families
 
 ## Where it appears
 
+- **Proposed slot 2 worker (PR #296, draft):** `deploy/hydration-job/main.ts`
+  uses `scripts/lib/hydrate-indicators.mjs` and `lib/shared/card-policy.ts`
+  directly, then writes to the dedicated `nwf-hydration` branch. This avoids
+  adding another indicator implementation, but does not resolve the documented
+  Modal-versus-JS confluence drift. The worker is not deployed or validated on
+  live data.
+
 - `deploy/universe-hydration/modal_app.py` `_confluence()` — the authoritative
   port; also `_bollinger_votes`, `_stochastic_votes`, `_obv_cmf_votes`,
   `_ma_cross_votes`, `_STRENGTH_WEIGHT`, `_CATEGORY_BONUS`.

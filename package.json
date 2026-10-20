@@ -32,7 +32,8 @@
     "test:db-parity": "vitest run --project db-parity",
     "nulogdash:report": "node scripts/nulogdash-report.mjs",
     "nulogdash:fixture": "node --env-file=.env.local scripts/nulogdash-fixture.mjs",
-    "nulogdash:fixture:check": "node --env-file=.env.local scripts/nulogdash-fixture.mjs --check"
+    "nulogdash:fixture:check": "node --env-file=.env.local scripts/nulogdash-fixture.mjs --check",
+    "hydrate:slot2": "tsx --tsconfig tsconfig.json deploy/hydration-job/main.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.2",
@@ -48,6 +49,7 @@
     "react-intersection-observer": "^10.1.0",
     "stripe": "^22.2.1",
     "svix": "^1.95.2",
+    "tsx": "^4.23.15",
     "zod": "^4.4.3"
   },
   "devDependencies": {

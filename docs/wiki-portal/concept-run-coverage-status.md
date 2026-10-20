@@ -40,6 +40,12 @@ new `status` column (`host`/`status`/`coverage`, PR #155), alongside a
 `coverage` jsonb blob (`{ expected, filled, missing, missingCount,
 staleCount }`).
 
+**Proposed slot 2 writer (PR #296, draft):** the standalone worker records one
+run row on its target hydration branch and grades ticker-level coverage against
+the existing 0.95 threshold, with explicitly unservable symbols handled under
+the shared ceiling. This is not evidence of deployed behavior: the branch
+credentials are still unprovisioned, and no scheduled run has been observed.
+
 **Wired up 2026-09-22 (PR #158, Phase 4):** `hydrate-universe` is the first
 real caller of `computeRunStatus()`, logging once per POST chunk with
 `coverage` scoped to that chunk's own universe (`coverageForUniverseAndDate()`
