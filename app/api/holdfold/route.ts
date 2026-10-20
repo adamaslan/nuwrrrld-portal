@@ -9,14 +9,16 @@ import type { HoldFoldPayload } from "@/lib/shared/holdfold-map";
 // importers of "@/app/api/holdfold/route" keep resolving.
 export type { HoldFoldVerdict, HoldFoldPayload } from "@/lib/shared/holdfold-map";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const TIMEOUT_MS = 8_000;
 
 async function fetchSignals(): Promise<unknown> {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${MCP_URL}/signals`, { signal: controller.signal });
+    const res = await fetch(`${mcpUrl}/signals`, { signal: controller.signal });
     if (!res.ok) return null;
     return await res.json();
   } catch {

@@ -45,4 +45,13 @@ describe("getOrFetchDigest — durable stale fallback", () => {
     const { getOrFetchDigest } = await import("@/lib/digest-cache");
     expect(await getOrFetchDigest(null)).toBeNull();
   });
+
+  it("does not call a default backend when MCP_BACKEND_URL is unset", async () => {
+    vi.stubEnv("MCP_BACKEND_URL", "");
+    getLatestDigestAnyAge.mockResolvedValue(null);
+    const { getOrFetchDigest } = await import("@/lib/digest-cache");
+
+    expect(await getOrFetchDigest(null)).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

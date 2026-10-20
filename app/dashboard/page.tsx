@@ -10,8 +10,6 @@ import { HealthBanner } from "./HealthBanner";
 import type { IndexChip, MoverChip } from "./DashboardCockpit";
 import "./dashboard.css";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-
 interface IndexEntry {
   symbol?: string;
   price?: number;
@@ -27,10 +25,13 @@ interface MarketOverview {
 }
 
 async function fetchMarketOverview(): Promise<MarketOverview | null> {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/market-overview?sections=brief`, { signal: ctrl.signal, next: { revalidate: 900 } });
+    const res = await fetch(`${mcpUrl}/market-overview?sections=brief`, { signal: ctrl.signal, next: { revalidate: 900 } });
     if (!res.ok) return null;
     return await res.json() as MarketOverview;
   } catch { return null; } finally { clearTimeout(t); }

@@ -7,8 +7,6 @@ import { fetchWithModelFallbackChecked, MODEL_CHAIN_WALK_BUDGET_MS, readChunkWit
 import { mapSignalsToHoldFold } from "@/lib/shared/holdfold-map";
 import type { HoldFoldVerdict } from "@/lib/shared/holdfold-map";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-
 interface IndexEntry { symbol?: string; price?: number; change_pct?: number }
 interface MarketOverview {
   brief?: { summary?: string; market_tone?: string; indices?: Record<string, IndexEntry> }
@@ -18,10 +16,13 @@ const UPSTREAM_TIMEOUT_MS = 15_000;
 const MAX_BRIEF_VERDICTS = 5;
 
 async function fetchJSON(path: string): Promise<unknown | null> {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), UPSTREAM_TIMEOUT_MS);
   try {
-    const res = await fetch(`${MCP_URL}${path}`, { signal: ctrl.signal });
+    const res = await fetch(`${mcpUrl}${path}`, { signal: ctrl.signal });
     if (!res.ok) {
       console.error(`[brief] upstream ${path} returned ${res.status}`);
       return null;

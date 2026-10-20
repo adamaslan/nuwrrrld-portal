@@ -11,8 +11,6 @@ export const metadata: Metadata = {
   openGraph: { title: "Portfolio Intelligence · NuWrrrld Financial", description: "A health score for your portfolio, graded A–F." },
 };
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
-
 interface IndustryEntry {
   sector?: string;
   etf?: string;
@@ -23,10 +21,13 @@ interface IndustryEntry {
 }
 
 async function fetchIndustryData() {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch(`${MCP_URL}/industry-intel`, {
+    const res = await fetch(`${mcpUrl}/industry-intel`, {
       signal: controller.signal,
       next: { revalidate: 3600 },
     });

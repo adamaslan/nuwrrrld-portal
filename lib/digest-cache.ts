@@ -12,7 +12,6 @@ export const globalDigestCache: { digest: DigestPayload | null; pushedAt: number
   pushedAt: 0,
 };
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const FETCH_TIMEOUT_MS = 8_000;
 
 // Per-user cache: Neon is the durable store (survives serverless cold starts —
@@ -25,11 +24,14 @@ const userCache = new Map<string, { digest: DigestPayload; expiresAt: number }>(
 const GLOBAL_CACHE_TTL_MS = 60 * 60 * 1000;
 
 async function fetchLiveSignals(): Promise<unknown> {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     // GET /signals is public on the GCP3 backend — no auth header needed.
-    const res = await fetch(`${MCP_URL}/signals`, { signal: controller.signal });
+    const res = await fetch(`${mcpUrl}/signals`, { signal: controller.signal });
     if (!res.ok) return null;
     return await res.json();
   } catch {

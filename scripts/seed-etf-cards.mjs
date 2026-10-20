@@ -19,8 +19,7 @@
  *   node scripts/seed-etf-cards.mjs --dry-run     # print rows, post nothing
  */
 
-const MCP_URL =
-  process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
+const MCP_URL = process.env.MCP_BACKEND_URL;
 const PORTAL_URL = (process.env.PORTAL_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const DRY_RUN = process.argv.includes("--dry-run");
 
@@ -56,6 +55,8 @@ function toSignalInput(entry) {
 }
 
 async function main() {
+  if (!MCP_URL) throw new Error("MCP_BACKEND_URL is required to seed ETF cards");
+
   process.stdout.write(`Fetching ETF signals from ${MCP_URL}/signals …\n`);
 
   const res = await fetch(`${MCP_URL}/signals`, { signal: AbortSignal.timeout(30_000) });
