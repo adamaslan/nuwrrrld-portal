@@ -323,7 +323,7 @@ async function upsertUniverse(
   }
 }
 
-async function upsertCards(
+export async function upsertCards(
   targetSql: NeonSql,
   cards: CardWrite[],
 ): Promise<{ written: number; accepted: number }> {
@@ -344,8 +344,8 @@ async function upsertCards(
           ticker text, horizon text, universe text, state_key text,
           taxonomy_version text, score real, score_version text, action text,
           tokens jsonb, numerics jsonb, data_quality real, missing_fields text[],
-          source text, source_run_id text, bar_date text, is_final boolean,
-          observed_at text
+          source text, source_run_id text, bar_date date, is_final boolean,
+          observed_at timestamptz
         )
       ON CONFLICT (ticker, horizon) DO UPDATE SET
         universe = EXCLUDED.universe,
@@ -471,6 +471,7 @@ async function main(): Promise<void> {
   let cardsAccepted = 0;
   let unservable = 0;
   let failed = 0;
+  let runRecorded = false;
 
   try {
     if (!dryRun && targetSql) await writeRunStart(targetSql, runId, startedAt);
@@ -598,11 +599,16 @@ async function main(): Promise<void> {
       durationMs: Date.now() - startedClock,
       dryRun,
     };
-    if (!dryRun && targetSql) await writeRunFinish(targetSql, runId, items, summary, status);
+    if (!dryRun && targetSql) {
+      await writeRunFinish(targetSql, runId, items, summary, status);
+      runRecorded = true;
+    }
     console.log(JSON.stringify(summary));
     if (status === "fail") throw new Error("Hydration coverage fell below the configured minimum");
   } catch (error) {
-    if (!dryRun && targetSql) {
+    // A coverage failure throws after the detailed record is written; keep it
+    // rather than replacing it with the bare failure marker.
+    if (!dryRun && targetSql && !runRecorded) {
       try {
         await writeRunFinish(
           targetSql,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SIP_DELAY_MINUTES } from "@/lib/shared/hydration-constants";
-import { fetchBars, isFinalBar } from "@/deploy/hydration-job/main";
+import { fetchBars, isFinalBar, upsertCards } from "@/deploy/hydration-job/main";
 
 function alpacaResponse(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
@@ -82,5 +82,30 @@ describe("fetchBars", () => {
     await fetchBars(["AAPL"], "2026-10-12", "2026-10-16", "key", "secret");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("upsertCards", () => {
+  it("declares bar_date and observed_at with the table's real column types", async () => {
+    // Postgres refuses to insert a text expression into a date column, so a
+    // recordset declared as text fails every non-empty batch. Checked against the
+    // real ticker_cards table with EXPLAIN when this was fixed.
+    let sqlText = "";
+    const fakeSql = (async (strings: TemplateStringsArray) => {
+      sqlText = strings.join("?");
+      return [];
+    }) as never;
+    const card = {
+      ticker: "AAPL", horizon: "t1" as const, universe: "stock" as const, state_key: "k",
+      taxonomy_version: "v1", score: 0.5, score_version: "v1", action: "HOLD" as const,
+      tokens: {}, numerics: {}, data_quality: 1, missing_fields: [], source: "alpaca:sip:1Day",
+      source_run_id: "run", bar_date: "2026-10-16", is_final: true, observed_at: "2026-10-16T21:00:00.000Z",
+    };
+
+    await upsertCards(fakeSql, [card]);
+
+    expect(sqlText).toContain("bar_date date");
+    expect(sqlText).toContain("observed_at timestamptz");
+    expect(sqlText).not.toMatch(/bar_date text|observed_at text/);
   });
 });
