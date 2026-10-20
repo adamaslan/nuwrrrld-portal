@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { buildCard } from "@/lib/shared/card-policy";
@@ -12,7 +13,6 @@ import {
   MIN_COVERAGE_RATIO,
   SIP_DELAY_MINUTES,
 } from "@/lib/shared/hydration-constants";
-import { acquireAlpacaBudget } from "@/lib/alpaca-budget.mjs";
 import { unservableWithinCeiling } from "@/lib/shared/hydrate-rows";
 import {
   adx,
@@ -28,6 +28,11 @@ import {
 const CARD_BATCH_SIZE = 500;
 const ALPACA_REQUEST_TIMEOUT_MS = 15_000;
 const HYDRATION_SOURCE = "alpaca:sip:1Day";
+const MARKET_CLOSE_MINUTES = 16 * 60;
+const INVALID_SYMBOL_PATTERN = /invalid symbol:\s*([^"'}\s]+)/i;
+
+// Counted rather than reserved: there is no shared Alpaca budget to wait on.
+let alpacaRequests = 0;
 
 interface UniverseRow {
   ticker: string;
@@ -211,7 +216,7 @@ function computeRow(ticker: string, universe: "stock" | "etf", bars: AlpacaBar[]
   return row;
 }
 
-async function fetchBars(
+async function fetchBarsOnce(
   symbols: string[],
   startDate: string,
   endDate: string,
@@ -232,7 +237,7 @@ async function fetchBars(
     url.searchParams.set("adjustment", ALPACA_ADJUSTMENT);
     if (pageToken) url.searchParams.set("page_token", pageToken);
 
-    await acquireAlpacaBudget();
+    alpacaRequests += 1;
     const response = await fetch(url, {
       headers: {
         "APCA-API-KEY-ID": apiKey,
@@ -241,7 +246,8 @@ async function fetchBars(
       signal: AbortSignal.timeout(ALPACA_REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) {
-      throw new Error(`Alpaca bars request failed with HTTP ${response.status}`);
+      const detail = (await response.text().catch(() => "")).slice(0, 200);
+      throw new Error(`Alpaca bars request failed with HTTP ${response.status}: ${detail}`);
     }
 
     const payload = (await response.json()) as {
@@ -257,6 +263,46 @@ async function fetchBars(
   } while (pageToken);
 
   return barsBySymbol;
+}
+
+/**
+ * Bars for a batch, where one unusable symbol costs only itself.
+ *
+ * Alpaca rejects the whole request with a 400 "invalid symbol: X" if any one
+ * symbol is not a US equity. The universe holds such a symbol today (a
+ * preferred share stored with a hyphen), so without this the run would abort at
+ * its batch and never hydrate any later one. Drop the named symbol and retry the
+ * rest; any other failure (auth, rate limit, network) still throws.
+ */
+export async function fetchBars(
+  symbols: string[],
+  startDate: string,
+  endDate: string,
+  apiKey: string,
+  apiSecret: string,
+): Promise<Map<string, AlpacaBar[]>> {
+  let remaining = [...symbols];
+  const dropped: string[] = [];
+
+  // Bounded by construction: each pass removes at least one symbol.
+  while (remaining.length > 0) {
+    try {
+      const bars = await fetchBarsOnce(remaining, startDate, endDate, apiKey, apiSecret);
+      if (dropped.length > 0) {
+        console.log(`  (skipped ${dropped.length} unusable: ${dropped.join(", ")})`);
+      }
+      return bars;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const bad = INVALID_SYMBOL_PATTERN.exec(message)?.[1];
+      if (!bad || !remaining.includes(bad)) throw error;
+      dropped.push(bad);
+      remaining = remaining.filter((symbol) => symbol !== bad);
+    }
+  }
+
+  console.log(`  (skipped ${dropped.length} unusable: ${dropped.join(", ")})`);
+  return new Map();
 }
 
 async function upsertUniverse(
@@ -339,18 +385,28 @@ async function upsertCards(
   return { written, accepted: cards.length };
 }
 
-function isFinalBar(now: Date, barDate: string): boolean {
+/**
+ * Whether the daily bar for `barDate` is complete.
+ *
+ * The request end is held back by SIP_DELAY_MINUTES, so at 16:00 New York the
+ * day's bar still ends at about 15:40. Calling it final at the bell would store
+ * a partial bar as final, and the upsert rule would then refuse a later final of
+ * equal quality. Wait out the delay.
+ */
+export function isFinalBar(now: Date, barDate: string): boolean {
   const local = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     weekday: "short",
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
   }).formatToParts(now);
   const part = (type: string) => local.find((item) => item.type === type)?.value;
   const weekday = part("weekday");
-  const hour = Number(part("hour"));
+  const minutesSinceMidnight = Number(part("hour")) * 60 + Number(part("minute"));
   const weekend = weekday === "Sat" || weekday === "Sun";
-  return weekend || barDate < newYorkDate(now) || hour >= 16;
+  const sipSettled = minutesSinceMidnight >= MARKET_CLOSE_MINUTES + SIP_DELAY_MINUTES;
+  return weekend || barDate < newYorkDate(now) || sipSettled;
 }
 
 async function writeRunStart(
@@ -534,6 +590,7 @@ async function main(): Promise<void> {
       written: cardsWritten,
       expectedCards: expected * 2,
       cardsAccepted,
+      alpacaRequests,
       unservable,
       failed,
       coverage,
@@ -562,8 +619,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown hydration failure";
-  console.error(`hydration job failed: ${message}`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unknown hydration failure";
+    console.error(`hydration job failed: ${message}`);
+    process.exitCode = 1;
+  });
+}

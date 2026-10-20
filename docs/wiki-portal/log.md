@@ -6,8 +6,8 @@ Append-only chronological record. Format: `## [{date}] {ingest|query|lint|fricti
 
 Recorded the draft worker as a proposed isolated producer: it shares the
 existing JavaScript indicator and card policy, writes to the `nwf-hydration`
-branch, and adds run-ledger coverage. The Cloud Run AWS rate-budget access and
-branch-scoped database credentials remain deployment gates; no live run or
+branch, and adds run-ledger coverage. Branch-scoped database credentials remain
+a deployment gate (the worker needs no AWS access); no live run or
 client/mobile parity change is claimed.
 
 ---

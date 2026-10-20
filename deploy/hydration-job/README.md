@@ -23,14 +23,17 @@ The source credential must be read-only. The target credential must be scoped to
 the hydration branch; the endpoint check is an additional guard, not a
 replacement for least-privilege Neon roles.
 
-## Shared Alpaca rate budget
+## Alpaca request pacing
 
-Before every Alpaca page request, the worker calls the existing
-`lib/alpaca-budget.mjs` adapter. It reserves against the shared DynamoDB
-`nwf_rate_budget` counter and fails closed when the AWS CLI or its credentials
-are unavailable. The Cloud Run image and runtime identity still need access to
-that adapter's AWS command. The current slot Terraform does not configure that
-access, so the job is not deploy-ready until infrastructure provides it.
+There is no shared Alpaca rate budget and the worker needs no AWS access. It
+counts its own Alpaca requests and records the total as `alpacaRequests` in the
+run summary. An Alpaca 429 fails the run instead of waiting for a minute bucket.
+If Alpaca rejects a batch with `invalid symbol: X`, the worker drops that one
+symbol (it is then reported as unservable) and retries the rest.
+
+A daily bar is stored as final only once the SIP delay has passed after the
+16:00 New York close, so a run just after the bell does not store a partial bar
+as final.
 
 ## Local invocation
 
