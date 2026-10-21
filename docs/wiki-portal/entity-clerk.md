@@ -79,9 +79,19 @@ applies and is kept as-is.
   [[decision-clerk-subdomain-without-satellite]] for the full account and the
   fix that actually worked (`allowed_origins` was already correct, plus the
   Dashboard **Allowed Subdomains** setting).
-- MFA is unavailable on this plan (Pro-gated), permanently blocking the
-  nulogdash admin console's mutation gate until
-  [[decision-self-implemented-totp-over-clerk-pro]] ships.
+- Clerk-native MFA is unavailable on this plan (Pro-gated). The proposed
+  self-owned TOTP alternative is still a design plan, not implemented
+  ([[decision-self-implemented-totp-over-clerk-pro]]). `canPerformAdminAction()`
+  enforces Clerk's `twoFactorEnabled` only when
+  `NULOGDASH_REQUIRE_MFA=true`; source comments record that the owner left this
+  switch off until admins enroll. The deployed setting is unverified as of the
+  R01 audit, so do not infer the production mutation gate from source alone.
+
+- **R01 production recheck (2026-10-21):** `/api/health` returned `clerk: ok`,
+  and one browser with a pre-existing session reached `/dashboard`. This only
+  confirms the route's narrow key check and that browser's existing session;
+  fresh login, MFA challenge, session lifetime/cookie policy, and revocation
+  remain unverified. See `docs/r01-release-gates-audit-2026-10-21.md`.
 
 ## Open questions
 

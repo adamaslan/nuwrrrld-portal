@@ -106,6 +106,13 @@ module (never a version supplied by the client). The item was first raised in
 
 ## Open questions
 
+- **Vendor and retention review remains open (R01, 2026-10-21).** The
+  engineering register marks provider DPAs unverified and says retention
+  enforcement is not implemented. The legal/policy interpretation and any
+  retention changes require owner and qualified-counsel decisions; the audit
+  made no data or configuration changes. See
+  `docs/r01-release-gates-audit-2026-10-21.md` and `docs/privacy-register.md`.
+
 - ❓ Should consent live in Clerk `publicMetadata` too (like referral codes),
   so it's readable wherever Clerk is, without a DB round-trip? Rejected for now
   — no append-only history, 8KB limit — but revisit if mobile adoption makes

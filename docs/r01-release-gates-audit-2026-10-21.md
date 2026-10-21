@@ -32,9 +32,22 @@ The public `/pricing` page displayed `$9.99/month`, `$79.99/year`, a 7-day trial
 | Privacy/vendor/retention | **VERIFIED OPEN IN ENGINEERING REGISTER; OWNER/LEGAL GATES BLOCKED** | `docs/privacy-register.md` marks Clerk, Neon, Vercel, Stripe, OpenRouter, Anthropic, and Resend DPAs as unverified. It says the retention-enforcement job does not exist and prompt/message retention is not enforced. Qualified policy review and vendor-contract confirmation remain owner/legal decisions. |
 | Stored production access settings | **NOT CHECKED** | Vercel, Clerk, Stripe, and Cloud Run dashboards were not accessed. No environment values were read. |
 
+**Code-level MFA finding:** `canPerformAdminAction()` in `lib/nulogdash.ts`
+requires Clerk's `twoFactorEnabled` only when `NULOGDASH_REQUIRE_MFA=true`.
+The source comment says the owner left that switch off until admins enroll;
+the self-owned TOTP path is still a design plan, not an implementation. The
+production setting was not inspected, so this does not establish the currently
+deployed admin mutation gate. It does establish that MFA enforcement is
+conditional in code and needs explicit owner review.
+
 ## Safe next steps and acceptance evidence
 
-1. Have the owner review the exact Clerk production instance, MFA availability, session lifetime/inactivity, JWT templates, and mobile-sharing decision in Clerk Dashboard. Then test a fresh sign-in and session behavior with an authorized test account.
+1. Have the owner review the exact Clerk production instance, MFA availability,
+   session lifetime/inactivity, JWT templates, and mobile-sharing decision in
+   Clerk Dashboard. Also inspect the deployed `NULOGDASH_REQUIRE_MFA` setting
+   and decide how to handle the currently unimplemented self-owned TOTP plan.
+   Then test a fresh sign-in and session behavior with an authorized test
+   account.
 2. Repair Stripe only after the owner explicitly approves the specific endpoint-secret change and deployment. Verify the portal and gcp3 endpoints independently, then verify one test-mode paid signup and cancellation/downgrade using a designated test account. Do not use a live charge for this audit.
 3. Have the owner identify the chosen external error and uptime monitors, verify alert delivery, and record their production targets without copying credentials into this report.
 4. Resolve the DPA, LLM-retention, policy-review, and retention-enforcement decisions with the data owner and qualified counsel; update `docs/privacy-register.md` only after decisions are evidenced.
