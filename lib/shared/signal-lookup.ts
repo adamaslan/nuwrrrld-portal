@@ -66,7 +66,11 @@ async function fetchTickerEntryLive(ticker: string): Promise<Record<string, unkn
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { symbols?: Record<string, Record<string, unknown>> };
-    return data.symbols?.[ticker] ?? Object.values(data.symbols ?? {})[0] ?? null;
+    const match = Object.entries(data.symbols ?? {}).find(([key, entry]) => {
+      const entryTicker = normalizeTicker(entry?.symbol);
+      return normalizeTicker(key) === ticker && (!entryTicker || entryTicker === ticker);
+    });
+    return match?.[1] ?? null;
   } catch {
     return null;
   } finally {
