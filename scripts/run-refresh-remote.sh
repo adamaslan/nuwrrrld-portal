@@ -28,6 +28,7 @@ set -euo pipefail
 REPO="${REPO:-adamaslan/nuwrrrld-portal}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
 PR_BRANCH="${PR_BRANCH:-chore/refresh-free-models}"
+ALERT_ASSIGNEE="${ALERT_ASSIGNEE:-adamaslan}"  # GitHub login to notify on drift
 OPEN_PR="${OPEN_PR:-1}"
 
 : "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY is required}"
@@ -53,6 +54,25 @@ node scripts/refresh-free-models.mjs
 # must agree with it. Otherwise it alerts (exit 5) rather than writing a second
 # chain, and the failed job is the alert. Matching by writing is not done here,
 # because GHA holds no GCP credentials to trigger this job.
+# Drift alert: one open GitHub issue assigned to the owner. GitHub emails
+# assignees and sends a notification, so this reaches a person without a
+# separate mail service. An existing open issue gets a comment, not a duplicate.
+alert_drift() {
+  local pr="$1" gha="$2" gcp="$3"
+  local title="Free-model chain drift: GCP job disagrees with GHA PR #$pr"
+  local body
+  body="$(printf 'GHA chain PR #%s is open, but this GCP job selected a different chain.\n\nGHA chain:\n%s\n\nGCP chain:\n%s\n\nNothing was pushed. Decide which chain is right, then close this issue.' "$pr" "$gha" "$gcp")"
+  local existing
+  existing="$(gh issue list --repo "$REPO" --state open --search "in:title \"Free-model chain drift\"" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+  if [[ -n "$existing" ]]; then
+    gh issue comment "$existing" --repo "$REPO" --body "$body" >/dev/null || echo "could not comment on issue #$existing" >&2
+  else
+    gh issue create --repo "$REPO" --title "$title" --body "$body" \
+      --label pipeline-failure --assignee "$ALERT_ASSIGNEE" >/dev/null \
+      || echo "could not open drift issue" >&2
+  fi
+}
+
 chain_of() {
   awk '/export const FREE_MODEL_CHAIN = \[/{f=1;next} /\] as const;/{f=0} f' | tr -d " ',\t"
 }
@@ -68,6 +88,7 @@ if [[ -n "$gha_pr" ]]; then
   echo "DRIFT: GCP chain differs from GHA PR #$gha_pr." >&2
   echo "GHA chain:" >&2; echo "$gha_chain" >&2
   echo "GCP chain:" >&2; echo "$gcp_chain" >&2
+  alert_drift "$gha_pr" "$gha_chain" "$gcp_chain"
   exit 5
 fi
 
