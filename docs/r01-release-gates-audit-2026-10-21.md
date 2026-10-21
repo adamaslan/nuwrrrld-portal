@@ -1,6 +1,6 @@
 # R01 — production release-gate audit
 
-**Observed:** 2026-10-21, America/New_York. Initial production health payload timestamp: `2026-10-21T18:02:13.338Z`; fresh follow-up timestamp: `2026-10-21T18:42:24.591Z` (14:42 EDT).
+**Observed:** 2026-10-21, America/New_York. Production health payload timestamps: `2026-10-21T18:02:13.338Z`, `2026-10-21T18:42:24.591Z`, and fresh status-only recheck `2026-10-21T18:53:01.475Z` (14:53 EDT).
 **Source snapshot:** portal `origin/main` at `e2b7ba9`.
 **Scope:** read-only Clerk, billing, monitoring, and privacy/retention release-gate evidence. No credentials were read; private account details observed in the browser were not recorded. No checkout, billing mutation, webhook POST, production setting, deployment, or database write was performed.
 
@@ -8,18 +8,24 @@ The extended `docs/nwf-production-audit-2026-10-14.md` referenced by the product
 
 ## Live evidence
 
-Read-only `GET https://financial.nuwrrrld.com/api/health` snapshots returned overall `degraded` at both 18:02Z and 18:42Z:
+Read-only `GET https://financial.nuwrrrld.com/api/health` snapshots returned overall `degraded` at 18:02Z, 18:42Z, and 18:53Z:
 
 | Check | Result | Meaning for R01 |
 |---|---|---|
 | Clerk | `ok` | The health route's narrow key check passed. This does not prove MFA, production session policy, sign-up, or cross-surface revocation. |
 | Stripe | `not_configured` | The response says `STRIPE_WEBHOOK_SECRET` is unset or a placeholder and webhook events will 500. The route does not reveal secret values. This is a verified production billing blocker. |
 | Neon | `ok` | A bounded read-only `SELECT 1` succeeded. This is not a backup/restore test. |
-| Market backend (`mcp`) | `degraded` / unreachable at 18:02Z; `ok` at 18:42Z | The later point-in-time health snapshot reports `mcp: ok`. This does not establish sustained recovery; the health route did not disclose a backend hostname. |
-| Ticker cards | `degraded` | Latest bar remains `2026-10-14`, five NYSE sessions old as of the 18:42Z probe. This is materially stale production data. |
+| Market backend (`mcp`) | `degraded` / unreachable at 18:02Z; `ok` at 18:42Z and 18:53Z | The later point-in-time health snapshots report `mcp: ok`. This does not establish sustained recovery; the health route did not disclose a backend hostname. |
+| Ticker cards | `degraded` | Latest bar remains `2026-10-14`, five NYSE sessions old in both the 18:42Z and 18:53Z probes. This is materially stale production data. |
 | OpenRouter | `ok` | A model-catalog request succeeded; this does not settle vendor retention terms. |
 
 The public `/pricing` page displayed `$9.99/month`, `$79.99/year`, a 7-day trial, and “Cancel anytime.” Those are displayed terms only; live-mode Stripe price IDs and checkout are unverified. The browser already had a persistent signed-in session: navigating `/` reached `/dashboard`. That confirms this browser's existing session can reach the dashboard, but does not verify a fresh sign-in, MFA, session lifetime, or signup. The page's private account details were not recorded.
+
+The 18:53Z follow-up emitted only the allowlisted status fields (`ts`, overall
+status, Clerk, Stripe, Neon, MCP, and card status/error). It confirmed the
+portal webhook remains `not_configured`, the cards remain degraded because the
+latest bar is 2026-10-14 (five trading days old), and the market backend is
+`ok` at that point in time.
 
 ## Gate status
 

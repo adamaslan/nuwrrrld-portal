@@ -101,7 +101,7 @@ endpoint-specific production secrets still need the owner action above.
 ## Open items
 
 **R01 recheck (2026-10-21):** the portal health endpoint reported
-`stripe: not_configured` at 18:02Z and 18:42Z. This is a portal-only status
+`stripe: not_configured` at 18:02Z, 18:42Z, and 18:53Z. This is a portal-only status
 check: gcp3 Secret Manager was not inspected, and no webhook event or billing
 flow was exercised. The historical finding that both services were affected
 on 2026-10-12 remains dated evidence, not current gcp3 status. The owner-only

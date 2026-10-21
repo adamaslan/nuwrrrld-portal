@@ -196,7 +196,7 @@ web-Pro / mobile-Free asymmetry for testers is unchanged.
   `docs/manual-setup-todo.md` §4.
 
   **R01 recheck (2026-10-21):** the public portal health endpoint again
-  reported `stripe: not_configured` at 18:02Z and 18:42Z. This confirms the
+  reported `stripe: not_configured` at 18:02Z, 18:42Z, and 18:53Z. This confirms the
   portal-side gate remains open at those observations; gcp3's current secret
   and revision were not checked, so the historical finding that both
   environments were affected on 2026-10-12 is not a current gcp3 status. No
