@@ -9,11 +9,11 @@
 - The authenticated multi-seat route on `origin/main` already rejects all-seat `NoGroundingError` runs before making model calls, refunds an actually bumped quota unit, and avoids creating an orphan session. Partial grounding runs retain grounded seats and mark the others degraded. The existing `__tests__/council-deliberate.test.ts` covers these cases.
 - The unauthenticated public demo route still called the RISK model with an empty prompt grounding when the signal lookup returned no brief. This branch fixes that gap: it returns HTTP 503 with a clear no-live-data message, keeps the attempt charged against the existing daily quota, does not call or cache a model answer, and preserves normal grounded and cache-hit behavior. Keeping the attempt charged prevents repeated anonymous requests for unknown tickers from bypassing the cap on upstream lookups.
 - The live signal adapter also used to fall back to the first returned symbol when the requested key was missing. That could ground one ticker's answer with another ticker's signal and then cache it under the requested ticker. The adapter now accepts only a matching map key and rejects an entry whose own `symbol` disagrees; a mismatch degrades to no grounding. The reader also rejects previously cached rows whose embedded symbol conflicts with the cache key.
-- Focused verification: `council-public-route.test.ts`, `council-deliberate.test.ts`, `council-grounding-card-fallback.test.ts`, and `signal-lookup-no-backend.test.ts` — 22 tests passed; ESLint and `git diff --check` passed. The cache-identity hardening was added after the last Claude review and still needs cross-model review.
+- Focused verification: `council-public-route.test.ts`, `council-deliberate.test.ts`, `council-grounding-card-fallback.test.ts`, and `signal-lookup-no-backend.test.ts` — 23 tests passed; ESLint and `git diff --check` passed. The cache-identity hardening was added after the last Claude review and still needs cross-model review.
 
 ## P12 — declared-but-empty sentiment
 
-`tools/nwf-lab/nwf_lab/features/news_sentiment.py` raises `MissingInputError` when the declared `news` input contains no articles. This establishes a local feature-level failure contract. It does not prove that the separate production signal scan treats Finnhub 403 / gcp3 401 failures as fatal; no production pipeline was triggered or changed. P12 remains open for that production path.
+`tools/nwf-lab/nwf_lab/features/news_sentiment.py` now reports an empty declared `news` feed as a Finnhub `vendor_gap`, which makes `nwf-lab` exit with code 2. A focused regression test covers the status and exit code. This fixes the local lab contract only; it does not prove that the separate production signal scan treats Finnhub 403 / gcp3 401 failures as fatal. No production pipeline was triggered or changed, so P12 remains open for that production path.
 
 ## P07 — sector-cap coverage
 
@@ -25,7 +25,7 @@ The codebase has consumers and source-specific ranges for several score fields, 
 
 ## `pending_signals` ownership
 
-The portal contains enqueue and drain functions in `lib/signal-queue.ts` and a bearer-protected handler in `app/api/signals/drain/route.ts`. Repository presence alone does not establish an active owner or live schedule; the atlas points to an external Homebase Modal drain worker. Confirm that operator and schedule before selecting or changing a drain path.
+The portal contains enqueue and drain functions in `lib/signal-queue.ts` and a bearer-protected handler in `app/api/signals/drain/route.ts`. The central portal wiki log says `homebase/modal_drain.py` and its Modal cron shipped on 2026-07-24, but that file is absent from the shared `/Users/adamaslan/code/homebase` checkout and the available `homebase-*` worktrees. That claim is not live schedule proof. Confirm the operator, source repository/path, and deployed schedule before selecting or changing a drain path.
 
 ## Invoice ownership
 

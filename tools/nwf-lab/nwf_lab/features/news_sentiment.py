@@ -5,7 +5,7 @@ import pandas as pd
 
 from nwf_lab.config import LabConfig
 from nwf_lab.data.bundle import DataBundle
-from nwf_lab.errors import MissingInputError
+from nwf_lab.errors import VendorGapError
 from nwf_lab.features.registry import FeatureResult, RunContext, feature, ok
 
 POSITIVE, NEGATIVE = 0.05, -0.05
@@ -16,7 +16,7 @@ def news_sentiment(bundle: DataBundle, cfg: LabConfig, ctx: RunContext) -> Featu
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
     if not any(bundle.news.values()):
-        raise MissingInputError("no news in bundle")
+        raise VendorGapError("finnhub", "company-news: empty response")
     sia, data, rows = SentimentIntensityAnalyzer(), {}, []
     for t in bundle.tickers:
         items = bundle.news.get(t, [])
