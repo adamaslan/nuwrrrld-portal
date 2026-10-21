@@ -21,7 +21,7 @@
 
 ## Signal-score validation
 
-The codebase has consumers and source-specific ranges for several score fields, but no confirmed single contract covering every producer and reader in this audit. Establish accepted units/ranges and invalid-value behavior at the producer boundary before rejecting or normalizing existing records. No range change was made.
+The codebase has different score fields with distinct units; a single global range would be incorrect. The live digest accepts any JavaScript number for gcp3 `confluence_score` without a finite/range check (`lib/digest.ts:107`); the cache TTL reader treats that same field as a 0–100 scale (`lib/shared/signal-policy.ts:76-83`), while the digest test explicitly accepts `0.91` (`__tests__/digest-adapt.test.ts:133-135`). Separately, the portal's own card `score` is deliberately signed in `[-100,100]` (`lib/shared/card-policy.ts:194-202`, `lib/council-grounding.ts:89`), while portfolio-health's upstream `score` contract is finite `[0,100]` (`app/api/portfolio/health/route.ts:76-83`). These are separate contracts; the portal checkout does not establish the gcp3 producer's canonical `confluence_score` unit. A data-owner decision must state range, direction/sign semantics, and invalid-value behavior for each field at its producer boundary. No range change was made.
 
 ## `pending_signals` ownership
 
