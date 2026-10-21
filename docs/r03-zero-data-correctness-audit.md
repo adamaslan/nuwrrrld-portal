@@ -13,7 +13,7 @@
 
 ## P12 — declared-but-empty sentiment
 
-`tools/nwf-lab/nwf_lab/features/news_sentiment.py` now reports an empty declared `news` feed as a Finnhub `vendor_gap`, which makes `nwf-lab` exit with code 2. A focused regression test covers the status and exit code. This fixes the local lab contract only; it does not prove that the separate production signal scan treats Finnhub 403 / gcp3 401 failures as fatal. No production pipeline was triggered or changed, so P12 remains open for that production path.
+`tools/nwf-lab/nwf_lab/features/news_sentiment.py` now reports an empty declared `news` feed as a Finnhub `vendor_gap`, which makes `nwf-lab` exit with code 2. A focused regression test covers the status and exit code. A read-only inspection of `/Users/adamaslan/code/homebase/refresh-signals.py` at `homebase@489fbd0` found a different current contract: `get_news_sentiment()` is explicitly optional, returns `None` both for no articles and for every caught exception (`:145-160`), and the scan still prints `Done. N signals ready.` (`:269-296`). This confirms silent enrichment loss in that manual tool, but does not identify the historical `gcp3 /news-sentiment` caller described by P12 or prove deployed behavior. No production pipeline was triggered or changed. P12 therefore remains open until the exact affected scanner/owner is identified and its run-level failure contract is verified.
 
 ## P07 — sector-cap coverage
 
