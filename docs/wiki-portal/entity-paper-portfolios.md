@@ -2,7 +2,7 @@
 date: 2026-09-13
 type: entity
 tags: [council, paper-trading, simulation, schema, policy, seed, engine]
-sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, ../../lib/paper-engine.ts, ../../lib/shared/paper-engine-core.ts, ../../lib/shared/paper-sectors.ts, ../../lib/shared/paper-core-books.ts, ../paper-trading-v3.md, PR#124, PR#127, PR#204]
+sources: [../council-paper-portfolios.md, ../../lib/db/schema.sql, ../../lib/shared/paper-policy.ts, ../../lib/paper-db.ts, ../../scripts/seed-paper-portfolios.mjs, ../../lib/paper-engine.ts, ../../lib/shared/paper-engine-core.ts, ../../lib/shared/paper-sectors.ts, ../../lib/shared/paper-core-books.ts, ../paper-trading-v3.md, ../r02-safe-data-backup-audit-2026-10-21.md, PR#124, PR#127, PR#204]
 ---
 
 # Entity: Council Paper Portfolios
@@ -138,6 +138,14 @@ surface opens once a seeded environment + `PAPER_CRON_SECRET` exist and Phase
 4's cron starts firing.
 
 ## Known gaps found during implementation (not in the design doc)
+
+- **The local pipeline write guard is not a complete safety proof.** The R02
+  metadata audit found `nwf-core` and `nwf-hydration` both descend from
+  production `main`, with no sanitization evidence; the existing guard is
+  opt-in and compares exact host strings. No live-run configuration was
+  inspected. Do not treat either branch as a safe paper-engine target until
+  the owner confirms data handling and the judgment tier verifies the guard
+  setup. See [R02 audit](../r02-safe-data-backup-audit-2026-10-21.md).
 
 - **`sectorCapPct` is enforced against a sector map covering 18.9% of the
   universe** (found 2026-09-15, PR #143). `lib/shared/paper-policy.ts` sets the
