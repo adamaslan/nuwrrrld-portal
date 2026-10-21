@@ -7,6 +7,15 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #304 assessment — 2026-10-21
+
+Portal PR #304 makes scheduled grounding compilation fail when a live model
+extraction fails, including partial failures, and clarifies the recovery alert.
+This changes backend workflow reliability only: no mobile feature, shared
+client module, API contract, or parity-matrix row changed. The historical ~62%
+headline and matrix remain unchanged; this is a scoped assessment, not a fresh
+parity audit. The fix is pending independent Claude review and is not deployed.
+
 ## PR #296 assessment — 2026-10-18
 
 The draft slot 2 hydration worker is server-side portal pipeline code. It
