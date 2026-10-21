@@ -40,6 +40,18 @@ recent observation. Entry prices came from `live_prices` with no date check.
 6. **Every accepted price records its source** (`price_source` on picks and
    observations), so a vendor switch appears in the data.
 
+## Alternatives considered
+
+- Score against the latest available close versus the close due for each fixed
+  horizon. The decision uses the due offset so a late observation cannot silently
+  change the label.
+- Borrow a later close when the due close is absent versus mark that horizon
+  void. The decision marks it void to keep the sample honest.
+- Require `live_prices` only versus use a bounded source chain. The decision
+  uses the documented freshness-checked fallback chain and records the source.
+- Use a holiday-aware exchange calendar versus weekday offsets with one weekday
+  of lag. The decision chose the simpler weekday rule and documents its limit.
+
 ## Why
 
 - A benchmark that is wrong with no error is worse than one that is empty. An
@@ -57,6 +69,14 @@ recent observation. Entry prices came from `live_prices` with no date check.
 - `daily_bars` closes are split-adjusted, while `live_prices` quotes are raw.
   A split on a pick's ticker mid-horizon would distort the return. This is
   noted, not handled.
+
+## Consequences
+
+- A missing or stale price can reduce the scored sample, but cannot silently
+  create a wrong hit-rate from a later observation.
+- Every accepted price carries a source label so vendor changes can be audited.
+- The weekday calendar and raw-versus-split-adjusted difference remain known
+  limitations, not hidden assumptions.
 - Alpaca's last trade is an IEX print, not the official closing auction. The
   fallback is labelled `alpaca_iex`, so the difference can be checked later.
 
@@ -69,7 +89,14 @@ recent observation. Entry prices came from `live_prices` with no date check.
 - Tests: `__tests__/followed-tickers-horizon-exit.test.ts`,
   `__tests__/followed-tickers-price.test.ts`.
 
-## Related
+## Validated by
+
+- `__tests__/followed-tickers-horizon-exit.test.ts`
+- `__tests__/followed-tickers-price.test.ts`
+- Source review of `resolveFollowedPrice` and `horizonExit`; this validates the
+  code contract, not current production-data freshness.
+
+## See also
 
 - [[incident-2026-10-04-followed-tickers-never-produced-data]] — the failures that
   made this decision necessary

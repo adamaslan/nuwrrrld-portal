@@ -38,6 +38,16 @@ Three latent defects would have corrupted the data once the pipeline ran:
 Selection also never wrote a row to the pipeline run log, so the console could
 not show failed or skipped selection attempts at all.
 
+## Root cause
+
+Three independent workflow defects prevented the benchmark from producing a
+complete cohort: the secret precheck called an API the default workflow token
+could not access; the daily time gate expected a cron hour GitHub did not
+deliver; and entry prices were limited to a small live-price table, silently
+excluding most candidates. Separate observer defects would have corrupted
+results after launch: horizons used a later close, the flip counter read the
+wrong key, completed picks were re-judged, and monthly selection had no run log.
+
 ## Detection
 
 Found by a read-only check, not by any alert: the production table counts were
@@ -66,7 +76,7 @@ Fixed in the unblock-and-correctness PR (branch `fix/followed-tickers-unblock`):
 - Resolved picks (`y1` scored) drop out of the daily council loop.
 - Selection writes to the pipeline run log, including dry runs and skips.
 
-## Still open (human action, not code)
+## Open items
 
 - The Alpaca rung needs `ALPACA_API_KEY` and `ALPACA_API_SECRET` in the
   production deployment environment. As of this writing they are present in
@@ -76,7 +86,7 @@ Fixed in the unblock-and-correctness PR (branch `fix/followed-tickers-unblock`):
 - The first cohort freeze and first forced observation are one-way production
   writes. They wait on the owner's explicit go.
 
-## Lessons
+## Impact on design
 
 - A green workflow that skipped its only job is a failure. The gate and the
   status line need to agree.
