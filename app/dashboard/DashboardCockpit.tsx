@@ -3,14 +3,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { consumeSSE } from "@/lib/shared/sse";
 
-export interface IndexChip {
-  name: string;
-  symbol: string;
-  price: number | null;
-  changePct: number | null;
-  tone?: string;
-}
-
 export interface MoverChip {
   ticker: string;
   verdict: string;
@@ -20,49 +12,7 @@ export interface MoverChip {
 
 interface Props {
   isPro: boolean;
-  indices?: IndexChip[];
-  marketTone?: string;
   movers?: MoverChip[];
-}
-
-
-function IndexBar({ indices, marketTone }: { indices: IndexChip[]; marketTone?: string }) {
-  const [expandedName, setExpandedName] = useState<string | null>(null);
-
-  if (indices.length === 0) return null;
-
-  return (
-    <div className="cockpit-mktbar">
-      {indices.map(idx => {
-        const up = (idx.changePct ?? 0) >= 0;
-        const isOpen = expandedName === idx.name;
-        return (
-          <div key={idx.name} className="cockpit-idx-wrap">
-            <button
-              className={`cockpit-idx-chip${isOpen ? " cockpit-idx-chip--open" : ""}`}
-              onClick={() => setExpandedName(isOpen ? null : idx.name)}
-            >
-              <span className="cockpit-idx-name">{idx.symbol ?? idx.name}</span>
-              {idx.price != null && (
-                <span className="cockpit-idx-price">{idx.price.toLocaleString()}</span>
-              )}
-              {idx.changePct != null && (
-                <span className={`cockpit-idx-chg cockpit-idx-chg--${up ? "up" : "down"}`}>
-                  {up ? "+" : ""}{idx.changePct.toFixed(2)}%
-                </span>
-              )}
-            </button>
-            {isOpen && (
-              <div className="cockpit-idx-detail">
-                <span className="cockpit-idx-detail-label">Tone</span>
-                <span className="cockpit-idx-detail-val">{marketTone ?? "—"}</span>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 function MoversStrip({ movers }: { movers: MoverChip[] }) {
@@ -89,7 +39,7 @@ function MoversStrip({ movers }: { movers: MoverChip[] }) {
   );
 }
 
-export function DashboardCockpit({ isPro, indices = [], marketTone, movers = [] }: Props) {
+export function DashboardCockpit({ isPro, movers = [] }: Props) {
   const [briefStatus, setBriefStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [brief, setBrief] = useState("");
   const [briefError, setBriefError] = useState("");
@@ -134,7 +84,6 @@ export function DashboardCockpit({ isPro, indices = [], marketTone, movers = [] 
 
   return (
     <div className="cockpit">
-      <IndexBar indices={indices} marketTone={marketTone} />
       <MoversStrip movers={movers} />
 
       <div className="cockpit-brief">

@@ -1,0 +1,529 @@
+// ARCHIVED: 2026-10-21
+// REASON: Preserves the optional sector-rotation preview removed from the page's blocking render path. See docs/archive/slow-industry-previews-2026-10-21.md.
+
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import { MAX_CSV_FILE_BYTES, parseTickerCsv } from "@/lib/watchlist-csv";
+import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
+import { consumeSSE } from "@/lib/shared/sse";
+
+interface SectorEntry {
+  name: string;
+  changePct: number;
+  returns: Record<string, number>;
+  aiScore: number | null;
+  aiAction: string | null;
+}
+
+/** How many watchlist rows render before the list is opt-in. A seeded
+ *  full-universe watchlist is ~1000 entries; rendering every one on mount
+ *  costs more than it tells anyone. */
+const WATCHLIST_WINDOW = 50;
+
+interface Props {
+  initialWatchlist: WatchlistItem[];
+  gainers: SectorEntry[];
+  losers: SectorEntry[];
+}
+
+function SectorRow({ sector }: { sector: SectorEntry }) {
+  const [open, setOpen] = useState(false);
+  const up = sector.changePct >= 0;
+  const action = (sector.aiAction ?? "").toUpperCase();
+  const badge =
+    action === "BUY" ? "port-sector-badge--buy" :
+    action === "SELL" ? "port-sector-badge--sell" :
+    "port-sector-badge--hold";
+  const badgeLabel = action === "BUY" ? "BUY" : action === "SELL" ? "SELL" : "HOLD";
+
+  return (
+    <button
+      className={`port-sector-row${open ? " port-sector-row--expanded" : ""}`}
+      onClick={() => setOpen(o => !o)}
+      aria-expanded={open}
+    >
+      <div style={{ flex: 1, textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span className="port-sector-name">{sector.name}</span>
+          <span className={`port-sector-change port-sector-change--${up ? "up" : "down"}`}>
+            {up ? "+" : ""}{sector.changePct.toFixed(2)}%
+          </span>
+        </div>
+        {open && (
+          <div className="port-sector-detail">
+            {sector.returns["1w"] != null && (
+              <span className="port-sector-stat">1W: <span>{sector.returns["1w"] > 0 ? "+" : ""}{sector.returns["1w"].toFixed(2)}%</span></span>
+            )}
+            {sector.returns["1m"] != null && (
+              <span className="port-sector-stat">1M: <span>{sector.returns["1m"] > 0 ? "+" : ""}{sector.returns["1m"].toFixed(2)}%</span></span>
+            )}
+            {sector.aiScore != null && (
+              <span className="port-sector-stat">AI Score: <span>{sector.aiScore}</span></span>
+            )}
+            {sector.aiAction && (
+              <span className={`port-sector-badge ${badge}`}>{badgeLabel}</span>
+            )}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
+
+export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(initialWatchlist);
+  const [tickerInput, setTickerInput] = useState("");
+  const [addError, setAddError] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const [healthStatus, setHealthStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [healthText, setHealthText] = useState("");
+  const [healthError, setHealthError] = useState("");
+  // Whether the AI narrative was grounded in a real gcp3 score, or degraded to
+  // "no portfolio data" — surfaced rather than only logged (concept-graceful-degradation).
+  const [healthGrounded, setHealthGrounded] = useState(true);
+
+  // Portfolio Health Score — the numeric score from /api/portfolio/health,
+  // distinct from the AI narrative health-ai panel above. Previously fetched
+  // by nothing: the audit found this button permanently disabled and the
+  // result never rendered.
+  const [scoreStatus, setScoreStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
+  const [score, setScore] = useState<PortfolioHealth | null>(null);
+  const [scoreError, setScoreError] = useState("");
+  // Which engine produced the score. gcp3's /api/portfolio/health has never
+  // been deployed, so in practice this is "local" — the portal's own
+  // ticker_cards engine. Shown rather than hidden: a score computed from a
+  // different engine than the user expects is exactly the kind of silent
+  // substitution that made the original outage invisible for 11 days.
+  const [scoreSource, setScoreSource] = useState<"upstream" | "local">("upstream");
+
+  // A seeded watchlist can be ~1000 rows; rendering all of them on mount makes
+  // the page unusable for the one thing it is for. Show a window, filter, and
+  // let the full list be opted into.
+  const [watchFilter, setWatchFilter] = useState("");
+  const [showAllWatch, setShowAllWatch] = useState(false);
+
+  const runScoreCheck = useCallback(async () => {
+    setScoreStatus("loading");
+    setScoreError("");
+    try {
+      const res = await fetch("/api/portfolio/health");
+      // 204 = watchlist is empty — never let this render as an error, and
+      // never let the server fall back to gcp3's generic default portfolio.
+      if (res.status === 204) {
+        setScoreStatus("empty");
+        return;
+      }
+      if (!res.ok) {
+        setScoreStatus("error");
+        // Distinct strings per cause. Three different faults all rendering
+        // "Health score unavailable" is what defeated debugging last time.
+        setScoreError(
+          res.status === 503
+            ? "No signals computed for your watchlist yet — the nightly signal run will fill this in."
+            : "Health score unavailable — try again shortly.",
+        );
+        return;
+      }
+      const data: unknown = await res.json();
+      if (!isPortfolioHealth(data)) {
+        setScoreStatus("error");
+        setScoreError("Health score came back in an unexpected shape — this is a bug, not a market condition.");
+        return;
+      }
+      setScoreSource(res.headers.get("X-Portfolio-Health-Source") === "local" ? "local" : "upstream");
+      setScore(data);
+      setScoreStatus("ok");
+    } catch {
+      setScoreStatus("error");
+      setScoreError("Network error — could not load health score.");
+    }
+  }, []);
+
+  // Portfolio Suggestions — /api/portfolio/suggestions existed but nothing
+  // called it from the UI. Fetched alongside the score check.
+  const [suggestions, setSuggestions] = useState<OptimizerSuggestion[] | null>(null);
+  const [suggestionsStatus, setSuggestionsStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSuggestionsStatus("loading");
+    fetch("/api/portfolio/suggestions")
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch suggestions");
+        return res.json();
+      })
+      .then((data: OptimizerSuggestion[]) => {
+        setSuggestions(data);
+        setSuggestionsStatus("ok");
+      })
+      .catch(() => setSuggestionsStatus("error"));
+  }, []);
+
+  interface ImportSummary {
+    added: string[];
+    skipped: { already_present: number; unknown_symbol: number; invalid: number; crypto_unsupported: number };
+    rejectedSample: string[];
+  }
+  const [csvTickers, setCsvTickers] = useState<string[] | null>(null);
+  const [csvPreview, setCsvPreview] = useState<ImportSummary | null>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvMessage, setCsvMessage] = useState("");
+
+  async function postImport(tickers: string[], dryRun: boolean): Promise<ImportSummary | null> {
+    const res = await fetch("/api/portfolio/watchlist/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers, dryRun }),
+    });
+    if (res.status === 429) { setCsvMessage("Too many imports — try again in a while."); return null; }
+    if (res.status === 422) { setCsvMessage("That import would exceed the watchlist size limit."); return null; }
+    if (res.status === 413) { setCsvMessage("Too many rows (limit 500)."); return null; }
+    if (!res.ok) { setCsvMessage("Import failed."); return null; }
+    return await res.json() as ImportSummary;
+  }
+
+  async function onCsvSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    setCsvPreview(null);
+    setCsvTickers(null);
+    setCsvMessage("");
+    if (!file) return;
+    if (file.size > MAX_CSV_FILE_BYTES) { setCsvMessage("File too large (max 64 KB)."); return; }
+    const tickers = parseTickerCsv(await file.text());
+    if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
+    if (tickers.length > 500) { setCsvMessage("Too many rows (limit 500)."); return; }
+    setCsvBusy(true);
+    try {
+      const preview = await postImport(tickers, true);
+      if (preview) { setCsvTickers(tickers); setCsvPreview(preview); }
+    } catch {
+      setCsvMessage("Network error — could not read file.");
+    } finally {
+      setCsvBusy(false);
+    }
+  }
+
+  async function confirmCsvImport() {
+    if (!csvTickers) return;
+    setCsvBusy(true);
+    try {
+      const done = await postImport(csvTickers, false);
+      if (!done) return;
+      const now = new Date().toISOString();
+      setWatchlist(w => [...w, ...done.added.map(ticker => ({ ticker, addedAt: now }))]);
+      setCsvMessage(`Added ${done.added.length} ticker${done.added.length === 1 ? "" : "s"}.`);
+      setCsvTickers(null);
+      setCsvPreview(null);
+    } catch {
+      setCsvMessage("Network error — import not completed.");
+    } finally {
+      setCsvBusy(false);
+    }
+  }
+
+  async function addTicker() {
+    const ticker = tickerInput.trim().toUpperCase();
+    if (!ticker) return;
+    setAdding(true);
+    setAddError("");
+    try {
+      const res = await fetch("/api/portfolio/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      });
+      if (res.status === 409) { setAddError(`${ticker} is already in your watchlist.`); return; }
+      if (!res.ok) { setAddError("Failed to add ticker."); return; }
+      const item = await res.json() as WatchlistItem;
+      setWatchlist(w => [...w, item]);
+      setTickerInput("");
+    } catch {
+      setAddError("Network error — could not add ticker.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function removeTicker(ticker: string) {
+    const res = await fetch(`/api/portfolio/watchlist/${encodeURIComponent(ticker)}`, { method: "DELETE" });
+    if (res.ok) setWatchlist(w => w.filter(i => i.ticker !== ticker));
+  }
+
+  async function runHealthCheck() {
+    if (healthStatus === "loading") return;
+    setHealthStatus("loading");
+    setHealthText("");
+    setHealthError("");
+    setHealthGrounded(true);
+    try {
+      const res = await fetch("/api/portfolio/health-ai", {
+        method: "POST",
+        headers: { "Accept": "text/event-stream, application/json" },
+      });
+      if (res.status === 403) {
+        setHealthStatus("error");
+        setHealthError("Pro feature — upgrade to run a health check.");
+        return;
+      }
+      if (!res.ok) {
+        setHealthStatus("error");
+        setHealthError("Health check unavailable — try again shortly.");
+        return;
+      }
+      const contentType = res.headers.get("content-type") ?? "";
+      let finalText = "";
+      if (contentType.includes("text/event-stream")) {
+        setHealthGrounded(res.headers.get("X-Portfolio-Health-Grounded") !== "false");
+        await consumeSSE(res, (_delta, accumulated) => { finalText = accumulated; setHealthText(accumulated); });
+      } else {
+        const data = await res.json();
+        finalText = data.answer ?? "";
+        setHealthGrounded(data.grounded !== false);
+        setHealthText(finalText);
+      }
+      if (!finalText) {
+        setHealthStatus("error");
+        setHealthError("Health check returned empty — try again.");
+      } else {
+        setHealthStatus("ok");
+      }
+    } catch (err) {
+      setHealthStatus("error");
+      setHealthError(err instanceof Error ? err.message : "Failed.");
+    }
+  }
+
+  const filteredWatchlist = watchFilter
+    ? watchlist.filter(i => i.ticker.includes(watchFilter))
+    : watchlist;
+  const visibleWatchlist = showAllWatch
+    ? filteredWatchlist
+    : filteredWatchlist.slice(0, WATCHLIST_WINDOW);
+  const hiddenWatchCount = filteredWatchlist.length - visibleWatchlist.length;
+
+  const allSectors = [
+    ...gainers.map(s => ({ ...s, type: "gainer" as const })),
+    ...losers.map(s => ({ ...s, type: "loser" as const })),
+  ];
+
+  return (
+    <div className="port-body">
+      {/* Watchlist */}
+      <div className="port-panel">
+        <p className="port-panel-title">Watchlist</p>
+        <div className="port-watch-add">
+          <input
+            className="port-watch-input"
+            placeholder="Add ticker (e.g. AAPL)"
+            value={tickerInput}
+            onChange={e => setTickerInput(e.target.value.toUpperCase())}
+            onKeyDown={e => { if (e.key === "Enter") addTicker(); }}
+            maxLength={10}
+          />
+          <button className="port-watch-btn" onClick={addTicker} disabled={adding || !tickerInput.trim()}>
+            + Add
+          </button>
+        </div>
+        {addError && <p className="port-watch-error">{addError}</p>}
+        <div className="port-watch-add">
+          <label className="port-watch-btn" style={{ cursor: csvBusy ? "wait" : "pointer" }}>
+            Import CSV
+            <input type="file" accept=".csv,text/csv" onChange={onCsvSelected} disabled={csvBusy} hidden />
+          </label>
+        </div>
+        {csvPreview && (
+          <div>
+            <p className="port-watch-empty">
+              Will add {csvPreview.added.length} · {csvPreview.skipped.already_present} already on your list ·{" "}
+              {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} skipped
+              {csvPreview.rejectedSample.length > 0 && ` (e.g. ${csvPreview.rejectedSample.slice(0, 5).join(", ")})`}
+            </p>
+            <button className="port-watch-btn" onClick={confirmCsvImport} disabled={csvBusy || csvPreview.added.length === 0}>
+              Confirm import
+            </button>
+          </div>
+        )}
+        {csvMessage && <p className="port-watch-error">{csvMessage}</p>}
+        {watchlist.length === 0 ? (
+          <p className="port-watch-empty">No tickers yet — add one above.</p>
+        ) : (
+          <>
+            {watchlist.length > WATCHLIST_WINDOW && (
+              <input
+                className="port-watch-input"
+                style={{ width: "100%", marginBottom: "8px" }}
+                placeholder={`Filter ${watchlist.length} tickers…`}
+                value={watchFilter}
+                onChange={e => setWatchFilter(e.target.value.toUpperCase())}
+                aria-label="Filter watchlist"
+              />
+            )}
+            <div className="port-watch-list">
+              {visibleWatchlist.map(item => (
+                <div key={item.ticker} className="port-watch-item">
+                  <span className="port-watch-ticker">{item.ticker}</span>
+                  <span className="port-watch-date">{new Date(item.addedAt).toLocaleDateString()}</span>
+                  <button className="port-watch-remove" onClick={() => removeTicker(item.ticker)} aria-label={`Remove ${item.ticker} from watchlist`}>✕</button>
+                </div>
+              ))}
+            </div>
+            {filteredWatchlist.length === 0 && (
+              <p className="port-watch-empty">No watchlist ticker matches “{watchFilter}”.</p>
+            )}
+            {hiddenWatchCount > 0 && (
+              <button className="port-health-regen" onClick={() => setShowAllWatch(true)}>
+                Show all {filteredWatchlist.length} ({hiddenWatchCount} more)
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Portfolio Health Score — numeric score from /api/portfolio/health */}
+      <div className="port-panel">
+        <p className="port-panel-title">Portfolio Health Score</p>
+        {scoreStatus === "idle" && (
+          <button className="port-health-btn" onClick={runScoreCheck}>
+            Run health score
+          </button>
+        )}
+        {scoreStatus === "loading" && (
+          <button className="port-health-btn" disabled>Analyzing…</button>
+        )}
+        {scoreStatus === "ok" && score && (
+          <div className="port-health-result">
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "2rem", fontWeight: 900 }}>{score.score}</span>
+              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--cyan)" }}>Grade {score.grade}</span>
+            </div>
+            {scoreSource === "local" && (
+              <p className="port-health-source">
+                Computed by the portal signal engine from your watchlist&rsquo;s latest cards.
+              </p>
+            )}
+            {score.summary && <p className="port-health-text">{score.summary}</p>}
+            {score.factors.length > 0 && (
+              <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                {score.factors.map(f => (
+                  <div key={f.name} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem" }}>
+                    <span>{f.name}</span>
+                    <span className={f.impact === "positive" ? "port-sector-change--up" : f.impact === "negative" ? "port-sector-change--down" : ""}>
+                      {f.score}/100
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button className="port-health-regen" onClick={runScoreCheck}>↺ Refresh</button>
+          </div>
+        )}
+        {scoreStatus === "empty" && (
+          <p className="port-score-empty">Add tickers to your watchlist to get your health score.</p>
+        )}
+        {scoreStatus === "error" && (
+          <>
+            <p className="port-health-error">{scoreError}</p>
+            <button className="port-health-regen" onClick={runScoreCheck}>Try again</button>
+          </>
+        )}
+      </div>
+
+      {/* Portfolio Suggestions — /api/portfolio/suggestions, previously unwired */}
+      <div className="port-panel">
+        <p className="port-panel-title">Optimizer Suggestions</p>
+        {suggestionsStatus === "loading" && (
+          <p className="port-health-loading">Loading suggestions…</p>
+        )}
+        {suggestionsStatus === "error" && (
+          <p className="port-health-error">Suggestions unavailable — try again shortly.</p>
+        )}
+        {suggestionsStatus === "ok" && suggestions && suggestions.length === 0 && (
+          <p className="port-suggestions-empty">No suggestions right now — check back after adding tickers.</p>
+        )}
+        {suggestionsStatus === "ok" && suggestions && suggestions.length > 0 && (
+          <div className="port-watch-list">
+            {suggestions.map(s => (
+              <div key={s.id} className="port-watch-item" style={{ alignItems: "flex-start", flexDirection: "column", gap: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                  <span className="port-watch-ticker">{s.ticker ?? s.title}</span>
+                  <span className={`port-sector-badge ${s.priority === "high" ? "port-sector-badge--sell" : s.priority === "low" ? "port-sector-badge--hold" : "port-sector-badge--buy"}`}>
+                    {s.priority}
+                  </span>
+                </div>
+                <p style={{ fontSize: ".82rem", color: "var(--muted)", margin: 0 }}>{s.rationale}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* AI Health Check */}
+      <div className="port-panel">
+        <p className="port-panel-title">Portfolio Health Check · AI</p>
+        {healthStatus === "idle" && (
+          <button className="port-health-btn" onClick={runHealthCheck}>
+            ✦ Run AI health check
+          </button>
+        )}
+        {healthStatus === "loading" && (
+          <>
+            <button className="port-health-btn" disabled>Analyzing…</button>
+            {healthText ? (
+              <div className="port-health-result">
+                <p className="port-health-label">Health Check · T2 Council</p>
+                <p className="port-health-text">{healthText}</p>
+              </div>
+            ) : (
+              <p className="port-health-loading" style={{ marginTop: "10px" }}>Council is reviewing your portfolio…</p>
+            )}
+          </>
+        )}
+        {healthStatus === "ok" && healthText && (
+          <div className="port-health-result">
+            <p className="port-health-label">Health Check · T2 Council</p>
+            {!healthGrounded && (
+              <p className="port-health-error" style={{ fontSize: ".8rem" }}>
+                ⚠ Based on general knowledge — your portfolio score was unavailable for this check.
+              </p>
+            )}
+            <p className="port-health-text">{healthText}</p>
+            <button className="port-health-regen" onClick={() => setHealthStatus("idle")}>↺ Run again</button>
+          </div>
+        )}
+        {healthStatus === "error" && (
+          <>
+            <p className="port-health-error">{healthError}</p>
+            <button className="port-health-regen" onClick={() => setHealthStatus("idle")}>Try again</button>
+          </>
+        )}
+      </div>
+
+      {/* Sector Rotation */}
+      {allSectors.length > 0 && (
+        <div className="port-panel" style={{ gridColumn: "1 / -1" }}>
+          <p className="port-panel-title">Sector Rotation · Today</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <p style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--green)", textTransform: "uppercase", marginBottom: "8px" }}>Top Gainers</p>
+              <div className="port-sector-list">
+                {gainers.map(s => <SectorRow key={s.name} sector={s} />)}
+              </div>
+            </div>
+            <div>
+              <p style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--red)", textTransform: "uppercase", marginBottom: "8px" }}>Top Laggards</p>
+              <div className="port-sector-list">
+                {losers.map(s => <SectorRow key={s.name} sector={s} />)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+// ARCHIVED: 2026-10-21
+// REASON: Preserves the optional sector-rotation preview removed from the page's blocking render path. See docs/archive/slow-industry-previews-2026-10-21.md.
+

@@ -7,35 +7,8 @@ import { parseSubscriptionMetadataWithAdmin } from "@/lib/subscription-admin";
 import { isNulogdashAdmin } from "@/lib/nulogdash";
 import { DashboardCockpit } from "./DashboardCockpit";
 import { HealthBanner } from "./HealthBanner";
-import type { IndexChip, MoverChip } from "./DashboardCockpit";
+import type { MoverChip } from "./DashboardCockpit";
 import "./dashboard.css";
-
-interface IndexEntry {
-  symbol?: string;
-  price?: number;
-  change_pct?: number;
-}
-
-interface MarketOverview {
-  brief?: {
-    summary?: string;
-    market_tone?: string;
-    indices?: Record<string, IndexEntry>;
-  };
-}
-
-async function fetchMarketOverview(): Promise<MarketOverview | null> {
-  const mcpUrl = process.env.MCP_BACKEND_URL;
-  if (!mcpUrl) return null;
-
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 8_000);
-  try {
-    const res = await fetch(`${mcpUrl}/market-overview?sections=brief`, { signal: ctrl.signal, next: { revalidate: 900 } });
-    if (!res.ok) return null;
-    return await res.json() as MarketOverview;
-  } catch { return null; } finally { clearTimeout(t); }
-}
 
 async function fetchTopMovers(): Promise<MoverChip[]> {
   const { verdicts } = await getStoredHoldFold();
@@ -60,17 +33,7 @@ export default async function Dashboard({
   const params = await searchParams;
   const checkoutSuccess = params.checkout === "success";
 
-  const [market, movers] = await Promise.all([fetchMarketOverview(), fetchTopMovers()]);
-
-  const indices: IndexChip[] = market?.brief?.indices
-    ? Object.entries(market.brief.indices).slice(0, 4).map(([name, idx]) => ({
-        name,
-        symbol: idx.symbol ?? name,
-        price: idx.price ?? null,
-        changePct: idx.change_pct ?? null,
-        tone: market.brief?.market_tone,
-      }))
-    : [];
+  const movers = await fetchTopMovers();
 
   const hour = new Date().getUTCHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -115,8 +78,6 @@ export default async function Dashboard({
 
         <DashboardCockpit
           isPro={isPro}
-          indices={indices}
-          marketTone={market?.brief?.market_tone}
           movers={movers}
         />
 
