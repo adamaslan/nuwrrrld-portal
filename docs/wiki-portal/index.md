@@ -55,7 +55,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-live-price-tier]] — `/api/signals/live` + `live_prices`; Finnhub WS lane + the Modal drain cron
 - [[entity-local-signal-pipeline-scripts]] — `scripts/pipeline/`: Alpaca-first local signal pipeline (`locrun.py`, `refresh-signals.py`, `market_data.py`, `alpaca_md.py`), moved from homebase
 - [[entity-ticker-universe-pipeline]] — `ticker_universe`/`ticker_cards` + `app/api/pipeline/hydrate-universe`; the coverage pipeline that scores tickers at zero AI cost, and the seed scripts (S&P 500/Nasdaq-100, Yahoo portfolio CSV import, ETF cards) that populate it
-- [[entity-sqlite-backup]] — `scripts/backup-to-sqlite.mjs` + `lib/db/schema.sqlite.sql`; point-in-time Neon → local SQLite snapshot export, zero new dependencies
+- [[entity-sqlite-backup]] — `scripts/backup-to-sqlite.mjs` + `lib/db/schema.sqlite.sql`; point-in-time Neon → local SQLite snapshot export, 14-day artifact window, and the R02 development-branch/restore safety audit
 - [[entity-db-parity-suite]] — `scripts/gen-sqlite-schema.mjs` (generates the SQLite schema instead of hand-maintaining it) + `test/db-parity/`; contract-tests 10 of 14 `lib/*-db.ts` modules against both engines
 - [[entity-modal-backend]] — `deploy/modal-backend`: Postgres-of-record Modal backend (evening pipeline, council + paper trading, billing, FastAPI) with a DynamoDB mirror; written and tested locally, **never deployed**
 - [[entity-model-usage-log]] — `pipeline_run_log` + `lib/pipeline-run-log-db.ts` + `scripts/model-usage-report.mjs` (`npm run model-usage`); per-run audit of which OpenRouter model served each pipeline, rolled up daily/weekly/monthly into `docs/model-usage/`

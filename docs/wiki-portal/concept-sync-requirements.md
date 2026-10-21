@@ -22,6 +22,14 @@ paper-trading slots. This portal operations change creates no mobile port or
 shared-code sync requirement. Scheduled end-to-end behavior remains to be
 verified after the existing credential and seed blockers are cleared.
 
+## Portal PR #306 — backup safety review, no client port
+
+The R02 audit documents the current Neon branch lineage, snapshot coverage,
+restore gap, and production-host guard limitations. It changes no application
+behavior or shared client module, so there is no mobile port or de-drift task.
+The recorded feature-parity headline and matrix are unchanged. Human approval
+and a verified nonproduction restore remain separate operational gates.
+
 ## PR #291 and homebase PR #8 — cloud credential preflight
 
 The manual [[entity-gcp-credential-preflight]] verifies existing provider

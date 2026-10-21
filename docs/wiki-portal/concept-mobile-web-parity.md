@@ -7,6 +7,14 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal PR #306 assessment — 2026-10-21
+
+PR #306 records backup and development-data safety findings for the portal's
+Neon project. It changes documentation and wiki pages only: no app behavior,
+shared client module, API contract, or mobile surface changed. The historical
+~62% headline and domain matrix remain unchanged; this scoped assessment is
+not a new parity audit, and it adds no mobile port.
+
 ## PR #296 assessment — 2026-10-18
 
 The draft slot 2 hydration worker is server-side portal pipeline code. It
