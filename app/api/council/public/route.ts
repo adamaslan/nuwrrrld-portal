@@ -61,6 +61,16 @@ export async function POST(req: NextRequest) {
   const entry = await fetchTickerEntry(ticker);
   const brief = entry ? formatTickerBrief(entry) : null;
 
+  // Empty signal data is a transient grounding failure, not an invitation for
+  // the model to invent a market take. Give the caller's daily slot back.
+  if (!brief) {
+    await releaseDemoQuota(ipHash);
+    return NextResponse.json(
+      { error: "No live signal data for this ticker. Please try again later." },
+      { status: 503 },
+    );
+  }
+
   try {
     const result = await callCouncilSeat(DEMO_SEAT, buildDemoPrompt(ticker, brief), apiKey, 220);
     await saveDemoAnswer(ticker, DEMO_SEAT, result.answer, result.model);
