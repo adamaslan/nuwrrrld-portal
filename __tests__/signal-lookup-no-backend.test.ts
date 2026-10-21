@@ -48,4 +48,24 @@ describe("fetchTickerEntry without an MCP backend", () => {
     expect(await fetchTickerEntry("NVDA")).toBeNull();
     expect(mocks.sql).toHaveBeenCalledOnce();
   });
+
+  it("does not return a cached payload whose symbol disagrees with its cache key", async () => {
+    vi.stubEnv("MCP_BACKEND_URL", "https://signals.example.test");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ symbols: {} }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    })));
+    mocks.sql.mockClear();
+    mocks.sql
+      .mockResolvedValueOnce([{
+        payload: { symbol: "AAPL", ai_action: "BUY" },
+        generated_at: new Date().toISOString(),
+      }])
+      .mockResolvedValue([]);
+
+    const { fetchTickerEntry } = await import("@/lib/shared/signal-lookup");
+
+    expect(await fetchTickerEntry("NVDA")).toBeNull();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(mocks.sql).toHaveBeenCalledOnce();
+  });
 });

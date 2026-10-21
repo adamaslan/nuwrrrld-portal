@@ -34,6 +34,12 @@ type CacheReadResult =
   | { outcome: "miss" }
   | { outcome: "broken" };
 
+/** A cache row is keyed by ticker, but older readers could cache a different symbol's payload. */
+function cacheEntryMatchesTicker(entry: Record<string, unknown>, ticker: string): boolean {
+  const payloadTicker = normalizeTicker(entry.symbol);
+  return payloadTicker === null || payloadTicker === ticker;
+}
+
 /** Guarded read of one ticker's cached entry. Never throws — cache is L2. */
 async function readCachedEntry(ticker: string): Promise<CacheReadResult> {
   try {
@@ -89,7 +95,8 @@ export async function fetchTickerEntry(ticker: string): Promise<Record<string, u
   if (!symbol) return null;
 
   const cached = await readCachedEntry(symbol);
-  if (cached.outcome === "hit" && isCacheFresh(cached.entry.generatedAt, cacheTtlMinutes(cached.entry.payload))) {
+  const cacheMatchesTicker = cached.outcome !== "hit" || cacheEntryMatchesTicker(cached.entry.payload, symbol);
+  if (cached.outcome === "hit" && cacheMatchesTicker && isCacheFresh(cached.entry.generatedAt, cacheTtlMinutes(cached.entry.payload))) {
     return cached.entry.payload;
   }
 
@@ -101,7 +108,7 @@ export async function fetchTickerEntry(ticker: string): Promise<Record<string, u
   }
 
   // Backend unreachable — serve stale real data rather than nothing.
-  return cached.outcome === "hit" ? cached.entry.payload : null;
+  return cached.outcome === "hit" && cacheMatchesTicker ? cached.entry.payload : null;
 }
 
 /** Human-readable REAL DATA brief for one ticker entry — null when there's nothing worth grounding on. */
