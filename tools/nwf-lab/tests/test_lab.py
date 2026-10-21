@@ -87,6 +87,14 @@ def test_downstream_skipped_when_upstream_fails(cfg):
     assert r["signals-top"].status == "skipped_input"
 
 
+def test_empty_news_is_nonzero_vendor_gap(cfg):
+    results = run_features(DataBundle(tickers=["AAPL"]), cfg, only=["news-sentiment"])
+
+    assert results["news-sentiment"].status == "vendor_gap"
+    assert "company-news" in results["news-sentiment"].note
+    assert exit_code(results) == 2
+
+
 def test_unknown_slug_rejected(bundle, cfg):
     with pytest.raises(LabError):
         run_features(bundle, cfg, only=["nope"])
