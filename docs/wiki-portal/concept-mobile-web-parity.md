@@ -7,6 +7,18 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal preview archive — 2026-10-21
+
+The portal removed the signed-in dashboard's optional market-index chips and
+the industry-performance previews from portfolio and portfolio-intelligence
+server renders. This removes those optional upstream requests from those
+blocking render paths. No mobile code or shared module changed; mobile's own
+market-overview behavior is untouched. This is a portal feature-scope change,
+so the historical ~62% parity headline and matrix have **not** been recalculated
+and should not be treated as a fresh parity measurement. No browser timing trace
+was captured; the configured 7–8 second abort values were ceilings, not load
+measurements. See [[decision-remove-slow-market-previews]].
+
 ## PR #296 assessment — 2026-10-18
 
 The draft slot 2 hydration worker is server-side portal pipeline code. It

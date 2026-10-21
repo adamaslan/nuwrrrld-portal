@@ -52,6 +52,14 @@ Rendered by `app/dashboard/portfolio/PortfolioClient.tsx`.
 
 ## Known failures
 
+- **Optional industry previews removed from initial renders (2026-10-21).**
+  `/dashboard/portfolio` no longer waits for `/industry-intel` to show industry
+  gainers and laggards, and `/portfolio-intelligence` no longer fetches the
+  same data for its public preview. The watchlist, portfolio score, optimizer,
+  landing copy, and calls to action remain. The previous 7–8 second abort
+  settings were upper bounds, not observed page timings; no browser trace was
+  recorded. See [[decision-remove-slow-market-previews]].
+
 1. ~~Watchlist is not yet a signal trigger.~~ **Closed 2026-07-24.** Adding a
    ticker now enqueues a `pending_signals` row
    ([[decision-pending-signals-queue]]) via `lib/signal-queue.ts`

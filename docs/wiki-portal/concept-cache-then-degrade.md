@@ -28,11 +28,13 @@ added the L2 tier precisely because L1-only state disappeared on every deploy.
 
 ## Where it appears
 
-- `app/dashboard/page.tsx` requests `/market-overview?sections=brief` for its
-  summary and index prices, retaining 900-second revalidation and the 8-second
-  abort fallback to `null`. Selecting the consumed section avoids waiting for
-  unrelated overview sections that can invoke LLM generation; cached reads
-  should request only the data the renderer needs.
+- The signed-in dashboard previously awaited `/market-overview?sections=brief`
+  for optional index chips. The 2026-10-21 archive removed that request from
+  the server render; the 8-second abort budget was a ceiling, not a measured
+  page-load duration. The optional industry gainers/laggards previews were also
+  removed from `/dashboard/portfolio` and `/portfolio-intelligence`, so those
+  pages no longer await `/industry-intel`. See
+  [[decision-remove-slow-market-previews]].
 - [[entity-holdfold-cache]] — the canonical two-policy pair (cache vs. watchlist).
 - [[entity-portfolio-intelligence]] — a **fourth** shape, new 2026-09-11: not a
   cache at all, but a *substitute computation*. `/api/portfolio/health` prefers
@@ -103,3 +105,4 @@ freshness-gated path does, only without the age gate, or "degrade" quietly means
 - [[entity-holdfold-cache]] — the two policies side by side
 - [[entity-backtest-engine]] — degradation taken to disabled-by-default
 - [[decision-compile-time-grounding]] — precompute vs. request-time, same axis
+- [[decision-remove-slow-market-previews]] — remove optional upstream previews from blocking page renders
