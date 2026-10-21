@@ -29,7 +29,7 @@ The portal contains enqueue and drain functions in `lib/signal-queue.ts` and a b
 
 ## Invoice ownership
 
-The atlas records `invoices` as a shared-database table not declared in this repo's schema. No table rows or credentials were read. The owning service's data owner must determine ownership and approve any read-only contents review because invoice data may contain PII.
+The existing [2026-09-03 incident record](wiki-portal/incident-2026-09-03-unowned-tables-in-shared-neon-db.md) says a prior live metadata-only audit found four tables absent from `lib/db/schema.sql`; it records 26 historical `invoices` rows and columns including customer names, emails, and mailing addresses. A current source scan found no SQL access to an `invoices` table in this repo; the portal's [billing model](wiki-portal/entity-billing.md) describes Clerk/Stripe subscription state instead. Those facts suggest the table may belong to another app, but the old count and hypothesis are not current ownership proof. This audit read no table rows or credentials. The owning service's data owner must determine ownership and access scope; any contents review requires their approval because the table may contain PII.
 
 ## Remaining gates
 
