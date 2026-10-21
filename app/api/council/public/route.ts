@@ -5,10 +5,9 @@
  * prompt template is built entirely server-side, closing the prompt-injection
  * door a public endpoint would otherwise open.
  *
- * Cost model: cache hit (someone already asked about this ticker today) is
- * free and unlimited; a cache miss costs the caller one of their 1-per-day
- * quota slots and triggers a single RISK-seat call on the existing $0
- * free-tier model chain (lib/openrouter.ts).
+ * Cost model: cache hits are free and unlimited; a grounded cache miss costs
+ * one of the caller's daily quota slots and triggers a single RISK-seat call.
+ * An ungrounded miss returns without calling a model.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
@@ -18,8 +17,8 @@ import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup"
 
 const DEMO_SEAT = "RISK" as const;
 
-function buildDemoPrompt(ticker: string, brief: string | null): string {
-  const grounding = brief ? `\n\n=== LIVE SIGNAL DATA (${ticker}) ===\n${brief}` : "";
+function buildDemoPrompt(ticker: string, brief: string): string {
+  const grounding = `\n\n=== LIVE SIGNAL DATA (${ticker}) ===\n${brief}`;
   return (
     `A visitor with no account is trying the council demo on ${ticker}. ` +
     `Give your honest RISK-seat take: what could go wrong with this trade, and what would prove it wrong. ` +

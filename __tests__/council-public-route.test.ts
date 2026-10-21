@@ -80,4 +80,28 @@ describe("POST /api/council/public grounding", () => {
     expect(fetchTickerEntry).not.toHaveBeenCalled();
     expect(callCouncilSeat).not.toHaveBeenCalled();
   });
+
+  it("returns 429 without fetching data when the daily quota is exhausted", async () => {
+    vi.mocked(checkAndIncrementDemoQuota).mockResolvedValueOnce(false);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(429);
+    expect(fetchTickerEntry).not.toHaveBeenCalled();
+    expect(callCouncilSeat).not.toHaveBeenCalled();
+    expect(releaseDemoQuota).not.toHaveBeenCalled();
+  });
+
+  it("refunds a charged attempt when the model call fails", async () => {
+    vi.mocked(fetchTickerEntry).mockResolvedValueOnce({ symbol: "NVDA" } as never);
+    vi.mocked(formatTickerBrief).mockReturnValueOnce("signal score: 0.7");
+    vi.mocked(callCouncilSeat).mockRejectedValueOnce(new Error("upstream unavailable"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(releaseDemoQuota).toHaveBeenCalledWith("hashed-ip");
+    expect(saveDemoAnswer).not.toHaveBeenCalled();
+  });
 });
