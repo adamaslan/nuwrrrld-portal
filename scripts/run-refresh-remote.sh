@@ -21,7 +21,8 @@
 #   MODEL_CHAIN_SIZE     forwarded to the refresh script (default 4)
 #   OPEN_PR              "1" (default) opens/updates a PR; "0" pushes to BASE_BRANCH directly
 #
-# Exit codes: 0 = success (changed or not), 1 = refresh unsafe / hard error.
+# Exit codes: 0 = success (changed or not), 1 = refresh unsafe / hard error,
+#             5 = DRIFT: GHA chain PR is open and this run's chain differs from it.
 set -euo pipefail
 
 REPO="${REPO:-adamaslan/nuwrrrld-portal}"
@@ -47,6 +48,28 @@ echo "==> Refreshing FREE_MODEL_CHAIN"
 # The refresh script exits 1 on an unsafe result and leaves the file untouched;
 # `set -e` propagates that so the job is marked failed without pushing garbage.
 node scripts/refresh-free-models.mjs
+
+# GitHub Actions is the scheduler of record. If its chain PR is open, this run
+# must agree with it. Otherwise it alerts (exit 5) rather than writing a second
+# chain, and the failed job is the alert. Matching by writing is not done here,
+# because GHA holds no GCP credentials to trigger this job.
+chain_of() {
+  awk '/export const FREE_MODEL_CHAIN = \[/{f=1;next} /\] as const;/{f=0} f' | tr -d " ',\t"
+}
+gha_pr="$(gh pr list --repo "$REPO" --head "$PR_BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+if [[ -n "$gha_pr" ]]; then
+  git fetch -q origin "$PR_BRANCH"
+  gha_chain="$(git show FETCH_HEAD:lib/openrouter.ts | chain_of)"
+  gcp_chain="$(chain_of < lib/openrouter.ts)"
+  if [[ "$gha_chain" == "$gcp_chain" ]]; then
+    echo "==> GCP chain matches GHA PR #$gha_pr. Nothing to push."
+    exit 0
+  fi
+  echo "DRIFT: GCP chain differs from GHA PR #$gha_pr." >&2
+  echo "GHA chain:" >&2; echo "$gha_chain" >&2
+  echo "GCP chain:" >&2; echo "$gcp_chain" >&2
+  exit 5
+fi
 
 if git diff --quiet -- lib/openrouter.ts; then
   echo "==> No change — chain already current. Nothing to push."
