@@ -7,6 +7,15 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 
 # Concept — What Each Surface Needs to Sync
 
+## Portal PR #303 — shared-budget diagnostics
+
+This change classifies AWS failures for the portal's Alpaca request-budget
+reservation and keeps raw CLI output private. It modifies no shared client
+code or mobile-facing contract, so there is no mobile port or de-drift task.
+The existing parity headline and requirements remain unchanged; the prior
+hydration failure still needs a categorized runtime retry to identify its
+cause.
+
 Companion page: [[concept-mobile-web-parity]] — the historical ~62% measurement this
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.

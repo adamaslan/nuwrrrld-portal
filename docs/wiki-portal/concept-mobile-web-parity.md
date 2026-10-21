@@ -7,6 +7,14 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #303 assessment — 2026-10-21
+
+The shared Alpaca-budget change is portal worker diagnostics. It does not
+change a client feature, shared module, or cross-surface API, so the historical
+~62% headline and domain matrix remain unchanged. This is a scoped review of
+the PR, not a fresh parity audit. The shared budget still fails closed; a new
+categorized run is needed to identify the prior runtime failure.
+
 ## PR #296 assessment — 2026-10-18
 
 The draft slot 2 hydration worker is server-side portal pipeline code. It

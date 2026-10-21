@@ -116,6 +116,15 @@ failures #3 for why).
 
 ## Known failures
 
+> ℹ️ **Portal PR #303 — safe shared-budget diagnostics.** The Alpaca
+> reservation still fails closed, but AWS CLI failures now produce an
+> allow-listed category instead of one indistinguishable message. This makes
+> missing/invalid credentials, IAM denial, missing table, throttling, network
+> failure, timeout, absent CLI, and capacity exhaustion separately visible
+> without exposing raw stderr. The October 20 scheduled failure remains
+> undiagnosed until another run emits a category; no credentials or cloud
+> permissions were changed. See PR #303 and `lib/alpaca-budget.mjs`.
+
 > ⚠️ **October 13 audit snapshot:** `scripts/hydrate-local.mjs` stamped cards
 > with the UTC calendar date instead of the last market bar's session date.
 > This can label October 12 price data as October 13 and makes a recent

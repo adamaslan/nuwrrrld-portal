@@ -1,6 +1,13 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-18 (draft PR #296 slot 2 hydration worker; parity remains ~62%)_
+_Last updated: 2026-10-21 (draft PR #303 shared-budget diagnostics; parity remains ~62%)_
+
+**Draft PR #303 scope:** the portal shared Alpaca budget now emits safe,
+allow-listed AWS failure categories while continuing to fail closed. It
+exposes no raw stderr or credentials and changes no mobile feature or shared
+client module, so parity remains ~62%. The October 20 runtime failure still
+needs a categorized retry. See [[entity-ticker-universe-pipeline]],
+[[concept-mobile-web-parity]], and [[concept-sync-requirements]].
 
 **Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
 JS indicator and card policies and targets `nwf-hydration`. It changes no
