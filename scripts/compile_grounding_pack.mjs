@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { neon } from "@neondatabase/serverless";
 import { chunkDocument, traderFilterForFile } from "./grounding-chunker.mjs";
+import { extractionFailureMessage } from "./lib/grounding-compile-status.mjs";
 
 const scriptDir = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = join(scriptDir, "..");
@@ -512,17 +513,12 @@ async function main() {
       (DRY_RUN ? " (dry-run, nothing written)" : ""),
   );
 
-  // Every chunk failed to reach the model: the pack is empty because nothing
-  // was asked, not because the corpus had nothing to say. Exiting 0 here is
-  // what let a retired model id and an exhausted daily quota both read as a
-  // successful no-op run. Nothing was persisted for a failed chunk (see the
-  // writableResults filter), so "left unchanged" is literally true here.
-  if (!DRY_RUN && callsMade > 0 && extractFailures === callsMade) {
-    throw new Error(
-      `all ${callsMade} extraction call(s) failed — no rule could be compiled. ` +
-        `Check the model id and the OpenRouter quota; the pack was left unchanged.`,
-    );
-  }
+  const extractionFailure = extractionFailureMessage({
+    dryRun: DRY_RUN,
+    callsMade,
+    extractFailures,
+  });
+  if (extractionFailure) throw new Error(extractionFailure);
 }
 
 main().catch((err) => {
