@@ -7,7 +7,7 @@
 ## P45 — no-data behavior
 
 - The authenticated multi-seat route on `origin/main` already rejects all-seat `NoGroundingError` runs before making model calls, refunds an actually bumped quota unit, and avoids creating an orphan session. Partial grounding runs retain grounded seats and mark the others degraded. The existing `__tests__/council-deliberate.test.ts` covers these cases.
-- The unauthenticated public demo route still called the RISK model with an empty prompt grounding when the signal lookup returned no brief. This branch fixes that gap: it returns HTTP 503 with a clear no-live-data message, releases the daily quota slot, does not call or cache a model answer, and preserves normal grounded and cache-hit behavior.
+- The unauthenticated public demo route still called the RISK model with an empty prompt grounding when the signal lookup returned no brief. This branch fixes that gap: it returns HTTP 503 with a clear no-live-data message, keeps the attempt charged against the existing daily quota, does not call or cache a model answer, and preserves normal grounded and cache-hit behavior. Keeping the attempt charged prevents repeated anonymous requests for unknown tickers from bypassing the cap on upstream lookups.
 - Focused verification: `council-public-route.test.ts`, `council-deliberate.test.ts`, and `council-grounding-card-fallback.test.ts` — 16 tests passed; ESLint and `git diff --check` passed.
 
 ## P12 — declared-but-empty sentiment

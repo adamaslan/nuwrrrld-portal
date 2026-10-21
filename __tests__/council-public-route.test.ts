@@ -43,15 +43,15 @@ afterEach(() => {
 });
 
 describe("POST /api/council/public grounding", () => {
-  it("refuses to call the model without live signal data and refunds the daily slot", async () => {
+  it("refuses to call the model without live signal data and keeps the daily attempt charged", async () => {
     const response = await POST(request());
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
-      error: "No live signal data for this ticker. Please try again later.",
+      error: "No live signal data for this ticker. Your daily demo attempt was used; please try again tomorrow.",
     });
     expect(checkAndIncrementDemoQuota).toHaveBeenCalledOnce();
-    expect(releaseDemoQuota).toHaveBeenCalledWith("hashed-ip");
+    expect(releaseDemoQuota).not.toHaveBeenCalled();
     expect(callCouncilSeat).not.toHaveBeenCalled();
     expect(saveDemoAnswer).not.toHaveBeenCalled();
   });

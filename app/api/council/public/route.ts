@@ -61,12 +61,12 @@ export async function POST(req: NextRequest) {
   const entry = await fetchTickerEntry(ticker);
   const brief = entry ? formatTickerBrief(entry) : null;
 
-  // Empty signal data is a transient grounding failure, not an invitation for
-  // the model to invent a market take. Give the caller's daily slot back.
+  // Empty signal data is not an invitation for the model to invent a market
+  // take. Keep the daily slot consumed: refunding every unknown ticker would
+  // let anonymous callers repeat uncached upstream lookups without a limit.
   if (!brief) {
-    await releaseDemoQuota(ipHash);
     return NextResponse.json(
-      { error: "No live signal data for this ticker. Please try again later." },
+      { error: "No live signal data for this ticker. Your daily demo attempt was used; please try again tomorrow." },
       { status: 503 },
     );
   }
