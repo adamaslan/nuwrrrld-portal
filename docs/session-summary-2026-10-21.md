@@ -30,6 +30,8 @@ The broader TODO effort remains active. “Do them all” was understood as the 
 
 ### Claude assignment
 
+Orca was the bridge between this Codex session and the already-created Claude Code session. It provided the managed project workspace and terminal handle, so the work could be assigned to Claude in that isolated checkout and its live state could be inspected. Orca was used to read Claude's terminal, submit one follow-up, and read the terminal again; it was not itself the coding agent and it did not make or verify code changes.
+
 S02 (slot-2 product acceptance: market brief, portfolio health, and industry intelligence) was assigned to Claude Code in the dedicated Orca workspace:
 
 - Workspace: `/Users/adamaslan/orca/workspaces/nuwrrrld-portal/nwf-s02-local-fixes`
@@ -42,7 +44,7 @@ Claude's terminal was inspected with Orca. It was sitting at an idle prompt disp
 
 ### Orca interaction and its result
 
-The Orca CLI workflow was followed: read the terminal before sending, send a single follow-up through the recorded terminal, and inspect the screen again to confirm the result. The send returned `accepted:true` and `turn_started`, but the Claude terminal returned to idle with the same session-limit notice. Thus Orca confirmed delivery/turn start at the terminal level, but **did not confirm that Claude completed S02 or wrote any changes**. No repeated send loop was used.
+The sequence was: use Orca to identify/read the existing Claude terminal; confirm which task workspace and branch it represented; send a single follow-up to continue the S02 assignment; then inspect the same terminal and worktree. The Orca send returned `accepted:true` and `turn_started`, but Claude returned to idle with the same session-limit notice, and the worktree was still clean at the starting commit. Orca therefore served as the session-control and observation layer: it confirmed the prompt was submitted and exposed Claude's blocked state, but **did not complete S02, guarantee Claude had capacity to act, or verify any implementation**. No repeated send loop was used, and the running Claude process was left intact.
 
 ### Codex fallback and its result
 
