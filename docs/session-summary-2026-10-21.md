@@ -46,6 +46,36 @@ Claude's terminal was inspected with Orca. It was sitting at an idle prompt disp
 
 The sequence was: use Orca to identify/read the existing Claude terminal; confirm which task workspace and branch it represented; send a single follow-up to continue the S02 assignment; then inspect the same terminal and worktree. The Orca send returned `accepted:true` and `turn_started`, but Claude returned to idle with the same session-limit notice, and the worktree was still clean at the starting commit. Orca therefore served as the session-control and observation layer: it confirmed the prompt was submitted and exposed Claude's blocked state, but **did not complete S02, guarantee Claude had capacity to act, or verify any implementation**. No repeated send loop was used, and the running Claude process was left intact.
 
+## Evaluation of spawned sessions
+
+There is a practical way to measure whether parallel sessions help: score them by completed, reviewable outcomes and verification, then compare that value with coordination and elapsed time. Merely starting a session, running many commands, or returning a long transcript is not a success metric.
+
+### This session's observed results
+
+| Session / worker | Work attempted | Reviewable result observed | Verification | Assessment |
+|---|---|---|---|---|
+| Claude S02 in Orca | Assigned the S02 acceptance task; received one follow-up after the usage-limit prompt appeared | No diff or report; Claude's worktree was clean at `e2b7ba9` | Orca terminal read confirmed the limit notice; no implementation to test | No task outcome; blocked by session capacity |
+| Codex S02 parent thread | Read the audit, local rules and Next.js docs; checked PR overlap; coordinated independent investigations | No completed S02 change or report in its dedicated worktree | Parent thread ended with a usage-limit failure | Useful orientation, but no accepted deliverable |
+| Market-acceptance child | Inspected the candidate and copied a market helper and test into `/private/tmp/s02-local-market` | Scratch-copy edits were visible in the child transcript; they were not integrated into the S02 worktree | No test run or passing result recorded; child ended at the same usage limit | Partial artifact, not a deliverable |
+| Industry-reader child | Read the industry helper, route/page context, and local Next.js guidance | No distinct returned report or committed change was observed | No test run recorded | Investigation only; insufficient evidence of completed work |
+| Industry-worker child | Spawned for the industry/hydration path; parent inspected relevant files and diffs | Child conversation could not be retrieved using the recorded ID, so its separate output cannot be established | No verified test result available | Outcome unknown; do not count as completed |
+
+On the evidence available, **0 of 5 sessions produced a verified, integrated S02 outcome**. One child left a partial scratch-copy artifact and the parent gathered useful implementation context, so “zero completed outcomes” does not mean zero activity. The dominant failure was capacity exhaustion shortly after startup, which reduced the value of parallelism and created scratch work that still needs reconciliation. This is a small sample and should not be treated as a general ranking of Claude, Codex, or Orca.
+
+### Scorecard for future multi-session work
+
+Record one row per assigned session, using the same work unit and deadline:
+
+1. **Task completion:** accepted deliverables completed ÷ deliverables assigned.
+2. **Integration rate:** outputs incorporated into the owning worktree ÷ outputs claimed complete.
+3. **Verification rate:** outputs with passing focused checks and independent review ÷ outputs submitted.
+4. **Useful artifact rate:** sessions producing a concrete code/doc/test/review artifact ÷ sessions started. Label scratch-only findings separately.
+5. **Time to usable result:** elapsed wall-clock time from assignment to first reviewable artifact, including capacity waits and recovery.
+6. **Coordination cost:** time spent creating, prompting, polling, reconciling, and resolving overlapping edits.
+7. **Rework and safety:** defects/rework introduced, duplicated effort, scope violations, or risky shared-worktree edits.
+
+Use a short outcome status (`verified`, `partial`, `blocked`, `no output`, or `unknown`) and link each claim to a worktree/commit, test result, review, or terminal record. Compare parallel work against a single-session baseline on similarly sized tasks; do not infer speedup from the number of sessions. For the next S02 attempt, assign independent file-owned slices, require each worker to return a path/line summary plus focused test results, and stop/redirect promptly if capacity blocks before a useful artifact appears.
+
 ### Codex fallback and its result
 
 Because the Claude session was limited and the user had asked to finish the queue, a separate Codex S02 thread/worktree was started rather than editing Claude's checkout:
