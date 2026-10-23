@@ -1,6 +1,14 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-18 (draft PR #296 slot 2 hydration worker; parity remains ~62%)_
+_Last updated: 2026-10-21 (PR #304 grounding recovery integrity; parity remains ~62%)_
+
+**PR #304 scope:** live grounding extraction failures now fail the scheduled
+workflow, including partial failures, so issue recovery cannot infer a clean
+compile from a partial result. This is portal-only pipeline behavior; no mobile
+port or shared-module sync is required. See [[entity-workflow-alert-lifecycle]],
+[[concept-run-coverage-status]], [[concept-mobile-web-parity]], and
+[[concept-sync-requirements]]. Independent Claude review is pending; the change
+is not deployed.
 
 **Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
 JS indicator and card policies and targets `nwf-hydration`. It changes no
