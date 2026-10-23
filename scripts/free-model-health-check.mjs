@@ -270,17 +270,17 @@ export function formatAlertMessage(summary, regressions, keyResult) {
   return `${summary}\n${formatLines(results)}`;
 }
 
-async function main(deadline) {
+async function main(workDeadline, notificationDeadline) {
   const noProbe = process.argv.includes('--no-probe');
   const apiKey = process.env.OPENROUTER_API_KEY || '';
   if (!noProbe && !apiKey) {
     throw new Error('OPENROUTER_API_KEY is required (or pass --no-probe).');
   }
-  const { sha, chain } = await readCommittedChain(deadline);
+  const { sha, chain } = await readCommittedChain(workDeadline);
   console.log(`committed_sha=${sha} chain=${chain.join(',')}`);
 
-  const catalog = await fetchCatalog(deadline);
-  const results = await checkChain(chain, catalog, apiKey, { probe: !noProbe, deadline });
+  const catalog = await fetchCatalog(workDeadline);
+  const results = await checkChain(chain, catalog, apiKey, { probe: !noProbe, deadline: workDeadline });
   const keyRejected = results.some((r) => r.verdict === 'key');
   const regressions = findRegressions(results);
   const currentSignature = mergeRegressionSignatures(
@@ -310,17 +310,17 @@ async function main(deadline) {
     ? `OpenRouter API key rejected (HTTP ${keyResult.status}); free-model chain check stopped (sha ${sha.slice(0, 7)}).`
     : summary;
   const deliveries = [];
-  deliveries.push(['summary', await ntfyPost('Free-model health check', 3, 'white_check_mark', `${notificationSummary}\n${formatLines(results)}`, deadline)]);
   let alertDelivery = 'not-sent';
   if (decision === 'regression') {
     alertDelivery = await ntfyPost(
       'Free-model chain regression', 5, 'rotating_light',
-      formatAlertMessage(notificationSummary, regressions, keyResult), deadline,
+      formatAlertMessage(notificationSummary, regressions, keyResult), notificationDeadline,
     );
     deliveries.push(['alert', alertDelivery]);
   }
+  deliveries.push(['summary', await ntfyPost('Free-model health check', 3, 'white_check_mark', `${notificationSummary}\n${formatLines(results)}`, notificationDeadline)]);
   if (decision === 'recovery') {
-    alertDelivery = await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', notificationSummary, deadline);
+    alertDelivery = await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', notificationSummary, notificationDeadline);
     deliveries.push(['recovery', alertDelivery]);
   }
   const nextSignature = nextAlertedSignature(storedSignature, signature, decision, alertDelivery);
@@ -360,7 +360,8 @@ async function reportRunError(err, deadline) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const deadline = Date.now() + RUN_BUDGET_MS;
-  main(deadline)
+  const workDeadline = deadline - NTFY_TIMEOUT_MS;
+  main(workDeadline, deadline)
     .then((code) => {
       process.exitCode = code;
     })
