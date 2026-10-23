@@ -54,6 +54,7 @@ const PROBE_RETRIES = 2;
 const PROBE_MAX_TOKENS = 16;
 const RETRY_DELAYS_MS = [2000, 8000];
 const RUN_BUDGET_MS = Number(process.env.RUN_BUDGET_MS || 180000);
+const NTFY_TIMEOUT_MS = 10000;
 const STATE_FILE = process.env.HEALTH_STATE_FILE || 'free-model-health-state.json';
 const NTFY_TOPIC = process.env.NTFY_TOPIC || '';
 
@@ -119,6 +120,13 @@ export function isFreePricing(pricing) {
 
 function remainingMs(deadline) {
   return Math.max(0, deadline - Date.now());
+}
+
+/** Return the smaller of the notification cap and the remaining run budget. */
+export function notificationTimeoutMs(deadline, now = Date.now()) {
+  const remaining = Math.min(NTFY_TIMEOUT_MS, deadline - now);
+  if (remaining <= 0) throw new Error('Run budget exhausted before sending ntfy notification');
+  return remaining;
 }
 
 function requireRemainingMs(deadline, operation) {
@@ -228,7 +236,7 @@ export async function checkChain(chain, catalog, apiKey, { probe = true, deadlin
   return results;
 }
 
-async function ntfyPost(title, priority, tags, message) {
+async function ntfyPost(title, priority, tags, message, deadline) {
   if (!NTFY_TOPIC) return 'no-topic';
   if (!/^[A-Za-z0-9_-]+$/.test(NTFY_TOPIC)) return 'failed';
   try {
@@ -236,7 +244,7 @@ async function ntfyPost(title, priority, tags, message) {
       method: 'POST',
       headers: { Title: title, Priority: String(priority), Tags: tags },
       body: message,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(notificationTimeoutMs(deadline)),
     });
     return res.ok ? 'ok' : 'failed';
   } catch {
@@ -256,13 +264,18 @@ function formatLines(results) {
   return results.map((r) => `${r.id}  ${r.verdict}  ${r.status}  ${r.durationMs}ms`).join('\n');
 }
 
-async function main() {
+/** Include a rejected key outcome in the high-priority alert details. */
+export function formatAlertMessage(summary, regressions, keyResult) {
+  const results = keyResult ? [...regressions, keyResult] : regressions;
+  return `${summary}\n${formatLines(results)}`;
+}
+
+async function main(deadline) {
   const noProbe = process.argv.includes('--no-probe');
   const apiKey = process.env.OPENROUTER_API_KEY || '';
   if (!noProbe && !apiKey) {
     throw new Error('OPENROUTER_API_KEY is required (or pass --no-probe).');
   }
-  const deadline = Date.now() + RUN_BUDGET_MS;
   const { sha, chain } = await readCommittedChain(deadline);
   console.log(`committed_sha=${sha} chain=${chain.join(',')}`);
 
@@ -286,21 +299,28 @@ async function main() {
     : currentSignature;
   const decision = alertDecision(storedSignature, signature);
   const healthy = !signature && !incomplete;
+  const keyResult = results.find((result) => result.verdict === 'key');
   const summary = incomplete
     ? `Free-model chain check incomplete (sha ${sha.slice(0, 7)}); unverified results were preserved.`
     : healthy
       ? `Free-model chain healthy (${chain.length} ids, sha ${sha.slice(0, 7)}).`
       : `Free-model chain needs attention (sha ${sha.slice(0, 7)}): ${signature}.`;
 
+  const notificationSummary = keyRejected
+    ? `OpenRouter API key rejected (HTTP ${keyResult.status}); free-model chain check stopped (sha ${sha.slice(0, 7)}).`
+    : summary;
   const deliveries = [];
-  deliveries.push(['summary', await ntfyPost('Free-model health check', 3, 'white_check_mark', `${summary}\n${formatLines(results)}`)]);
+  deliveries.push(['summary', await ntfyPost('Free-model health check', 3, 'white_check_mark', `${notificationSummary}\n${formatLines(results)}`, deadline)]);
   let alertDelivery = 'not-sent';
   if (decision === 'regression') {
-    alertDelivery = await ntfyPost('Free-model chain regression', 5, 'rotating_light', `${summary}\n${formatLines(regressions)}`);
+    alertDelivery = await ntfyPost(
+      'Free-model chain regression', 5, 'rotating_light',
+      formatAlertMessage(notificationSummary, regressions, keyResult), deadline,
+    );
     deliveries.push(['alert', alertDelivery]);
   }
   if (decision === 'recovery') {
-    alertDelivery = await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', summary);
+    alertDelivery = await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', notificationSummary, deadline);
     deliveries.push(['recovery', alertDelivery]);
   }
   const nextSignature = nextAlertedSignature(storedSignature, signature, decision, alertDelivery);
@@ -319,13 +339,14 @@ async function main() {
 }
 
 /** A run that could not finish still alerts once per distinct failure, not every week. */
-async function reportRunError(err) {
+async function reportRunError(err, deadline) {
   const signature = `run-error:${err.message.slice(0, 80)}`;
   const state = await readState();
   if (state.runErrorSignature === signature) return 'deduped';
   const delivery = await ntfyPost(
     'Free-model health check failed', 5, 'rotating_light',
     `The read-only free-model health check could not finish: ${err.message}`,
+    deadline,
   );
   if (delivery === 'ok') {
     await writeFile(STATE_FILE, JSON.stringify({
@@ -338,13 +359,14 @@ async function reportRunError(err) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
+  const deadline = Date.now() + RUN_BUDGET_MS;
+  main(deadline)
     .then((code) => {
       process.exitCode = code;
     })
     .catch(async (err) => {
       console.error(`free-model-health-check failed: ${err.message}`);
-      console.log(`notification_delivery[run-error]=${await reportRunError(err)}`);
+      console.log(`notification_delivery[run-error]=${await reportRunError(err, deadline)}`);
       process.exitCode = EXIT_RUN_ERROR;
     });
 }

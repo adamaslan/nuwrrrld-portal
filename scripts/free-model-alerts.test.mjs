@@ -6,9 +6,11 @@ import {
   checkChain,
   classifyProbe,
   findRegressions,
+  formatAlertMessage,
   isFreePricing,
   mergeRegressionSignatures,
   nextAlertedSignature,
+  notificationTimeoutMs,
   probeModel,
   regressionSignature,
 } from './free-model-health-check.mjs';
@@ -109,6 +111,22 @@ test('failed regression and recovery notifications leave alert state retryable',
 test('successful regression and recovery notifications update alert state', () => {
   assert.equal(nextAlertedSignature('', 'a:free=retired', 'regression', 'ok'), 'a:free=retired');
   assert.equal(nextAlertedSignature('a:free=retired', '', 'recovery', 'ok'), '');
+});
+
+test('high-priority alerts include OpenRouter key rejection and HTTP status', () => {
+  const message = formatAlertMessage(
+    'OpenRouter API key rejected (HTTP 401)',
+    [{ id: 'a:free', verdict: 'retired', status: 'absent', durationMs: 0 }],
+    { id: 'b:free', verdict: 'key', status: 401, durationMs: 20 },
+  );
+  assert.match(message, /OpenRouter API key rejected \(HTTP 401\)/);
+  assert.match(message, /b:free  key  401/);
+});
+
+test('ntfy notification timeout is capped by the remaining run budget', () => {
+  assert.equal(notificationTimeoutMs(20_000, 15_000), 5_000);
+  assert.equal(notificationTimeoutMs(30_000, 15_000), 10_000);
+  assert.throws(() => notificationTimeoutMs(15_000, 15_000), /budget exhausted/);
 });
 
 test('probe retries spend one shared budget unit per request', async () => {

@@ -2086,3 +2086,10 @@ unset DATABASE_URL
 ```
 
 Expect: no `fail` rows for the first night after #277 runs (on 2026-10-13 it was 6 `fail`, 14 `ok`, 10 `partial`). The run's workflow summary should show `unservable` near 25 and a warning.
+
+### Activate the free-model alert destinations and Modal schedule
+- **From**: PR #302 — Claude's free-model notifications and read-only Modal health check.
+- **Blocked on**: configure `NTFY_TOPIC` in GitHub Actions and the Modal secret, replace the Modal `GH_TOKEN` with read-only repository access, and deploy the updated `free-model-refresh` app.
+- **Why it can't be code**: notification topics, token scopes, and Modal deployment are owner-managed settings.
+- **Unblocks**: delivery of refresh and health-check alerts, and the Wednesday read-only Modal schedule.
+- **Added**: 2026-10-23
