@@ -51,6 +51,7 @@ const CHAIN_PATH = 'lib/openrouter.ts';
 const MAX_PROBES = Number(process.env.MAX_PROBES || 6);
 const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 15000);
 const PROBE_RETRIES = 2;
+const PROBE_MAX_TOKENS = 16;
 const RETRY_DELAYS_MS = [2000, 8000];
 const RUN_BUDGET_MS = Number(process.env.RUN_BUDGET_MS || 180000);
 const STATE_FILE = process.env.HEALTH_STATE_FILE || 'free-model-health-state.json';
@@ -61,9 +62,9 @@ const REGRESSION_VERDICTS = new Set(['paid', 'retired', 'rejected', 'temporary']
 /** Map one probe outcome to a verdict. `status` is an HTTP code or 'timeout'/'network'. */
 export function classifyProbe(status) {
   if (status === 200) return 'ok';
-  if (status === 401 || status === 403) return 'key';
+  if (status === 401) return 'key';
   if (status === 404) return 'retired';
-  if (status === 429 || status === 'timeout' || status === 'network') return 'temporary';
+  if (status === 429 || status === 'timeout' || status === 'network' || status === 'empty') return 'temporary';
   if (typeof status === 'number' && status >= 500) return 'temporary';
   return 'rejected';
 }
@@ -92,19 +93,24 @@ export function isFreePricing(pricing) {
   return Boolean(pricing) && String(pricing.prompt) === '0' && String(pricing.completion) === '0';
 }
 
-async function readCommittedChain() {
+function remainingMs(deadline) {
+  return Math.max(1000, deadline - Date.now());
+}
+
+async function readCommittedChain(deadline) {
+  const timeout = remainingMs(deadline);
   const { stdout: sha } = await execFileAsync('gh', [
     'api', `repos/${REPO}/commits/${BASE_BRANCH}`, '--jq', '.sha',
-  ]);
+  ], { timeout });
   const { stdout: encoded } = await execFileAsync('gh', [
     'api', `repos/${REPO}/contents/${CHAIN_PATH}?ref=${BASE_BRANCH}`, '--jq', '.content',
-  ]);
+  ], { timeout });
   const source = Buffer.from(encoded.replace(/\s/g, ''), 'base64').toString('utf8');
   return { sha: sha.trim(), chain: parseChain(source) };
 }
 
-async function fetchCatalog() {
-  const res = await fetch(`${OR_BASE}/models`);
+async function fetchCatalog(deadline) {
+  const res = await fetch(`${OR_BASE}/models`, { signal: AbortSignal.timeout(remainingMs(deadline)) });
   if (!res.ok) throw new Error(`OpenRouter /models returned ${res.status}`);
   const body = await res.json();
   if (!body || !Array.isArray(body.data)) {
@@ -124,25 +130,36 @@ async function sendOnce(apiKey, model, deadline) {
     const res = await fetch(`${OR_BASE}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: PROBE_MAX_TOKENS }),
       signal: AbortSignal.timeout(remaining),
     });
-    // The body is discarded unread: it can contain model output, and this check needs only the status.
-    await res.body?.cancel();
-    return { status: res.status, durationMs: Date.now() - started };
+    if (res.status !== 200) {
+      await res.body?.cancel();
+      return { status: res.status, durationMs: Date.now() - started };
+    }
+    // The answer is checked for presence only and never logged: it is model output.
+    const body = await res.json();
+    const answer = body?.choices?.[0]?.message?.content;
+    const usable = typeof answer === 'string' && answer.trim().length > 0;
+    return { status: usable ? 200 : 'empty', durationMs: Date.now() - started };
   } catch (err) {
     const status = err?.name === 'TimeoutError' || err?.name === 'AbortError' ? 'timeout' : 'network';
     return { status, durationMs: Date.now() - started };
   }
 }
 
-/** Probe one model with bounded retries on temporary failures. */
-export async function probeModel(apiKey, model, deadline, sleep = (ms) => new Promise((r) => setTimeout(r, ms))) {
-  let attempt = await sendOnce(apiKey, model, deadline);
+async function spendProbe(apiKey, model, deadline, budget) {
+  budget.remaining -= 1;
+  return sendOnce(apiKey, model, deadline);
+}
+
+/** Probe one model with bounded retries on temporary failures; every request spends the shared budget. */
+export async function probeModel(apiKey, model, deadline, budget, sleep = (ms) => new Promise((r) => setTimeout(r, ms))) {
+  let attempt = await spendProbe(apiKey, model, deadline, budget);
   for (let i = 0; i < PROBE_RETRIES && classifyProbe(attempt.status) === 'temporary'; i += 1) {
-    if (Date.now() + RETRY_DELAYS_MS[i] >= deadline) break;
+    if (budget.remaining <= 0 || Date.now() + RETRY_DELAYS_MS[i] >= deadline) break;
     await sleep(RETRY_DELAYS_MS[i]);
-    attempt = await sendOnce(apiKey, model, deadline);
+    attempt = await spendProbe(apiKey, model, deadline, budget);
   }
   return { ...attempt, verdict: classifyProbe(attempt.status) };
 }
@@ -150,7 +167,7 @@ export async function probeModel(apiKey, model, deadline, sleep = (ms) => new Pr
 /** Verdict for every committed id, probing free models within the budget. */
 export async function checkChain(chain, catalog, apiKey, { probe = true, deadline } = {}) {
   const results = [];
-  let probesUsed = 0;
+  const budget = { remaining: MAX_PROBES };
   for (const id of chain) {
     const listing = catalog.get(id);
     if (!listing) {
@@ -165,12 +182,11 @@ export async function checkChain(chain, catalog, apiKey, { probe = true, deadlin
       results.push({ id, verdict: 'not-probed', status: 'no-probe', durationMs: 0 });
       continue;
     }
-    if (probesUsed >= MAX_PROBES || Date.now() >= deadline) {
+    if (budget.remaining <= 0 || Date.now() >= deadline) {
       results.push({ id, verdict: 'not-probed', status: 'budget', durationMs: 0 });
       continue;
     }
-    probesUsed += 1;
-    const outcome = await probeModel(apiKey, id, deadline);
+    const outcome = await probeModel(apiKey, id, deadline, budget);
     results.push({ id, ...outcome });
     if (outcome.verdict === 'key') break;
   }
@@ -213,10 +229,10 @@ async function main() {
     return EXIT_RUN_ERROR;
   }
   const deadline = Date.now() + RUN_BUDGET_MS;
-  const { sha, chain } = await readCommittedChain();
+  const { sha, chain } = await readCommittedChain(deadline);
   console.log(`committed_sha=${sha} chain=${chain.join(',')}`);
 
-  const catalog = await fetchCatalog();
+  const catalog = await fetchCatalog(deadline);
   const results = await checkChain(chain, catalog, apiKey, { probe: !noProbe, deadline });
   const keyRejected = results.some((r) => r.verdict === 'key');
   const regressions = findRegressions(results);
