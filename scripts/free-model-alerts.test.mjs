@@ -5,6 +5,7 @@ import {
   alertDecision,
   checkChain,
   classifyProbe,
+  deliverNotifications,
   findRegressions,
   formatAlertMessage,
   isFreePricing,
@@ -127,6 +128,18 @@ test('ntfy notification timeout is capped by the remaining run budget', () => {
   assert.equal(notificationTimeoutMs(20_000, 15_000), 5_000);
   assert.equal(notificationTimeoutMs(30_000, 15_000), 10_000);
   assert.throws(() => notificationTimeoutMs(15_000, 15_000), /budget exhausted/);
+});
+
+test('independent notifications start concurrently', async () => {
+  const started = [];
+  const release = [];
+  const pending = deliverNotifications([
+    ['alert', () => new Promise((resolve) => { started.push('alert'); release.push(() => resolve('ok')); })],
+    ['summary', () => new Promise((resolve) => { started.push('summary'); release.push(() => resolve('ok')); })],
+  ]);
+  assert.deepEqual(started, ['alert', 'summary']);
+  release.forEach((resolve) => resolve());
+  assert.deepEqual(await pending, [['alert', 'ok'], ['summary', 'ok']]);
 });
 
 test('probe retries spend one shared budget unit per request', async () => {

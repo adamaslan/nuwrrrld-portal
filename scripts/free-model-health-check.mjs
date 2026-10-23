@@ -270,6 +270,11 @@ export function formatAlertMessage(summary, regressions, keyResult) {
   return `${summary}\n${formatLines(results)}`;
 }
 
+/** Start independent notifications together so one timeout cannot starve another. */
+export function deliverNotifications(requests) {
+  return Promise.all(requests.map(async ([kind, send]) => [kind, await send()]));
+}
+
 async function main(workDeadline, notificationDeadline) {
   const noProbe = process.argv.includes('--no-probe');
   const apiKey = process.env.OPENROUTER_API_KEY || '';
@@ -309,20 +314,25 @@ async function main(workDeadline, notificationDeadline) {
   const notificationSummary = keyRejected
     ? `OpenRouter API key rejected (HTTP ${keyResult.status}); free-model chain check stopped (sha ${sha.slice(0, 7)}).`
     : summary;
-  const deliveries = [];
-  let alertDelivery = 'not-sent';
+  const notificationRequests = [];
   if (decision === 'regression') {
-    alertDelivery = await ntfyPost(
+    notificationRequests.push(['alert', () => ntfyPost(
       'Free-model chain regression', 5, 'rotating_light',
       formatAlertMessage(notificationSummary, regressions, keyResult), notificationDeadline,
-    );
-    deliveries.push(['alert', alertDelivery]);
+    )]);
   }
-  deliveries.push(['summary', await ntfyPost('Free-model health check', 3, 'white_check_mark', `${notificationSummary}\n${formatLines(results)}`, notificationDeadline)]);
+  notificationRequests.push(['summary', () => ntfyPost(
+    'Free-model health check', 3, 'white_check_mark',
+    `${notificationSummary}\n${formatLines(results)}`, notificationDeadline,
+  )]);
   if (decision === 'recovery') {
-    alertDelivery = await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', notificationSummary, notificationDeadline);
-    deliveries.push(['recovery', alertDelivery]);
+    notificationRequests.push(['recovery', () => ntfyPost(
+      'Free-model chain recovered', 3, 'white_check_mark', notificationSummary, notificationDeadline,
+    )]);
   }
+  const deliveries = await deliverNotifications(notificationRequests);
+  const alertKind = decision === 'recovery' ? 'recovery' : 'alert';
+  const alertDelivery = deliveries.find(([kind]) => kind === alertKind)?.[1] || 'not-sent';
   const nextSignature = nextAlertedSignature(storedSignature, signature, decision, alertDelivery);
   await writeFile(STATE_FILE, JSON.stringify({
     ...state,
