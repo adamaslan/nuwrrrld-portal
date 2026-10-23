@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { diffChains, parseChain } from './free-model-chain.mjs';
 import {
   alertDecision,
+  checkChain,
   classifyProbe,
   findRegressions,
   isFreePricing,
   mergeRegressionSignatures,
   nextAlertedSignature,
+  probeModel,
   regressionSignature,
 } from './free-model-health-check.mjs';
 
@@ -107,6 +109,47 @@ test('failed regression and recovery notifications leave alert state retryable',
 test('successful regression and recovery notifications update alert state', () => {
   assert.equal(nextAlertedSignature('', 'a:free=retired', 'regression', 'ok'), 'a:free=retired');
   assert.equal(nextAlertedSignature('a:free=retired', '', 'recovery', 'ok'), '');
+});
+
+test('probe retries spend one shared budget unit per request', async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return new Response('{}', { status: 429 });
+  };
+  try {
+    const budget = { remaining: 2 };
+    const result = await probeModel('test-key', 'a:free', Date.now() + 10000, budget, async () => {});
+    assert.equal(result.verdict, 'temporary');
+    assert.equal(requests, 2);
+    assert.equal(budget.remaining, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('model-specific 403 results do not stop probing later models', async () => {
+  const originalFetch = globalThis.fetch;
+  const models = [];
+  globalThis.fetch = async (_url, init) => {
+    const { model } = JSON.parse(init.body);
+    models.push(model);
+    if (model === 'a:free') return new Response('{}', { status: 403 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+  try {
+    const results = await checkChain(
+      ['a:free', 'b:free'],
+      new Map([['a:free', { free: true }], ['b:free', { free: true }]]),
+      'test-key',
+      { deadline: Date.now() + 10000 },
+    );
+    assert.deepEqual(models, ['a:free', 'b:free']);
+    assert.deepEqual(results.map((result) => result.verdict), ['rejected', 'ok']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('isFreePricing requires zero prompt and completion pricing', () => {

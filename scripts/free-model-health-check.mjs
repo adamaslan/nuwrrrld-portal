@@ -118,22 +118,30 @@ export function isFreePricing(pricing) {
 }
 
 function remainingMs(deadline) {
-  return Math.max(1000, deadline - Date.now());
+  return Math.max(0, deadline - Date.now());
+}
+
+function requireRemainingMs(deadline, operation) {
+  const remaining = remainingMs(deadline);
+  if (remaining <= 0) throw new Error(`Run budget exhausted before ${operation}`);
+  return remaining;
 }
 
 async function readCommittedChain(deadline) {
   const { stdout: sha } = await execFileAsync('gh', [
     'api', `repos/${REPO}/commits/${BASE_BRANCH}`, '--jq', '.sha',
-  ], { timeout: remainingMs(deadline) });
+  ], { timeout: requireRemainingMs(deadline, 'reading the default-branch SHA') });
   const { stdout: encoded } = await execFileAsync('gh', [
     'api', `repos/${REPO}/contents/${CHAIN_PATH}?ref=${BASE_BRANCH}`, '--jq', '.content',
-  ], { timeout: remainingMs(deadline) });
+  ], { timeout: requireRemainingMs(deadline, 'reading the committed model chain') });
   const source = Buffer.from(encoded.replace(/\s/g, ''), 'base64').toString('utf8');
   return { sha: sha.trim(), chain: parseChain(source) };
 }
 
 async function fetchCatalog(deadline) {
-  const res = await fetch(`${OR_BASE}/models`, { signal: AbortSignal.timeout(remainingMs(deadline)) });
+  const res = await fetch(`${OR_BASE}/models`, {
+    signal: AbortSignal.timeout(requireRemainingMs(deadline, 'fetching the OpenRouter catalog')),
+  });
   if (!res.ok) throw new Error(`OpenRouter /models returned ${res.status}`);
   const body = await res.json();
   if (!body || !Array.isArray(body.data)) {
@@ -148,7 +156,8 @@ async function fetchCatalog(deadline) {
 
 async function sendOnce(apiKey, model, deadline) {
   const started = Date.now();
-  const remaining = Math.max(1000, Math.min(PROBE_TIMEOUT_MS, deadline - started));
+  const remaining = Math.min(PROBE_TIMEOUT_MS, remainingMs(deadline));
+  if (remaining <= 0) return { status: 'timeout', durationMs: 0 };
   try {
     const res = await fetch(`${OR_BASE}/chat/completions`, {
       method: 'POST',
@@ -172,6 +181,9 @@ async function sendOnce(apiKey, model, deadline) {
 }
 
 async function spendProbe(apiKey, model, deadline, budget) {
+  if (budget.remaining <= 0 || remainingMs(deadline) <= 0) {
+    return { status: 'timeout', durationMs: 0 };
+  }
   budget.remaining -= 1;
   return sendOnce(apiKey, model, deadline);
 }
