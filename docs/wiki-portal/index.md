@@ -113,6 +113,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-free-pr-review-lenses-and-verifier]] — review by closed lens questions, quote anchoring and a verifier; free-ness proven at three layers
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
+- [[decision-no-shared-alpaca-budget]] — Alpaca requests are paced or counted per pipeline; no AWS-backed shared budget
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-exact-offset-and-fresh-price-for-followed-tickers]] — benchmark horizons exit on their own trading-day offset (a missing close voids, never borrows a later one); prices must be dated on or after a freshness bound and record their source
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner

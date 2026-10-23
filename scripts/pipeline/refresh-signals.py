@@ -15,7 +15,7 @@ Options:
     --dry-run                  Fetch and print only, no writes
 
 Requirements (all in fin-ai1 mamba env):
-    pandas, ta, requests, python-dotenv, boto3 (shared Alpaca rate budget),
+    pandas, ta, requests, python-dotenv,
     yfinance (fallback only), finnhub-python and google-cloud-firestore (optional)
 
 Env vars (loaded from .env / .env.local in mcp-finance1/):

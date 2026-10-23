@@ -27,8 +27,8 @@ verified after the existing credential and seed blockers are cleared.
 The manual [[entity-gcp-credential-preflight]] verifies existing provider
 credentials from GCP without changing client behavior or a shared module.
 There is no mobile port or de-drift task. Its open work is infrastructure:
-connect the later pipeline worker to the shared Alpaca rate budget before
-running scheduled ingestion. The ~62%
+run scheduled ingestion without a shared Alpaca rate budget (removed; see
+[[decision-no-shared-alpaca-budget]]). The ~62%
 client-parity headline and domain requirements below are unchanged.
 
 ## Drift-gate coverage — 2026-10-14

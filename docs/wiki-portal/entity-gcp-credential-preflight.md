@@ -33,9 +33,9 @@ boundary. Portal PR #292 records the unapplied Terraform foundation.
 
 - Billing-project quota blocked the separate project's billing linkage, and
   the selected shared-project slot does not establish project-level isolation.
-- The existing hydration script depends on an AWS DynamoDB Alpaca budget.
-  This preflight deliberately does not run that script or reserve the shared
-  budget; it makes one manual vendor read only.
+- The hydration script used to depend on an AWS DynamoDB Alpaca budget; that
+  budget was removed on 2026-10-20 ([[decision-no-shared-alpaca-budget]]). This preflight deliberately does not
+  run that script; it makes one manual vendor read only.
 - A passing key check does not establish Alpaca feed entitlement for other
   feeds, OpenRouter model availability, rate budget, output validity, or
   downstream publication.
@@ -43,8 +43,8 @@ boundary. Portal PR #292 records the unapplied Terraform foundation.
 ## Open questions
 
 - Which billed project or quota increase will host the isolated slot?
-- How will the future GCP worker share Alpaca's minute budget without copying
-  long-lived AWS credentials into its runtime?
+- Nothing coordinates Alpaca's minute limit across pipelines now ([[decision-no-shared-alpaca-budget]]). Does the
+  future GCP worker need its own pacing to stay under it?
 
 ## See also
 

@@ -44,8 +44,8 @@ gcloud secrets get-iam-policy nwf-shadow-alpaca-api-key --project=your-project
 
 The Alpaca check requests the most recent SPY daily bar in a 14-day window.
 It confirms access to a bar, but does not enforce a freshness threshold. It
-makes one manual call and skips the shared `nwf_rate_budget` counter; do not
-copy it as the pattern for scheduled ingestion.
+makes one manual call with no request budget; do not copy it as the pattern
+for scheduled ingestion.
 
 The job has no schedule. Run it manually with
 `gcloud run jobs execute nwf-shadow-preflight --project=your-project
