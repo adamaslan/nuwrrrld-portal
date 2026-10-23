@@ -6,6 +6,8 @@ import {
   classifyProbe,
   findRegressions,
   isFreePricing,
+  mergeRegressionSignatures,
+  nextAlertedSignature,
   regressionSignature,
 } from './free-model-health-check.mjs';
 
@@ -53,7 +55,7 @@ test('diffChains reports no change for identical chains', () => {
 test('classifyProbe maps HTTP outcomes to verdicts', () => {
   assert.equal(classifyProbe(200), 'ok');
   assert.equal(classifyProbe(401), 'key');
-  assert.equal(classifyProbe(403), 'key');
+  assert.equal(classifyProbe(403), 'rejected');
   assert.equal(classifyProbe(404), 'retired');
   assert.equal(classifyProbe(429), 'temporary');
   assert.equal(classifyProbe(503), 'temporary');
@@ -87,6 +89,24 @@ test('alertDecision alerts once per distinct regression and sends one recovery',
   assert.equal(alertDecision('a:free=retired', 'a:free=retired;b:free=paid'), 'regression');
   assert.equal(alertDecision('a:free=retired', ''), 'recovery');
   assert.equal(alertDecision('', ''), 'none');
+});
+
+test('incomplete checks preserve prior findings and add newly confirmed regressions', () => {
+  assert.equal(
+    mergeRegressionSignatures('a:free=temporary', '', 'b:free=retired'),
+    'a:free=temporary;b:free=retired',
+  );
+  assert.equal(mergeRegressionSignatures('a:free=temporary', 'a:free=ok'), 'a:free=ok');
+});
+
+test('failed regression and recovery notifications leave alert state retryable', () => {
+  assert.equal(nextAlertedSignature('', 'a:free=retired', 'regression', 'failed'), '');
+  assert.equal(nextAlertedSignature('a:free=retired', '', 'recovery', 'failed'), 'a:free=retired');
+});
+
+test('successful regression and recovery notifications update alert state', () => {
+  assert.equal(nextAlertedSignature('', 'a:free=retired', 'regression', 'ok'), 'a:free=retired');
+  assert.equal(nextAlertedSignature('a:free=retired', '', 'recovery', 'ok'), '');
 });
 
 test('isFreePricing requires zero prompt and completion pricing', () => {

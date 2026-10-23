@@ -88,6 +88,30 @@ export function alertDecision(previousSignature, currentSignature) {
   return 'none';
 }
 
+/** Preserve prior findings when a run could not verify every committed model. */
+export function mergeRegressionSignatures(...signatures) {
+  const regressions = new Map();
+  for (const signature of signatures) {
+    for (const entry of signature.split(';')) {
+      const separator = entry.lastIndexOf('=');
+      if (separator <= 0 || separator === entry.length - 1) continue;
+      regressions.set(entry.slice(0, separator), entry.slice(separator + 1));
+    }
+  }
+  return [...regressions.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([id, verdict]) => `${id}=${verdict}`)
+    .join(';');
+}
+
+/** Only acknowledge a regression transition after its notification is delivered. */
+export function nextAlertedSignature(previousSignature, currentSignature, decision, delivery) {
+  if (delivery !== 'ok') return previousSignature;
+  if (decision === 'regression') return currentSignature;
+  if (decision === 'recovery') return '';
+  return previousSignature;
+}
+
 /** A $0 model has zero prompt and completion pricing on OpenRouter. */
 export function isFreePricing(pricing) {
   return Boolean(pricing) && String(pricing.prompt) === '0' && String(pricing.completion) === '0';
@@ -98,13 +122,12 @@ function remainingMs(deadline) {
 }
 
 async function readCommittedChain(deadline) {
-  const timeout = remainingMs(deadline);
   const { stdout: sha } = await execFileAsync('gh', [
     'api', `repos/${REPO}/commits/${BASE_BRANCH}`, '--jq', '.sha',
-  ], { timeout });
+  ], { timeout: remainingMs(deadline) });
   const { stdout: encoded } = await execFileAsync('gh', [
     'api', `repos/${REPO}/contents/${CHAIN_PATH}?ref=${BASE_BRANCH}`, '--jq', '.content',
-  ], { timeout });
+  ], { timeout: remainingMs(deadline) });
   const source = Buffer.from(encoded.replace(/\s/g, ''), 'base64').toString('utf8');
   return { sha: sha.trim(), chain: parseChain(source) };
 }
@@ -225,8 +248,7 @@ async function main() {
   const noProbe = process.argv.includes('--no-probe');
   const apiKey = process.env.OPENROUTER_API_KEY || '';
   if (!noProbe && !apiKey) {
-    console.error('OPENROUTER_API_KEY is required (or pass --no-probe).');
-    return EXIT_RUN_ERROR;
+    throw new Error('OPENROUTER_API_KEY is required (or pass --no-probe).');
   }
   const deadline = Date.now() + RUN_BUDGET_MS;
   const { sha, chain } = await readCommittedChain(deadline);
@@ -236,25 +258,47 @@ async function main() {
   const results = await checkChain(chain, catalog, apiKey, { probe: !noProbe, deadline });
   const keyRejected = results.some((r) => r.verdict === 'key');
   const regressions = findRegressions(results);
-  const signature = keyRejected ? 'key-rejected' : regressionSignature(regressions);
+  const currentSignature = mergeRegressionSignatures(
+    keyRejected ? 'openrouter-key=rejected' : '',
+    regressionSignature(regressions),
+  );
+  const incomplete = results.some((r) => r.verdict === 'not-probed' || r.verdict === 'key');
 
   console.log(formatLines(results));
   const state = await readState();
-  const decision = alertDecision(state.signature, signature);
-  const healthy = !signature;
-  const summary = healthy
-    ? `Free-model chain healthy (${chain.length} ids, sha ${sha.slice(0, 7)}).`
-    : `Free-model chain needs attention (sha ${sha.slice(0, 7)}): ${signature}.`;
+  const storedSignature = typeof state.signature === 'string' && state.signature.includes('=')
+    ? state.signature
+    : '';
+  const signature = incomplete
+    ? mergeRegressionSignatures(storedSignature, currentSignature)
+    : currentSignature;
+  const decision = alertDecision(storedSignature, signature);
+  const healthy = !signature && !incomplete;
+  const summary = incomplete
+    ? `Free-model chain check incomplete (sha ${sha.slice(0, 7)}); unverified results were preserved.`
+    : healthy
+      ? `Free-model chain healthy (${chain.length} ids, sha ${sha.slice(0, 7)}).`
+      : `Free-model chain needs attention (sha ${sha.slice(0, 7)}): ${signature}.`;
 
   const deliveries = [];
   deliveries.push(['summary', await ntfyPost('Free-model health check', 3, 'white_check_mark', `${summary}\n${formatLines(results)}`)]);
+  let alertDelivery = 'not-sent';
   if (decision === 'regression') {
-    deliveries.push(['alert', await ntfyPost('Free-model chain regression', 5, 'rotating_light', `${summary}\n${formatLines(regressions)}`)]);
+    alertDelivery = await ntfyPost('Free-model chain regression', 5, 'rotating_light', `${summary}\n${formatLines(regressions)}`);
+    deliveries.push(['alert', alertDelivery]);
   }
   if (decision === 'recovery') {
-    deliveries.push(['recovery', await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', summary)]);
+    alertDelivery = await ntfyPost('Free-model chain recovered', 3, 'white_check_mark', summary);
+    deliveries.push(['recovery', alertDelivery]);
   }
-  await writeFile(STATE_FILE, JSON.stringify({ signature, sha, updatedAt: new Date().toISOString() }));
+  const nextSignature = nextAlertedSignature(storedSignature, signature, decision, alertDelivery);
+  await writeFile(STATE_FILE, JSON.stringify({
+    ...state,
+    signature: nextSignature,
+    runErrorSignature: incomplete ? (state.runErrorSignature || '') : '',
+    sha,
+    updatedAt: new Date().toISOString(),
+  }));
   console.log(`alert_decision=${decision}`);
   for (const [kind, result] of deliveries) console.log(`notification_delivery[${kind}]=${result}`);
 
@@ -266,12 +310,18 @@ async function main() {
 async function reportRunError(err) {
   const signature = `run-error:${err.message.slice(0, 80)}`;
   const state = await readState();
-  if (state.signature === signature) return 'deduped';
+  if (state.runErrorSignature === signature) return 'deduped';
   const delivery = await ntfyPost(
     'Free-model health check failed', 5, 'rotating_light',
     `The read-only free-model health check could not finish: ${err.message}`,
   );
-  await writeFile(STATE_FILE, JSON.stringify({ signature, updatedAt: new Date().toISOString() }));
+  if (delivery === 'ok') {
+    await writeFile(STATE_FILE, JSON.stringify({
+      ...state,
+      runErrorSignature: signature,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
   return delivery;
 }
 
