@@ -90,6 +90,29 @@ export function alertDecision(previousSignature, currentSignature) {
 }
 
 /** Preserve prior findings when a run could not verify every committed model. */
+/**
+ * Keep stored findings only for ids this run could not verify. An id that was
+ * checked (any verdict except not-probed/key) already has a fresh result, so a
+ * stale stored finding must not outlive it. The OpenRouter key entry is cleared
+ * once a real probe succeeded or failed on something other than the key.
+ */
+export function carryForwardSignature(storedSignature, results) {
+  const verifiedIds = new Set(
+    results.filter((r) => r.verdict !== 'not-probed' && r.verdict !== 'key').map((r) => r.id),
+  );
+  const keyVerified = results.some((r) => ['ok', 'rejected', 'temporary'].includes(r.verdict));
+  return storedSignature
+    .split(';')
+    .filter((entry) => {
+      const separator = entry.lastIndexOf('=');
+      if (separator <= 0) return false;
+      const id = entry.slice(0, separator);
+      if (id === 'openrouter-key') return !keyVerified;
+      return !verifiedIds.has(id);
+    })
+    .join(';');
+}
+
 export function mergeRegressionSignatures(...signatures) {
   const regressions = new Map();
   for (const signature of signatures) {
@@ -139,11 +162,12 @@ async function readCommittedChain(deadline) {
   const { stdout: sha } = await execFileAsync('gh', [
     'api', `repos/${REPO}/commits/${BASE_BRANCH}`, '--jq', '.sha',
   ], { timeout: requireRemainingMs(deadline, 'reading the default-branch SHA') });
+  const commitSha = sha.trim();
   const { stdout: encoded } = await execFileAsync('gh', [
-    'api', `repos/${REPO}/contents/${CHAIN_PATH}?ref=${BASE_BRANCH}`, '--jq', '.content',
+    'api', `repos/${REPO}/contents/${CHAIN_PATH}?ref=${commitSha}`, '--jq', '.content',
   ], { timeout: requireRemainingMs(deadline, 'reading the committed model chain') });
   const source = Buffer.from(encoded.replace(/\s/g, ''), 'base64').toString('utf8');
-  return { sha: sha.trim(), chain: parseChain(source) };
+  return { sha: commitSha, chain: parseChain(source) };
 }
 
 async function fetchCatalog(deadline) {
@@ -300,7 +324,7 @@ async function main(workDeadline, notificationDeadline) {
     ? state.signature
     : '';
   const signature = incomplete
-    ? mergeRegressionSignatures(storedSignature, currentSignature)
+    ? mergeRegressionSignatures(carryForwardSignature(storedSignature, results), currentSignature)
     : currentSignature;
   const decision = alertDecision(storedSignature, signature);
   const healthy = !signature && !incomplete;

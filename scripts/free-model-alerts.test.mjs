@@ -10,6 +10,7 @@ import {
   formatAlertMessage,
   isFreePricing,
   mergeRegressionSignatures,
+  carryForwardSignature,
   nextAlertedSignature,
   notificationTimeoutMs,
   probeModel,
@@ -188,4 +189,27 @@ test('isFreePricing requires zero prompt and completion pricing', () => {
   assert.equal(isFreePricing({ prompt: 0, completion: 0 }), true);
   assert.equal(isFreePricing({ prompt: '0.000001', completion: '0' }), false);
   assert.equal(isFreePricing(undefined), false);
+});
+
+test('carryForwardSignature drops findings for ids verified this run', () => {
+  const results = [
+    { id: 'a:free', verdict: 'ok' },
+    { id: 'b:free', verdict: 'not-probed' },
+  ];
+  assert.equal(
+    carryForwardSignature('a:free=temporary;b:free=rejected', results),
+    'b:free=rejected',
+  );
+});
+
+test('carryForwardSignature keeps the key finding when nothing was probed', () => {
+  const results = [{ id: 'a:free', verdict: 'not-probed' }];
+  assert.equal(
+    carryForwardSignature('openrouter-key=rejected', results),
+    'openrouter-key=rejected',
+  );
+  assert.equal(
+    carryForwardSignature('openrouter-key=rejected', [{ id: 'a:free', verdict: 'ok' }]),
+    '',
+  );
 });
