@@ -1,0 +1,2 @@
+bucket = "nwf-tfstate-ttb-lang1-new-pipeline"
+prefix = "nwf/new-pipeline/terraform"
