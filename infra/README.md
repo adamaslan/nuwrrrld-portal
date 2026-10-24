@@ -4,8 +4,10 @@ The [architecture](../docs/nwf-new-slot-terraform.md) calls for a parallel
 slot. The owner chose the existing billed `ttb-lang1` project on 2026-10-16
 after a dedicated project's billing link hit quota. `slots/new-pipeline` is
 the Terraform root for separately named slot identity, image, artifact, and
-empty credential containers in `ttb-lang1`. It does not manage existing
-`gcp3-backend` resources, deploy an application, publish data, change
+empty credential containers in `ttb-lang1`. It also defines the slot 2
+hydration Cloud Run job, its scheduler and monitoring, but those are gated
+off until a tested image digest and Neon endpoint ID are supplied. It does
+not manage existing `gcp3-backend` resources, publish data, change slot 1
 schedules, or route production traffic. This is resource-level separation,
 not project-level isolation.
 
@@ -37,8 +39,10 @@ The dedicated project `nwf-new-pipeline-20261015` was created but billing
 linkage failed because the available billing account reached its project
 quota. It is not the deployment target. No Terraform was applied there.
 The current target `ttb-lang1` is billed. Its existing Artifact Registry,
-Secret Manager, IAM, and Storage APIs are enabled; Terraform proposes to
-enable only `sts.googleapis.com` for GitHub Workload Identity Federation.
+Secret Manager, IAM, and Storage APIs are enabled; Terraform enables
+`sts.googleapis.com` for GitHub Workload Identity Federation (applied) and
+proposes `run.googleapis.com`, `cloudscheduler.googleapis.com` and
+`monitoring.googleapis.com` for the hydration job and alerts.
 
 For an immediate cloud proof, a separate Artifact Registry repository,
 service account, three Secret Manager secrets, and a manual Cloud Run Job
@@ -116,7 +120,7 @@ secret containers exist.
    the `nwf/new-pipeline/terraform` prefix distinct from every other state.
 3. Confirm the trusted GitHub repository and owner numeric IDs, default
    branch, region, bucket name, project APIs, permissions, and billing. Five
-   required APIs are already enabled; the plan adds only STS API enablement.
+   required APIs are already enabled; the applied state added STS, and the pending plan adds Run, Scheduler and Monitoring.
 4. From `infra/slots/new-pipeline`, run:
 
    ```bash
@@ -137,13 +141,15 @@ secret containers exist.
 The foundation grants GitHub's trusted numeric repository ID on the chosen
 branch permission to impersonate only that slot's deploy service account. Each
 deploy service account can write only its slot's image repository. Each
-runtime identity can read only its own slot's secret containers: three for
-`hydration`, two for `core`. No identity receives a
+runtime identity can read only its own slot's secret containers: five for
+`hydration` (Alpaca key and secret, OpenRouter key, and the source and
+hydration database URLs), two for `core`. No identity receives a
 role on an existing `gcp3-backend` resource. All grants are within the shared
 project and apply to newly named resources. Project administrators and shared
-quotas remain common to both slots. Cloud Run, Firestore, scheduling,
-monitoring, and application code remain to be connected after state ownership
-is verified.
+quotas remain common to both slots. The hydration job, its three schedulers
+and the alert policies are defined but created only once `hydration_image_digest`
+and `hydration_neon_endpoint_id` are both set. Firestore and the remaining
+slot 2 features are not yet connected.
 
 The new image repository has immutable tags. Builds must use a unique tag for
 each image, and deployments must pin the tested digest. Its cleanup policy is
