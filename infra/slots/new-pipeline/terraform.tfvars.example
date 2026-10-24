@@ -1,0 +1,7 @@
+slot_project_id       = "ttb-lang1"
+region                = "us-central1"
+artifact_bucket_name  = "nwf-new-artifacts-ttb-lang1"
+github_repository_id  = "123456789"
+github_owner_id       = "987654321"
+github_ref            = "refs/heads/main"
+alert_emails          = ["replace-with-your-alert-address@example.com"] # required; replace before plan

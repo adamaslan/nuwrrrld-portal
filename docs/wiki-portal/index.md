@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-18 (draft PR #296 slot 2 hydration worker; parity remains ~62%)_
+_Last updated: 2026-10-24 (PR #309 slot 2 Terraform landed; parity unchanged at ~62%)_
 
 **Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
 JS indicator and card policies and targets `nwf-hydration`. It changes no
@@ -71,6 +71,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-nulogdash]] — the self-audit surface: `FEATURE_META` inventory ↔ `app/api/**` filesystem scan with bidirectional drift warnings, the sweep runner, and the MFA-gated admin console at `/dashboard/nulogdash`
 - [[entity-playwright-e2e]] — the fourth test layer above vitest: `e2e/` credential-gated fault injection (preflight/health/ci/frontend tiers), `e2e-resiliency.yml` CI, and the nulogdash browser-tier merge
 - [[entity-gcp-credential-preflight]] — manual Cloud Run check of existing Alpaca and OpenRouter credentials; no production data writes
+- [[entity-slot2-terraform]] — the one Terraform root for slot 2 GCP identities, registries, buckets, WIF and empty secret containers; applied 2026-10-17, landed on main by PR #309
 
 ---
 
