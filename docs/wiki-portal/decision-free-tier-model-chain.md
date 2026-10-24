@@ -59,6 +59,24 @@ The council is a per-user feature gated behind the `nu_ai` entitlement and a dai
 - ✅ **The $0 claim is accurate again (PR #115, 2026-09-07).** T1 ran a paid model (`cohere/command-r7b-12-2024`, ~$0.20–$0.50 per deliberation) from ~PR #75 until PR #115 repointed it at `thinkingmachines/inkling-small:free`. All six seat primaries are now `:free`. `refresh-free-models.mjs`'s seat audit now prints `ok` / **`PAID`** / `DEAD` per seat, and [[entity-model-usage-log]] flags any `⚠ paid` model that served a real call — so the next drift is visible, not silent. See [[entity-openrouter-client]] "Model assignment".
 - ❌ **Refuted, 2026-07-30:** the previously-unvalidated concurrency risk below is real. OpenRouter free tier caps the **key**, not per-model, at 50 req/day (1000/day at ≥10 credits). One key shared across the whole app means council calls, `/api/brief`, and the refresh script's own probes all draw from the same 50 — any combination can exhaust it, at which point every model 429s at once and looks identical to "the whole free roster is dead." See [[entity-openrouter-client]] "Known failures" #3.
 
+## Alerts and read-only verification (2026-10-20)
+
+The weekly refresh (GitHub Actions) stays the only writer of `FREE_MODEL_CHAIN`
+and the only PR author. It now pushes one notification on every successful run:
+a plain OK when the chain is unchanged, and a louder notice naming the added and
+removed ids and the PR number when it changes. Failures keep their issue plus
+push. Delivery is reported separately and never fails the refresh.
+
+A Modal job on Wednesdays re-verifies the committed chain without writing. It
+checks each id's `$0` pricing against the catalog and probes committed free models
+under hard caps (request count, timeout, retries, total runtime). A regression
+alerts once per distinct set of failing ids, so a standing problem does not repeat
+weekly. Read-only verification is separate from the writer on purpose: a checker
+that could also change the chain would be a second writer with no review gate.
+
+Ids are named in the code; the notification topic is a repo or Modal secret and is
+never written into a doc.
+
 ## Refresh hardening (PR #297)
 
 The weekly chain refresh (`scripts/refresh-free-models.mjs`) now checks its OpenRouter key before probing. A rejected key exits 4 and says "rotate the key", instead of reporting zero working models. The probe runs four at a time and applies results in preference order, so the chain is unchanged. GitHub Actions is the only scheduler and PR writer; the legacy wrapper no longer force-pushes. Rotating a key is the owner's step: the key lives in the GitHub repo secret and in each host's secret store, never in the page.
