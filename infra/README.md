@@ -100,6 +100,21 @@ node infra/sync-shadow-secrets.mjs .env.local ttb-lang1 hydration
 node infra/sync-shadow-secrets.mjs .env.local ttb-lang1 core
 ```
 
+Sync populates only the provider credentials; it does **not** provision the
+two hydration database URLs. Before setting `hydration_image_digest`, load
+each URL into its container and verify an enabled version exists. Copy the
+URL to the clipboard first (it is never printed):
+
+```bash
+pbpaste | gcloud secrets versions add nwf-hydration-source-database-url --project=ttb-lang1 --data-file=-
+pbpaste | gcloud secrets versions add nwf-hydration-hydration-database-url --project=ttb-lang1 --data-file=-
+for s in nwf-hydration-source-database-url nwf-hydration-hydration-database-url; do
+  gcloud secrets versions list "$s" --project=ttb-lang1 --filter='state=ENABLED' --format='value(name)' | head -1
+done
+```
+Expect one version number per secret. Only then set
+`hydration_secrets_ready = true` alongside the image digest and endpoint ID.
+
 The script requires an explicit slot, checks for existing enabled versions,
 and does not print credential values. It writes only the secrets each slot
 declares: `hydration` gets three, `core` gets the two Alpaca values. All
@@ -131,8 +146,10 @@ secret containers exist.
    terraform show phase1.tfplan
    ```
 
-   The two-slot refactor's plan has 30 creates, 0 changes, and 0 destroys, all
-   in `ttb-lang1`. The earlier single-slot plan had 17 creates. Review the whole saved plan for deletion, replacement, IAM
+   The foundation was applied on 2026-10-17. The current pending plan
+   (2026-10-24) has 10 creates, 0 changes, and 0 destroys, all in
+   `ttb-lang1`. Earlier plans (17 creates single-slot, 30 two-slot) are
+   historical. Review the whole saved plan for deletion, replacement, IAM
    scope, and project identity before an authorized `terraform apply
    phase1.tfplan`. The backend uses state locking and bucket versioning for
    recovery. Never commit state, plans, backend configuration, or populated

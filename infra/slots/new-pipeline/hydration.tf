@@ -1,9 +1,13 @@
 locals {
   hydration_job_name = "nwf-hydration"
-  # Created only once a tested image digest and the Neon endpoint ID exist, so a
-  # scheduled run can never start a job with no image or no target-branch guard
-  # and page the alert list for nothing.
-  hydration_enabled = var.hydration_image_digest != "" && var.hydration_neon_endpoint_id != "" ? 1 : 0
+  # Created only once a tested image digest, the Neon endpoint ID and verified
+  # database-URL secret versions exist, so a scheduled run can never start a job
+  # that Cloud Run cannot launch and page the alert list for nothing.
+  hydration_enabled = (
+    var.hydration_image_digest != "" &&
+    var.hydration_neon_endpoint_id != "" &&
+    var.hydration_secrets_ready
+  ) ? 1 : 0
 }
 
 resource "google_project_service" "run" {

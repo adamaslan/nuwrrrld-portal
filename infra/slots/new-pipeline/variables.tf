@@ -55,6 +55,12 @@ variable "hydration_neon_endpoint_id" {
   default     = ""
 }
 
+variable "hydration_secrets_ready" {
+  description = "Set true only after both hydration database-URL secrets have an enabled version (see infra/README.md). Cloud Run cannot start the job without them."
+  type        = bool
+  default     = false
+}
+
 variable "hydration_schedules" {
   description = "Cron times (America/New_York) for the three weekday hydration runs."
   type        = map(string)
