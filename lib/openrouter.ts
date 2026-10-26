@@ -36,9 +36,9 @@ const OR_BASE = 'https://openrouter.ai/api/v1';
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
   'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'google/gemma-4-31b-it:free',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  'liquid/lfm-2.5-2.6b:free',
-  'dots-studio/dots-3-note-preview:free',
+  'xingchen-agi/xing4.0-29b-a4b:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
