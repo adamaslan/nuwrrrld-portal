@@ -71,7 +71,7 @@ export function directionalReturn(
  */
 export function classifyOutcome(directional: number, horizon: Horizon): Exclude<Outcome, "void"> {
   const tau = DEAD_BAND_PCT[horizon];
-  if (directional >= tau) return "hit";
+  if (directional > tau) return "hit";
   if (directional < -tau) return "miss";
   return "flat";
 }
