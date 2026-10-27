@@ -47,20 +47,36 @@ export function settleSession(cron, eventTime) {
   return { ...nyClock(intended), minute: 990 };
 }
 
+// Trading slots may start this many minutes after their nominal time. Pinned to
+// the paper engine's MAX_PRICE_AGE_MINUTES (lib/paper-engine.ts): a fill on a
+// price older than that is refused there anyway, so a wider gate would only
+// move the refusal downstream.
+const TRADING_WINDOW_MINUTES = 30;
+
+// Several cron entries per trading slot, at uncommon minutes. GitHub queues
+// scheduled runs late or drops them, so each slot has more than one chance to
+// queue inside its window. The route's unique (account, trade_date, slot) key
+// absorbs the duplicates.
+const SLOT_BY_CRON = {
+  '7 9 * * 1-5': 'preopen', '17 9 * * 1-5': 'preopen', '27 9 * * 1-5': 'preopen',
+  '31 12 * * 1-5': 'midday', '41 12 * * 1-5': 'midday', '51 12 * * 1-5': 'midday',
+  '47 15 * * 1-5': 'preclose', '52 15 * * 1-5': 'preclose', '57 15 * * 1-5': 'preclose',
+  '30 16 * * 1-5': 'settle',
+};
+
 export function paperDecision({ clock, calendar, cron = '', slot = '', force = false, eventTime }) {
   const starts = { preopen: 540, midday: 750, preclose: 945, settle: 990 };
   const intended = settleSession(cron, eventTime);
   const sessionClock = intended || clock;
-  const crons = ['0 9 * * 1-5', '30 12 * * 1-5', '45 15 * * 1-5', '30 16 * * 1-5'];
-  if (cron) slot = Object.keys(starts)[crons.indexOf(cron)] ?? '';
-  if (!slot && !cron) slot = Object.keys(starts).find(s => clock.minute >= starts[s] && (s === 'settle' || clock.minute <= starts[s] + 15)) ?? '';
+  if (cron) slot = SLOT_BY_CRON[cron] ?? '';
+  if (!slot && !cron) slot = Object.keys(starts).find(s => clock.minute >= starts[s] && (s === 'settle' || clock.minute <= starts[s] + TRADING_WINDOW_MINUTES)) ?? '';
   const skip = reason => ({ is_trading_day: 'false', slot, late: 'false', reason });
   if (!(slot in starts)) return skip('no slot or unknown cron');
   // A scheduled event can never opt into a manual override.
   force = force && !cron;
   if (!force && (['Sat', 'Sun'].includes(sessionClock.weekday) || calendar.is_trading_day !== 'true')) return skip('closed day or unavailable calendar');
-  const late = clock.date !== sessionClock.date || clock.minute < starts[slot] || clock.minute > starts[slot] + 15;
-  if (!force && slot !== 'settle' && late) return skip('outside the 15-minute slot window');
+  const late = clock.date !== sessionClock.date || clock.minute < starts[slot] || clock.minute > starts[slot] + TRADING_WINDOW_MINUTES;
+  if (!force && slot !== 'settle' && late) return skip('outside the 30-minute slot window');
   if (!force && slot === 'preopen' && clock.minute >= minutes(calendar.open)) return skip('session already opened');
   if (!force && ['midday', 'preclose'].includes(slot) && !(clock.minute >= minutes(calendar.open) && clock.minute < minutes(calendar.close))) return skip('session is closed');
   if (!force && slot === 'settle' && (clock.date < sessionClock.date || (clock.date === sessionClock.date && clock.minute < Math.max(starts.settle, minutes(calendar.close))))) return skip('settle before close');
