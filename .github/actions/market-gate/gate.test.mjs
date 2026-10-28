@@ -61,9 +61,20 @@ test('holiday, outage, malformed session and weekend fail closed', () => {
   assert.equal(calendarDecision([],c).is_trading_day,'false');
   assert.equal(calendarDecision([{date:'2026-10-10',open:'09:30',close:'16:00'}], clock('2026-10-10T14:00:00Z')).is_trading_day,'false');
 });
-test('30-minute trading window rejects both early and late starts', () => {
+test('preopen refuses early starts and anything after the open', () => {
   for (const time of ['2026-10-09T12:59:00Z','2026-10-09T13:31:00Z','2026-10-09T21:37:00Z']) assert.equal(paper(time).is_trading_day,'false');
   for (const time of ['2026-10-09T13:00:00Z','2026-10-09T13:29:00Z']) assert.equal(paper(time).is_trading_day,'true');
+});
+test('a late midday start still trades, is marked late, and stops when preclose begins', () => {
+  // 14:10 ET, well past the 12:30 nominal start.
+  assert.equal(paper('2026-10-09T18:10:00Z', { slot: 'midday' }).is_trading_day, 'true');
+  assert.equal(paper('2026-10-09T18:10:00Z', { slot: 'midday' }).late, 'true');
+  assert.equal(paper('2026-10-09T19:44:00Z', { slot: 'midday' }).is_trading_day, 'true');
+  assert.equal(paper('2026-10-09T19:45:00Z', { slot: 'midday' }).is_trading_day, 'false');
+});
+test('a late scheduled run still refuses closed days and sessions', () => {
+  assert.equal(paper('2026-10-10T18:10:00Z', { slot: 'midday' }).is_trading_day, 'false');
+  assert.equal(paper('2026-10-09T20:05:00Z', { slot: 'preclose' }).is_trading_day, 'false');
 });
 test('midday/preclose respect real session and early close', () => {
   assert.equal(paper('2026-10-09T16:30:00Z',{slot:'midday'}).is_trading_day,'true');
@@ -100,7 +111,8 @@ test('manual force overrides timing/calendar only with a valid slot', () => {
   assert.equal(paper('2026-10-09T21:00:00Z',{force:true},[]).is_trading_day,'true');
   assert.equal(paper('2026-10-09T21:00:00Z',{force:true,cron:'0 9 * * 1-5'}).is_trading_day,'false');
   assert.equal(paper('2026-10-09T21:00:00Z',{force:true,slot:'bad'}).is_trading_day,'false');
-  assert.equal(paper('2026-10-09T19:40:00Z',{slot:''}).is_trading_day,'false');
+  // 08:40 ET is before the first slot, so an empty slot cannot resolve.
+  assert.equal(paper('2026-10-09T12:40:00Z',{slot:''}).is_trading_day,'false');
   assert.equal(paper('2026-10-09T20:29:00Z',{slot:'settle'}).is_trading_day,'false');
 });
 test('refresh coverage must be present and at least 95%', () => {

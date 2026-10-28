@@ -47,16 +47,16 @@ export function settleSession(cron, eventTime) {
   return { ...nyClock(intended), minute: 990 };
 }
 
-// Trading slots may start this many minutes after their nominal time. Pinned to
-// the paper engine's MAX_PRICE_AGE_MINUTES (lib/paper-engine.ts): a fill on a
-// price older than that is refused there anyway, so a wider gate would only
-// move the refusal downstream.
-const TRADING_WINDOW_MINUTES = 30;
+// A run that starts more than this many minutes after its nominal time is
+// recorded as late. Late runs still trade (see paperDecision).
+const LATE_AFTER_MINUTES = 15;
 
 // Several cron entries per trading slot, at uncommon minutes. GitHub queues
 // scheduled runs late or drops them, so each slot has more than one chance to
-// queue inside its window. The route's unique (account, trade_date, slot) key
-// absorbs the duplicates.
+// start. The route's unique (account, trade_date, slot) key absorbs duplicates.
+// Prices are refreshed in the same job right before the POST (the "Refresh
+// live_prices" step), so the engine's MAX_PRICE_AGE_MINUTES check
+// (lib/paper-engine.ts) sees fresh quotes however late the job started.
 const SLOT_BY_CRON = {
   '7 9 * * 1-5': 'preopen', '17 9 * * 1-5': 'preopen', '27 9 * * 1-5': 'preopen',
   '31 12 * * 1-5': 'midday', '41 12 * * 1-5': 'midday', '51 12 * * 1-5': 'midday',
@@ -69,14 +69,16 @@ export function paperDecision({ clock, calendar, cron = '', slot = '', force = f
   const intended = settleSession(cron, eventTime);
   const sessionClock = intended || clock;
   if (cron) slot = SLOT_BY_CRON[cron] ?? '';
-  if (!slot && !cron) slot = Object.keys(starts).find(s => clock.minute >= starts[s] && (s === 'settle' || clock.minute <= starts[s] + TRADING_WINDOW_MINUTES)) ?? '';
+  if (!slot && !cron) slot = Object.keys(starts).findLast(s => clock.minute >= starts[s]) ?? '';
   const skip = reason => ({ is_trading_day: 'false', slot, late: 'false', reason });
   if (!(slot in starts)) return skip('no slot or unknown cron');
   // A scheduled event can never opt into a manual override.
   force = force && !cron;
   if (!force && (['Sat', 'Sun'].includes(sessionClock.weekday) || calendar.is_trading_day !== 'true')) return skip('closed day or unavailable calendar');
-  const late = clock.date !== sessionClock.date || clock.minute < starts[slot] || clock.minute > starts[slot] + TRADING_WINDOW_MINUTES;
-  if (!force && slot !== 'settle' && late) return skip('outside the 30-minute slot window');
+  const late = clock.date !== sessionClock.date || clock.minute < starts[slot] || clock.minute > starts[slot] + LATE_AFTER_MINUTES;
+  if (!force && slot !== 'settle' && (clock.date !== sessionClock.date || clock.minute < starts[slot])) return skip('before the slot start or on another day');
+  // Midday runs until preclose begins, so the two slots never trade back to back.
+  if (!force && slot === 'midday' && clock.minute >= starts.preclose) return skip('midday ends when preclose starts');
   if (!force && slot === 'preopen' && clock.minute >= minutes(calendar.open)) return skip('session already opened');
   if (!force && ['midday', 'preclose'].includes(slot) && !(clock.minute >= minutes(calendar.open) && clock.minute < minutes(calendar.close))) return skip('session is closed');
   if (!force && slot === 'settle' && (clock.date < sessionClock.date || (clock.date === sessionClock.date && clock.minute < Math.max(starts.settle, minutes(calendar.close))))) return skip('settle before close');

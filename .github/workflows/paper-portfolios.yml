@@ -1,8 +1,8 @@
 name: Council Paper Portfolios (4x daily)
 
-# GHA is the only scheduler. Trading slots refuse starts more than 30 minutes
-# after their nominal time (gate.mjs TRADING_WINDOW_MINUTES), and each slot has
-# several uncommon-minute entries so one late queue does not lose the slot.
+# GHA is the only scheduler. A trading slot runs from its nominal start until the
+# next slot begins (gate.mjs paperDecision), so a late queue still trades. Each
+# slot has several uncommon-minute entries, and the route de-duplicates them.
 
 on:
   schedule:
