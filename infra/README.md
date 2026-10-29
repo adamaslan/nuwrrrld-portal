@@ -38,6 +38,10 @@ quota. It is not the deployment target. No Terraform was applied there.
 The current target `ttb-lang1` is billed. Its existing Artifact Registry,
 Secret Manager, IAM, and Storage APIs are enabled; Terraform proposes to
 enable only `sts.googleapis.com` for GitHub Workload Identity Federation.
+Before connecting a GitHub workflow that impersonates the deploy service
+account, verify that `iamcredentials.googleapis.com` is enabled in the target
+project. That prerequisite has not been checked by this foundation, and this
+root does not manage its enablement.
 
 For an immediate cloud proof, a separate Artifact Registry repository,
 service account, three Secret Manager secrets, and a manual Cloud Run Job

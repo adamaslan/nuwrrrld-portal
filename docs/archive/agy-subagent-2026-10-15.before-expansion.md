@@ -1,6 +1,6 @@
 ---
 ARCHIVED: 2026-10-15
-REASON: Original draft preserved before verification and expansion; replacement is ../../NWF oct 26/AGY-SUBAGENT.md.
+REASON: Original draft preserved before verification and expansion; the original external replacement was ../../NWF oct 26/AGY-SUBAGENT.md (not tracked here). The current repository design is ../nwf-new-slot-terraform.md.
 ---
 
 # NuWrrrld Financial (NWF) · Parallel Infrastructure Migration Guide

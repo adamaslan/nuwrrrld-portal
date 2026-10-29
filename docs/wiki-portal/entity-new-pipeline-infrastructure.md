@@ -18,7 +18,7 @@ deletion is active in this new-slot configuration.
 
 ## Where used
 
-`infra/slots/new-pipeline/` owns the proposed resources and pins the project to `ttb-lang1`. `infra/README.md` gives the setup and validation sequence. The manual credential preflight in portal PR #291 uses separate shadow resources in that same project.
+`infra/slots/new-pipeline/` owns the proposed resources and pins the project to `{gcp-project-id}`. `infra/README.md` gives the setup and validation sequence. The manual credential preflight in portal PR #291 uses separate shadow resources in that same project.
 
 `infra/sync-shadow-secrets.mjs` now requires an explicit `shadow` or `new`
 target and checks that it matches the expected project before copying only
@@ -27,7 +27,7 @@ Terraform foundation has been reviewed and applied.
 
 ## Known failures
 
-The dedicated project's billing link was rejected by the account's project quota. A versioned state bucket now exists in `ttb-lang1`, and the remote-backend cloud plan shows 17 creates, zero changes, and zero destroys. Terraform apply is still pending independent verification and owner approval. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts. Same-project placement shares administrators, API enablement, billing, and quotas with the running backend.
+The dedicated project's billing link was rejected by the account's project quota. A versioned state bucket now exists in `{gcp-project-id}`, and the remote-backend cloud plan shows 17 creates, zero changes, and zero destroys. Terraform apply is still pending independent verification and owner approval. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts. Same-project placement shares administrators, API enablement, billing, and quotas with the running backend.
 
 ## Open questions
 
