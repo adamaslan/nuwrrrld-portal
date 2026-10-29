@@ -2,7 +2,7 @@
 date: 2026-07-30
 type: concept
 tags: [free-tier, cost, resilience, openrouter, quota, fallback, cron]
-sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, ../../.github/workflows/refresh-free-models.yml, PR#44]
+sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, ../../.github/workflows/refresh-free-models.yml, PR#44, PR#302]
 ---
 
 # Concept — Staying Robust on a Free Tier
@@ -73,6 +73,20 @@ model `$0` or `⚠ paid`. This is how "are we still all-`:free`, and is any sing
 model carrying the load" becomes a fact instead of a guess. Best-effort: a
 failed audit write never fails the run.
 
+**Layer 7 — Observe between refreshes (PR #302).** The Monday GitHub Actions
+writer remains unchanged; successful runs now notify even when no chain changes,
+while a changed chain reports its ids and PR. The Wednesday 09:00 UTC Modal
+checker only reads the committed chain and catalog, then probes under a shared
+six-request default budget including retries. Each request has a 15-second cap;
+the 180-second total reserves 10 seconds for alerts. A 1200-token allowance
+accommodates reasoning, but only nonempty visible content passes.
+
+The checker records a delivered regression signature rather than acknowledging
+failed pushes. Partial runs preserve unverified current-chain findings while
+dropping removed ids, so budget exhaustion cannot masquerade as recovery or
+keep obsolete failures alive. This observer still shares the upstream quota
+risk; it adds evidence, not capacity. See [[decision-free-tier-model-chain]].
+
 ## Where it appears
 
 - `lib/openrouter.ts` — `FREE_MODEL_CHAIN`, `SEAT_MODELS`, `SMALLEST_MODEL`,
@@ -127,6 +141,11 @@ models can itself consume a meaningful share of a 50/day budget.
    [[decision-free-tier-model-chain]] survives intact.
 
 ## Contradictions / tensions
+
+PR #302's owner setup remains pending: notification topics, a separately
+provisioned read-only repository token for Modal, and deployment. The review
+validated mocked behavior, not live probes, delivery, or the deployed schedule.
+
 
 > ⚠️ Contradiction: [[decision-free-tier-model-chain]] lists as *not validated*
 > "whether free-tier rate limits hold up under real concurrent user load." As

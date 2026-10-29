@@ -2,7 +2,7 @@
 date: 2026-09-11
 type: entity
 tags: [openrouter, llm, models, seats, fallback, free-tier]
-sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, ../../__tests__/openrouter-fallback.test.ts, ../../__tests__/live/openrouter-resilience.live.test.ts, PR#29, PR#30, PR#37, PR#97]
+sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, ../../__tests__/openrouter-fallback.test.ts, ../../__tests__/live/openrouter-resilience.live.test.ts, PR#29, PR#30, PR#37, PR#97, PR#302]
 ---
 
 # Entity: OpenRouter Client (`lib/openrouter.ts`)
@@ -71,6 +71,24 @@ invalidate every caller again. As of PR #115 **all six seat primaries are `:free
 
 - [[entity-ai-council]] — both `/api/council` and `/api/council/deliberate` route every model call through `callCouncilSeat` / `runSeat`
 - [[entity-grounding-compiler]] — the compile script uses the same free-tier philosophy (`COMPILE_MODEL` defaults to a `:free` model) but its own fetch, not this client
+
+## Committed-chain monitoring (PR #302)
+
+The Monday GitHub Actions refresh remains the sole chain writer; it notifies on
+successful unchanged runs and names the changes and PR when it rewrites the
+chain. `scripts/free-model-health-check.mjs`, scheduled in Modal for Wednesday
+09:00 UTC, reads the committed chain without modifying this client. Defaults cap
+completion requests at six including retries, each at 15 seconds, within a
+180-second run that reserves 10 seconds for alerts. Probes allow 1200 output
+tokens, matching the reasoning allowance needed to reach visible output, and
+reject empty or reasoning-only replies as temporary failures.
+
+Regression signatures advance only after notification delivery. Incomplete
+checks retain unverified committed ids, discard removed ids, and preserve the
+key finding until a probe establishes key usability. Topics, a separately
+provisioned `contents:read` Modal token, and deployment remain owner actions;
+live deployment, delivery, and model probes were not validated in this review.
+See [[decision-free-tier-model-chain]] and [[concept-free-tier-resilience]].
 
 ## Known failures
 
