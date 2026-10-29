@@ -57,7 +57,7 @@ try:
     import ta
     import requests
 except ImportError as e:
-    sys.exit(f"Missing dependency: {e}\nRun: mamba install -c conda-forge yfinance pandas ta requests boto3")
+    sys.exit(f"Missing dependency: {e}\nRun: mamba install -c conda-forge yfinance pandas ta requests")
 
 import logging
 from html import escape as html_escape

@@ -130,9 +130,6 @@ jobs:
           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
           # Explicit even though GITHUB_ACTIONS=true already makes the script
           # auto-detect 'gha' — stated here so the pipeline_run_log host value
           # doesn't depend on an env var GitHub could stop setting.
@@ -144,11 +141,6 @@ jobs:
           SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
-
-          if ! command -v aws >/dev/null 2>&1; then
-            echo "::error::AWS CLI is unavailable — cannot reserve the shared Alpaca budget."
-            exit 1
-          fi
 
           # Named individually rather than in a loop so the error says which
           # one is missing — "a secret is unset" costs a round trip to find out.

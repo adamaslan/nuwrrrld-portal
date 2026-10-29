@@ -1,6 +1,12 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-17 (PR #292 new pipeline infrastructure; parity metrics unchanged)_
+_Last updated: 2026-10-28 (PR #292 infrastructure and PR #296 hydration assessments; parity unchanged)_
+
+**Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
+JS indicator and card policies and targets `nwf-hydration`. It changes no
+mobile client or shared module, so the ~62% parity headline remains unchanged.
+The deployment gates and unverified status are recorded in
+[[entity-ticker-universe-pipeline]] and [[concept-mobile-web-parity]].
 
 **PR #291 and homebase PR #8 scope:** the manual GCP provider preflight and
 unapplied Terraform foundation changed no client or
@@ -32,7 +38,7 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-ai-council]] — the six-seat deliberation system; `app/api/council/*` + `lib/openrouter.ts`
 - [[entity-openrouter-client]] — `lib/openrouter.ts`; seats, model map, `FREE_MODEL_CHAIN`, `runSeat` fallback
 - [[entity-free-pr-reviewer]] — `scripts/free-pr-review.mjs`; lens×file PR triage on verified-$0 models, quote-anchored, with a golden eval
-- [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` + `scripts/seed-paper-portfolios.mjs` + `lib/paper-engine.ts` + `.github/workflows/paper-portfolios.yml` + `lib/paper-arbitration.ts` + `lib/paper-firestore-mirror.ts` + `lib/paper-metrics.ts` + `app/dashboard/council/portfolios/` (Phases 1–6 and 8 merged, PR #124/#127/#128/#137/#138/#140; PR #204 fixed a turnover-cap stop-loss bug, a same-run re-buy-after-stop bug, and implemented CHAIR's consensus + per-seat tie-breaks)
+- [[entity-paper-portfolios]] — 8-phase build turning the six seats into simulated $10k paper-trading books; `lib/db/schema.sql`'s `paper_*` tables + `lib/shared/paper-policy.ts` + `lib/paper-db.ts` + `scripts/seed-paper-portfolios.mjs` + `lib/paper-engine.ts` + `.github/workflows/paper-portfolios.yml` + `lib/paper-arbitration.ts` + `lib/paper-firestore-mirror.ts` + `lib/paper-metrics.ts` + `app/dashboard/council/portfolios/` (Phases 1–6 and 8 merged, PR #124/#127/#128/#137/#138/#140; PR #204 fixed trading bugs; PR #293 reduces eight seasonal schedule fires to four local-time slots)
 
 **Grounding**
 - [[entity-nwf-lab]] — `tools/nwf-lab/`; local read-only Python lab running every data/analysis feature as pure functions (CLI, Streamlit, notebook); fetch/compute split via `DataBundle`; PR #235
@@ -91,7 +97,7 @@ Cross-cutting patterns and design choices.
 - [[concept-wiki-led-development]] — the process where this wiki is the control surface for the work: orient → change → ship → ingest, hook-enforced
 - [[concept-bottleneck-command-suggestion]] — the self-improving loop: `/friction` logs pain, `/suggest-commands` mines it and proposes automation from bottlenecks mined out of `log.md` + incidents
 - [[concept-global-automation-layer]] — the `~/.claude/` global tier (`/geepr`, `/bugz`, `/reb`, `/rem1`, `/maxtoke`, `/locrun`…), always-on rules, hooks, and the `wiki-guard` PR hook that automate + enforce the build process
-- [[concept-followed-tickers-tracking]] — the monthly bear/bull cohort as a standing benchmark: 10 strongest bearish + 10 strongest bullish signals frozen as scoreable predictions, resolved across seven horizons (d1→y1) against realized prices, with reasoning quality graded separately by an outcome-blind LLM judge
+- [[concept-followed-tickers-tracking]] — the monthly bear/bull cohort as a standing benchmark: 10 strongest bearish + 10 strongest bullish signals frozen as scoreable predictions, resolved across seven horizons (d1→y1) against realized prices, with reasoning quality graded separately by an outcome-blind LLM judge; one 16:30 ET daily schedule
 - [[concept-run-coverage-status]] — ok/degraded/partial/fail: how a pipeline run's coverage (not just crash/no-crash) becomes one status column, and why `hydrate-universe` carding 700/762 stocks used to exit green
 
 ---
@@ -108,6 +114,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-free-pr-review-lenses-and-verifier]] — review by closed lens questions, quote anchoring and a verifier; free-ness proven at three layers
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
+- [[decision-no-shared-alpaca-budget]] — Alpaca requests are paced or counted per pipeline; no AWS-backed shared budget
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-exact-offset-and-fresh-price-for-followed-tickers]] — benchmark horizons exit on their own trading-day offset (a missing close voids, never borrows a later one); prices must be dated on or after a freshness bound and record their source
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner

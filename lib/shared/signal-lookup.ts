@@ -16,7 +16,6 @@ import { cacheTtlMinutes, isCacheFresh, normalizeTicker } from "@/lib/shared/sig
 // route) keep resolving them from here; their canonical home is signal-policy.
 export { normalizeTicker, isCacheFresh } from "@/lib/shared/signal-policy";
 
-const MCP_URL = process.env.MCP_BACKEND_URL ?? "https://gcp3-backend-cif7ppahzq-uc.a.run.app";
 const FETCH_TIMEOUT_MS = 8_000;
 
 interface CachedEntry {
@@ -56,10 +55,13 @@ async function readCachedEntry(ticker: string): Promise<CacheReadResult> {
 
 /** Live gcp3 fetch, no cache. Returns null on any failure. */
 async function fetchTickerEntryLive(ticker: string): Promise<Record<string, unknown> | null> {
+  const mcpUrl = process.env.MCP_BACKEND_URL;
+  if (!mcpUrl) return null;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`${MCP_URL}/signals?symbol=${encodeURIComponent(ticker)}`, {
+    const res = await fetch(`${mcpUrl}/signals?symbol=${encodeURIComponent(ticker)}`, {
       signal: controller.signal,
     });
     if (!res.ok) return null;

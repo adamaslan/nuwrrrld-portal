@@ -49,8 +49,6 @@ import {
   MIN_BARS,
 } from "../lib/shared/hydration-constants.mjs";
 
-import { acquireAlpacaBudget } from "../lib/alpaca-budget.mjs";
-
 // ── env loading ───────────────────────────────────────────────────────────
 let env = {};
 try {
@@ -86,6 +84,10 @@ const ALPACA_API_SECRET = process.env.ALPACA_API_SECRET ?? env.ALPACA_API_SECRET
 // affect the *data* (chunk size, lookback window); this is transport-only and
 // has no mobile/cross-repo relevance (mobile has no hydration lane at all).
 const ALPACA_REQUEST_TIMEOUT_MS = 15_000;
+
+// Counts every Alpaca request this run makes. Usage is measured here rather
+// than reserved against a shared per-minute budget, so the run never waits.
+let alpacaRequests = 0;
 
 function fail(message) {
   console.error(`hydrate-local: ${message}`);
@@ -219,7 +221,7 @@ async function fetchBarsOnce(symbols, cached = {}) {
     // this fetch indefinitely — the chunk never reaches the existing
     // per-symbol failure path below, it just wedges the whole run. CodeRabbit
     // review, PR #101.
-    await acquireAlpacaBudget();
+    alpacaRequests++;
     const res = await fetch(url, {
       headers: {
         "APCA-API-KEY-ID": ALPACA_API_KEY,
@@ -479,7 +481,7 @@ async function main() {
   let runStatus = DRY_RUN ? "dry-run" : "fail";
   try {
     if (INTRADAY) {
-      await acquireAlpacaBudget();
+      alpacaRequests++;
       const clockResponse = await fetch("https://paper-api.alpaca.markets/v2/clock", {
         headers: { "APCA-API-KEY-ID": ALPACA_API_KEY, "APCA-API-SECRET-KEY": ALPACA_API_SECRET },
         signal: AbortSignal.timeout(ALPACA_REQUEST_TIMEOUT_MS),
@@ -633,6 +635,7 @@ async function main() {
       }
     }
   }
+  console.log(`[usage] alpaca_requests=${alpacaRequests}`);
   console.log(
     `\n[done] status=${runStatus} written=${written} calc-errors=${calcErrors} ` +
       `post-failures=${postFailures} unservable=${unservable} total=${total}`

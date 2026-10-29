@@ -49,6 +49,12 @@ in PR #66:
   `ticker_universe`, pull bars from Alpaca, and push cards for the ~4,300
   non-ETF tickers a full S&P 500 + Nasdaq-100 universe implies. Not yet
   deployed; not yet credentialed (see Known failures).
+- **`deploy/hydration-job/main.ts`** — proposed slot 2 Cloud Run worker
+  (PR #296, draft): reads the active universe from a read-only source URL,
+  fetches SIP daily bars, uses the shared JS indicator/card policy, and writes
+  to the dedicated `nwf-hydration` branch. It is code-only; branch-scoped Neon
+  credentials are still a deployment gate, and it needs no AWS access (there is
+  no shared Alpaca rate budget). No scheduled or live run has been verified.
 
 `scripts/gen-portal-push-secret.sh` generates and syncs the `PORTAL_PUSH_SECRET`
 bearer every pipeline route requires (`requirePushSecret()` in
@@ -311,6 +317,10 @@ failures #3 for why).
    `missing`/`staleCount`.
 
 ## Open questions
+
+- ❓ Nothing now coordinates Alpaca's per-minute limit across pipelines (the
+  shared budget was removed). If slot 2 runs overlap another pipeline, do 429s
+  appear, and does the worker need its own pacing?
 
 - ❓ Should `seed-yahoo-portfolio.mjs`'s non-US-suffix filter list
   (`.HK`/`.L`/`.TO`/…) live somewhere shared, if another import source needs

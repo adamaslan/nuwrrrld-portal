@@ -38,6 +38,8 @@
  *                 id (degraded, not broken). Distinct from 1 so a CI job can
  *                 let the refresh PR through while still flagging the dead seat
  *                 (docs/free-model-rotation-status.md, P1).
+ *             4 = OpenRouter rejected OPENROUTER_API_KEY (401/403) on the
+ *                 preflight. Not retryable: rotate the key first.
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -83,6 +85,13 @@ function isSpecialistModel(id) {
   return SPECIALIST_MODEL_PATTERNS.some((re) => re.test(id));
 }
 const EXIT_DEGRADED_SEATS = 3; // chain OK, but a SEAT_MODELS id is retired (P1)
+// The OpenRouter key itself was rejected (401/403). Distinct from 1 so the CI
+// job and Cloud Run logs say "rotate the key" instead of "0 working models",
+// and so a retry cannot fix it (2026-10-12: every probe 401'd, job exit 1).
+const EXIT_KEY_REJECTED = 4;
+// Concurrent probes per batch. Bounded so a 13-model catalog finishes in
+// about a quarter of the serial time without hammering the free-tier limit.
+const PROBE_CONCURRENCY = 4;
 const DRY_RUN = process.argv.includes('--dry-run');
 const PROBE = !process.argv.includes('--no-probe');
 
@@ -229,12 +238,19 @@ function capVendors(models) {
   return kept;
 }
 
+/** The `vendor/` prefix of a model id, e.g. `qwen` for `qwen/qwen3-8b:free`. */
+const vendorOf = (model) => model.split('/')[0];
+
 /**
  * Reduce the ranked `candidates` to the working chain of at most CHAIN_SIZE
  * ids, capped at MAX_PER_VENDOR per `vendor/` prefix. With `--no-probe` it
  * trusts the $0 pricing and just caps + slices; otherwise it live-probes in
- * order, keeps the ones that answer, and stops early once the chain is full to
- * spare the free quota.
+ * preference order, PROBE_CONCURRENCY at a time, keeps the ones that answer,
+ * and stops once the chain is full.
+ *
+ * Batches are probed concurrently but results are applied strictly in
+ * preference order, so the chain is identical to a serial run. The only cost
+ * of batching is up to PROBE_CONCURRENCY - 1 extra probes past the stop point.
  */
 async function selectWorking(apiKey, candidates) {
   // Diversify before slicing to CHAIN_SIZE so the chain doesn't collapse to a
@@ -243,21 +259,55 @@ async function selectWorking(apiKey, candidates) {
   if (!PROBE) return capVendors(candidates).slice(0, CHAIN_SIZE);
   const working = [];
   const perVendor = new Map();
-  for (const model of candidates) {
-    const vendor = model.split('/')[0];
-    if ((perVendor.get(vendor) ?? 0) >= MAX_PER_VENDOR) {
-      console.log(`  cap  skip  ${model} — already ${MAX_PER_VENDOR} working from "${vendor}/"`);
-      continue;
+  let cursor = 0;
+  while (working.length < CHAIN_SIZE && cursor < candidates.length) {
+    const batch = [];
+    while (batch.length < PROBE_CONCURRENCY && cursor < candidates.length) {
+      const model = candidates[cursor];
+      cursor += 1;
+      if ((perVendor.get(vendorOf(model)) ?? 0) >= MAX_PER_VENDOR) {
+        console.log(`  cap  skip  ${model} — already ${MAX_PER_VENDOR} working from "${vendorOf(model)}/"`);
+        continue;
+      }
+      batch.push(model);
     }
-    const r = await probe(apiKey, model);
-    console.log(`  probe ${r.ok ? 'OK ' : 'skip'} [${r.status}] ${model}`);
-    if (r.ok) {
-      working.push(model);
+    const results = await Promise.all(batch.map((model) => probe(apiKey, model)));
+    for (const r of results) {
+      console.log(`  probe ${r.ok ? 'OK ' : 'skip'} [${r.status}] ${r.model}`);
+      if (!r.ok) continue;
+      const vendor = vendorOf(r.model);
+      if ((perVendor.get(vendor) ?? 0) >= MAX_PER_VENDOR) {
+        console.log(`  cap  skip  ${r.model} — already ${MAX_PER_VENDOR} working from "${vendor}/"`);
+        continue;
+      }
+      working.push(r.model);
       perVendor.set(vendor, (perVendor.get(vendor) ?? 0) + 1);
+      if (working.length >= CHAIN_SIZE) break; // full chain: stop applying results
     }
-    if (working.length >= CHAIN_SIZE) break; // stop early to spare the free quota
   }
   return working;
+}
+
+/** Thrown when OpenRouter rejects the key itself, as opposed to a model. */
+class KeyRejectedError extends Error {
+  constructor(status) {
+    super(`OpenRouter key rejected [${status}]`);
+    this.name = 'KeyRejectedError';
+  }
+}
+
+/**
+ * Check the key before spending probes on it. A revoked key makes every model
+ * probe return 401, which otherwise reads as "0 working models" and hides the
+ * cause. One cheap GET here turns that into a single, specific failure.
+ */
+async function preflightKey(apiKey) {
+  const res = await fetch(`${OR_BASE}/auth/key`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  await res.body?.cancel().catch(() => {});
+  if (res.status === 401 || res.status === 403) throw new KeyRejectedError(res.status);
+  if (!res.ok) throw new Error(`OpenRouter /auth/key returned ${res.status}`);
 }
 
 function renderChain(models) {
@@ -431,6 +481,8 @@ async function main() {
     process.exit(1);
   }
 
+  if (PROBE) await preflightKey(apiKey);
+
   console.log('Fetching OpenRouter catalog…');
   const free = await fetchFreeModels();
   console.log(`Found ${free.length} $0-priced :free models.`);
@@ -472,6 +524,14 @@ async function main() {
 }
 
 main().catch((err) => {
+  if (err instanceof KeyRejectedError) {
+    console.error(
+      `\nrefresh-free-models: ${err.message}. The OpenRouter key is revoked or invalid. ` +
+        'Rotate it (GitHub repo secret OPENROUTER_API_KEY, or the host secret) and re-run. ' +
+        'Nothing was probed and FREE_MODEL_CHAIN was left untouched.',
+    );
+    process.exit(EXIT_KEY_REJECTED);
+  }
   console.error(`\nrefresh-free-models failed: ${err.message}`);
   process.exit(1);
 });

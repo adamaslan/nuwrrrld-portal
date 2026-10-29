@@ -11,8 +11,27 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 The NWF portal now proposes a separate Terraform slot and records its validation and billing gate in [[entity-new-pipeline-infrastructure]]. This PR changes no client feature or shared application module. The existing feature-domain matrix, its denominator, and the historical ~62% headline remain unchanged; this is a scoped assessment, not a fresh parity audit. The mobile mirror records the same disposition.
 
+## PR #296 assessment — 2026-10-18
+
+The draft slot 2 hydration worker is server-side portal pipeline code. It
+introduces no mobile client feature, shared client module, or cross-surface
+contract. The historical ~62% headline and domain matrix remain unchanged; this
+is a scoped assessment, not a fresh parity audit. The runtime is not deployed.
+
 Companion page: [[concept-sync-requirements]] — the concrete work each surface needs to close the gap.
 Mobile mirror: `gcp3-mobile/docs/wiki-mobile/concept-mobile-web-parity.md`.
+
+## PR #293 assessment — 2026-10-16
+
+The followed-ticker workflow now schedules once at 16:30 New York time across
+daylight saving changes. This changes portal automation frequency, not a
+mobile feature, shared module, API contract, or matrix row. The historical
+~62% headline is unchanged; no new mobile port is required.
+
+Paper portfolio automation now uses four New York timezone schedules in place
+of eight seasonal UTC entries. The change affects portal runner frequency and
+slot resolution; it adds no mobile feature, API contract, or shared module.
+The historical ~62% headline and feature-domain matrix are unchanged.
 
 ## PR #291 and homebase PR #8 assessment — 2026-10-15
 

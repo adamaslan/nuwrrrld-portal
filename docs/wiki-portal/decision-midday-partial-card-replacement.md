@@ -27,6 +27,11 @@ The card replacement rule only accepted a same-bar card on strictly better quali
 
 ## Consequences
 
+- The proposed slot 2 worker (PR #296, draft) applies the same final/partial
+  replacement ordering in its isolated target-branch upsert and derives daily
+  bar finality using New York market time. This extends the producer set only
+  if deployed; it has not been checked against a live run.
+
 - The rule lives in two places that must agree: `shouldReplaceCard` and the upsert guard in `ticker-cards-db.ts`.
 - Only the 15:00 cron or the manual `intraday` input marks a run partial; every other caller defaults to final.
 - ~~Ranking reads do not yet filter or label on finality, so midday cards can rank.~~ **Resolved in the same PR's review cycle (2026-10-10):** `rowToStored` was silently dropping `is_final` on every read, and both ranking queries — `topCards` and `bipolarCards` — selected partial cards with no way for a caller to exclude them. Both queries now require `c.is_final = true`; `rowToStored` preserves the field. CodeRabbit caught the `topCards` gap first; a second review pass on the fix caught the identical gap in `bipolarCards` (see [[incident-2026-08-31-bear-side-starved-at-universe-scale]] — same function, a different correctness axis).

@@ -12,7 +12,7 @@ sources: [../../scripts/pipeline/locrun.py, ../../scripts/pipeline/refresh-signa
 Python scripts that pull daily bars, compute signals, and push a digest to the portal cache (and Firestore, when enabled). They moved here from homebase (homebase PR #4 became PR #290), so the portal repo now owns them.
 
 - **`market_data.py`** is the shared loader. Alpaca is the primary source; yfinance is a local-only fallback. It loads only the two Alpaca key names from the portal's `.env.local`, falling back to the primary checkout's file when run from a worktree.
-- **`alpaca_md.py`** is the Alpaca bars client. It uses the paper key pair, batches symbols, and reserves tokens from the shared DynamoDB rate budget.
+- **`alpaca_md.py`** is the Alpaca bars client. It uses the paper key pair, batches symbols, and paces requests locally. There is no shared rate budget ([[decision-no-shared-alpaca-budget]]).
 - **`locrun.py`** runs the full pipeline: fetch, analyze, Firestore, GCP3 trigger, push, HTML report. `--dry-run` writes nothing remote.
 - **`refresh-signals.py`** is the lighter refresh-and-push tool.
 
@@ -24,7 +24,7 @@ Run by hand from a laptop in the `fin-ai1` mamba env. No cloud host runs them. M
 
 - The company-name column is blank (Alpaca bars carry no name).
 - `adj_close` is split-adjusted only.
-- `boto3` is missing in the mamba envs, so the shared rate budget falls back to local pacing.
+- Requests are paced locally at one per 0.35 seconds. `boto3` is no longer needed.
 - Both scripts still read the sibling `gcp-app-w-mcp1/mcp-finance1` env file, which lives outside this repo.
 
 ## Open questions
