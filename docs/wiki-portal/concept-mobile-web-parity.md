@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #292 infrastructure assessment — 2026-10-15
+
+The NWF portal now proposes a separate Terraform slot and records its validation and billing gate in [[entity-new-pipeline-infrastructure]]. This PR changes no client feature or shared application module. The existing feature-domain matrix, its denominator, and the historical ~62% headline remain unchanged; this is a scoped assessment, not a fresh parity audit. The mobile mirror records the same disposition.
+
 ## PR #296 assessment — 2026-10-18
 
 The draft slot 2 hydration worker is server-side portal pipeline code. It

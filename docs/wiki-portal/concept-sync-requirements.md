@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 
 # Concept — What Each Surface Needs to Sync
 
+## PR #292 infrastructure scope — 2026-10-15
+
+The new pipeline Terraform foundation and deployment status are operational work described by [[entity-new-pipeline-infrastructure]]. They add no mobile port or shared-module de-drift requirement. Feature parity remains at the historical ~62% headline; the existing domain matrix is unchanged. A later API or user-facing pipeline feature will need a separate parity assessment.
+
 Companion page: [[concept-mobile-web-parity]] — the historical ~62% measurement this
 page is a plan to raise. Mobile mirror:
 `gcp3-mobile/docs/wiki-mobile/concept-sync-requirements.md`.
