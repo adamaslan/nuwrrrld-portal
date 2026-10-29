@@ -197,7 +197,7 @@ test('carryForwardSignature drops findings for ids verified this run', () => {
     { id: 'b:free', verdict: 'not-probed' },
   ];
   assert.equal(
-    carryForwardSignature('a:free=temporary;b:free=rejected', results),
+    carryForwardSignature('a:free=temporary;b:free=rejected', results, ['a:free', 'b:free']),
     'b:free=rejected',
   );
 });
@@ -205,11 +205,49 @@ test('carryForwardSignature drops findings for ids verified this run', () => {
 test('carryForwardSignature keeps the key finding when nothing was probed', () => {
   const results = [{ id: 'a:free', verdict: 'not-probed' }];
   assert.equal(
-    carryForwardSignature('openrouter-key=rejected', results),
+    carryForwardSignature('openrouter-key=rejected', results, ['a:free']),
     'openrouter-key=rejected',
   );
   assert.equal(
-    carryForwardSignature('openrouter-key=rejected', [{ id: 'a:free', verdict: 'ok' }]),
+    carryForwardSignature('openrouter-key=rejected', [{ id: 'a:free', verdict: 'ok' }], ['a:free']),
     '',
+  );
+});
+
+test('probe allows reasoning tokens but requires usable visible content', async () => {
+  const originalFetch = globalThis.fetch;
+  const messages = [
+    { content: '' },
+    { reasoning: 'internal reasoning only' },
+    { content: '  ' },
+    { content: 'pong', reasoning: 'internal reasoning' },
+  ];
+  try {
+    for (const message of messages) {
+      let requests = 0;
+      globalThis.fetch = async (_url, init) => {
+        requests += 1;
+        assert.equal(JSON.parse(init.body).max_tokens, 1200);
+        return new Response(JSON.stringify({ choices: [{ message }] }), { status: 200 });
+      };
+      const budget = { remaining: 6 };
+      const result = await probeModel('test-key', 'a:free', Date.now() + 10000, budget, async () => {});
+      assert.equal(result.verdict, message.content === 'pong' ? 'ok' : 'temporary');
+      assert.equal(requests, message.content === 'pong' ? 1 : 3);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('carryForwardSignature drops removed ids after an early key stop', () => {
+  const results = [{ id: 'a:free', verdict: 'key' }];
+  assert.equal(
+    carryForwardSignature(
+      'removed:free=temporary;a:free=rejected;b:free=temporary;openrouter-key=rejected',
+      results,
+      ['a:free', 'b:free', 'c:free'],
+    ),
+    'a:free=rejected;b:free=temporary;openrouter-key=rejected',
   );
 });

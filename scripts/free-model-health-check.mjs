@@ -9,7 +9,7 @@
  * question: do the ids the app is shipping still work?
  *
  * Per committed id it reports a verdict:
- *   ok         $0-priced and answered a 1-token completion (HTTP 200)
+ *   ok         $0-priced and returned nonempty visible content (HTTP 200)
  *   paid       still in the catalog but no longer $0-priced
  *   retired    gone from the OpenRouter catalog (404 on probe)
  *   rejected   probe refused for a non-retirement reason (other 4xx)
@@ -18,6 +18,8 @@
  *
  * Bounds: at most MAX_PROBES completions, PROBE_TIMEOUT_MS per request,
  * PROBE_RETRIES retries on temporary failures, and RUN_BUDGET_MS overall.
+ * Each probe allows 1200 output tokens, including reasoning, and requires
+ * nonempty visible content.
  * Response bodies and the API key are never logged.
  *
  * Alerts go to ntfy: one summary every run (priority 3), and a deduplicated
@@ -51,7 +53,7 @@ const CHAIN_PATH = 'lib/openrouter.ts';
 const MAX_PROBES = Number(process.env.MAX_PROBES || 6);
 const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 15000);
 const PROBE_RETRIES = 2;
-const PROBE_MAX_TOKENS = 16;
+const PROBE_MAX_TOKENS = 1200;
 const RETRY_DELAYS_MS = [2000, 8000];
 const RUN_BUDGET_MS = Number(process.env.RUN_BUDGET_MS || 180000);
 const NTFY_TIMEOUT_MS = 10000;
@@ -96,7 +98,8 @@ export function alertDecision(previousSignature, currentSignature) {
  * stale stored finding must not outlive it. The OpenRouter key entry is cleared
  * once a real probe succeeded or failed on something other than the key.
  */
-export function carryForwardSignature(storedSignature, results) {
+export function carryForwardSignature(storedSignature, results, chain) {
+  const committedIds = new Set(chain);
   const verifiedIds = new Set(
     results.filter((r) => r.verdict !== 'not-probed' && r.verdict !== 'key').map((r) => r.id),
   );
@@ -108,7 +111,7 @@ export function carryForwardSignature(storedSignature, results) {
       if (separator <= 0) return false;
       const id = entry.slice(0, separator);
       if (id === 'openrouter-key') return !keyVerified;
-      return !verifiedIds.has(id);
+      return committedIds.has(id) && !verifiedIds.has(id);
     })
     .join(';');
 }
@@ -324,7 +327,7 @@ async function main(workDeadline, notificationDeadline) {
     ? state.signature
     : '';
   const signature = incomplete
-    ? mergeRegressionSignatures(carryForwardSignature(storedSignature, results), currentSignature)
+    ? mergeRegressionSignatures(carryForwardSignature(storedSignature, results, chain), currentSignature)
     : currentSignature;
   const decision = alertDecision(storedSignature, signature);
   const healthy = !signature && !incomplete;

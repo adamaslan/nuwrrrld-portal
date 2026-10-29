@@ -2,7 +2,7 @@
 date: 2026-09-11
 type: decision
 tags: [cost, models, free-tier, fallback, openrouter]
-sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29, PR#30, PR#115]
+sources: [../../lib/openrouter.ts, ../../scripts/refresh-free-models.mjs, PR#29, PR#30, PR#115, PR#302]
 ---
 
 # Decision: Every Council Call Runs on a Free-Tier Model Chain
@@ -59,23 +59,32 @@ The council is a per-user feature gated behind the `nu_ai` entitlement and a dai
 - ✅ **The $0 claim is accurate again (PR #115, 2026-09-07).** T1 ran a paid model (`cohere/command-r7b-12-2024`, ~$0.20–$0.50 per deliberation) from ~PR #75 until PR #115 repointed it at `thinkingmachines/inkling-small:free`. All six seat primaries are now `:free`. `refresh-free-models.mjs`'s seat audit now prints `ok` / **`PAID`** / `DEAD` per seat, and [[entity-model-usage-log]] flags any `⚠ paid` model that served a real call — so the next drift is visible, not silent. See [[entity-openrouter-client]] "Model assignment".
 - ❌ **Refuted, 2026-07-30:** the previously-unvalidated concurrency risk below is real. OpenRouter free tier caps the **key**, not per-model, at 50 req/day (1000/day at ≥10 credits). One key shared across the whole app means council calls, `/api/brief`, and the refresh script's own probes all draw from the same 50 — any combination can exhaust it, at which point every model 429s at once and looks identical to "the whole free roster is dead." See [[entity-openrouter-client]] "Known failures" #3.
 
-## Alerts and read-only verification (2026-10-20)
+## Alerts and read-only verification (PR #302)
 
-The weekly refresh (GitHub Actions) stays the only writer of `FREE_MODEL_CHAIN`
-and the only PR author. It now pushes one notification on every successful run:
-a plain OK when the chain is unchanged, and a louder notice naming the added and
-removed ids and the PR number when it changes. Failures keep their issue plus
-push. Delivery is reported separately and never fails the refresh.
+GitHub Actions remains the only chain writer and PR author on the unchanged
+Monday schedule. Every successful refresh sends a notification: unchanged chains
+receive an OK; changed chains name added/removed ids and the refresh PR. Failure
+notifications retain the issue path. Notification delivery is reported separately
+from refresh success.
 
-A Modal job on Wednesdays re-verifies the committed chain without writing. It
-checks each id's `$0` pricing against the catalog and probes committed free models
-under hard caps (request count, timeout, retries, total runtime). A regression
-alerts once per distinct set of failing ids, so a standing problem does not repeat
-weekly. Read-only verification is separate from the writer on purpose: a checker
-that could also change the chain would be a second writer with no review gate.
+The Wednesday 09:00 UTC Modal job checks the committed default-branch chain
+without editing it or opening PRs. This separation preserves a single reviewed
+writer while detecting drift between refreshes. By default the checker spends at
+most six completion requests including retries, with 15 seconds per request and
+180 seconds overall, reserving 10 seconds for alerts. Each probe permits 1200
+output tokens so reasoning models can reach visible output; HTTP 200 requires
+nonempty visible content to count as healthy.
 
-Ids are named in the code; the notification topic is a repo or Modal secret and is
-never written into a doc.
+Alerts deduplicate the regression signature and acknowledge a transition only
+after delivery succeeds, allowing failed notifications to retry. Incomplete runs
+retain previous findings for unverified ids still in the committed chain and the
+key pseudoentry as appropriate; removed ids cannot remain stale regressions.
+
+The owner must configure notification topics, provision the Modal token with
+read-only repository `contents:read` access, and deploy the app. Mock regressions
+cover the probe budget/content and signature fixes; live deployment, delivery,
+and probes were not validated in this review. See
+[[concept-free-tier-resilience]] and [[entity-openrouter-client]].
 
 ## Refresh hardening (PR #297)
 
