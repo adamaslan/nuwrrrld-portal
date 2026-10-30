@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-const { bipolarCards, fetchTickerEntry } = vi.hoisted(() => ({ bipolarCards: vi.fn(), fetchTickerEntry: vi.fn() }));
-vi.mock("@/lib/ticker-cards-db", () => ({ bipolarCards }));
+const { bipolarCards, getCard, fetchTickerEntry } = vi.hoisted(() => ({ bipolarCards: vi.fn(), getCard: vi.fn(), fetchTickerEntry: vi.fn() }));
+vi.mock("@/lib/ticker-cards-db", () => ({ bipolarCards, getCard }));
 vi.mock("@/lib/shared/signal-lookup", () => ({ fetchTickerEntry }));
 import { getStoredSignals, getStoredHoldFold, getTickerVerdict } from "@/app/dashboard/holdfold/stored-signals";
 import { adaptLiveSignals } from "@/lib/digest";
