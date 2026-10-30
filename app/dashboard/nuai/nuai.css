@@ -32,3 +32,11 @@
 
 .nuai-disclaimer, .nuai-footer-disclaimer { font-size: .72rem; color: var(--text-dim); text-align: center; padding-bottom: .5rem; }
 .nuai-footer-disclaimer a { color: var(--text-dim); }
+
+/* MarkdownLite blocks inside an assistant bubble — keep the bubble's single
+ * paragraph rhythm instead of browser-default list/paragraph margins. */
+.nuai-bubble-text p { margin: 0 0 .5rem; }
+.nuai-bubble-text p:last-child { margin-bottom: 0; }
+.nuai-bubble-text ul, .nuai-bubble-text ol { margin: 0 0 .5rem; padding-left: 1.25rem; }
+.nuai-bubble-text ul:last-child, .nuai-bubble-text ol:last-child { margin-bottom: 0; }
+.nuai-bubble-text code { font-size: .85em; background: rgba(127,127,127,.18); padding: .1em .3em; border-radius: 4px; }
