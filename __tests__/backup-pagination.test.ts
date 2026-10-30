@@ -60,7 +60,18 @@ const PK = ["ticker", "seq"];
 const COLS = ["ticker", "seq", "close"];
 const SELECT_LIST = COLS.map((c) => `"${c}"`).join(", ");
 
-async function collect(query: any, opts: any): Promise<Row[]> {
+type QueryFn = (text: string, params: unknown[]) => Promise<Row[]>;
+
+type ChunkOpts = {
+  table: string;
+  selectList: string;
+  selectColumns: string[];
+  pkColumns?: string[];
+  chunkRows?: number;
+  minChunkRows?: number;
+};
+
+async function collect(query: QueryFn, opts: ChunkOpts): Promise<Row[]> {
   const out: Row[] = [];
   for await (const chunk of fetchTableChunks(query, opts)) out.push(...chunk);
   return out;
