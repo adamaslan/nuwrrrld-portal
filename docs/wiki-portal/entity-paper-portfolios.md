@@ -130,6 +130,8 @@ tracks what's actually built against that 8-phase plan.
 
 ## Known failures
 
+> As of 2026-10-30 the leaderboard and arena hide Day, Sharpe and vs SPY figures behind the `paper_benchmark_metrics` flag ([[decision-dark-launch-flags]]) because the benchmark controls never invested. Trading and settle metrics keep running; the arena rank still uses Sharpe and vs SPY internally.
+
 None yet observed against live data — the deterministic engine (Phase 3) has
 only run against unit tests of its pure core, never a real Neon branch with
 seeded accounts (Phase 2's seed script hasn't actually been run for real; see

@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 
 # Concept — What Each Surface Needs to Sync
 
+## PR #316 — dark-launch flags, no port yet
+
+[[decision-dark-launch-flags]] hides five wrong-number surfaces on the portal only. Mobile needs one check, not a port: confirm whether the mobile app shows track-record hit rates, paper benchmark figures, holdfold movers or a news-inclusive confluence score from the same data. If it does, the same figures are wrong there too and need an equivalent hide. This stays open until that check is done.
+
 ## PR #292 infrastructure scope — 2026-10-15
 
 The new pipeline Terraform foundation and deployment status are operational work described by [[entity-new-pipeline-infrastructure]]. They add no mobile port or shared-module de-drift requirement. Feature parity remains at the historical ~62% headline; the existing domain matrix is unchanged. A later API or user-facing pipeline feature will need a separate parity assessment.

@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #316 assessment — 2026-10-30
+
+The portal now hides five surfaces behind dark-launch flags ([[decision-dark-launch-flags]]): track-record hit rates, paper benchmark metrics, top movers, the news-vote confluence component, and the public council demo. This is a one-surface change with no shared module touched. Whether mobile shows the same figures is unchecked, so the matrix rows for Backtest, Hold/Fold and the public demo are unchanged and the headline percentage is not recomputed here. It is computed on the last-merging branch. Mobile impact: unverified, no port required yet.
+
 ## PR #292 infrastructure assessment — 2026-10-15
 
 The NWF portal now proposes a separate Terraform slot and records its validation and billing gate in [[entity-new-pipeline-infrastructure]]. This PR changes no client feature or shared application module. The existing feature-domain matrix, its denominator, and the historical ~62% headline remain unchanged; this is a scoped assessment, not a fresh parity audit. The mobile mirror records the same disposition.
