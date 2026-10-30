@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
 import { getAggregateTrackRecord } from "@/lib/track-record";
+import { flagLive } from "@/lib/flags";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
 import { StatCounter } from "@/components/landing/StatCounter";
@@ -19,8 +20,10 @@ import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 import "./landing.css";
 
 async function fetchLandingData() {
+  // The track record is hidden during the dark launch, so skip its query too.
   const [signals, council, trackRecord] = await Promise.allSettled([
-    getStoredSignals(), getCouncilSample(), getAggregateTrackRecord(),
+    getStoredSignals(), getCouncilSample(),
+    flagLive("backtest_hit_rates") ? getAggregateTrackRecord() : Promise.resolve(null),
   ]);
   const digest = signals.status === "fulfilled" ? adaptLiveSignals(signals.value) : null;
   return {
@@ -439,7 +442,7 @@ async function LandingContent() {
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
 
-          <PublicCouncilDemo />
+          {flagLive("council_public_demo") && <PublicCouncilDemo />}
         </Reveal>
       </section>
 

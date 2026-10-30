@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import type { SignalPayload } from "@/lib/digest";
 import { SignalShareButton } from "@/components/SignalShareButton";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
+import { flagLive } from "@/lib/flags";
 import { SignalAskAnything } from "@/components/SignalAskAnything";
 import { filterSignals, sortSignals, type Direction, type SortKey } from "@/lib/shared/signalFilters";
 import { buildSignalPrompt } from "@/lib/shared/prompts";
@@ -205,6 +206,7 @@ export function SignalsClient({ signals }: Props) {
                           {sig.score != null ? ")" : ""}
                         </>
                       )}
+                      {sig.score != null && !flagLive("news_vote") && <> · News not included</>}
                     </p>
                   )}
                   {sig.reasons && sig.reasons.length > 0 && (

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { fetchBacktest } from "@/lib/backtest";
+import { flagLive } from "@/lib/flags";
 
 /**
  * Thin proxy for the (separate) signals-app backtest engine.
@@ -12,6 +13,9 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ symbol: string }> }
 ) {
+  // Off during the dark launch: callers already treat 204 as "no data".
+  if (!flagLive("backtest_hit_rates")) return new NextResponse(null, { status: 204 });
+
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 

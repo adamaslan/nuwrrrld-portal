@@ -15,6 +15,7 @@ import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { hashIp, clientIpFromHeaders, checkAndIncrementDemoQuota, releaseDemoQuota, getCachedDemoAnswer, saveDemoAnswer } from "@/lib/public-demo";
 import { callCouncilSeat } from "@/lib/openrouter";
 import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup";
+import { flagLive } from "@/lib/flags";
 
 const DEMO_SEAT = "RISK" as const;
 
@@ -29,6 +30,11 @@ function buildDemoPrompt(ticker: string, brief: string | null): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Off during the dark launch: the demo answer is not yet leak-free (chain-of-thought).
+  if (!flagLive("council_public_demo")) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
   const apiKey = process.env.OPENROUTER_API_KEY;
   const ipHashSecret = process.env.IP_HASH_SECRET;
   if (!apiKey || !ipHashSecret) {

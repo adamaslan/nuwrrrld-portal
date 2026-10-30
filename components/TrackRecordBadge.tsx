@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { BacktestResult } from '@/lib/backtest';
+import { flagLive } from '@/lib/flags';
 
 interface TrackRecordBadgeProps {
   /** Ticker to backtest, e.g. "AAPL" */
@@ -21,6 +22,9 @@ type Status = 'idle' | 'loading' | 'ok' | 'empty' | 'error';
 export function TrackRecordBadge({ symbol, strength }: TrackRecordBadgeProps) {
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<BacktestResult | null>(null);
+
+  // Hit rates are seed data until backtest_hit_rates is measured (dark launch).
+  if (!flagLive('backtest_hit_rates')) return null;
 
   async function handleLoad() {
     if (status === 'loading') return;
