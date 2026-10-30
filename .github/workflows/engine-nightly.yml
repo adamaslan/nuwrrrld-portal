@@ -109,3 +109,38 @@ jobs:
             run.log
           retention-days: 7
           if-no-files-found: ignore
+
+  # ── Notify on failure ──────────────────────────────────────────────────
+  # This workflow had no alerting: it failed 8+ consecutive runs in October
+  # 2026 with no issue filed. Same upsert-workflow-failure-issue.sh pattern
+  # as backup-to-sqlite's notify job; automated (workflow_run) triggers only —
+  # a manual dispatch's operator is already watching.
+  notify:
+    name: Failure or recovery notification
+    needs: [engine]
+    if: always() && !cancelled() && github.event_name == 'workflow_run' && (failure() || (needs.engine.result == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update pipeline alert
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERT_MODE: ${{ contains(needs.*.result, 'failure') && 'failure' || 'recovery' }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export ISSUE_TITLE="Engine nightly failed"
+          export ISSUE_BODY="**Run:** ${RUN_URL}
+
+          The nightly engine (shadow) did not complete. Likely:
+          the \`--feed\` not matching the feed daily bars are stored under
+          (ALPACA_FEED in \`lib/shared/hydration-constants.json\`),
+          \`daily_bars\` unpopulated for that feed, or the portal's
+          \`/api/pipeline/engine-run\` unreachable."
+          bash scripts/upsert-workflow-failure-issue.sh
