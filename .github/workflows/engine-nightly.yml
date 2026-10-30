@@ -16,11 +16,11 @@ on:
         required: false
         default: ''
       feed:
-        description: 'Alpaca feed'
+        description: 'Alpaca feed (must match the feed daily bars are stored under — ALPACA_FEED in hydration-constants.json)'
         required: false
         type: choice
-        options: ['iex', 'sip']
-        default: 'iex'
+        options: ['sip', 'iex']
+        default: 'sip'
       limit:
         description: 'Cap symbols for the bar fetch (blank = all). Smoke test.'
         required: false
@@ -85,7 +85,7 @@ jobs:
           IN_FEED: ${{ github.event.inputs.feed }}
         run: |
           set -euo pipefail
-          node scripts/engine-run.mjs --mode=shadow --feed="${IN_FEED:-iex}" 2>&1 | tee run.log
+          node scripts/engine-run.mjs --mode=shadow --feed="${IN_FEED:-sip}" 2>&1 | tee run.log
 
       - name: Summarize
         if: always()
