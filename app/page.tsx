@@ -468,7 +468,6 @@ async function LandingContent() {
               </p>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.6rem" }}>
                 <Link className="btn primary" href="/pricing">Start your 7-day Pro trial →</Link>
-                <span className="hero-subtext">No card needed for the trial</span>
                 <Link href="/signals" style={{ fontSize: "0.85rem" }}>Browse the signals</Link>
               </div>
             </article>
@@ -528,7 +527,7 @@ async function LandingContent() {
           </p>
           <p>
             Trade actively? Watch recorded calls land on the public verdict pages, and use the
-            7-day Pro trial for the morning briefing, daily digest and Nu AI (no card to start).
+            7-day Pro trial for the morning briefing, daily digest and Nu AI.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
