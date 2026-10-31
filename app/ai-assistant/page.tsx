@@ -47,7 +47,7 @@ export default function AIAssistantLandingPage() {
           <h2>Ask your first question today</h2>
           <Link href="/sign-up" className="hero-cta">Start free →</Link>
           <p className="landing-disclaimer">
-            Free to start · Pro adds the daily digest, Nu AI, alerts, and the morning briefing
+            Free to start · Pro adds the daily digest, Nu AI, and the morning briefing
           </p>
           <p className="landing-disclaimer">Not financial advice · <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link></p>
         </section>
