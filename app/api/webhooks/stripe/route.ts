@@ -101,12 +101,14 @@ async function syncSubscriptionToClerk(sub: Stripe.Subscription) {
   const clerk = await clerkClient();
   const stripe = getStripe();
   const customer = await stripe.customers.retrieve(customerId);
-  if (customer.deleted) return;
+  if (customer.deleted) throw new Error("Stripe customer deleted before entitlement sync");
 
-  const clerkUserId = (customer as Stripe.Customer).metadata?.clerk_user_id;
+  // Checkout stamps the user on subscription_data before customer metadata
+  // necessarily arrives. Use that binding during out-of-order delivery.
+  const clerkUserId = sub.metadata?.clerk_user_id || (customer as Stripe.Customer).metadata?.clerk_user_id;
   if (!clerkUserId) {
-    console.warn("No clerk_user_id on Stripe customer", customerId);
-    return;
+    // Do not acknowledge success: checkout may stamp the binding later.
+    throw new Error("Stripe subscription has no Clerk user binding yet");
   }
 
   const rawStatus = sub.status as SubscriptionStatus;
