@@ -17,7 +17,7 @@ export default function TwoAudiences({
 }) {
   return (
     <section className="landing-two-audiences" style={{ padding: "2rem 0" }}>
-      <div className="section-head">
+      <div className="section-head section-head--solo">
         <div>
           <div className="kicker">{kicker}</div>
           <h2>{title}</h2>
