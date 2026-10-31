@@ -107,6 +107,7 @@ Cross-cutting patterns and design choices.
 Recorded design decisions — the *why* behind the architecture.
 
 - [[decision-paper-arena-settle-metrics]] — reuse validated settle metrics and batch fallback reads for the arena; keep per-account failure isolation
+- [[decision-paper-slots-run-until-next-slot]] — a paper trading slot runs from its nominal start until the next slot begins, so late cron queues still trade; the 30-minute cap was not a price-freshness constraint because prices refresh in the same job before the POST
 - [[decision-four-field-verdict-scaffold]] — 4 verdict fields, not 6 (small models drop later directives)
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
