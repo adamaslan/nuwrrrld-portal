@@ -96,7 +96,7 @@ export default async function SignalsLandingPage() {
           beginner={{
             heading: "A heads-up, not homework",
             paragraphs: [
-              "A signal is a heads-up that our models see something worth watching in a stock or ETF. Bullish means they lean towards buying, bearish means they lean towards avoiding - and every signal explains its reasoning in plain language, so you learn while you look.",
+              "A signal is a heads-up that our models see something worth watching in a stock or ETF. Each one is labelled bullish or bearish - the direction the models lean - and explains its reasoning in plain language, so you learn while you look.",
               "The trust score on each call tells you how much weight the models give it. Nothing here requires you to act.",
             ],
           }}
