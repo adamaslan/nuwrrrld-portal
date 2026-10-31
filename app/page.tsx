@@ -416,6 +416,53 @@ async function LandingContent() {
 
       <HowItWorks />
 
+      <section id="who">
+        <Reveal className="wrap">
+          <div className="section-head">
+            <div className="kicker">Who it&rsquo;s for</div>
+            <h2>Two ways in.</h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
+            <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+              <h3>New to markets?</h3>
+              <p className="section-copy">
+                You don&rsquo;t need to speak finance to follow your money. We turn the flood of
+                market news into a short, plain-English read: what moved, why it matters, and what
+                our six-analyst council says about the names everyone is talking about. Every
+                council call sits on a public verdict page, so you can check the record before you
+                ever sign up.
+              </p>
+              <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                Free: market overview dashboard · public verdict pages · no card required<br />
+                Pro adds: the plain-English daily digest and morning briefing
+              </p>
+              <div className="hero-actions">
+                <Link className="btn primary" href="/sign-up">Start free →</Link>
+                <Link className="btn secondary" href="/verdict/MOO">See a public verdict</Link>
+              </div>
+            </article>
+            <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+              <h3>Trade actively?</h3>
+              <p className="section-copy">
+                Get the tape before the open. Overnight we score and rank signals across the
+                stocks and ETFs we track, so the morning briefing and daily digest are waiting
+                when you sit down. Ask Nu AI questions grounded in your holdings and watchlist,
+                set alerts on the names you follow, and judge every council call against its
+                public page.
+              </p>
+              <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                Free: market overview dashboard · public verdict pages<br />
+                Pro adds: ranked signal feed · morning briefing · daily digest · Nu AI · watchlist alerts
+              </p>
+              <div className="hero-actions">
+                <Link className="btn primary" href="/pricing">Start your 7-day Pro trial →</Link>
+                <Link className="btn secondary" href="/signals">Browse the signals</Link>
+              </div>
+            </article>
+          </div>
+        </Reveal>
+      </section>
+
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
