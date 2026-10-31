@@ -54,7 +54,7 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Five specialist seats. One Chair. Straight answers.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Specialist AI analysts. Straight answers.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
 }
 
 async function LandingContent() {
@@ -68,7 +68,7 @@ async function LandingContent() {
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
         <div className="hero-inner">
-          <div className="eyebrow">Five specialist seats. One Chair. Straight answers.</div>
+          <div className="eyebrow">Specialist AI analysts. Straight answers.</div>
           <h1>
             <span>Should I buy it,</span> <span>or not?</span>
           </h1>
@@ -172,7 +172,7 @@ async function LandingContent() {
         <div className="wrap whats-new-inner">
           <span className="whats-new-label">What&apos;s new</span>
           <div className="whats-new-items">
-            <span className="wn-chip">Five seats, one Chair</span>
+            <span className="wn-chip">Council design: five seats, one Chair</span>
             <span className="wn-chip">Ask Anything, per ticker</span>
             <span className="wn-chip">Confidence on every signal</span>
             <span className="wn-chip">Public verdict pages</span>
@@ -190,7 +190,7 @@ async function LandingContent() {
             beginner={{
               heading: "Learn the market in plain English",
               paragraphs: [
-                "Everything starts in words you already know: what moved today, why it matters, and what our six-analyst AI council makes of the names everyone is talking about. No jargon, no homework.",
+                "Everything starts in words you already know: what moved today, why it matters, and what a specialist AI analyst makes of the names everyone is talking about. No jargon, no homework.",
               ],
             }}
             trader={{
@@ -332,15 +332,15 @@ async function LandingContent() {
               <p>Signals carry a confidence level, and council calls carry an invalidation level when one was set - so you can see both the call and where it breaks.</p>
               <ul className="feature-list">
                 <li>Five independent signal families, weighted into one score.</li>
-                <li>The council can&apos;t answer without pointing to real data.</li>
+                <li>Full council sessions refuse to answer without live data.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.08} className="moat-card">
-              <h3>It gets smarter every day</h3>
-              <p>Recorded council calls publish to public verdict pages — so the record only gets longer, and harder for anyone else to catch up to.</p>
+              <h3>A public record of calls</h3>
+              <p>Recorded council calls publish to public verdict pages - direction, confidence, horizon and invalidation as they were set.</p>
               <ul className="feature-list">
-                <li>Recorded calls on public pages — the record builds in the open.</li>
-                <li>A growing archive of market days and recorded calls.</li>
+                <li>Recorded calls on public pages - readable without an account.</li>
+                <li>An archive of market days and recorded calls.</li>
               </ul>
             </Reveal>
           </div>
@@ -353,8 +353,8 @@ async function LandingContent() {
         <div className="wrap">
           <Reveal className="section-head">
             <div>
-              <div className="kicker">Five seats, one Chair</div>
-              <h2>One question. Six arguments. One answer you can trust.</h2>
+              <div className="kicker">The council design</div>
+              <h2>One question. Five arguments. One answer.</h2>
             </div>
             <p className="section-copy">
               The council doesn&apos;t just summarize — every seat has to point to real data and say exactly
@@ -443,7 +443,7 @@ async function LandingContent() {
               <p className="section-copy">
                 You don&rsquo;t need to speak finance to follow your money. We turn the flood of
                 market news into a short, plain-English read: what moved, why it matters, and
-                what our six-analyst council says about the names everyone is talking about.
+                what a specialist AI analyst says about the names everyone is talking about.
               </p>
               <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
                 Free: market overview dashboard · public verdict pages · no card required<br />
@@ -521,7 +521,7 @@ async function LandingContent() {
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
-          <h2>Stop asking a chart. Start asking a council.</h2>
+          <h2>Stop asking a chart. Start asking an analyst.</h2>
           <p>
             New to markets? Start free - the market overview dashboard and public verdict pages
             are yours while you learn, no card required.
