@@ -4,6 +4,8 @@
 
 Offline coverage added: actual Stripe SDK signature verification, fake Stripe lookups and fake Clerk writes. This is not a real Stripe sandbox checkout or Pro activation. Production stays untouched. No live subscription, config or money action is authorized by these instructions.
 
+Missing customer/user bindings also fail retryably; subscription metadata supplies the user binding when subscription creation precedes checkout customer stamping. Deleted customers are not silently acknowledged as synced. This does not solve all event reordering.
+
 Fix: all exceptions processing webhook events now return HTTP 500, including failed customer.subscription.created/updated/deleted entitlement sync. Previously those paths returned 200 after logging a failure, losing Stripe retries. Re-delivery can retry the absolute metadata update. This is not exactly-once delivery or complete event-order protection.
 
 ## Ready now, no account access
@@ -24,9 +26,9 @@ Once that isolated config exists:
 node --env-file=.env.local scripts/stripe-sandbox-preflight.mjs
 ```
 
-The preflight refuses live key shapes, production env/live app domain, missing nonproduction Clerk key shapes and missing signing secret. It makes only two read-only Stripe price lookups, requiring active recurring test prices. It logs no keys. A pass is NOT proof of Clerk key pairing, actual deployment config, correct webhook secret pairing or event delivery. Confirm those privately in the isolated accounts before test mutation. Never run the repository's production billing preflight as a sandbox isolation guarantee: it permits live keys.
+The preflight refuses live key shapes, production env and all nonlocal app hosts, missing nonproduction Clerk key shapes and missing signing secret. It makes only two read-only Stripe price lookups, requiring active recurring test prices. It logs no keys. A pass is NOT proof of Clerk key pairing, actual deployment config, correct webhook secret pairing or event delivery. Confirm those privately in the isolated accounts before test mutation. Never run the repository's production billing preflight as a sandbox isolation guarantee: it permits live keys.
 
-For a local app, Stripe's authenticated CLI can forward **sandbox** events to localhost:3000/api/webhooks/stripe. Use the signing secret for that exact listener, not a different deployed endpoint. Follow the current CLI help for selecting the sandbox; do not use live mode. A deployed preview instead needs its own sandbox webhook destination/signing secret. No CLI login or destination setup has been performed by this PR.
+For a local app, Stripe's authenticated CLI can forward **sandbox** events to localhost:3000/api/webhooks/stripe. Use the signing secret for that exact listener, not a different deployed endpoint. Follow the current CLI help for selecting the sandbox; do not use live mode. This automated preflight deliberately refuses remote preview hosts because a hostname cannot prove isolation or rule out production aliases. A separately reviewed deployed preview instead needs its own sandbox webhook destination/signing secret. No CLI login or destination setup has been performed by this PR.
 
 ## Actual integration checklist (not yet executed)
 
