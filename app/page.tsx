@@ -79,7 +79,7 @@ async function LandingContent() {
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
-            <a className="btn secondary" href="#council">See the council argue</a>
+            <a className="btn secondary" href="#council">Meet the council</a>
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
 
@@ -429,7 +429,6 @@ async function LandingContent() {
                 You don&rsquo;t need to speak finance to follow your money. We turn the flood of
                 market news into a short, plain-English read: what moved, why it matters, and
                 what our six-analyst council says about the names everyone is talking about.
-                You can read a real council call on this page before you ever sign up.
               </p>
               <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
                 Free: market overview dashboard · public verdict pages · no card required<br />
@@ -437,7 +436,7 @@ async function LandingContent() {
               </p>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.6rem" }}>
                 <Link className="btn primary" href="/sign-up">Start free →</Link>
-                <Link href="/#council" style={{ fontSize: "0.85rem" }}>See a council call ↓</Link>
+                <Link href="/#council" style={{ fontSize: "0.85rem" }}>See how the council works ↓</Link>
               </div>
             </article>
             <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
