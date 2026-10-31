@@ -438,7 +438,7 @@ async function LandingContent() {
             <h2>Two ways in.</h2>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
-            <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+            <article style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
               <h3>New to markets?</h3>
               <p className="section-copy">
                 You don&rsquo;t need to speak finance to follow your money. We turn the flood of
@@ -454,7 +454,7 @@ async function LandingContent() {
                 <Link href="/#council" style={{ fontSize: "0.85rem" }}>See how the council works ↓</Link>
               </div>
             </article>
-            <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+            <article style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
               <h3>Trade actively?</h3>
               <p className="section-copy">
                 Start the day briefed. Overnight we score and rank signals across the stocks
@@ -479,7 +479,7 @@ async function LandingContent() {
         <Reveal className="wrap">
           <div className="section-head section-head--solo">
             <div>
-              <div className="kicker">Every feature, two ways to read it</div>
+              <div className="kicker">Explore the product, two ways to read it</div>
               <h2>Same product. Your depth.</h2>
             </div>
           </div>
@@ -503,14 +503,21 @@ async function LandingContent() {
               { name: "Portfolio health", tag: "In the app",
                 b: "Your holdings get an A-to-F health grade, with plain-English reasons and the fixes that would help most.",
                 t: "Concentration, sector balance, momentum and volatility regime - with the factor behind every suggested fix." },
+              { name: "Paper trading", tag: "Pro · Simulated", href: "/paper-trading",
+                b: "Watch AI-managed practice portfolios use simulated money. Follow their holdings and trades without risking your savings.",
+                t: "Six council-seat books and two controls, with holdings, order history, portfolio value and drawdown. These are simulated strategies, not a personal trade-entry tool." },
+              { name: "Top performers and track record", tag: "Pro", href: "/track-record",
+                b: "See which simulated AI portfolios lead, and follow the app's strongest monthly stock calls as their results come in.",
+                t: "Two distinct views: a paper-book leaderboard, and frozen bullish/bearish monthly picks scored across seven horizons. Strongest calls are not guaranteed winners." },
               { name: "Web and mobile", tag: "One account",
                 b: "One account across the web and the mobile app.",
                 t: "Signals and briefings where you are - web at your desk, phone everywhere else." },
             ].map(f => (
-              <article key={f.name} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+              <article key={f.name} style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
                 <h3>{f.name} <span style={{ fontSize: "0.7rem", fontWeight: 600, opacity: 0.7, verticalAlign: "middle" }}>{f.tag}</span></h3>
                 <p className="section-copy"><strong>New to markets:</strong> {f.b}</p>
                 <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}><strong>Trade actively:</strong> {f.t}</p>
+                {"href" in f && <Link className="feature-more" href={f.href!}>Explore {f.name.toLowerCase()} →</Link>}
               </article>
             ))}
           </div>
