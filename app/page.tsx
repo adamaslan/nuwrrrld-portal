@@ -427,18 +427,17 @@ async function LandingContent() {
               <h3>New to markets?</h3>
               <p className="section-copy">
                 You don&rsquo;t need to speak finance to follow your money. We turn the flood of
-                market news into a short, plain-English read: what moved, why it matters, and what
-                our six-analyst council says about the names everyone is talking about. Published council
-                verdicts live on public pages, so you can check real calls before you ever sign
-                up.
+                market news into a short, plain-English read: what moved, why it matters, and
+                what our six-analyst council says about the names everyone is talking about.
+                You can read a real council call on this page before you ever sign up.
               </p>
               <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
                 Free: market overview dashboard · public verdict pages · no card required<br />
                 Pro adds: the plain-English daily digest and morning briefing
               </p>
-              <div className="hero-actions">
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.6rem" }}>
                 <Link className="btn primary" href="/sign-up">Start free →</Link>
-                <Link className="btn secondary" href="/verdict/MOO">See a public verdict</Link>
+                <Link href="/#council" style={{ fontSize: "0.85rem" }}>See a council call ↓</Link>
               </div>
             </article>
             <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
@@ -453,10 +452,10 @@ async function LandingContent() {
                 Free: market overview dashboard · public verdict pages<br />
                 Pro adds: morning briefing · daily digest · Nu AI
               </p>
-              <div className="hero-actions">
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.6rem" }}>
                 <Link className="btn primary" href="/pricing">Start your 7-day Pro trial →</Link>
-                <span className="hero-subtext" style={{ marginLeft: "0.5rem" }}>card required for trial</span>
-                <Link className="btn secondary" href="/signals">Browse the signals</Link>
+                <span className="hero-subtext">Card required for the trial</span>
+                <Link href="/signals" style={{ fontSize: "0.85rem" }}>Browse the signals</Link>
               </div>
             </article>
           </div>
