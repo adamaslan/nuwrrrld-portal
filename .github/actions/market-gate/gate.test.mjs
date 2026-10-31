@@ -76,6 +76,13 @@ test('a late scheduled run still refuses closed days and sessions', () => {
   assert.equal(paper('2026-10-10T18:10:00Z', { slot: 'midday' }).is_trading_day, 'false');
   assert.equal(paper('2026-10-09T20:05:00Z', { slot: 'preclose' }).is_trading_day, 'false');
 });
+test('a scheduled run created on an earlier ET date is refused', () => {
+  const friday = { date: '2026-10-09', open: '09:30', close: '16:00' };
+  const monday = { date: '2026-10-12', open: '09:30', close: '16:00' };
+  const result = paper('2026-10-12T13:07:00Z', { cron: '7 9 * * 1-5', eventTime: '2026-10-09T13:07:00Z' }, [friday, monday]);
+  assert.equal(result.is_trading_day, 'false');
+  assert.match(result.reason, /another day/);
+});
 test('midday/preclose respect real session and early close', () => {
   assert.equal(paper('2026-10-09T16:30:00Z',{slot:'midday'}).is_trading_day,'true');
   assert.equal(paper('2026-10-09T19:45:00Z',{slot:'preclose'}).is_trading_day,'true');
@@ -140,3 +147,4 @@ test('paper workflow connects safety checks, rechecks and bounded runtime', () =
   assert.match(s,/node scripts\/push-alpaca-live-prices\.mjs[^\n]*\|\|/);
   assert.equal((s.match(/    runs-on:/g)||[]).length,(s.match(/^    timeout-minutes:/gm)||[]).length);
 });
+
