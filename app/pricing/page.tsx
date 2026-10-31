@@ -7,7 +7,7 @@ import "./pricing.css";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Start free. Pro adds the daily signal digest, Nu AI assistant, optimizer suggestions, watchlist alerts, and the morning briefing — with a 7-day free trial.",
+  description: "Start free, no card required. Pro adds the daily signal digest, Nu AI assistant, and the morning briefing — with a 7-day free trial (card required).",
 };
 
 export default async function PricingPage({
@@ -33,7 +33,7 @@ export default async function PricingPage({
           <h1>Pricing that starts free</h1>
           <p className="pricing-sub">
             Create a free account — no card required.
-            Pro adds the daily digest, Nu AI, and alerts, with a 7-day free trial.
+            Pro adds the daily digest, Nu AI, and the morning briefing, with a 7-day free trial (card required).
           </p>
           {cancelled && (
             <p className="pricing-notice">Checkout was cancelled — no charge was made.</p>
@@ -71,7 +71,6 @@ export default async function PricingPage({
               <li>Daily signal digest</li>
               <li>Nu AI assistant</li>
               <li>Optimizer suggestions</li>
-              <li>Watchlist alerts</li>
               <li>Morning briefing</li>
             </ul>
             <CheckoutButton plan="monthly" label="Start 7-day free trial" />
