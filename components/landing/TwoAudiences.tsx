@@ -18,8 +18,10 @@ export default function TwoAudiences({
   return (
     <section className="landing-two-audiences" style={{ padding: "2rem 0" }}>
       <div className="section-head">
-        <div className="kicker">{kicker}</div>
-        <h2>{title}</h2>
+        <div>
+          <div className="kicker">{kicker}</div>
+          <h2>{title}</h2>
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
         {[
