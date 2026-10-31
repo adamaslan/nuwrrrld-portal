@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogImage = ticker ? `/api/og/verdict/${ticker}` : undefined;
   return {
     title,
-    description: `See what six AI analysts — including one whose job is to argue against it — think about $${ticker ?? ""}.`,
+    description: `The recorded council call on $${ticker ?? ""}: direction, confidence, horizon, and the invalidation level when one was set.`,
     openGraph: ogImage ? { images: [{ url: ogImage, width: 1200, height: 630 }] } : undefined,
     twitter: ogImage ? { card: "summary_large_image", images: [ogImage] } : undefined,
   };
@@ -60,8 +60,8 @@ export default async function VerdictPage({ params }: Props) {
                 </p>
               </div>
               <p className="section-copy" style={{ maxWidth: 560, margin: "0 auto 24px" }}>
-                Six AI analysts argued this call — including one whose job is to argue against it.
-                This is where they landed, with the invalidation level when they set one.
+                A recorded council call, published as it was made — direction, confidence,
+                horizon, and the invalidation level when one was set.
               </p>
             </>
           ) : (
@@ -77,13 +77,13 @@ export default async function VerdictPage({ params }: Props) {
             beginner={{
               heading: "The call, the confidence, the exit",
               paragraphs: [
-                "The verdict is the council's call: BUY, SELL or HOLD. Confidence says how strongly the six analysts lean, and the invalidation price is the level where they admit the call is wrong.",
+                "The verdict is the council's call: BUY, SELL or HOLD. Confidence says how strongly it leans, and the invalidation price is the level where the call breaks - when one was set.",
               ],
             }}
             trader={{
               heading: "Published per call",
               paragraphs: [
-                "Direction, confidence and horizon are recorded for every verdict, with an invalidation level whenever the council sets one - and six seats argue each call, including one whose job is to argue against it.",
+                "Direction, confidence and horizon are recorded for every verdict, with an invalidation level whenever one was set.",
               ],
             }}
           />
