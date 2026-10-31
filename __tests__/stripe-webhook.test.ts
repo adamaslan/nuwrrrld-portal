@@ -55,6 +55,23 @@ describe('Stripe webhook offline signatures and retries', () => {
     expect(f.customerUpdate).toHaveBeenLastCalledWith('cus_fixture', { metadata: { clerk_user_id: 'user_fixture' } });
     expect(f.subscriptionRetrieve).toHaveBeenCalledWith('sub_fixture'); expect(f.metadata).toHaveBeenCalledTimes(1);
   });
+  it('subscription-created uses subscription binding before checkout stamps customer metadata', async () => {
+    f.customerRetrieve.mockResolvedValue({ id: 'cus_fixture', metadata: {} });
+    expect((await POST(req('customer.subscription.created', { ...sub(), metadata: { clerk_user_id: 'user_fixture' } }))).status).toBe(200);
+    expect(f.metadata).toHaveBeenCalledWith('user_fixture', expect.anything());
+  });
+  it('missing both bindings returns 500; redelivery after checkout binding recovers', async () => {
+    f.customerRetrieve.mockResolvedValueOnce({ id: 'cus_fixture', metadata: {} });
+    expect((await POST(req('customer.subscription.created', sub()))).status).toBe(500);
+    expect(f.metadata).not.toHaveBeenCalled();
+    expect((await POST(req('customer.subscription.created', sub()))).status).toBe(200);
+    expect(f.metadata).toHaveBeenCalledTimes(1);
+  });
+  it('deleted customer is not falsely acknowledged as a completed sync', async () => {
+    f.customerRetrieve.mockResolvedValue({ id: 'cus_fixture', deleted: true });
+    expect((await POST(req('customer.subscription.deleted', sub('canceled')))).status).toBe(500);
+    expect(f.metadata).not.toHaveBeenCalled();
+  });
   it('duplicate event converges to identical metadata (does not claim deduplication)', async () => {
     await POST(req('customer.subscription.updated', sub())); await POST(req('customer.subscription.updated', sub()));
     expect(f.metadata).toHaveBeenCalledTimes(2);
