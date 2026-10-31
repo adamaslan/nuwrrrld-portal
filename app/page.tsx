@@ -17,6 +17,7 @@ import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 import "./landing.css";
 
 async function fetchLandingData() {
@@ -183,6 +184,27 @@ async function LandingContent() {
           </div>
         </div>
       </div>
+
+      <section id="open-two-ways">
+        <Reveal className="wrap">
+          <TwoAudiences
+            kicker="Wherever you're starting from"
+            title="Built for the curious and the committed."
+            beginner={{
+              heading: "Learn the market in plain English",
+              paragraphs: [
+                "Everything starts in words you already know: what moved today, why it matters, and what our six-analyst AI council makes of the names everyone is talking about. No jargon, no homework.",
+              ],
+            }}
+            trader={{
+              heading: "Depth you can check, not a pitch",
+              paragraphs: [
+                "Every call comes ranked, explained and timestamped, with the exact price that would prove it wrong. Browse the public verdict pages and judge the calls before you ever sign up.",
+              ],
+            }}
+          />
+        </Reveal>
+      </section>
 
       <section id="product">
         <div className="wrap">
@@ -461,13 +483,54 @@ async function LandingContent() {
         </Reveal>
       </section>
 
+      <section id="features-twoway">
+        <Reveal className="wrap">
+          <div className="section-head">
+            <div className="kicker">Every feature, two ways to read it</div>
+            <h2>Same product. Your depth.</h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
+            {[
+              { name: "Market overview", tag: "Free",
+                b: "One calm screen: what moved today and why it matters, in words you already know.",
+                t: "Indices, sectors and volatility at a glance, with the day's signals alongside." },
+              { name: "Signals", tag: "Public preview",
+                b: "A short list of stocks worth a closer look, each with a plain-English reason and a trust score.",
+                t: "Five signal families, ranked by confidence and refreshed every trading day, each naming the indicators that fired." },
+              { name: "Council verdicts", tag: "Public pages",
+                b: "Six AI analysts argue it out, then hand you one clear call - plus exactly what would prove them wrong.",
+                t: "Published calls with direction, confidence, horizon and invalidation, checkable on public verdict pages any time." },
+              { name: "Nu AI", tag: "Pro",
+                b: "Ask anything in plain English and get an answer grounded in your own holdings, not generic commentary.",
+                t: "Interrogate any position or signal with your portfolio, watchlist and the latest signals as context." },
+              { name: "Briefing and digest", tag: "Pro",
+                b: "A short morning read: what happened overnight and what to watch today.",
+                t: "Signals scored and ranked overnight, in your inbox and on your dashboard before the open." },
+              { name: "Web and mobile", tag: "One account",
+                b: "Start on the web, keep watching on your phone. Same account, same answers.",
+                t: "The full desk - briefing, ranked calls, Ask Anything - in your pocket." },
+            ].map(f => (
+              <article key={f.name} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+                <h3>{f.name} <span style={{ fontSize: "0.7rem", fontWeight: 600, opacity: 0.7, verticalAlign: "middle" }}>{f.tag}</span></h3>
+                <p className="section-copy"><strong>New to markets:</strong> {f.b}</p>
+                <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}><strong>Trade actively:</strong> {f.t}</p>
+              </article>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
           <h2>Stop asking a chart. Start asking a council.</h2>
           <p>
-            One account gets you the daily briefing, ranked calls, Ask Anything chat, and the
-            full six-seat council — on the web here and in the mobile app.
+            New to markets? Start free - the market overview dashboard and public verdict pages
+            are yours while you learn, no card required.
+          </p>
+          <p>
+            Trade actively? Put our published calls next to your own. The 7-day Pro trial adds
+            the morning briefing, daily digest and Nu AI (card required for the trial).
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
