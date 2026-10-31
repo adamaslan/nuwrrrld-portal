@@ -67,7 +67,7 @@ export default async function VerdictPage({ params }: Props) {
           ) : (
             <p className="section-copy" style={{ maxWidth: 560, margin: "24px auto" }}>
               No council verdict recorded for ${ticker} yet. New verdicts publish
-              here as the council makes calls.
+              here when calls are recorded.
             </p>
           )}
 
@@ -77,13 +77,13 @@ export default async function VerdictPage({ params }: Props) {
             beginner={{
               heading: "The call, the confidence, the exit",
               paragraphs: [
-                "The verdict is the council's call: BUY, SELL or HOLD. Confidence says how strongly it leans, and the invalidation price is the level where the call breaks - when one was set.",
+                "The verdict is the council's recorded call - BUY, SELL or HOLD when a direction was set. Confidence says how strongly it leans, and the invalidation price is the level where the call breaks - when those were set.",
               ],
             }}
             trader={{
               heading: "Published per call",
               paragraphs: [
-                "Direction, confidence and horizon are recorded for every verdict, with an invalidation level whenever one was set.",
+                "Public verdict pages show what was actually recorded per call - direction, confidence, horizon and invalidation, including when a field was never set.",
               ],
             }}
           />
