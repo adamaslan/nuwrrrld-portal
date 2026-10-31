@@ -83,7 +83,7 @@ export default async function VerdictPage({ params }: Props) {
             trader={{
               heading: "Published per call",
               paragraphs: [
-                "Direction, confidence, horizon and invalidation are recorded for every verdict, and six seats argue each call - including one whose job is to argue against it.",
+                "Direction, confidence and horizon are recorded for every verdict, with an invalidation level whenever the council sets one - and six seats argue each call, including one whose job is to argue against it.",
               ],
             }}
           />
