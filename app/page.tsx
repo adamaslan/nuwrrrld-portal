@@ -203,7 +203,7 @@ async function LandingContent() {
               <h3>Morning Briefing</h3>
               <p>Start each day knowing the mood of the market in one glance — is it a good day to be aggressive, or a good day to sit on your hands.</p>
               <ul className="feature-list">
-                <li>Plain-English summary before the open.</li>
+                <li>Plain-English summary of what moved and why.</li>
                 <li>Which sectors are leading, at a glance.</li>
               </ul>
             </Reveal>
@@ -428,9 +428,9 @@ async function LandingContent() {
               <p className="section-copy">
                 You don&rsquo;t need to speak finance to follow your money. We turn the flood of
                 market news into a short, plain-English read: what moved, why it matters, and what
-                our six-analyst council says about the names everyone is talking about. Every
-                council call sits on a public verdict page, so you can check the record before you
-                ever sign up.
+                our six-analyst council says about the names everyone is talking about. Published council
+                verdicts live on public pages, so you can check real calls before you ever sign
+                up.
               </p>
               <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
                 Free: market overview dashboard · public verdict pages · no card required<br />
@@ -444,18 +444,18 @@ async function LandingContent() {
             <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
               <h3>Trade actively?</h3>
               <p className="section-copy">
-                Get the tape before the open. Overnight we score and rank signals across the
-                stocks and ETFs we track, so the morning briefing and daily digest are waiting
-                when you sit down. Ask Nu AI questions grounded in your holdings and watchlist,
-                set alerts on the names you follow, and judge every council call against its
-                public page.
+                Start the day briefed. Overnight we score and rank signals across the stocks
+                and ETFs we track, and Pro adds the morning briefing and daily digest by email.
+                Ask Nu AI questions grounded in your holdings and watchlist, and weigh our
+                published calls on their public verdict pages.
               </p>
               <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
                 Free: market overview dashboard · public verdict pages<br />
-                Pro adds: morning briefing · daily digest · Nu AI · watchlist alerts
+                Pro adds: morning briefing · daily digest · Nu AI
               </p>
               <div className="hero-actions">
                 <Link className="btn primary" href="/pricing">Start your 7-day Pro trial →</Link>
+                <span className="hero-subtext" style={{ marginLeft: "0.5rem" }}>card required for trial</span>
                 <Link className="btn secondary" href="/signals">Browse the signals</Link>
               </div>
             </article>
