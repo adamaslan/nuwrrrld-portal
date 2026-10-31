@@ -9,13 +9,13 @@ const STEPS = [
   },
   {
     icon: Swords,
-    title: "Five AI analysts debate it",
-    body: "Including RISK, whose only job is to try to talk you out of it.",
+    title: "Specialist AI analysts answer",
+    body: "Short-term and long-term lenses, grounded in the live signal data.",
   },
   {
     icon: Target,
     title: "You get one clear call",
-    body: "Direction, confidence, and the exact price that would prove it wrong.",
+    body: "Direction, confidence, and - when it sets one - the exact price that would prove it wrong.",
   },
 ] as const;
 
