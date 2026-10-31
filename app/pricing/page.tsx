@@ -70,7 +70,6 @@ export default async function PricingPage({
               <li>Everything in Free</li>
               <li>Daily signal digest</li>
               <li>Nu AI assistant</li>
-              <li>Optimizer suggestions</li>
               <li>Morning briefing</li>
             </ul>
             <CheckoutButton plan="monthly" label="Start 7-day free trial" />
