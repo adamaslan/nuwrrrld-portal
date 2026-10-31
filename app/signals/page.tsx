@@ -33,7 +33,7 @@ export default async function SignalsLandingPage() {
         <section className="landing-hero">
           <h1>Stock signals that explain themselves</h1>
           <p className="landing-sub">
-            Five independent signal families check every call. Each one comes with a trust score
+            Five independent signal families check every call. Each one comes with a confidence level
             and a plain-English explanation of what fired, on what timeframe, and why it matters.
             You decide what to do with it.
           </p>
@@ -80,7 +80,7 @@ export default async function SignalsLandingPage() {
           {[
             { icon: "📈", title: "Ranked calls, every day", body: "Bullish, bearish, and hold calls across the tracked universe, ranked by confidence and refreshed every trading day." },
             { icon: "🔍", title: "Explainability first", body: "Each signal names the indicators that fired — RSI, MACD, volume, trend — in plain language, not jargon." },
-            { icon: "🎯", title: "A trust score on every call", body: "Every call carries a trust score, so you know how much to lean on it before you act." },
+            { icon: "🎯", title: "A confidence level on every signal", body: "Every signal carries a confidence level, so you know how much to lean on it before you act." },
             { icon: "💬", title: "Ask any call a question", body: "Open a signal and ask \"why now?\" or \"what would change your mind?\" — answers grounded in that ticker's real data." },
           ].map(f => (
             <div key={f.title} className="feature-card">
@@ -97,7 +97,7 @@ export default async function SignalsLandingPage() {
             heading: "A heads-up, not homework",
             paragraphs: [
               "A signal is a heads-up that our models see something worth watching in a stock or ETF. Each one is labelled bullish or bearish - the direction the models lean - and explains its reasoning in plain language, so you learn while you look.",
-              "The trust score on each call tells you how much weight the models give it. Nothing here requires you to act.",
+              "The confidence level on each signal tells you how much weight the models give it. Nothing here requires you to act.",
             ],
           }}
           trader={{
