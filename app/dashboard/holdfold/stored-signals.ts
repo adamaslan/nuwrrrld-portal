@@ -64,7 +64,10 @@ export async function getStoredHoldFold(): Promise<HoldFoldPayload> {
 /** The eligibility filter `bipolarCards` applies, so the per-ticker fallback
  *  never renders a card the index would have filtered out. */
 function isIndexEligible(card: StoredCard): boolean {
-  return card.dataQuality >= 0.8 && card.missingFields.length === 0 && (card.isFinal ?? true);
+  // bipolarCards reads the "stock" universe for the index, so the fallback
+  // must too — otherwise an ETF card that clears the quality bar renders a
+  // detail page the index itself would never link to.
+  return card.universe === "stock" && card.dataQuality >= 0.8 && card.missingFields.length === 0 && (card.isFinal ?? true);
 }
 
 export async function getTickerVerdict(ticker: string): Promise<HoldFoldVerdict | null> {
