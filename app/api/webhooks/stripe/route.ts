@@ -86,12 +86,9 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error("Error processing Stripe event", event.type, err);
-    // For checkout.session.completed, return 500 so Stripe retries — a missed
-    // entitlement sync here is unrecoverable without a retry.
-    if (event.type === "checkout.session.completed") {
-      return NextResponse.json({ error: "sync failed, will retry" }, { status: 500 });
-    }
-    // For other events, return 200 to avoid infinite Stripe retries on non-critical paths.
+    // Every failed entitlement sync is retryable, including cancellation.
+    // A 2xx here tells Stripe delivery succeeded even if Clerk never changed.
+    return NextResponse.json({ error: "sync failed, will retry" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
