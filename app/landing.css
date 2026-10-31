@@ -1307,3 +1307,48 @@
     flex-direction: column;
   }
 }
+
+/* ── Verdict badge (replaces the raw JSON example on the CHAIR seat card) ── */
+.nwf-landing .verdict-badge {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(155, 114, 255, 0.08);
+  border: 1px solid rgba(155, 114, 255, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nwf-landing .verdict-badge-call {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.nwf-landing .verdict-badge-call.buy {
+  background: rgba(47, 216, 255, 0.14);
+  border: 1px solid rgba(47, 216, 255, 0.4);
+  color: var(--neon-blue);
+}
+
+.nwf-landing .verdict-badge-meta {
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.nwf-landing .verdict-badge-inv {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.nwf-landing .verdict-badge-note {
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 0.72rem;
+  font-style: italic;
+}
