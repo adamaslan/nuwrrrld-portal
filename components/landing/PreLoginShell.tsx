@@ -45,7 +45,7 @@ export function PreLoginFooter() {
   return (
     <footer>
       <span>NWF · NuWrrrld Financial</span>
-      <span>Six AI analysts. One straight answer.</span>
+      <span>Five AI analysts. One straight answer.</span>
       <span>
         <Link href="/privacy-policy">Privacy</Link>
         {" · "}
