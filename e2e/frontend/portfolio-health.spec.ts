@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { flagLive } from "../../lib/flags";
 
 /**
  * Diagnostic suite for the Portfolio Health / Track Record failures tracked
@@ -281,6 +282,11 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
   });
 
   test("EXPOSE: the exact 'unavailable' string does not distinguish unset config from a broken engine", async ({ page }) => {
+    test.skip(
+      !flagLive("backtest_hit_rates"),
+      "TrackRecordBadge is hidden during the dark launch (backtest_hit_rates: off) - "
+      "this test re-activates when the flag goes live. See docs/wiki-portal/decision-dark-launch-flags.md",
+    );
     await page.route("**/api/backtest/**", (route) => route.fulfill({ status: 204 }));
     await page.goto("/dashboard/signals");
 
@@ -299,6 +305,11 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
   });
 
   test("DIAGNOSE: backtest engine returns a shape that fails isBacktestResult() silently", async ({ page }) => {
+    test.skip(
+      !flagLive("backtest_hit_rates"),
+      "TrackRecordBadge is hidden during the dark launch (backtest_hit_rates: off) - "
+      "this test re-activates when the flag goes live. See docs/wiki-portal/decision-dark-launch-flags.md",
+    );
     // If SIGNALS_ENGINE_URL IS configured and the engine responds 200 but
     // with a shape that doesn't match BacktestResult (e.g. it renamed fields
     // the way gcp3 did for portfolio/health), fetchBacktest() treats that
@@ -331,3 +342,4 @@ test.describe("Track Record / backtest (/api/backtest/{symbol})", () => {
     await expect(page.getByText(/couldn.?t load track record/i)).toBeVisible();
   });
 });
+
