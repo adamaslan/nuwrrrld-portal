@@ -16,7 +16,7 @@ import { CouncilScrollDebate } from "@/components/landing/CouncilScrollDebate";
 import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
-import CookiePreferencesLink from "@/components/CookiePreferencesLink";
+import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
 import "./landing.css";
 
 async function fetchLandingData() {
@@ -63,21 +63,7 @@ async function LandingContent() {
   return (
     <div className="nwf-landing">
       <SmoothScroll />
-      <nav className="topbar" aria-label="Primary navigation">
-        <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">NWF</span>
-          <span>NuWrrrld Financial</span>
-        </Link>
-        <div className="navlinks">
-          <a href="#product">Product</a>
-          <Link href="/signals">Signals</Link>
-          <Link href="/portfolio-intelligence">Portfolio</Link>
-          <Link href="/ai-assistant">Nu AI</Link>
-          <a href="#council">Council</a>
-          <Link className="nav-keep" href="/sign-in">Sign in</Link>
-          <Link className="nav-action" href="/sign-up">Start free →</Link>
-        </div>
-      </nav>
+      <PreLoginNav />
 
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
@@ -87,7 +73,7 @@ async function LandingContent() {
             <span>Should I buy it,</span> <span>or not?</span>
           </h1>
           <p className="hero-copy">
-            Ask about any of the 54 sector and industry ETFs we track. Six AI analysts argue it out —
+            Ask about any of the stocks and ETFs we track. Six AI analysts argue it out —
             including one whose whole job is to talk you out of the trade — until they agree on a call,
             and exactly what price would prove them wrong.
           </p>
@@ -191,7 +177,7 @@ async function LandingContent() {
             <span className="wn-chip">Six-seat AI council</span>
             <span className="wn-chip">Ask Anything, per ticker</span>
             <span className="wn-chip">Trust score on every call</span>
-            <span className="wn-chip">Checkable track record</span>
+            <span className="wn-chip">Public verdict pages</span>
             <span className="wn-chip">Free to start</span>
             <span className="wn-chip">New dark theme</span>
           </div>
@@ -393,8 +379,11 @@ async function LandingContent() {
               <div className="seat-tag chair-tag">CHAIR</div>
               <h3>The one who calls it</h3>
               <p>Weighs all five arguments, says plainly whether they agree or clash, and hands you one final call.</p>
-              <div className="verdict-example mono">
-                {`{"direction":"bullish","confidence":"high","horizon":"5-15d","invalidation":"<91"}`}
+              <div className="verdict-badge" aria-label="Illustrative verdict example">
+                <span className="verdict-badge-call buy">BUY</span>
+                <span className="verdict-badge-meta">High confidence · 5-15 day horizon</span>
+                <span className="verdict-badge-inv">Wrong if it falls under $91</span>
+                <span className="verdict-badge-note">Illustrative example of the verdict format</span>
               </div>
             </Reveal>
           </div>
@@ -445,18 +434,7 @@ async function LandingContent() {
         </Reveal>
       </section>
 
-      <footer>
-        <span>NWF · NuWrrrld Financial</span>
-        <span>Six AI analysts. One straight answer.</span>
-        <span>
-          <Link href="/privacy-policy">Privacy</Link>
-          {" · "}
-          <Link href="/terms-of-service">Terms</Link>
-          {" · "}
-          <CookiePreferencesLink />
-        </span>
-      </footer>
+      <PreLoginFooter />
     </div>
   );
 }
-
