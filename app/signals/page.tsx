@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { adaptLiveSignals, type SignalPayload } from "@/lib/digest";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 
@@ -89,6 +90,24 @@ export default async function SignalsLandingPage() {
             </div>
           ))}
         </section>
+
+        <TwoAudiences
+          title="Same signals, two ways to read them."
+          beginner={{
+            heading: "A heads-up, not homework",
+            paragraphs: [
+              "A signal is a heads-up that our models see something worth watching in a stock or ETF. Bullish means they lean towards buying, bearish means they lean towards avoiding - and every signal explains its reasoning in plain language, so you learn while you look.",
+              "The trust score on each call tells you how much weight the models give it. Nothing here requires you to act.",
+            ],
+          }}
+          trader={{
+            heading: "Five families, one ranked list",
+            paragraphs: [
+              "Five independent signal families check every call, ranked by confidence and refreshed every trading day. Each signal names the indicators that fired - RSI, MACD, volume, trend - and the timeframe it fired on.",
+              "Open any signal and interrogate it with Ask Anything: why now, or what would change your mind, answered from that ticker's real data. Pro adds the daily digest by email.",
+            ],
+          }}
+        />
 
         <section className="landing-cta-block">
           <h2>Start watching the signals today</h2>
