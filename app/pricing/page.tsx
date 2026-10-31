@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckoutButton } from "./CheckoutButton";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 import "../landing.css";
 import "./pricing.css";
 
@@ -89,6 +90,23 @@ export default async function PricingPage({
             <CheckoutButton plan="annual" label="Start 7-day free trial" />
           </div>
         </div>
+
+        <TwoAudiences
+          kicker="Which one is you?"
+          title="Free while you learn. Pro when you trade."
+          beginner={{
+            heading: "Free while you learn",
+            paragraphs: [
+              "The free account is enough to start: the market overview dashboard and the public council verdict pages, with no card required. Stay free as long as you like.",
+            ],
+          }}
+          trader={{
+            heading: "Pro for the daily routine",
+            paragraphs: [
+              "Pro adds the morning briefing, the daily signal digest and Nu AI - built for people who check the market every day. The 7-day trial requires a card.",
+            ],
+          }}
+        />
 
         <p className="pricing-legal">
           By subscribing you agree to our{" "}
