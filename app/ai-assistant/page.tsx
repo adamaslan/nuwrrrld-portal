@@ -32,7 +32,7 @@ export default function AIAssistantLandingPage() {
             { icon: "💼", title: "Portfolio-aware answers", body: "Questions about your positions get specific answers, grounded in your holdings, watchlist, and the latest signals." },
             { icon: "🧭", title: "Grounded, not generic", body: "Answers reference your real portfolio and signal data — not a generic chatbot's guess about the market." },
             { icon: "💬", title: "Ask Anything, per ticker", body: "Open any signal and chat with it directly. Streaming answers built on that ticker's live data." },
-            { icon: "⚖️", title: "Honest about limits", body: "Nu AI is built to say when it's not sure, and it never gives personalised investment advice. Information only." },
+            { icon: "⚖️", title: "Honest about limits", body: "Nu AI is built to say when it's not sure, and to stay informational rather than give personalised investment advice." },
           ].map(f => (
             <div key={f.title} className="feature-card">
               <span className="feature-icon" aria-hidden="true">{f.icon}</span>
