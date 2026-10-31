@@ -21,8 +21,7 @@ export default function AIAssistantLandingPage() {
           <h1>An AI assistant that knows your portfolio</h1>
           <p className="landing-sub">
             Nu AI answers in the context of your actual holdings and today&apos;s signals, not generic
-            market commentary. Ask about a position, a call, or any market concept — and it tells
-            you when it doesn&apos;t know.
+            market commentary. Ask about a position, a call, or any market concept, answered in plain English.
           </p>
           <Link href="/sign-up" className="hero-cta">Start free →</Link>
           <p className="hero-note">Nu AI is a Pro feature · 7-day Pro trial available</p>
@@ -33,7 +32,7 @@ export default function AIAssistantLandingPage() {
             { icon: "💼", title: "Portfolio-aware answers", body: "Questions about your positions get specific answers, grounded in your holdings, watchlist, and the latest signals." },
             { icon: "🧭", title: "Grounded, not generic", body: "Answers reference your real portfolio and signal data — not a generic chatbot's guess about the market." },
             { icon: "💬", title: "Ask Anything, per ticker", body: "Open any signal and chat with it directly. Streaming answers built on that ticker's live data." },
-            { icon: "⚖️", title: "Honest about limits", body: "Nu AI tells you when it doesn't know, and never pretends to give personalised investment advice. Information only." },
+            { icon: "⚖️", title: "Honest about limits", body: "Nu AI is built to say when it's not sure, and it never gives personalised investment advice. Information only." },
           ].map(f => (
             <div key={f.title} className="feature-card">
               <span className="feature-icon" aria-hidden="true">{f.icon}</span>
