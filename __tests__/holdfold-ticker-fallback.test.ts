@@ -89,6 +89,14 @@ describe("getTickerVerdict", () => {
     expect(await getTickerVerdict("STX")).toBeNull();
   });
 
+  it("rejects an ETF card the stock-universe index would never show", async () => {
+    mocks.fetchTickerEntry.mockResolvedValue(null);
+    mocks.getCard.mockResolvedValue(storedCard({ universe: "etf" }));
+    const { getTickerVerdict } = await import("@/app/dashboard/holdfold/stored-signals");
+
+    expect(await getTickerVerdict("STX")).toBeNull();
+  });
+
   it("rejects malformed tickers before any lookup", async () => {
     const { getTickerVerdict } = await import("@/app/dashboard/holdfold/stored-signals");
 
