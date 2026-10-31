@@ -54,7 +54,7 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Five AI analysts. One straight answer.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Five specialist seats. One Chair. Straight answers.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
 }
 
 async function LandingContent() {
@@ -68,13 +68,12 @@ async function LandingContent() {
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
         <div className="hero-inner">
-          <div className="eyebrow">Five AI analysts. One straight answer.</div>
+          <div className="eyebrow">Five specialist seats. One Chair. Straight answers.</div>
           <h1>
             <span>Should I buy it,</span> <span>or not?</span>
           </h1>
           <p className="hero-copy">
-            Ask about any of the stocks and ETFs we track. Five AI analyst seats debate it —
-            including one whose whole job is to talk you out of the trade — then the Chair makes the call and, when it sets one, the price that would prove it wrong.
+            Ask about any of the stocks and ETFs we track. A specialist AI analyst answers with the direction it leans, how confident it is, and - when it sets one - the exact price that would prove it wrong.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
@@ -148,7 +147,7 @@ async function LandingContent() {
                     </>
                   )}
                 </div>
-                <div className="council-bubble">Every call comes with a trust score, so you know how much to lean on it.</div>
+                <div className="council-bubble">Every signal comes with a confidence level, so you know how much to lean on it.</div>
               </div>
             </ParallaxLayer>
           </ParallaxStage>
@@ -156,7 +155,7 @@ async function LandingContent() {
       </header>
 
       <div className="peek-band" aria-label="Key platform metrics">
-        <div className="metric"><StatCounter value={6} /><span>AI analysts arguing every call — including one against you.</span></div>
+        <div className="metric"><StatCounter value={5} /><span>Specialist AI seats in the council — including one built to argue against you.</span></div>
         <div className="metric">
           {coverage ? <StatCounter value={coverage.checks} /> : <strong>—</strong>}
           <span>Stored signal checks in this preview.</span>
@@ -173,9 +172,9 @@ async function LandingContent() {
         <div className="wrap whats-new-inner">
           <span className="whats-new-label">What&apos;s new</span>
           <div className="whats-new-items">
-            <span className="wn-chip">Six-seat AI council</span>
+            <span className="wn-chip">Five seats, one Chair</span>
             <span className="wn-chip">Ask Anything, per ticker</span>
-            <span className="wn-chip">Trust score on every call</span>
+            <span className="wn-chip">Confidence on every signal</span>
             <span className="wn-chip">Public verdict pages</span>
             <span className="wn-chip">Free to start</span>
             <span className="wn-chip">New dark theme</span>
@@ -197,7 +196,7 @@ async function LandingContent() {
             trader={{
               heading: "Depth you can check, not a pitch",
               paragraphs: [
-                "Ranked, explained calls you can actually check: council verdicts publish on public pages with direction, confidence, and an invalidation level when one is set - readable without an account.",
+                "Ranked, explained calls you can actually check: recorded council verdicts sit on public pages with direction, confidence, and an invalidation level when one was set - readable without an account.",
               ],
             }}
           />
@@ -213,7 +212,7 @@ async function LandingContent() {
             </div>
             <p className="section-copy">
               A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you&apos;re
-              looking at, and a full debate between five AI analyst seats — on the web here, and in
+              looking at, and specialist AI answers with direction and confidence — on the web here, and in
               the NuWrrrld mobile app.
             </p>
           </Reveal>
@@ -229,9 +228,9 @@ async function LandingContent() {
             </Reveal>
             <Reveal delay={0.05} as="article" className="surface">
               <h3>Signal Feed</h3>
-              <p>Ranked buy, sell, and hold calls with a trust score and the reasoning behind each one.</p>
+              <p>Ranked buy, sell, and hold calls with a confidence level and the reasoning behind each one.</p>
               <ul className="feature-list">
-                <li>A trust score on every single call.</li>
+                <li>A confidence level on every single signal.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.1} as="article" className="surface">
@@ -244,11 +243,11 @@ async function LandingContent() {
               </ul>
             </Reveal>
             <Reveal delay={0.15} as="article" className="surface wide">
-              <h3>Six-Seat AI Council</h3>
-              <p>Five specialist seats debate every call, and one of them — RISK — is built to argue against you. The Chair then makes the final call and, when it sets one, names the exact price that would prove it wrong.</p>
+              <h3>The AI council: five seats, one Chair</h3>
+              <p>The council is designed as five specialist seats debating the call — one of them, RISK, is built to argue against you — with a Chair that settles it and, when it sets one, names the exact price that would prove it wrong.</p>
               <ul className="feature-list">
                 <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
-                <li>Every disagreement gets named, not smoothed over, before you get a final answer.</li>
+                <li>Disagreements get named, not smoothed over, before the Chair&apos;s final call.</li>
               </ul>
             </Reveal>
           </div>
@@ -330,7 +329,7 @@ async function LandingContent() {
           <div className="moat-grid">
             <Reveal delay={0} className="moat-card">
               <h3>Built to catch its own mistakes</h3>
-              <p>Calls carry a trust score and a confidence level, and an invalidation level whenever the council sets one - so you can see both the call and where it breaks.</p>
+              <p>Signals carry a confidence level, and council calls carry an invalidation level when one was set - so you can see both the call and where it breaks.</p>
               <ul className="feature-list">
                 <li>Five independent signal families, weighted into one score.</li>
                 <li>The council can&apos;t answer without pointing to real data.</li>
@@ -338,10 +337,10 @@ async function LandingContent() {
             </Reveal>
             <Reveal delay={0.08} className="moat-card">
               <h3>It gets smarter every day</h3>
-              <p>Council calls are logged to public verdict pages as they happen — so the record only gets longer, and harder for anyone else to catch up to.</p>
+              <p>Recorded council calls publish to public verdict pages — so the record only gets longer, and harder for anyone else to catch up to.</p>
               <ul className="feature-list">
-                <li>Calls publish to public verdict pages — the record builds in the open.</li>
-                <li>A growing archive of market days and council arguments.</li>
+                <li>Recorded calls on public pages — the record builds in the open.</li>
+                <li>A growing archive of market days and recorded calls.</li>
               </ul>
             </Reveal>
           </div>
@@ -354,7 +353,7 @@ async function LandingContent() {
         <div className="wrap">
           <Reveal className="section-head">
             <div>
-              <div className="kicker">Six-seat AI council</div>
+              <div className="kicker">Five seats, one Chair</div>
               <h2>One question. Six arguments. One answer you can trust.</h2>
             </div>
             <p className="section-copy">
@@ -491,11 +490,11 @@ async function LandingContent() {
                 b: "One calm screen: what moved today and why it matters, in words you already know.",
                 t: "Indices, sectors and volatility at a glance, with the day's signals alongside." },
               { name: "Signals", tag: "Public preview",
-                b: "A short list of stocks worth a closer look, each with a plain-English reason and a trust score.",
+                b: "A short list of stocks worth a closer look, each with a plain-English reason and a confidence level.",
                 t: "Five signal families, ranked by confidence and refreshed every trading day, each naming the indicators that fired." },
               { name: "Council verdicts", tag: "Public pages",
-                b: "Five AI analyst seats debate it, then the Chair hands you one clear call - and, when it sets one, the exact price that would prove it wrong.",
-                t: "Council calls publish on public verdict pages with direction, confidence and horizon - plus an invalidation level when the council sets one." },
+                b: "Ask about a stock we track and a specialist AI analyst answers: the direction it leans, its confidence, and - when it sets one - the exact price that would prove it wrong.",
+                t: "Recorded council calls sit on public verdict pages - direction, confidence, horizon and invalidation as they were set, gaps included." },
               { name: "Nu AI", tag: "Pro",
                 b: "Ask anything in plain English and get an answer grounded in your own holdings, not generic commentary.",
                 t: "Interrogate any position or signal with your portfolio, watchlist and the latest signals as context." },
@@ -528,7 +527,7 @@ async function LandingContent() {
             are yours while you learn, no card required.
           </p>
           <p>
-            Trade actively? Watch our calls publish on the public verdict pages, and use the
+            Trade actively? Watch recorded calls land on the public verdict pages, and use the
             7-day Pro trial for the morning briefing, daily digest and Nu AI (card required).
           </p>
           <div className="hero-actions">
