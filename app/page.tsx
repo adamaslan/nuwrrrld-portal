@@ -199,7 +199,7 @@ async function LandingContent() {
             trader={{
               heading: "Depth you can check, not a pitch",
               paragraphs: [
-                "Every call comes ranked, explained and timestamped, with the exact price that would prove it wrong. Browse the public verdict pages and judge the calls before you ever sign up.",
+                "Ranked, explained calls you can actually check: council verdicts publish on public pages with direction, confidence and invalidation, readable without an account.",
               ],
             }}
           />
@@ -486,8 +486,10 @@ async function LandingContent() {
       <section id="features-twoway">
         <Reveal className="wrap">
           <div className="section-head">
-            <div className="kicker">Every feature, two ways to read it</div>
-            <h2>Same product. Your depth.</h2>
+            <div>
+              <div className="kicker">Every feature, two ways to read it</div>
+              <h2>Same product. Your depth.</h2>
+            </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
             {[
@@ -499,16 +501,19 @@ async function LandingContent() {
                 t: "Five signal families, ranked by confidence and refreshed every trading day, each naming the indicators that fired." },
               { name: "Council verdicts", tag: "Public pages",
                 b: "Six AI analysts argue it out, then hand you one clear call - plus exactly what would prove them wrong.",
-                t: "Published calls with direction, confidence, horizon and invalidation, checkable on public verdict pages any time." },
+                t: "Council calls publish on public verdict pages with direction, confidence and horizon - plus an invalidation level when the council sets one." },
               { name: "Nu AI", tag: "Pro",
                 b: "Ask anything in plain English and get an answer grounded in your own holdings, not generic commentary.",
                 t: "Interrogate any position or signal with your portfolio, watchlist and the latest signals as context." },
               { name: "Briefing and digest", tag: "Pro",
                 b: "A short morning read: what happened overnight and what to watch today.",
-                t: "Signals scored and ranked overnight, in your inbox and on your dashboard before the open." },
+                t: "Signals scored and ranked overnight, delivered in the morning briefing and the daily digest." },
+              { name: "Portfolio health", tag: "In the app",
+                b: "Your holdings get an A-to-F health grade, with plain-English reasons and the fixes that would help most.",
+                t: "Concentration, sector balance, momentum and volatility regime - with the factor behind every suggested fix." },
               { name: "Web and mobile", tag: "One account",
-                b: "Start on the web, keep watching on your phone. Same account, same answers.",
-                t: "The full desk - briefing, ranked calls, Ask Anything - in your pocket." },
+                b: "One account across the web and the mobile app.",
+                t: "Signals and briefings where you are - web at your desk, phone everywhere else." },
             ].map(f => (
               <article key={f.name} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
                 <h3>{f.name} <span style={{ fontSize: "0.7rem", fontWeight: 600, opacity: 0.7, verticalAlign: "middle" }}>{f.tag}</span></h3>
@@ -529,8 +534,8 @@ async function LandingContent() {
             are yours while you learn, no card required.
           </p>
           <p>
-            Trade actively? Put our published calls next to your own. The 7-day Pro trial adds
-            the morning briefing, daily digest and Nu AI (card required for the trial).
+            Trade actively? Watch our calls publish on the public verdict pages, and use the
+            7-day Pro trial for the morning briefing, daily digest and Nu AI (card required).
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
