@@ -3,6 +3,7 @@ import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 
 export const metadata: Metadata = {
   title: "Nu AI — Personal Finance AI Assistant Powered by Your Portfolio",
@@ -41,6 +42,24 @@ export default function AIAssistantLandingPage() {
             </div>
           ))}
         </section>
+
+        <TwoAudiences
+          title="Same assistant, two ways to ask."
+          beginner={{
+            heading: "Ask like you'd ask a friend",
+            paragraphs: [
+              "What does the Fed news mean for my index fund? Ask in plain English and get a plain-English answer, grounded in your actual holdings and watchlist rather than generic market commentary.",
+              "Nu AI is built to say when it's not sure, and to stay informational rather than tell you what to buy or sell.",
+            ],
+          }}
+          trader={{
+            heading: "An analyst on your book",
+            paragraphs: [
+              "Open any signal and chat per ticker, with streaming answers built on your holdings, watchlist and today's signals.",
+              "Follow-ups stay specific to your book, not the internet's average portfolio.",
+            ],
+          }}
+        />
 
         <section className="landing-cta-block">
           <h2>Ask your first question today</h2>
