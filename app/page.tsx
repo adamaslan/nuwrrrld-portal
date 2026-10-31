@@ -70,14 +70,14 @@ async function LandingContent() {
         <div className="hero-inner">
           <div className="eyebrow">Specialist AI analysts. Straight answers.</div>
           <h1>
-            <span>Should I buy it,</span> <span>or not?</span>
+            <span>Understand the market.</span> <span>See how the ideas hold up.</span>
           </h1>
           <p className="hero-copy">
-            Ask about any of the stocks and ETFs we track. A specialist AI analyst answers with the direction it leans, how confident it is, and - when it sets one - the exact price that would prove it wrong.
+            Read the market, compare signals and examine your portfolio. Ask AI about the evidence, follow its simulated portfolios, and check recorded calls against what happened next.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
-            <a className="btn secondary" href="#council">Meet the council</a>
+            <a className="btn secondary" href="#product">Explore the platform</a>
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
 
@@ -208,47 +208,36 @@ async function LandingContent() {
           <Reveal className="section-head">
             <div>
               <div className="kicker">One workflow, web and mobile</div>
-              <h2>From &quot;what&apos;s happening&quot; to &quot;what should I do&quot; — without leaving the app.</h2>
+              <h2>Understand. Investigate. Compare. Check.</h2>
             </div>
             <p className="section-copy">
-              A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you&apos;re
-              looking at, and specialist AI answers with direction and confidence — on the web here, and in
-              the NuWrrrld mobile app.
+              A research workflow, not a single stock tip. Start with market context, inspect the
+              evidence behind a signal, examine portfolio exposures and follow recorded outcomes.
+              The overview and public verdict pages are free; Pro adds deeper research and tracked-strategy views.
             </p>
           </Reveal>
 
           <div className="surface-grid">
-            <Reveal delay={0} as="article" className="surface wide">
-              <h3>Morning Briefing</h3>
-              <p>Start each day knowing the mood of the market in one glance — is it a good day to be aggressive, or a good day to sit on your hands.</p>
-              <ul className="feature-list">
-                <li>Plain-English summary of what moved and why.</li>
-                <li>Which sectors are leading, at a glance.</li>
-              </ul>
+            <Reveal as="article" className="surface wide">
+              <h3>Understand the day</h3>
+              <p>Start with the market overview, then go deeper with a briefing and explained signals. See the context before focusing on a single stock.</p>
+              <ul className="feature-list"><li>New to markets: a readable starting point, without chart jargon.</li><li>Trade actively: compare market tone, sectors and the indicators behind a call.</li></ul>
             </Reveal>
-            <Reveal delay={0.05} as="article" className="surface">
-              <h3>Signal Feed</h3>
-              <p>Ranked buy, sell, and hold calls with a confidence level and the reasoning behind each one.</p>
-              <ul className="feature-list">
-                <li>A confidence level on every single signal.</li>
-              </ul>
+            <Reveal as="article" className="surface">
+              <h3>Investigate the idea</h3>
+              <p>Inspect Hold/Fold analysis, ask a short- or long-term specialist, or question Nu AI using portfolio, watchlist and signal context.</p>
+              <ul className="feature-list"><li>New to markets: ask what a signal means and what might change it.</li><li>Trade actively: examine the thesis, risk and timeframe rather than accept a label.</li></ul>
             </Reveal>
-            <Reveal delay={0.1} as="article" className="surface">
-              <h3>Ask Anything</h3>
-              <p className="new-badge-inline">New</p>
-              <p>Open any call and just ask it a question, like &quot;why now?&quot; or &quot;what would change your mind?&quot; — it answers using that ticker&apos;s real, live data.</p>
-              <ul className="feature-list">
-                <li>Live, streaming chat per ticker.</li>
-                <li>Answers grounded in real data — not a generic chatbot.</li>
-              </ul>
+            <Reveal as="article" className="surface">
+              <h3>See the portfolio</h3>
+              <p>Keep a watchlist, review sector movement and inspect portfolio health factors and suggested changes.</p>
+              <ul className="feature-list"><li>New to markets: understand concentration and balance.</li><li>Trade actively: inspect exposures, factor breakdowns and position context.</li></ul>
             </Reveal>
-            <Reveal delay={0.15} as="article" className="surface wide">
-              <h3>The AI council: five seats, one Chair</h3>
-              <p>The council is designed as five specialist seats debating the call — one of them, RISK, is built to argue against you — with a Chair that settles it and, when it sets one, names the exact price that would prove it wrong.</p>
-              <ul className="feature-list">
-                <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
-                <li>Disagreements get named, not smoothed over, before the Chair&apos;s final call.</li>
-              </ul>
+            <Reveal as="article" className="surface wide">
+              <h3>Check what happened</h3>
+              <p>Follow AI-managed paper portfolios, compare their holdings in the arena, and review frozen monthly stock calls as recorded outcomes arrive.</p>
+              <ul className="feature-list"><li>New to markets: learn from simulated strategies without placing a trade through the app.</li><li>Trade actively: separate paper-book construction from individual call outcomes. Neither guarantees future returns.</li></ul>
+              <Link className="feature-more" href="/track-record">Explore the track record →</Link>
             </Reveal>
           </div>
         </div>
@@ -527,7 +516,7 @@ async function LandingContent() {
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
-          <h2>Stop asking a chart. Start asking an analyst.</h2>
+          <h2>Make the evidence part of your process.</h2>
           <p>
             New to markets? Start free - the market overview dashboard and public verdict pages
             are yours while you learn, no card required.
