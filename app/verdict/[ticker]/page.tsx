@@ -61,7 +61,7 @@ export default async function VerdictPage({ params }: Props) {
               </div>
               <p className="section-copy" style={{ maxWidth: 560, margin: "0 auto 24px" }}>
                 Six AI analysts argued this call — including one whose job is to argue against it.
-                This is where they landed, and the exact price that would prove them wrong.
+                This is where they landed, with the invalidation level when they set one.
               </p>
             </>
           ) : (
