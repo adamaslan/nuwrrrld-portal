@@ -452,7 +452,7 @@ async function LandingContent() {
               </p>
               <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
                 Free: market overview dashboard · public verdict pages<br />
-                Pro adds: ranked signal feed · morning briefing · daily digest · Nu AI · watchlist alerts
+                Pro adds: morning briefing · daily digest · Nu AI · watchlist alerts
               </p>
               <div className="hero-actions">
                 <Link className="btn primary" href="/pricing">Start your 7-day Pro trial →</Link>
