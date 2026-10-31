@@ -25,6 +25,18 @@ export function PreLoginNav() {
         <Link className="nav-keep" href="/sign-in">Sign in</Link>
         <Link className="nav-action" href="/sign-up">Start free →</Link>
       </div>
+      <details className="nav-menu">
+        <summary aria-label="Open menu">☰</summary>
+        <div className="nav-menu-links">
+          <Link href="/#product">Product</Link>
+          <Link href="/signals">Signals</Link>
+          <Link href="/portfolio-intelligence">Portfolio</Link>
+          <Link href="/ai-assistant">Nu AI</Link>
+          <Link href="/#council">Council</Link>
+          <Link href="/pricing">Pricing</Link>
+          <Link href="/sign-in">Sign in</Link>
+        </div>
+      </details>
     </nav>
   );
 }
