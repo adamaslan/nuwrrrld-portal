@@ -51,7 +51,7 @@ const callsFor = (seat: string) =>
   vi.mocked(runSeat).mock.calls.filter((c) => c[0] === seat);
 
 function mockSeats(proseDir: Record<string, string>) {
-  vi.mocked(runSeat).mockImplementation(async (seat: any, messages: any[]) => {
+  vi.mocked(runSeat).mockImplementation(async (seat, messages) => {
     const sys = messages[0]?.content;
     if (sys === "Verdict prompt") return { answer: VERDICT_JSON, model: "smallest-model", seat, latencyMs: 1 };
     if (seat === "CHAIR") return { answer: "Chair synthesis.", model: "chair-model", seat, latencyMs: 1 };
@@ -71,7 +71,7 @@ describe("deliberate orchestration (mocked)", () => {
     for (const s of ["T1", "T2", "RISK", "MACRO", "QUANT"]) expect(callsFor(s).length).toBe(1);
     // CHAIR: 1 synthesis + 3 verdict samples, verdict on smallest model
     expect(callsFor("CHAIR").length).toBe(4);
-    const verdictCalls = callsFor("CHAIR").filter((c) => (c[1] as any[])[0].content === "Verdict prompt");
+    const verdictCalls = callsFor("CHAIR").filter((c) => c[1][0].content === "Verdict prompt");
     expect(verdictCalls.length).toBe(3);
     for (const c of verdictCalls) expect(c[5]).toBe("smallest-model");
     expect(createSession).toHaveBeenCalledTimes(1);
@@ -91,15 +91,15 @@ describe("deliberate orchestration (mocked)", () => {
     expect(callsFor("RISK").length).toBe(1);
     expect(callsFor("MACRO").length).toBe(1);
     const body = await res.json();
-    const quant = body.seats.find((s: any) => s.seat === "QUANT");
-    expect(quant.critique).toBeTruthy();
-    const t1 = body.seats.find((s: any) => s.seat === "T1");
-    expect(t1.critique).toBeNull();
+    const quant = (body.seats as Array<{ seat: string; critique: string | null }>).find((s) => s.seat === "QUANT");
+    expect(quant?.critique).toBeTruthy();
+    const t1 = (body.seats as Array<{ seat: string; critique: string | null }>).find((s) => s.seat === "T1");
+    expect(t1?.critique).toBeNull();
   });
 
   it("one judge failing degrades the run instead of killing it", async () => {
     mockSeats({});
-    vi.mocked(runSeat).mockImplementation(async (seat: any, messages: any[]) => {
+    vi.mocked(runSeat).mockImplementation(async (seat, messages) => {
       if (seat === "MACRO") throw new Error("model down");
       const sys = messages[0]?.content;
       if (sys === "Verdict prompt") return { answer: VERDICT_JSON, model: "smallest-model", seat, latencyMs: 1 };
