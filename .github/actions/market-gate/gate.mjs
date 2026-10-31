@@ -76,7 +76,11 @@ export function paperDecision({ clock, calendar, cron = '', slot = '', force = f
   force = force && !cron;
   if (!force && (['Sat', 'Sun'].includes(sessionClock.weekday) || calendar.is_trading_day !== 'true')) return skip('closed day or unavailable calendar');
   const late = clock.date !== sessionClock.date || clock.minute < starts[slot] || clock.minute > starts[slot] + LATE_AFTER_MINUTES;
-  if (!force && slot !== 'settle' && (clock.date !== sessionClock.date || clock.minute < starts[slot])) return skip('before the slot start or on another day');
+  // For non-settle slots sessionClock IS clock, so compare against the run's creation
+  // date instead: a schedule GitHub queues past midnight ET must not trade for the
+  // later date and occupy that date's slot key.
+  const created = Number.isFinite(Date.parse(eventTime)) ? nyClock(new Date(eventTime)).date : clock.date;
+  if (!force && slot !== 'settle' && (clock.date !== created || clock.minute < starts[slot])) return skip('before the slot start or on another day');
   // Midday runs until preclose begins, so the two slots never trade back to back.
   if (!force && slot === 'midday' && clock.minute >= starts.preclose) return skip('midday ends when preclose starts');
   if (!force && slot === 'preopen' && clock.minute >= minutes(calendar.open)) return skip('session already opened');
@@ -124,3 +128,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : `Market gate (${clock.date} ET): ${result.reason || result.source}; allowed=${result.is_trading_day}`;
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
 }
+
