@@ -65,8 +65,8 @@ export default async function VerdictPage({ params }: Props) {
             </>
           ) : (
             <p className="section-copy" style={{ maxWidth: 560, margin: "24px auto" }}>
-              No council verdict recorded for ${ticker} yet — ask the council on the
-              home page and be the first.
+              No council verdict recorded for ${ticker} yet. New verdicts publish
+              here as the council makes calls.
             </p>
           )}
 
@@ -74,8 +74,8 @@ export default async function VerdictPage({ params }: Props) {
             <Link className="btn primary" href="/sign-up">
               Start free →
             </Link>
-            <Link className="btn secondary" href="/">
-              Ask about another ticker
+            <Link className="btn secondary" href="/signals">
+              Browse the signals
             </Link>
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
