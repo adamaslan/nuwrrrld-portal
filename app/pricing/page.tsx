@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CheckoutButton } from "./CheckoutButton";
+import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import "../landing.css";
 import "./pricing.css";
 
 export const metadata: Metadata = {
-  title: "Pricing · NuWrrrld Financial",
-  description: "Start your 7-day free trial. Signals, AI assistant, and portfolio intelligence.",
+  title: "Pricing",
+  description: "Start free. Pro adds the daily signal digest, Nu AI assistant, optimizer suggestions, watchlist alerts, and the morning briefing — with a 7-day free trial.",
 };
 
 export default async function PricingPage({
@@ -22,60 +25,82 @@ export default async function PricingPage({
   const cancelled = params.checkout === "cancelled";
 
   return (
-    <main className="pricing-page">
-      <div className="pricing-hero">
-        <h1>Start your 7-day free trial</h1>
-        <p className="pricing-sub">
-          Full access to signals, AI assistant, and portfolio intelligence.
-          Cancel anytime.
+    <div className="nwf-landing">
+      <PreLoginNav />
+
+      <main className="pricing-page">
+        <div className="pricing-hero">
+          <h1>Pricing that starts free</h1>
+          <p className="pricing-sub">
+            Create a free account — no card required.
+            Pro adds the daily digest, Nu AI, and alerts, with a 7-day free trial.
+          </p>
+          {cancelled && (
+            <p className="pricing-notice">Checkout was cancelled — no charge was made.</p>
+          )}
+        </div>
+
+        <div className="pricing-cards">
+          {/* Free column lists only what a free account verifiably gets today
+              (dashboard home with the market overview). FEATURE_TIER_MAP also
+              marks signals + portfolio_score as free-tier, but no caller grants
+              them to free users yet - see PR body before adding them here. */}
+          <div className="pricing-card">
+            <div className="plan-name">Free</div>
+            <div className="plan-price">
+              <span className="price-amount">$0</span>
+            </div>
+            <ul className="plan-features">
+              <li>Market overview dashboard</li>
+              <li>Public council verdict pages</li>
+              <li>No card required</li>
+            </ul>
+            <Link href="/sign-up" className="checkout-btn checkout-btn--link">Create free account</Link>
+          </div>
+
+          {/* Monthly */}
+          <div className="pricing-card pricing-card--featured">
+            <div className="plan-badge">7-day free trial</div>
+            <div className="plan-name">Pro — Monthly</div>
+            <div className="plan-price">
+              <span className="price-amount">$9.99</span>
+              <span className="price-period">/mo</span>
+            </div>
+            <ul className="plan-features">
+              <li>Everything in Free</li>
+              <li>Daily signal digest</li>
+              <li>Nu AI assistant</li>
+              <li>Optimizer suggestions</li>
+              <li>Watchlist alerts</li>
+              <li>Morning briefing</li>
+            </ul>
+            <CheckoutButton plan="monthly" label="Start 7-day free trial" />
+          </div>
+
+          {/* Annual */}
+          <div className="pricing-card">
+            <div className="plan-name">Pro — Annual</div>
+            <div className="plan-price">
+              <span className="price-amount">$79.99</span>
+              <span className="price-period">/yr</span>
+            </div>
+            <ul className="plan-features">
+              <li>Everything in Pro Monthly</li>
+              <li>Save 33% vs monthly</li>
+            </ul>
+            <CheckoutButton plan="annual" label="Start 7-day free trial" />
+          </div>
+        </div>
+
+        <p className="pricing-legal">
+          By subscribing you agree to our{" "}
+          <a href="/terms-of-service">Terms of Service</a> and{" "}
+          <a href="/privacy-policy">Privacy Policy</a>.
+          Payment is processed by Stripe. This is not financial advice.
         </p>
-        {cancelled && (
-          <p className="pricing-notice">Checkout was cancelled — no charge was made.</p>
-        )}
-      </div>
+      </main>
 
-      <div className="pricing-cards">
-        {/* Monthly */}
-        <div className="pricing-card">
-          <div className="plan-name">Monthly</div>
-          <div className="plan-price">
-            <span className="price-amount">$9.99</span>
-            <span className="price-period">/mo</span>
-          </div>
-          <ul className="plan-features">
-            <li>Daily signal digest</li>
-            <li>Nu AI assistant</li>
-            <li>Portfolio health score</li>
-            <li>Optimizer suggestions</li>
-            <li>Watchlist alerts</li>
-            <li>Morning briefing</li>
-          </ul>
-          <CheckoutButton plan="monthly" label="Start 7-day free trial" />
-        </div>
-
-        {/* Annual */}
-        <div className="pricing-card pricing-card--featured">
-          <div className="plan-badge">Best value — save 33%</div>
-          <div className="plan-name">Annual</div>
-          <div className="plan-price">
-            <span className="price-amount">$79.99</span>
-            <span className="price-period">/yr</span>
-          </div>
-          <ul className="plan-features">
-            <li>Everything in Monthly</li>
-            <li>Priority signal delivery</li>
-            <li>Extended AI context</li>
-          </ul>
-          <CheckoutButton plan="annual" label="Start 7-day free trial" />
-        </div>
-      </div>
-
-      <p className="pricing-legal">
-        By subscribing you agree to our{" "}
-        <a href="/terms-of-service">Terms of Service</a> and{" "}
-        <a href="/privacy-policy">Privacy Policy</a>.
-        Payment is processed by Stripe. This is not financial advice.
-      </p>
-    </main>
+      <PreLoginFooter />
+    </div>
   );
 }
