@@ -583,6 +583,10 @@
   margin-bottom: 34px;
 }
 
+.nwf-landing .section-head--solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .nwf-landing .kicker {
   color: var(--amber);
   font-size: 0.78rem;
