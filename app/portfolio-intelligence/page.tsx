@@ -94,7 +94,7 @@ export default async function PortfolioIntelligenceLandingPage() {
             { icon: "🏥", title: "Portfolio health score", body: "An A–F grade derived from multiple factors: concentration risk, sector balance, momentum, and volatility regime." },
             { icon: "📊", title: "Factor breakdown", body: "See exactly which factors are lifting or dragging your score — not just the headline number but the why behind it." },
             { icon: "💡", title: "Optimizer suggestions", body: "Concrete, prioritised suggestions from our AI optimizer, each one labelled by impact and tied to a specific factor." },
-            { icon: "👁️", title: "Watchlists & alerts", body: "Build a watchlist of tickers you're watching. Get signal and price alerts delivered the moment they trigger." },
+            { icon: "👁️", title: "Watchlists", body: "Keep a personal watchlist of the tickers you follow, and let Nu AI answer questions grounded in it." },
           ].map(f => (
             <div key={f.title} className="feature-card">
               <span className="feature-icon" aria-hidden="true">{f.icon}</span>
@@ -108,7 +108,7 @@ export default async function PortfolioIntelligenceLandingPage() {
           <h2>See your portfolio, graded</h2>
           <Link href="/sign-up" className="hero-cta">Start free →</Link>
           <p className="landing-disclaimer">
-            Free to start · Pro adds the daily digest, Nu AI, alerts, and the morning briefing
+            Free to start · Pro adds the daily digest, Nu AI, and the morning briefing
           </p>
           <p className="landing-disclaimer">Not financial advice · <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link></p>
         </section>
