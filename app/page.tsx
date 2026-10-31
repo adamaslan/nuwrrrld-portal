@@ -223,10 +223,9 @@ async function LandingContent() {
             </Reveal>
             <Reveal delay={0.05} as="article" className="surface">
               <h3>Signal Feed</h3>
-              <p>Ranked buy, sell, and hold calls with a trust score and the reasoning behind each one — backed by a track record you can check.</p>
+              <p>Ranked buy, sell, and hold calls with a trust score and the reasoning behind each one.</p>
               <ul className="feature-list">
                 <li>A trust score on every single call.</li>
-                <li>See how often this exact call has been right before.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.1} as="article" className="surface">
@@ -460,3 +459,4 @@ async function LandingContent() {
     </div>
   );
 }
+
