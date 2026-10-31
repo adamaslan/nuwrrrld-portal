@@ -29,6 +29,7 @@ export default function Error({
     <main className={isPublic ? "nwf-public-error" : undefined} style={styles.wrap}>
       {isPublic && <style>{`
         html:has(.nwf-public-error) { color-scheme: light !important; }
+        body:has(.nwf-public-error)::before, body:has(.nwf-public-error)::after { display: none !important; }
         body:has(.nwf-public-error) { background: #fff !important; color: #111 !important; }
         .nwf-public-error { --surface: #fff; --surface-2: #f5f5f5; --border: #d1d1d1; --text: #111; --text-dim: #555; --neon-red: #111; --neon-blue: #111; --glow-blue: none; }
         .nwf-public-error *, .nwf-public-error *::before, .nwf-public-error *::after { border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; }
