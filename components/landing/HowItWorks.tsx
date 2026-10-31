@@ -9,7 +9,7 @@ const STEPS = [
   },
   {
     icon: Swords,
-    title: "Six AI analysts argue it out",
+    title: "Five AI analysts debate it",
     body: "Including RISK, whose only job is to try to talk you out of it.",
   },
   {
