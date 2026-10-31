@@ -9,13 +9,16 @@ vi.mock("@/components/CookiePreferencesLink", () => ({
 describe("PreLoginNav", () => {
   it("links every pre-login destination with one CTA model", () => {
     render(<PreLoginNav />);
-    expect(screen.getByRole("link", { name: "Signals" })).toHaveAttribute("href", "/signals");
-    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio-intelligence");
-    expect(screen.getByRole("link", { name: "Nu AI" })).toHaveAttribute("href", "/ai-assistant");
-    expect(screen.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/pricing");
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
+    // Links appear twice: desktop bar + mobile menu (<details>), intentionally identical.
+    expect(screen.getAllByRole("link", { name: "Signals" })[0]).toHaveAttribute("href", "/signals");
+    expect(screen.getAllByRole("link", { name: "Portfolio" })[0]).toHaveAttribute("href", "/portfolio-intelligence");
+    expect(screen.getAllByRole("link", { name: "Nu AI" })[0]).toHaveAttribute("href", "/ai-assistant");
+    expect(screen.getAllByRole("link", { name: "Pricing" })[0]).toHaveAttribute("href", "/pricing");
+    expect(screen.getAllByRole("link", { name: "Sign in" })[0]).toHaveAttribute("href", "/sign-in");
     // primary CTA is always the free account, never the paid trial
     expect(screen.getByRole("link", { name: "Start free →" })).toHaveAttribute("href", "/sign-up");
+    // mobile menu (<details>) duplicates every destination for small screens
+    expect(screen.getAllByRole("link", { name: "Sign in" })).toHaveLength(2);
   });
 });
 
