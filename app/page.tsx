@@ -54,7 +54,7 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Specialist AI analysts. Straight answers.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Market research. Simulated strategies. Recorded outcomes.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
 }
 
 async function LandingContent() {
@@ -68,7 +68,7 @@ async function LandingContent() {
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
         <div className="hero-inner">
-          <div className="eyebrow">Specialist AI analysts. Straight answers.</div>
+          <div className="eyebrow">Market research. Simulated strategies. Recorded outcomes.</div>
           <h1>
             <span>Understand the market.</span> <span>See how the ideas hold up.</span>
           </h1>
