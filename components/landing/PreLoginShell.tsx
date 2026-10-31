@@ -20,7 +20,7 @@ export function PreLoginNav() {
         <Link href="/signals">Signals</Link>
         <Link href="/portfolio-intelligence">Portfolio</Link>
         <Link href="/ai-assistant">Nu AI</Link>
-        <Link href="/#council">Council</Link>
+        <Link href="/track-record">Track record</Link>
         <Link href="/pricing">Pricing</Link>
         <Link className="nav-keep" href="/sign-in">Sign in</Link>
         <Link className="nav-action" href="/sign-up">Start free →</Link>
@@ -32,8 +32,9 @@ export function PreLoginNav() {
           <Link href="/signals">Signals</Link>
           <Link href="/portfolio-intelligence">Portfolio</Link>
           <Link href="/ai-assistant">Nu AI</Link>
-          <Link href="/#council">Council</Link>
+          <Link href="/track-record">Track record</Link>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/paper-trading">Paper trading</Link>
           <Link href="/sign-in">Sign in</Link>
         </div>
       </details>
