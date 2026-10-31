@@ -54,7 +54,7 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Six AI analysts. One straight answer.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Five AI analysts. One straight answer.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
 }
 
 async function LandingContent() {
@@ -68,13 +68,13 @@ async function LandingContent() {
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
         <div className="hero-inner">
-          <div className="eyebrow">Six AI analysts. One straight answer.</div>
+          <div className="eyebrow">Five AI analysts. One straight answer.</div>
           <h1>
             <span>Should I buy it,</span> <span>or not?</span>
           </h1>
           <p className="hero-copy">
-            Ask about any of the stocks and ETFs we track. Six AI analysts argue it out —
-            including one whose whole job is to talk you out of the trade — until they agree on a call - and, when they set one, the price that would prove them wrong.
+            Ask about any of the stocks and ETFs we track. Five AI analyst seats debate it —
+            including one whose whole job is to talk you out of the trade — then the Chair makes the call and, when it sets one, the price that would prove it wrong.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
@@ -213,7 +213,7 @@ async function LandingContent() {
             </div>
             <p className="section-copy">
               A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you&apos;re
-              looking at, and a full argument between six AI analysts — on the web here, and in
+              looking at, and a full debate between five AI analyst seats — on the web here, and in
               the NuWrrrld mobile app.
             </p>
           </Reveal>
@@ -245,7 +245,7 @@ async function LandingContent() {
             </Reveal>
             <Reveal delay={0.15} as="article" className="surface wide">
               <h3>Six-Seat AI Council</h3>
-              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Each is asked to name the exact price that would prove it wrong before the Chair gives a final call.</p>
+              <p>Five specialist seats debate every call, and one of them — RISK — is built to argue against you. The Chair then makes the final call and, when it sets one, names the exact price that would prove it wrong.</p>
               <ul className="feature-list">
                 <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
                 <li>Every disagreement gets named, not smoothed over, before you get a final answer.</li>
@@ -338,9 +338,9 @@ async function LandingContent() {
             </Reveal>
             <Reveal delay={0.08} className="moat-card">
               <h3>It gets smarter every day</h3>
-              <p>Every call we make and every argument the council has is logged for good — so our track record only gets longer, and harder for anyone else to catch up to.</p>
+              <p>Council calls are logged to public verdict pages as they happen — so the record only gets longer, and harder for anyone else to catch up to.</p>
               <ul className="feature-list">
-                <li>Building our public track record — every published call adds to it.</li>
+                <li>Calls publish to public verdict pages — the record builds in the open.</li>
                 <li>A growing archive of market days and council arguments.</li>
               </ul>
             </Reveal>
@@ -494,7 +494,7 @@ async function LandingContent() {
                 b: "A short list of stocks worth a closer look, each with a plain-English reason and a trust score.",
                 t: "Five signal families, ranked by confidence and refreshed every trading day, each naming the indicators that fired." },
               { name: "Council verdicts", tag: "Public pages",
-                b: "Six AI analysts argue it out, then hand you one clear call - and, when they set one, the exact price that would prove them wrong.",
+                b: "Five AI analyst seats debate it, then the Chair hands you one clear call - and, when it sets one, the exact price that would prove it wrong.",
                 t: "Council calls publish on public verdict pages with direction, confidence and horizon - plus an invalidation level when the council sets one." },
               { name: "Nu AI", tag: "Pro",
                 b: "Ask anything in plain English and get an answer grounded in your own holdings, not generic commentary.",
