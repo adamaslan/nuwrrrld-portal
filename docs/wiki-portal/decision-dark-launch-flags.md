@@ -36,7 +36,7 @@ The 2026-10-27 dashboard audit found users reading numbers that were fake or bro
 
 ## Validated by
 
-Typecheck, lint and 20 related test files pass. Not yet viewed in a browser, and Codex verification is pending (PR #316).
+Lint and 20 related test files pass. Typechecking is not claimed as passing: review on PR #316 reported errors outside this PR's changed files (pre-existing); the changed files themselves were not type-error-free-verified beyond lint and tests. Not yet viewed in a browser, and Codex verification is pending (PR #316).
 
 ## See also
 
@@ -45,3 +45,4 @@ Typecheck, lint and 20 related test files pass. Not yet viewed in a browser, and
 - [[entity-holdfold-cache]] — the stale feed behind the top-movers strip
 - [[entity-ai-council]] — the public demo seat
 - [[concept-mobile-web-parity]] — the cross-surface effect
+
