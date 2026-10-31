@@ -10,7 +10,9 @@ if (!e.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_') || /placeholder|fixture/i.tes
 const base = e.BILLING_TEST_BASE_URL;
 if (!base) fail('BILLING_TEST_BASE_URL must explicitly name the isolated app.');
 const url = new URL(base);
-if (url.hostname === 'financial.nuwrrrld.com' || url.hostname === 'nuwrrrld.com' || url.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(url.hostname)) fail('Live app domains and nonlocal HTTP are refused.');
+// Domain allowlists cannot prove a preview alias isn't routed to production.
+// Automated preparation is local-only. Remote preview needs manual isolation review.
+if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) || !['http:', 'https:'].includes(url.protocol) || url.username || url.password) fail('Preflight is local-only. Remote aliases require separate isolation review.');
 const stripe = new Stripe(e.STRIPE_SECRET_KEY);
 try {
   for (const name of ['STRIPE_PRICE_MONTHLY','STRIPE_PRICE_ANNUAL']) {
