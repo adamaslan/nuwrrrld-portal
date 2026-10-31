@@ -5,7 +5,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
-import { getAggregateTrackRecord } from "@/lib/track-record";
 import { flagLive } from "@/lib/flags";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
@@ -22,7 +21,7 @@ import "./landing.css";
 
 async function fetchLandingData() {
   // The track record is hidden during the dark launch, so skip its query too.
-  const [signals, council, trackRecord] = await Promise.allSettled([
+  const [signals, council] = await Promise.allSettled([
     getStoredSignals(), getCouncilSample(),
     flagLive("backtest_hit_rates") ? getAggregateTrackRecord() : Promise.resolve(null),
   ]);
@@ -30,7 +29,7 @@ async function fetchLandingData() {
   return {
     topSignals: digest?.signals.slice(0, 4) ?? null,
     council: council.status === "fulfilled" ? council.value : null,
-    trackRecord: trackRecord.status === "fulfilled" ? trackRecord.value : null,
+
     coverage: coverageFromDigest(digest),
   };
 }
@@ -59,7 +58,7 @@ export default async function Home() {
 }
 
 async function LandingContent() {
-  const { topSignals, council, trackRecord, coverage } = await fetchLandingData();
+  const { topSignals, council, coverage } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
@@ -75,8 +74,7 @@ async function LandingContent() {
           </h1>
           <p className="hero-copy">
             Ask about any of the stocks and ETFs we track. Six AI analysts argue it out —
-            including one whose whole job is to talk you out of the trade — until they agree on a call,
-            and exactly what price would prove them wrong.
+            including one whose whole job is to talk you out of the trade — until they agree on a call - and, when they set one, the price that would prove them wrong.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
@@ -199,7 +197,7 @@ async function LandingContent() {
             trader={{
               heading: "Depth you can check, not a pitch",
               paragraphs: [
-                "Ranked, explained calls you can actually check: council verdicts publish on public pages with direction, confidence and invalidation, readable without an account.",
+                "Ranked, explained calls you can actually check: council verdicts publish on public pages with direction, confidence, and an invalidation level when one is set - readable without an account.",
               ],
             }}
           />
@@ -247,7 +245,7 @@ async function LandingContent() {
             </Reveal>
             <Reveal delay={0.15} as="article" className="surface wide">
               <h3>Six-Seat AI Council</h3>
-              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Nothing reaches you until they&apos;ve named the exact price that would prove them wrong.</p>
+              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Each is asked to name the exact price that would prove it wrong before the Chair gives a final call.</p>
               <ul className="feature-list">
                 <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
                 <li>Every disagreement gets named, not smoothed over, before you get a final answer.</li>
@@ -332,7 +330,7 @@ async function LandingContent() {
           <div className="moat-grid">
             <Reveal delay={0} className="moat-card">
               <h3>Built to catch its own mistakes</h3>
-              <p>Every call carries a trust score, a confidence level, and the exact price that would prove it wrong — and we show you the track record, not just the pitch.</p>
+              <p>Calls carry a trust score and a confidence level, and an invalidation level whenever the council sets one - so you can see both the call and where it breaks.</p>
               <ul className="feature-list">
                 <li>Five independent signal families, weighted into one score.</li>
                 <li>The council can&apos;t answer without pointing to real data.</li>
@@ -342,11 +340,7 @@ async function LandingContent() {
               <h3>It gets smarter every day</h3>
               <p>Every call we make and every argument the council has is logged for good — so our track record only gets longer, and harder for anyone else to catch up to.</p>
               <ul className="feature-list">
-                <li>
-                  {trackRecord
-                    ? `${trackRecord.hitRatePct}% rolling hit-rate across ${trackRecord.totalCalls.toLocaleString()} recorded calls.`
-                    : "Building our public track record — check back soon."}
-                </li>
+                <li>Building our public track record — every published call adds to it.</li>
                 <li>A growing archive of market days and council arguments.</li>
               </ul>
             </Reveal>
@@ -485,7 +479,7 @@ async function LandingContent() {
 
       <section id="features-twoway">
         <Reveal className="wrap">
-          <div className="section-head">
+          <div className="section-head section-head--solo">
             <div>
               <div className="kicker">Every feature, two ways to read it</div>
               <h2>Same product. Your depth.</h2>
@@ -500,7 +494,7 @@ async function LandingContent() {
                 b: "A short list of stocks worth a closer look, each with a plain-English reason and a trust score.",
                 t: "Five signal families, ranked by confidence and refreshed every trading day, each naming the indicators that fired." },
               { name: "Council verdicts", tag: "Public pages",
-                b: "Six AI analysts argue it out, then hand you one clear call - plus exactly what would prove them wrong.",
+                b: "Six AI analysts argue it out, then hand you one clear call - and, when they set one, the exact price that would prove them wrong.",
                 t: "Council calls publish on public verdict pages with direction, confidence and horizon - plus an invalidation level when the council sets one." },
               { name: "Nu AI", tag: "Pro",
                 b: "Ask anything in plain English and get an answer grounded in your own holdings, not generic commentary.",
