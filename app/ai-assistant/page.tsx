@@ -1,6 +1,9 @@
+import "../landing.css";
 import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 
 export const metadata: Metadata = {
   title: "Nu AI — Personal Finance AI Assistant Powered by Your Portfolio",
@@ -11,42 +14,64 @@ export const metadata: Metadata = {
 
 export default function AIAssistantLandingPage() {
   return (
-    <main className="landing-page">
-      <nav className="landing-nav">
-        <Link href="/" className="brand">NuWrrrld Financial</Link>
-        <Link href="/pricing" className="nav-cta">Start free trial</Link>
-      </nav>
+    <div className="nwf-landing">
+      <PreLoginNav />
 
-      <section className="landing-hero">
-        <h1>An AI assistant that knows your portfolio</h1>
-        <p className="landing-sub">
-          Nu AI answers in the context of your actual holdings, not generic market commentary.
-          Ask about your positions, signals, or any financial concept — and get a grounded, honest answer.
-        </p>
-        <Link href="/pricing" className="hero-cta">Try Nu AI free for 7 days</Link>
-        <p className="hero-note">Pro feature · No credit card required to start</p>
-      </section>
+      <main className="landing-page">
+        <section className="landing-hero">
+          <h1>An AI assistant that knows your portfolio</h1>
+          <p className="landing-sub">
+            Nu AI answers in the context of your actual holdings and today&apos;s signals, not generic
+            market commentary. Ask about a position, a call, or any market concept, answered in plain English.
+          </p>
+          <Link href="/sign-up" className="hero-cta">Start free →</Link>
+          <p className="hero-note">Nu AI is a Pro feature · 7-day Pro trial available</p>
+        </section>
 
-      <section className="landing-features">
-        {[
-          { icon: "💼", title: "Portfolio-aware answers", body: "Nu AI reads your connected Schwab holdings before answering. Questions about your specific positions get specific answers." },
-          { icon: "🧠", title: "Powered by Claude", body: "Built on Anthropic's Claude — one of the most capable and honest AI models available, with built-in safety guardrails." },
-          { icon: "🔒", title: "Never stores your data", body: "Conversations aren't stored or used to train models. Your financial context stays in your session only." },
-          { icon: "⚖️", title: "Honest about limits", body: "Nu AI tells you when it doesn't know, and never pretends to give personalised investment advice. Information only." },
-        ].map(f => (
-          <div key={f.title} className="feature-card">
-            <span className="feature-icon" aria-hidden="true">{f.icon}</span>
-            <h3>{f.title}</h3>
-            <p>{f.body}</p>
-          </div>
-        ))}
-      </section>
+        <section className="landing-features">
+          {[
+            { icon: "💼", title: "Portfolio-aware answers", body: "Questions about your positions get specific answers, grounded in your holdings, watchlist, and the latest signals." },
+            { icon: "🧭", title: "Grounded, not generic", body: "Answers reference your real portfolio and signal data — not a generic chatbot's guess about the market." },
+            { icon: "💬", title: "Ask Anything, per ticker", body: "Open any signal and chat with it directly. Streaming answers built on that ticker's live data." },
+            { icon: "⚖️", title: "Honest about limits", body: "Nu AI is built to say when it's not sure, and to stay informational rather than give personalised investment advice." },
+          ].map(f => (
+            <div key={f.title} className="feature-card">
+              <span className="feature-icon" aria-hidden="true">{f.icon}</span>
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </div>
+          ))}
+        </section>
 
-      <section className="landing-cta-block">
-        <h2>Ask your first question today</h2>
-        <Link href="/pricing" className="hero-cta">Start free trial</Link>
-        <p className="landing-disclaimer">Not financial advice · <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link></p>
-      </section>
-    </main>
+        <TwoAudiences
+          title="Same assistant, two ways to ask."
+          beginner={{
+            heading: "Ask like you'd ask a friend",
+            paragraphs: [
+              "What does the Fed news mean for my index fund? Ask in plain English and get a plain-English answer, grounded in your actual holdings and watchlist rather than generic market commentary.",
+              "Nu AI is built to say when it's not sure, and to stay informational rather than tell you what to buy or sell.",
+            ],
+          }}
+          trader={{
+            heading: "An analyst on your book",
+            paragraphs: [
+              "Open any signal and chat per ticker, with streaming answers built on your holdings, watchlist and today's signals.",
+              "Follow-ups stay specific to your book, not the internet's average portfolio.",
+            ],
+          }}
+        />
+
+        <section className="landing-cta-block">
+          <h2>Ask your first question today</h2>
+          <Link href="/sign-up" className="hero-cta">Start free →</Link>
+          <p className="landing-disclaimer">
+            Free to start · Pro adds the daily digest, Nu AI, and the morning briefing
+          </p>
+          <p className="landing-disclaimer">Not financial advice · <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link></p>
+        </section>
+      </main>
+
+      <PreLoginFooter />
+    </div>
   );
 }

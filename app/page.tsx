@@ -5,7 +5,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
-import { getAggregateTrackRecord } from "@/lib/track-record";
 import { flagLive } from "@/lib/flags";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
@@ -16,12 +15,13 @@ import { CouncilScrollDebate } from "@/components/landing/CouncilScrollDebate";
 import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { PublicCouncilDemo } from "@/components/landing/PublicCouncilDemo";
-import CookiePreferencesLink from "@/components/CookiePreferencesLink";
+import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 import "./landing.css";
 
 async function fetchLandingData() {
   // The track record is hidden during the dark launch, so skip its query too.
-  const [signals, council, trackRecord] = await Promise.allSettled([
+  const [signals, council] = await Promise.allSettled([
     getStoredSignals(), getCouncilSample(),
     flagLive("backtest_hit_rates") ? getAggregateTrackRecord() : Promise.resolve(null),
   ]);
@@ -29,7 +29,7 @@ async function fetchLandingData() {
   return {
     topSignals: digest?.signals.slice(0, 4) ?? null,
     council: council.status === "fulfilled" ? council.value : null,
-    trackRecord: trackRecord.status === "fulfilled" ? trackRecord.value : null,
+
     coverage: coverageFromDigest(digest),
   };
 }
@@ -54,46 +54,30 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Six AI analysts. One straight answer.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Specialist AI analysts. Straight answers.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
 }
 
 async function LandingContent() {
-  const { topSignals, council, trackRecord, coverage } = await fetchLandingData();
+  const { topSignals, council, coverage } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
       <SmoothScroll />
-      <nav className="topbar" aria-label="Primary navigation">
-        <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">NWF</span>
-          <span>NuWrrrld Financial</span>
-        </Link>
-        <div className="navlinks">
-          <a href="#product">Product</a>
-          <Link href="/signals">Signals</Link>
-          <Link href="/portfolio-intelligence">Portfolio</Link>
-          <Link href="/ai-assistant">Nu AI</Link>
-          <a href="#council">Council</a>
-          <Link className="nav-keep" href="/sign-in">Sign in</Link>
-          <Link className="nav-action" href="/sign-up">Start free →</Link>
-        </div>
-      </nav>
+      <PreLoginNav />
 
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
         <div className="hero-inner">
-          <div className="eyebrow">Six AI analysts. One straight answer.</div>
+          <div className="eyebrow">Specialist AI analysts. Straight answers.</div>
           <h1>
             <span>Should I buy it,</span> <span>or not?</span>
           </h1>
           <p className="hero-copy">
-            Ask about any of the 54 sector and industry ETFs we track. Six AI analysts argue it out —
-            including one whose whole job is to talk you out of the trade — until they agree on a call,
-            and exactly what price would prove them wrong.
+            Ask about any of the stocks and ETFs we track. A specialist AI analyst answers with the direction it leans, how confident it is, and - when it sets one - the exact price that would prove it wrong.
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
-            <a className="btn secondary" href="#council">See the council argue</a>
+            <a className="btn secondary" href="#council">Meet the council</a>
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
 
@@ -163,7 +147,7 @@ async function LandingContent() {
                     </>
                   )}
                 </div>
-                <div className="council-bubble">Every call comes with a trust score, so you know how much to lean on it.</div>
+                <div className="council-bubble">Every signal comes with a confidence level, so you know how much to lean on it.</div>
               </div>
             </ParallaxLayer>
           </ParallaxStage>
@@ -171,7 +155,7 @@ async function LandingContent() {
       </header>
 
       <div className="peek-band" aria-label="Key platform metrics">
-        <div className="metric"><StatCounter value={6} /><span>AI analysts arguing every call — including one against you.</span></div>
+        <div className="metric"><StatCounter value={5} /><span>Specialist AI seats in the council — including one built to argue against you.</span></div>
         <div className="metric">
           {coverage ? <StatCounter value={coverage.checks} /> : <strong>—</strong>}
           <span>Stored signal checks in this preview.</span>
@@ -188,15 +172,36 @@ async function LandingContent() {
         <div className="wrap whats-new-inner">
           <span className="whats-new-label">What&apos;s new</span>
           <div className="whats-new-items">
-            <span className="wn-chip">Six-seat AI council</span>
+            <span className="wn-chip">Council design: five seats, one Chair</span>
             <span className="wn-chip">Ask Anything, per ticker</span>
-            <span className="wn-chip">Trust score on every call</span>
-            <span className="wn-chip">Checkable track record</span>
+            <span className="wn-chip">Confidence on every signal</span>
+            <span className="wn-chip">Public verdict pages</span>
             <span className="wn-chip">Free to start</span>
             <span className="wn-chip">New dark theme</span>
           </div>
         </div>
       </div>
+
+      <section id="open-two-ways">
+        <Reveal className="wrap">
+          <TwoAudiences
+            kicker="Wherever you're starting from"
+            title="Built for the curious and the committed."
+            beginner={{
+              heading: "Learn the market in plain English",
+              paragraphs: [
+                "Everything starts in words you already know: what moved today, why it matters, and what a specialist AI analyst makes of the names everyone is talking about. No jargon, no homework.",
+              ],
+            }}
+            trader={{
+              heading: "Depth you can check, not a pitch",
+              paragraphs: [
+                "Ranked, explained calls you can actually check: recorded council verdicts sit on public pages with direction, confidence, and an invalidation level when one was set - readable without an account.",
+              ],
+            }}
+          />
+        </Reveal>
+      </section>
 
       <section id="product">
         <div className="wrap">
@@ -207,7 +212,7 @@ async function LandingContent() {
             </div>
             <p className="section-copy">
               A daily briefing, ranked buy/sell/hold calls, a chat that knows the ticker you&apos;re
-              looking at, and a full argument between six AI analysts — on the web here, and in
+              looking at, and specialist AI answers with direction and confidence — on the web here, and in
               the NuWrrrld mobile app.
             </p>
           </Reveal>
@@ -217,15 +222,15 @@ async function LandingContent() {
               <h3>Morning Briefing</h3>
               <p>Start each day knowing the mood of the market in one glance — is it a good day to be aggressive, or a good day to sit on your hands.</p>
               <ul className="feature-list">
-                <li>Plain-English summary before the open.</li>
+                <li>Plain-English summary of what moved and why.</li>
                 <li>Which sectors are leading, at a glance.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.05} as="article" className="surface">
               <h3>Signal Feed</h3>
-              <p>Ranked buy, sell, and hold calls with a trust score and the reasoning behind each one.</p>
+              <p>Ranked buy, sell, and hold calls with a confidence level and the reasoning behind each one.</p>
               <ul className="feature-list">
-                <li>A trust score on every single call.</li>
+                <li>A confidence level on every single signal.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.1} as="article" className="surface">
@@ -238,11 +243,11 @@ async function LandingContent() {
               </ul>
             </Reveal>
             <Reveal delay={0.15} as="article" className="surface wide">
-              <h3>Six-Seat AI Council</h3>
-              <p>Six specialists debate every call, and one of them — RISK — is built to argue against you. Nothing reaches you until they&apos;ve named the exact price that would prove them wrong.</p>
+              <h3>The AI council: five seats, one Chair</h3>
+              <p>The council is designed as five specialist seats debating the call — one of them, RISK, is built to argue against you — with a Chair that settles it and, when it sets one, names the exact price that would prove it wrong.</p>
               <ul className="feature-list">
                 <li>Short-term trader · Long-term investor · The skeptic · Macro watcher · Pure numbers · The Chair, who calls it.</li>
-                <li>Every disagreement gets named, not smoothed over, before you get a final answer.</li>
+                <li>Disagreements get named, not smoothed over, before the Chair&apos;s final call.</li>
               </ul>
             </Reveal>
           </div>
@@ -324,22 +329,18 @@ async function LandingContent() {
           <div className="moat-grid">
             <Reveal delay={0} className="moat-card">
               <h3>Built to catch its own mistakes</h3>
-              <p>Every call carries a trust score, a confidence level, and the exact price that would prove it wrong — and we show you the track record, not just the pitch.</p>
+              <p>Signals carry a confidence level, and council calls carry an invalidation level when one was set - so you can see both the call and where it breaks.</p>
               <ul className="feature-list">
                 <li>Five independent signal families, weighted into one score.</li>
-                <li>The council can&apos;t answer without pointing to real data.</li>
+                <li>Full council sessions refuse to answer without live data.</li>
               </ul>
             </Reveal>
             <Reveal delay={0.08} className="moat-card">
-              <h3>It gets smarter every day</h3>
-              <p>Every call we make and every argument the council has is logged for good — so our track record only gets longer, and harder for anyone else to catch up to.</p>
+              <h3>A public record of calls</h3>
+              <p>Recorded council calls publish to public verdict pages - direction, confidence, horizon and invalidation as they were set.</p>
               <ul className="feature-list">
-                <li>
-                  {trackRecord
-                    ? `${trackRecord.hitRatePct}% rolling hit-rate across ${trackRecord.totalCalls.toLocaleString()} recorded calls.`
-                    : "Building our public track record — check back soon."}
-                </li>
-                <li>A growing archive of market days and council arguments.</li>
+                <li>Recorded calls on public pages - readable without an account.</li>
+                <li>An archive of market days and recorded calls.</li>
               </ul>
             </Reveal>
           </div>
@@ -352,8 +353,8 @@ async function LandingContent() {
         <div className="wrap">
           <Reveal className="section-head">
             <div>
-              <div className="kicker">Six-seat AI council</div>
-              <h2>One question. Six arguments. One answer you can trust.</h2>
+              <div className="kicker">The council design</div>
+              <h2>One question. Five arguments. One answer.</h2>
             </div>
             <p className="section-copy">
               The council doesn&apos;t just summarize — every seat has to point to real data and say exactly
@@ -393,8 +394,11 @@ async function LandingContent() {
               <div className="seat-tag chair-tag">CHAIR</div>
               <h3>The one who calls it</h3>
               <p>Weighs all five arguments, says plainly whether they agree or clash, and hands you one final call.</p>
-              <div className="verdict-example mono">
-                {`{"direction":"bullish","confidence":"high","horizon":"5-15d","invalidation":"<91"}`}
+              <div className="verdict-badge" aria-label="Illustrative verdict example">
+                <span className="verdict-badge-call buy">BUY</span>
+                <span className="verdict-badge-meta">High confidence · 5-15 day horizon</span>
+                <span className="verdict-badge-inv">Wrong if it falls under $91</span>
+                <span className="verdict-badge-note">Illustrative example of the verdict format</span>
               </div>
             </Reveal>
           </div>
@@ -427,13 +431,104 @@ async function LandingContent() {
 
       <HowItWorks />
 
+      <section id="who">
+        <Reveal className="wrap">
+          <div className="section-head">
+            <div className="kicker">Who it&rsquo;s for</div>
+            <h2>Two ways in.</h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
+            <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+              <h3>New to markets?</h3>
+              <p className="section-copy">
+                You don&rsquo;t need to speak finance to follow your money. We turn the flood of
+                market news into a short, plain-English read: what moved, why it matters, and
+                what a specialist AI analyst says about the names everyone is talking about.
+              </p>
+              <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                Free: market overview dashboard · public verdict pages · no card required<br />
+                Pro adds: the plain-English daily digest and morning briefing
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.6rem" }}>
+                <Link className="btn primary" href="/sign-up">Start free →</Link>
+                <Link href="/#council" style={{ fontSize: "0.85rem" }}>See how the council works ↓</Link>
+              </div>
+            </article>
+            <article style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+              <h3>Trade actively?</h3>
+              <p className="section-copy">
+                Start the day briefed. Overnight we score and rank signals across the stocks
+                and ETFs we track, and Pro adds the morning briefing and daily digest by email.
+                Ask Nu AI questions grounded in your holdings and watchlist, and weigh our
+                published calls on their public verdict pages.
+              </p>
+              <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                Free: market overview dashboard · public verdict pages<br />
+                Pro adds: morning briefing · daily digest · Nu AI
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.6rem" }}>
+                <Link className="btn primary" href="/pricing">Start your 7-day Pro trial →</Link>
+                <span className="hero-subtext">Card required for the trial</span>
+                <Link href="/signals" style={{ fontSize: "0.85rem" }}>Browse the signals</Link>
+              </div>
+            </article>
+          </div>
+        </Reveal>
+      </section>
+
+      <section id="features-twoway">
+        <Reveal className="wrap">
+          <div className="section-head section-head--solo">
+            <div>
+              <div className="kicker">Every feature, two ways to read it</div>
+              <h2>Same product. Your depth.</h2>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
+            {[
+              { name: "Market overview", tag: "Free",
+                b: "One calm screen: what moved today and why it matters, in words you already know.",
+                t: "Indices, sectors and volatility at a glance, with the day's signals alongside." },
+              { name: "Signals", tag: "Public preview",
+                b: "A short list of stocks worth a closer look, each with a plain-English reason and a confidence level.",
+                t: "Five signal families, ranked by confidence and refreshed every trading day, each naming the indicators that fired." },
+              { name: "Council verdicts", tag: "Public pages",
+                b: "Ask about a stock we track and a specialist AI analyst answers: the direction it leans, its confidence, and - when it sets one - the exact price that would prove it wrong.",
+                t: "Recorded council calls sit on public verdict pages - direction, confidence, horizon and invalidation as they were set, gaps included." },
+              { name: "Nu AI", tag: "Pro",
+                b: "Ask anything in plain English and get an answer grounded in your own holdings, not generic commentary.",
+                t: "Interrogate any position or signal with your portfolio, watchlist and the latest signals as context." },
+              { name: "Briefing and digest", tag: "Pro",
+                b: "A short morning read: what happened overnight and what to watch today.",
+                t: "Signals scored and ranked overnight, delivered in the morning briefing and the daily digest." },
+              { name: "Portfolio health", tag: "In the app",
+                b: "Your holdings get an A-to-F health grade, with plain-English reasons and the fixes that would help most.",
+                t: "Concentration, sector balance, momentum and volatility regime - with the factor behind every suggested fix." },
+              { name: "Web and mobile", tag: "One account",
+                b: "One account across the web and the mobile app.",
+                t: "Signals and briefings where you are - web at your desk, phone everywhere else." },
+            ].map(f => (
+              <article key={f.name} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "1.5rem" }}>
+                <h3>{f.name} <span style={{ fontSize: "0.7rem", fontWeight: 600, opacity: 0.7, verticalAlign: "middle" }}>{f.tag}</span></h3>
+                <p className="section-copy"><strong>New to markets:</strong> {f.b}</p>
+                <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}><strong>Trade actively:</strong> {f.t}</p>
+              </article>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
-          <h2>Stop asking a chart. Start asking a council.</h2>
+          <h2>Stop asking a chart. Start asking an analyst.</h2>
           <p>
-            One account gets you the daily briefing, ranked calls, Ask Anything chat, and the
-            full six-seat council — on the web here and in the mobile app.
+            New to markets? Start free - the market overview dashboard and public verdict pages
+            are yours while you learn, no card required.
+          </p>
+          <p>
+            Trade actively? Watch recorded calls land on the public verdict pages, and use the
+            7-day Pro trial for the morning briefing, daily digest and Nu AI (card required).
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
@@ -445,18 +540,7 @@ async function LandingContent() {
         </Reveal>
       </section>
 
-      <footer>
-        <span>NWF · NuWrrrld Financial</span>
-        <span>Six AI analysts. One straight answer.</span>
-        <span>
-          <Link href="/privacy-policy">Privacy</Link>
-          {" · "}
-          <Link href="/terms-of-service">Terms</Link>
-          {" · "}
-          <CookiePreferencesLink />
-        </span>
-      </footer>
+      <PreLoginFooter />
     </div>
   );
 }
-
