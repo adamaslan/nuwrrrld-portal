@@ -3,6 +3,7 @@ import "../landing-pages.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 
@@ -103,6 +104,24 @@ export default async function PortfolioIntelligenceLandingPage() {
             </div>
           ))}
         </section>
+
+        <TwoAudiences
+          title="Same grade, two ways to use it."
+          beginner={{
+            heading: "One letter, honestly earned",
+            paragraphs: [
+              "Your portfolio gets an A-to-F health grade, so a messy collection of positions turns into one clear answer: how healthy is this? Concentration, balance and volatility are explained as you go - no textbook required.",
+              "You also see the specific fixes that would help most, in priority order, and the factor behind each one.",
+            ],
+          }}
+          trader={{
+            heading: "A grade you can decompose",
+            paragraphs: [
+              "The score breaks down into concentration risk, sector balance, momentum and volatility regime, and the factor breakdown shows exactly what is lifting or dragging you.",
+              "Industry performance is tracked live so you can see which sectors are carrying the market today, and watchlists keep your names close for Nu AI.",
+            ],
+          }}
+        />
 
         <section className="landing-cta-block">
           <h2>See your portfolio, graded</h2>
