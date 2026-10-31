@@ -8,6 +8,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { recentVerdicts } from "@/lib/council-db";
+import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "../../landing.css";
@@ -40,16 +41,7 @@ export default async function VerdictPage({ params }: Props) {
 
   return (
     <div className="nwf-landing">
-      <nav className="topbar" aria-label="Primary navigation">
-        <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">NWF</span>
-          <span>NuWrrrld Financial</span>
-        </Link>
-        <div className="navlinks">
-          <Link className="nav-keep" href="/sign-in">Sign in</Link>
-          <Link className="nav-action" href="/sign-up">Start free →</Link>
-        </div>
-      </nav>
+      <PreLoginNav />
 
       <section className="cta" style={{ minHeight: "70vh" }}>
         <div className="wrap">
@@ -57,14 +49,20 @@ export default async function VerdictPage({ params }: Props) {
           <h2>${ticker}</h2>
 
           {latest ? (
-            <div className="public-demo-result" style={{ maxWidth: 560, margin: "24px auto" }}>
-              <p className="public-demo-result-label">
-                {DIRECTION_LABEL[latest.direction ?? ""] ?? "VERDICT"} · {latest.confidence ?? "—"} confidence
+            <>
+              <div className="public-demo-result" style={{ maxWidth: 560, margin: "24px auto" }}>
+                <p className="public-demo-result-label">
+                  {DIRECTION_LABEL[latest.direction ?? ""] ?? "VERDICT"} · {latest.confidence ?? "—"} confidence
+                </p>
+                <p className="public-demo-result-text">
+                  Horizon {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
+                </p>
+              </div>
+              <p className="section-copy" style={{ maxWidth: 560, margin: "0 auto 24px" }}>
+                Six AI analysts argued this call — including one whose job is to argue against it.
+                This is where they landed, and the exact price that would prove them wrong.
               </p>
-              <p className="public-demo-result-text">
-                Horizon {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
-              </p>
-            </div>
+            </>
           ) : (
             <p className="section-copy" style={{ maxWidth: 560, margin: "24px auto" }}>
               No council verdict recorded for ${ticker} yet — ask the council on the
@@ -74,19 +72,17 @@ export default async function VerdictPage({ params }: Props) {
 
           <div className="hero-actions">
             <Link className="btn primary" href="/sign-up">
-              Sign up to see full history
+              Start free →
             </Link>
             <Link className="btn secondary" href="/">
               Ask about another ticker
             </Link>
           </div>
+          <p className="hero-subtext">Free to start · no card required</p>
         </div>
       </section>
 
-      <footer>
-        <span>NWF · NuWrrrld Financial</span>
-        <span>Six AI analysts. One straight answer.</span>
-      </footer>
+      <PreLoginFooter />
 
       <DisclaimerModal surface="verdict" />
       <DisclaimerFooter surface="verdict" />
