@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { recentVerdicts } from "@/lib/council-db";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "../../landing.css";
@@ -69,6 +70,23 @@ export default async function VerdictPage({ params }: Props) {
               here as the council makes calls.
             </p>
           )}
+
+          <TwoAudiences
+            kicker="Two ways to read it"
+            title="How to read this verdict."
+            beginner={{
+              heading: "The call, the confidence, the exit",
+              paragraphs: [
+                "The verdict is the council's call: BUY, SELL or HOLD. Confidence says how strongly the six analysts lean, and the invalidation price is the level where they admit the call is wrong.",
+              ],
+            }}
+            trader={{
+              heading: "Published per call",
+              paragraphs: [
+                "Direction, confidence, horizon and invalidation are recorded for every verdict, and six seats argue each call - including one whose job is to argue against it.",
+              ],
+            }}
+          />
 
           <div className="hero-actions">
             <Link className="btn primary" href="/sign-up">
