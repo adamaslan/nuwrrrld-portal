@@ -319,37 +319,37 @@ The two tables below are rewritten in place between the `FT:COHORT` markers by
 `app/api/pipeline/followed-tickers-select/route.ts`.
 
 <!-- FT:COHORT:START -->
-**Selection run:** 2026-10-01 (20 picks)
+**Selection run:** 2026-11-01 (20 picks)
 
 ### Bulls (10)
 
 | Ticker | Direction | Added | Entry | Latest signal | Backtest | Council | Judge /10 | Days held | Thesis holding? |
 |---|---|---|---|---|---|---|---|---|---|
-| ITA | bull | 2026-10-01 | 207.78 | — | — | — | — | — | yes |
-| MGPI | bull | 2026-10-01 | 12.84 | — | — | — | — | — | yes |
-| ATO | bull | 2026-10-01 | 157.22 | — | — | — | — | — | yes |
-| BKNG | bull | 2026-10-01 | 159.02 | — | — | — | — | — | yes |
-| CMS | bull | 2026-10-01 | 63.74 | — | — | — | — | — | yes |
-| CNP | bull | 2026-10-01 | 37.8 | — | — | — | — | — | yes |
-| DTE | bull | 2026-10-01 | 124.435 | — | — | — | — | — | yes |
-| ESTC | bull | 2026-10-01 | 93.94 | — | — | — | — | — | yes |
-| ETR | bull | 2026-10-01 | 100.95 | — | — | — | — | — | yes |
-| EVRG | bull | 2026-10-01 | 79.17 | — | — | — | — | — | yes |
+| HCA | bull | 2026-11-01 | 473.19 | — | — | — | — | — | yes |
+| AGQ | bull | 2026-11-01 | 43.77 | — | — | — | — | — | yes |
+| BAC | bull | 2026-11-01 | 50.01 | — | — | — | — | — | yes |
+| BBGI | bull | 2026-11-01 | 6.33 | — | — | — | — | — | yes |
+| BBVA | bull | 2026-11-01 | 23.44 | — | — | — | — | — | yes |
+| BIDU | bull | 2026-11-01 | 76.4 | — | — | — | — | — | yes |
+| BILI | bull | 2026-11-01 | 12.68 | — | — | — | — | — | yes |
+| CDNL | bull | 2026-11-01 | 15.25 | — | — | — | — | — | yes |
+| CIFR | bull | 2026-11-01 | 7.29 | — | — | — | — | — | yes |
+| CLSK | bull | 2026-11-01 | 7.68 | — | — | — | — | — | yes |
 
 ### Bears (10)
 
 | Ticker | Direction | Added | Entry | Latest signal | Backtest | Council | Judge /10 | Days held | Thesis holding? |
 |---|---|---|---|---|---|---|---|---|---|
-| BSOL | bear | 2026-10-01 | 16.265 | — | — | — | — | — | yes |
-| DHR | bear | 2026-10-01 | 214.01 | — | — | — | — | — | yes |
-| JD | bear | 2026-10-01 | 25.77 | — | — | — | — | — | yes |
-| MRNA | bear | 2026-10-01 | 189.97 | — | — | — | — | — | yes |
-| SOLT | bear | 2026-10-01 | 74.855 | — | — | — | — | — | yes |
-| SOLZ | bear | 2026-10-01 | 11.72 | — | — | — | — | — | yes |
-| VEEV | bear | 2026-10-01 | 273.325 | — | — | — | — | — | yes |
-| WAT | bear | 2026-10-01 | 425.22 | — | — | — | — | — | yes |
-| WST | bear | 2026-10-01 | 365.52 | — | — | — | — | — | yes |
-| ADI | bear | 2026-10-01 | 417.32 | — | — | — | — | — | yes |
+| A | bear | 2026-11-01 | 174.87 | — | — | — | — | — | yes |
+| AES | bear | 2026-11-01 | 14.83 | — | — | — | — | — | yes |
+| AG | bear | 2026-11-01 | 14.26 | — | — | — | — | — | yes |
+| AI | bear | 2026-11-01 | 11.85 | — | — | — | — | — | yes |
+| CMI | bear | 2026-11-01 | 500.09 | — | — | — | — | — | yes |
+| FSLY | bear | 2026-11-01 | 23.115 | — | — | — | — | — | yes |
+| GTLB | bear | 2026-11-01 | 54.09 | — | — | — | — | — | yes |
+| IQV | bear | 2026-11-01 | 267.33 | — | — | — | — | — | yes |
+| MU | bear | 2026-11-01 | 886.91 | — | — | — | — | — | yes |
+| MUU | bear | 2026-11-01 | 24.08 | — | — | — | — | — | yes |
 <!-- FT:COHORT:END -->
 
 ---
