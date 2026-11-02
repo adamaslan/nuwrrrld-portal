@@ -252,7 +252,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         kind: "p",
-        text: "The drawdowns tell the same story. The worst equity-curve dip among these five ETFs was -17.4%. Among the 20 single stocks, drawdowns ran to -44%, -52%, and -59%. The strategy did not remove risk anywhere, but on ETFs it never fell apart.",
+        text: "The drawdowns tell the same story. The worst equity-curve dip among these five ETFs was -17.4%. Among the 20 single stocks, the deepest drawdowns ran to -47%, -52%, and -59%. The strategy did not remove risk anywhere, but on ETFs it never fell apart.",
       },
       {
         kind: "p",
@@ -346,7 +346,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "Data quirks" },
       {
         kind: "p",
-        text: "Both engines read Yahoo Finance daily bars, and Yahoo's adjustment can differ slightly between code paths. We also saw a six-call difference between two runs of the same data fetched minutes apart. Small, but worth knowing before you worship a decimal.",
+        text: "Both engines read Yahoo Finance daily bars, and Yahoo's adjustment can differ slightly between code paths. We also saw a nine-call difference between two runs of the same data fetched minutes apart: 258,941 calls in one run, 258,932 in the other, with hits at 130,507 vs 130,501. Small, but worth knowing before you worship a decimal.",
       },
       { kind: "h2", text: "The biggest gap" },
       {
@@ -491,7 +491,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "Expect small differences" },
       {
         kind: "p",
-        text: "Yahoo's data can shift slightly between runs, and our own two runs differed by six calls out of 258,932. The engine repos are public, so the scoring and detector logic behind every number here can be read directly - that is the part we will always keep inspectable.",
+        text: "Yahoo's data can shift slightly between runs, and our own two runs differed by nine calls out of roughly 259,000 (258,941 vs 258,932). The engine repos are public, so the scoring and detector logic behind every number here can be read directly - that is the part we will always keep inspectable.",
       },
       { kind: "list", items: [RUN_NOTE] },
     ],
@@ -500,4 +500,4 @@ export const BLOG_ARTICLES: BlogArticle[] = [
 
 export function getBlogArticle(slug: string): BlogArticle | undefined {
   return BLOG_ARTICLES.find((a) => a.slug === slug);
-          }
+}
