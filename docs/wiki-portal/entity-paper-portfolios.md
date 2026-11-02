@@ -91,10 +91,14 @@ tracks what's actually built against that 8-phase plan.
   also enforces `lib/pipeline-db-guard.ts`'s prod-DB guard (guardrail #2 —
   Phase 3 shipped without it) and computes the shared ≤36/run, ≤108/day
   model-call budget via `lib/paper-db.ts`'s new `getModelCallsToday`.
-- `.github/workflows/paper-portfolios.yml` (Phase 4) — 4 New York timezone
-  cron lines (one per slot), gate resolves which slot *window* the NY wall-clock time falls in
-  (PR #147 — originally an exact-minute match that never fired, see
-  [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]) rather
+- `.github/workflows/paper-portfolios.yml` (Phase 4) — three uncommon-minute
+  New York timezone cron entries per trading slot (ten entries in all, plus
+  settle). A trading slot runs from its nominal start until the next slot begins,
+  so a late queue still trades and is marked `late=true` (see
+  [[decision-paper-slots-run-until-next-slot]]). Originally an exact-minute
+  match that never fired (PR #147, see
+  [[incident-2026-09-22-paper-portfolios-slot-gate-never-matched]]); the gate
+  resolves the slot from the cron that fired, not from the wall clock, rather
   than a fixed hour (unlike `track-followed-tickers.yml`'s single-slot gate),
   `workflow_dispatch` inputs for a forced `slot`/`account`, a non-fatal
   "zero orders across all 8 accounts" sanity check on non-`settle` slots.
@@ -129,6 +133,8 @@ tracks what's actually built against that 8-phase plan.
   sparkline, `<DisclaimerFooter surface="paper" />`.
 
 ## Known failures
+
+> As of 2026-10-30 the leaderboard and arena hide Day, Sharpe and vs SPY figures behind the `paper_benchmark_metrics` flag ([[decision-dark-launch-flags]]) because the benchmark controls never invested. Trading and settle metrics keep running; the arena rank still uses Sharpe and vs SPY internally.
 
 None yet observed against live data — the deterministic engine (Phase 3) has
 only run against unit tests of its pure core, never a real Neon branch with

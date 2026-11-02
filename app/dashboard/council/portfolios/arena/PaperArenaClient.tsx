@@ -8,6 +8,12 @@ import {
   type JudgeKey,
 } from "@/lib/shared/paper-arena-view";
 import type { PaperAccount } from "@/lib/shared/paper-policy";
+import { flagLive } from "@/lib/flags";
+
+// Benchmark columns (Sharpe, vs SPY, day return) are hidden during the dark launch.
+// The rank still uses them internally; only the figures are withheld.
+const SHOW_BENCHMARKS = flagLive("paper_benchmark_metrics");
+const BENCHMARK_KEYS: ReadonlySet<JudgeKey> = new Set<JudgeKey>(["sharpeRf0", "activeReturnVsSpyPct"]);
 
 const ACCOUNT_COLORS: Record<PaperAccount, string> = {
   t1: "#ef4444",
@@ -152,6 +158,7 @@ function MetricsTable({
               {JUDGE_COLUMNS.map((c) => {
                 const v = r[c.key];
                 const isPct = c.key !== "sharpeRf0";
+                if (!SHOW_BENCHMARKS && BENCHMARK_KEYS.has(c.key)) return <td key={c.key}>—</td>;
                 return (
                   <td key={c.key} className={`${signClass(c.key === "hitRatePct" ? null : v)}${r.bestIn.includes(c.key) ? " pa-best" : ""}`}>
                     {isPct ? fmtPct(v, c.key === "hitRatePct" ? 0 : 1) : fmtNum(v)}
@@ -159,7 +166,7 @@ function MetricsTable({
                   </td>
                 );
               })}
-              <td className={signClass(r.dayReturnPct)}>{fmtPct(r.dayReturnPct)}</td>
+              {SHOW_BENCHMARKS ? <td className={signClass(r.dayReturnPct)}>{fmtPct(r.dayReturnPct)}</td> : <td>—</td>}
               <td>{fmtPct(r.annualizedVolPct)}</td>
               <td>{fmtPct(r.turnoverPct)}</td>
               <td>{fmtNum(r.avgHoldingPeriodDays, 1)}</td>

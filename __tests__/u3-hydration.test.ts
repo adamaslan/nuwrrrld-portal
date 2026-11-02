@@ -48,9 +48,8 @@ describe("hydration runner failure finalization", () => {
       env: { PORTAL_PUSH_SECRET: "test", ALPACA_API_KEY: "test", ALPACA_API_SECRET: "test" },
       cwd: () => "/unused", exitCode: 0,
     };
-    let budgetCalls = 0;
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-    const execute = new AsyncFunction("process", "readFileSync", "join", "fetch", "console", "newYorkDate", "acquireAlpacaBudget", "MIN_BARS", "LOOKBACK_DAYS", "FETCH_CHUNK_SIZE", "CHUNK_SIZE", "sipHistoryEnd", "SIP_DELAY_MINUTES", "ALPACA_PAGE_LIMIT", "ALPACA_FEED", "ALPACA_ADJUSTMENT", script);
+    const execute = new AsyncFunction("process", "readFileSync", "join", "fetch", "console", "newYorkDate", "MIN_BARS", "LOOKBACK_DAYS", "FETCH_CHUNK_SIZE", "CHUNK_SIZE", "sipHistoryEnd", "SIP_DELAY_MINUTES", "ALPACA_PAGE_LIMIT", "ALPACA_FEED", "ALPACA_ADJUSTMENT", script);
     await execute(fakeProcess, () => { throw new Error("no credential files"); }, () => "/unused",
       async (_url: unknown, init?: { body?: string }) => {
         if (!init?.body) return { ok: true, json: async () => ({ bars: {} }) };
@@ -58,8 +57,8 @@ describe("hydration runner failure finalization", () => {
         requests.push(body);
         return { ok: true, json: async () => ({ status: "fail", logged: true }) };
       }, { log: (line: string) => logs.push(line), warn: () => {}, error: () => {} },
-      newYorkDate, async () => { budgetCalls++; throw new Error("budget unavailable"); }, 40, 365, 150, 35, sipHistoryEnd, 15, 10000, "sip", "split");
-    expect(budgetCalls).toBe(1);
+      newYorkDate, 40, 365, 150, 35, sipHistoryEnd, 15, 10000, "sip", "split");
+    expect(logs).toContain("[usage] alpaca_requests=1");
     expect(requests).toHaveLength(1);
     expect(requests[0].complete).toBe(true);
     expect(requests[0].items).toEqual([{ subject: "AAPL", model: null, outcome: "fail" }]);
@@ -88,10 +87,9 @@ describe("hydration runner stored history and transport", () => {
       const fakeProcess = { argv: ["node", "hydrate-local", `--symbols=${symbols.join(",")}`],
         env: { PORTAL_PUSH_SECRET: "test", ALPACA_API_KEY: "test", ALPACA_API_SECRET: "test" },
         cwd: () => "/unused", exitCode: 0 };
-      let budgetCalls = 0;
       const dependencies = { process: fakeProcess, readFileSync: () => { throw new Error("no credential files"); },
         join: () => "/unused", console: { log: () => {}, warn: () => {}, error: () => {} },
-        ...indicators, ...constants, acquireAlpacaBudget: async () => { budgetCalls++; },
+        ...indicators, ...constants,
         fetch: async (input: URL | string, init?: { body?: string }) => {
           const url = new URL(input);
           if (url.hostname === "data.alpaca.markets") {
@@ -111,7 +109,6 @@ describe("hydration runner stored history and transport", () => {
         .replace(/main\(\)\.catch\([\s\S]*$/, "await main();");
       const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
       await new AsyncFunction(...Object.keys(dependencies), script)(...Object.values(dependencies));
-      expect(budgetCalls).toBe(vendorRequests.length);
       expect(vendorRequests).toHaveLength(2);
       for (const request of vendorRequests) {
         expect(request.searchParams.get("feed")).toBe("sip");
@@ -147,7 +144,7 @@ describe("late intraday runner", () => {
       process: { argv: ["node", "hydrate-local", "--intraday"],
         env: { PORTAL_PUSH_SECRET: "test", ALPACA_API_KEY: "test", ALPACA_API_SECRET: "test" }, cwd: () => "/unused" },
       readFileSync: () => { throw new Error("no credential files"); }, join: () => "/unused",
-      ...indicators, ...constants, acquireAlpacaBudget: async () => {},
+      ...indicators, ...constants,
       console: { log: (line: string) => logs.push(line), warn: () => {}, error: () => {} },
       fetch: async (input: URL | string) => {
         requests.push(String(input));
@@ -173,7 +170,7 @@ describe("hydration unexpected failure logging", () => {
       process: { argv: ["node", "hydrate-local", ...(failure === "clock" ? ["--intraday"] : [])],
         env: { PORTAL_PUSH_SECRET: "test", ALPACA_API_KEY: "test", ALPACA_API_SECRET: "test" }, cwd: () => "/unused", exitCode: 0 },
       readFileSync: () => { throw new Error("no credential files"); }, join: () => "/unused",
-      ...indicators, ...constants, acquireAlpacaBudget: async () => {},
+      ...indicators, ...constants,
       console: { log: () => {}, warn: () => {}, error: () => {} },
       fetch: async (_input: unknown, init?: { body?: string }) => {
         if (!init?.body) throw originalError;

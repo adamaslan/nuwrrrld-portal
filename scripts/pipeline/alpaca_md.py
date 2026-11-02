@@ -1,4 +1,4 @@
-"""Alpaca-first market data (daily bars, snapshots) with a shared rate budget.
+"""Alpaca-first market data (daily bars, snapshots) with local request pacing.
 
 Canonical copy of the NuWrrrld market-data client. Each repo vendors this file
 unchanged; edit it in one place and re-copy. Policy: ~/.claude/rules/market-data-fallback.md.
@@ -6,10 +6,9 @@ unchanged; edit it in one place and re-copy. Policy: ~/.claude/rules/market-data
 * Paper key pair only. Never points at the live trading host.
 * ``daily_bars`` returns yfinance-shaped DataFrames (Open/High/Low/Close/Volume,
   tz-naive DatetimeIndex) so existing indicator code needs no changes.
-* Every request first reserves a token from the DynamoDB ``nwf_rate_budget``
-  counter (cap 190/min across all pipelines). When boto3, AWS credentials or the
-  table are unavailable it logs a WARNING once and paces locally instead; it
-  never switches vendor because the budget was unreachable.
+* Requests are paced locally (one per ``LOCAL_MIN_INTERVAL_SECONDS``). There is
+  no shared AWS-backed rate budget; see docs/alpaca-budget-removed-2026-10-20.md
+  for how to restore it.
 * Missing tickers are returned as absent keys (fail closed). Callers decide
   whether a fallback vendor is allowed on their host.
 """
@@ -30,24 +29,14 @@ SYMBOLS_PER_REQUEST = 150
 HTTP_TIMEOUT_SECONDS = 30
 MAX_RETRIES = 4
 RATE_LIMIT_STATUS_CODE = 429
-ALPACA_MAX_PER_MINUTE = 190
-BUDGET_TABLE = "nwf_rate_budget"
-BUDGET_TTL_SECONDS = 3600
-BUDGET_MAX_WAITS = 3
 LOCAL_MIN_INTERVAL_SECONDS = 0.35
 SIP_DELAY_MINUTES = 20  # SIP is only served for bars older than ~15 min on the Basic plan
 
-_budget_table = None
-_budget_disabled_reason: str | None = None
 _last_request_at = 0.0
 
 
 class AlpacaError(RuntimeError):
     """Alpaca request failed after retries (callers may fall back, and must log it)."""
-
-
-class AlpacaBudgetExhausted(AlpacaError):
-    pass
 
 
 def to_alpaca_symbol(ticker: str) -> str:
@@ -72,59 +61,13 @@ def is_configured() -> bool:
     return bool(os.environ.get("ALPACA_API_KEY") and os.environ.get("ALPACA_API_SECRET"))
 
 
-# -- shared rate budget -------------------------------------------------------------
-def _get_budget_table():
-    global _budget_table, _budget_disabled_reason
-    if _budget_table is not None or _budget_disabled_reason:
-        return _budget_table
-    if os.environ.get("NWF_RATE_BUDGET", "").lower() == "off":
-        _budget_disabled_reason = "NWF_RATE_BUDGET=off"
-        return None
-    try:
-        import boto3
-
-        session = boto3.Session(profile_name=os.environ.get("NWF_AWS_PROFILE") or None,
-                                region_name=os.environ.get("AWS_REGION", "us-east-1"))
-        if session.get_credentials() is None:
-            raise RuntimeError("no AWS credentials")
-        _budget_table = session.resource("dynamodb").Table(BUDGET_TABLE)
-    except Exception as exc:  # boto3 absent, no creds, bad profile: all mean "budget unreachable"
-        _budget_disabled_reason = f"{type(exc).__name__}: {exc}"
-        log.warning("alpaca rate budget unavailable (%s); pacing locally at %.2fs/request",
-                    _budget_disabled_reason, LOCAL_MIN_INTERVAL_SECONDS)
-    return _budget_table
-
-
-def _take_token(n: int = 1) -> None:
+# -- local pacing -------------------------------------------------------------------
+def _pace() -> None:
     global _last_request_at
-    table = _get_budget_table()
-    if table is None:
-        wait = LOCAL_MIN_INTERVAL_SECONDS - (time.monotonic() - _last_request_at)
-        if wait > 0:
-            time.sleep(wait)
-        _last_request_at = time.monotonic()
-        return
-    from botocore.exceptions import BotoCoreError, ClientError
-
-    for _ in range(BUDGET_MAX_WAITS):
-        now = time.time()
-        try:
-            table.update_item(
-                Key={"bucket": f"alpaca#{int(now // 60)}"},
-                UpdateExpression="ADD used :n SET expires_at = :exp",
-                ConditionExpression="attribute_not_exists(used) OR used <= :room",
-                ExpressionAttributeValues={":n": n, ":room": ALPACA_MAX_PER_MINUTE - n,
-                                           ":exp": int(now) + BUDGET_TTL_SECONDS})
-            return
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
-                log.warning("alpaca rate budget write failed (%s); pacing locally", exc)
-                return
-            time.sleep(60 - (time.time() % 60) + 1)  # wait for the next minute, never switch vendor
-        except BotoCoreError as exc:  # endpoint down or credential refresh failed: pace locally
-            log.warning("alpaca rate budget unreachable (%s); pacing locally", exc)
-            return
-    raise AlpacaBudgetExhausted("shared Alpaca budget still exhausted after waiting")
+    wait = LOCAL_MIN_INTERVAL_SECONDS - (time.monotonic() - _last_request_at)
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_at = time.monotonic()
 
 
 # -- http ----------------------------------------------------------------------------
@@ -132,7 +75,7 @@ def _get(path: str, params: dict) -> dict:
     headers = _credentials()
     last: Exception | None = None
     for attempt in range(MAX_RETRIES):
-        _take_token(1)
+        _pace()
         try:
             resp = requests.get(DATA_URL + path, params=params, headers=headers,
                                 timeout=HTTP_TIMEOUT_SECONDS)

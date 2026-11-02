@@ -89,9 +89,8 @@ finnhub_secret = modal.Secret.from_name("nuwrrrld-finnhub")
 raw_volume = modal.Volume.from_name("nwf4-raw")
 models_volume = modal.Volume.from_name("nwf4-models")
 
-# Exactly the 6 tables this pipeline owns, with their partition key attribute.
+# The 5 tables this pipeline owns, with their partition key attribute.
 DYNAMO_TABLES = {
-    "nwf_rate_budget": "bucket",
     "nwf_seen": "key",
     "nwf_news_cursor": "stream",
     "nwf_llm_cache": "key",

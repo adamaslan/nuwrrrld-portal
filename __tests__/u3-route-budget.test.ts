@@ -10,7 +10,6 @@ vi.mock("@/lib/ticker-cards-db", () => ({
   coverageForUniverseAndDate: vi.fn().mockResolvedValue({ expected: 1, filled: 1 }),
 }));
 import { GET, POST } from "@/app/api/pipeline/hydrate-universe/route";
-import { acquireAlpacaBudget } from "@/lib/alpaca-budget.mjs";
 import { chunk, SYMBOLS_PER_REQUEST } from "@/scripts/lib/alpaca-live-prices.mjs";
 
 function request(query = "", body?: unknown) {
@@ -78,27 +77,9 @@ describe("hydration metadata", () => {
   });
 });
 
-describe("shared Alpaca budget", () => {
+describe("live trade batching", () => {
   it("batches live trades in groups of 150 with a short tail", () => {
     expect(SYMBOLS_PER_REQUEST).toBe(150);
     expect(chunk(Array.from({ length: 301 }, (_, index) => index), SYMBOLS_PER_REQUEST).map((batch: number[]) => batch.length)).toEqual([150, 150, 1]);
-  });
-  it("atomically reserves within the shared 190-call minute bucket", async () => {
-    const updateItem = vi.fn().mockResolvedValue({});
-    await acquireAlpacaBudget({ calls: 7, now: Date.parse("2026-10-13T14:32:59Z"), updateItem });
-    expect(updateItem).toHaveBeenCalledWith(expect.objectContaining({ Key: { bucket: { S: "alpaca#2026-10-13T14:32" } },
-      ConditionExpression: "attribute_not_exists(calls) OR calls <= :cap",
-      ExpressionAttributeValues: expect.objectContaining({ ":n": { N: "7" }, ":cap": { N: "183" } }) }));
-  });
-  it.each([0, -1, 191, 1.5, NaN])("rejects invalid call count %s before reserving", async (calls) => {
-    const updateItem = vi.fn();
-    await expect(acquireAlpacaBudget({ calls, updateItem })).rejects.toThrow("integer between 1 and 190");
-    expect(updateItem).not.toHaveBeenCalled();
-  });
-  it("fails closed before the vendor request when reservation rejects", async () => {
-    const vendorRequest = vi.fn();
-    const updateItem = vi.fn().mockRejectedValue(new Error("capacity exhausted"));
-    await expect((async () => { await acquireAlpacaBudget({ updateItem }); await vendorRequest(); })()).rejects.toThrow("capacity exhausted");
-    expect(vendorRequest).not.toHaveBeenCalled();
   });
 });

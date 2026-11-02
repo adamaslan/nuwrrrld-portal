@@ -7,6 +7,13 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #316 assessment — 2026-10-30
+
+The portal now hides five surfaces behind dark-launch flags ([[decision-dark-launch-flags]]): track-record hit rates, paper benchmark metrics, top movers, the news-vote confluence component, and the public council demo. This is a one-surface change with no shared module touched. Whether mobile shows the same figures is unchecked, so the matrix rows for Backtest, Hold/Fold and the public demo are unchanged and the headline percentage is not recomputed here. It is computed on the last-merging branch. Mobile impact: unverified, no port required yet.
+
+## PR #292 infrastructure assessment — 2026-10-15
+
+The NWF portal now proposes a separate Terraform slot and records its validation and billing gate in [[entity-new-pipeline-infrastructure]]. This PR changes no client feature or shared application module. The existing feature-domain matrix, its denominator, and the historical ~62% headline remain unchanged; this is a scoped assessment, not a fresh parity audit. The mobile mirror records the same disposition.
 ## PR #304 assessment — 2026-10-21
 
 Portal PR #304 makes scheduled grounding compilation fail when a live model
@@ -15,6 +22,7 @@ This changes backend workflow reliability only: no mobile feature, shared
 client module, API contract, or parity-matrix row changed. The historical ~62%
 headline and matrix remain unchanged; this is a scoped assessment, not a fresh
 parity audit. The fix is pending independent Claude review and is not deployed.
+
 
 ## PR #296 assessment — 2026-10-18
 
@@ -70,6 +78,7 @@ and its denominator remain unchanged.
 | Pipeline issue lifecycle | Nine existing alert workflows gain eligible recovery close and optional transition push | No mobile client or shared-module change; no port required |
 | Validation | Mocked issue/push lifecycle and workflow checks passed | Client and deployed behavior unverified |
 
+> ℹ️ **Portal PR for paper slot scheduling (2026-10-27) assessed — portal-only pipeline change, headline unchanged at ~62%.** Trading slots now run from their nominal start until the next slot begins, instead of within 30 minutes, and each slot has three uncommon-minute cron entries ([[decision-paper-slots-run-until-next-slot]]). Changes are confined to `.github/` (gate, workflow and their tests). No `lib/shared/` module changed, so the feature-domain matrix and its denominator did not move. Mobile has no paper-trading code, so there is no counterpart to port.
 > ℹ️ **Portal PRs #261–#272 (2026-10-13) assessed — portal-only changes, headline unchanged at ~62%.** A drain of the portal PR queue: a paper-arena comparison page (with nav links and a real last-run status for paper portfolios), a `/api/health` check that flags a placeholder Stripe webhook secret, lighter data loading on the dashboard and homepage, the CI alert lifecycle (deduplicated issues, closed on recovery, optional push), plus a skipped malformed-digest e2e case, agent-tier docs, a model-usage report and a free-model chain refresh. No `lib/shared/` module changed, so the feature-domain matrix and its denominator did not move. The arena page extends the paper-trading domain on the web only; porting it to mobile is optional and creates no new sync requirement. Each PR had a static review by a second model; none were verified on a deployed environment.
 
 ## The pattern

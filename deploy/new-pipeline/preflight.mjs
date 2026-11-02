@@ -17,8 +17,8 @@ function alpacaUrl(now) {
   return url;
 }
 
-// One manual read only. This deliberately skips the shared nwf_rate_budget
-// counter, so it must not be copied as the pattern for scheduled ingestion.
+// One manual read only. It makes a single Alpaca call with no request budget,
+// so it must not be copied as the pattern for scheduled ingestion.
 async function checkAlpaca(env, fetchImpl, now) {
   const response = await fetchImpl(alpacaUrl(now), {
     headers: {

@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { NU_AI_DISCLAIMER } from "@/lib/nuai";
 import type { ChatMessage } from "@/lib/nuai";
 import { consumeSSE } from "@/lib/shared/sse";
+import { MarkdownLite } from "@/components/MarkdownLite";
 import "./nuai.css";
 
 const SUGGESTED_PROMPTS = [
@@ -108,6 +109,8 @@ export function NuAIChat() {
           <div key={i} className={`nuai-bubble nuai-bubble--${m.role}`}>
             {m.role === "assistant" && m.content === "" && loading ? (
               <p className="nuai-typing">Nu AI is thinking…</p>
+            ) : m.role === "assistant" ? (
+              <MarkdownLite className="nuai-bubble-text" text={m.content} />
             ) : (
               <p className="nuai-bubble-text">{m.content}</p>
             )}

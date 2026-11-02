@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import type { LeaderboardVM, AccountDetailVM, NavSeriesPointVM } from "@/lib/shared/paper-view";
 import type { PaperAccount } from "@/lib/shared/paper-policy";
+import { flagLive } from "@/lib/flags";
+
+// Benchmark figures (vs SPY, vs equal, day return, Sharpe) are hidden during the dark launch.
+const SHOW_BENCHMARKS = flagLive("paper_benchmark_metrics");
 
 interface Props {
   initial: LeaderboardVM;
@@ -90,12 +94,12 @@ function AccountDetail({ account }: { account: PaperAccount }) {
 
       {detail.metrics && (
         <div className="pp-metrics-grid" role="table" aria-label="Performance metrics">
-          <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">Sharpe (rf=0)</span><span role="cell">{fmtNum(detail.metrics.sharpeRf0)}</span></div>
+          {SHOW_BENCHMARKS && <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">Sharpe (rf=0)</span><span role="cell">{fmtNum(detail.metrics.sharpeRf0)}</span></div>}
           <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">Ann. vol</span><span role="cell">{fmtPct(detail.metrics.annualizedVol != null ? detail.metrics.annualizedVol * 100 : null)}</span></div>
           <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">Max drawdown</span><span role="cell" className="pp-neg">{fmtPct(detail.metrics.maxDrawdown != null ? detail.metrics.maxDrawdown * 100 : null)}</span></div>
           <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">Hit rate</span><span role="cell">{fmtPct(detail.metrics.hitRate != null ? detail.metrics.hitRate * 100 : null, 0)} ({detail.metrics.closedPositions})</span></div>
-          <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">vs SPY</span><span role="cell" className={returnClass(detail.metrics.activeReturnVsSpy)}>{fmtPct(detail.metrics.activeReturnVsSpy != null ? detail.metrics.activeReturnVsSpy * 100 : null)}</span></div>
-          <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">vs equal</span><span role="cell" className={returnClass(detail.metrics.activeReturnVsEqual)}>{fmtPct(detail.metrics.activeReturnVsEqual != null ? detail.metrics.activeReturnVsEqual * 100 : null)}</span></div>
+          {SHOW_BENCHMARKS && <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">vs SPY</span><span role="cell" className={returnClass(detail.metrics.activeReturnVsSpy)}>{fmtPct(detail.metrics.activeReturnVsSpy != null ? detail.metrics.activeReturnVsSpy * 100 : null)}</span></div>}
+          {SHOW_BENCHMARKS && <div role="row" className="pp-metric"><span role="cell" className="pp-metric-label">vs equal</span><span role="cell" className={returnClass(detail.metrics.activeReturnVsEqual)}>{fmtPct(detail.metrics.activeReturnVsEqual != null ? detail.metrics.activeReturnVsEqual * 100 : null)}</span></div>}
         </div>
       )}
 
@@ -179,8 +183,8 @@ export function PaperPortfoliosClient({ initial }: Props) {
             </span>
             <span role="cell" data-label="NAV">${row.nav.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
             <span role="cell" data-label="Total return" className={returnClass(row.totalReturnPct)}>{fmtPct(row.totalReturnPct)}</span>
-            <span role="cell" data-label="Day" className={returnClass(row.dayReturnPct)}>{fmtPct(row.dayReturnPct)}</span>
-            <span role="cell" data-label="Sharpe">{fmtNum(row.sharpeRf0)}</span>
+            <span role="cell" data-label="Day" className={SHOW_BENCHMARKS ? returnClass(row.dayReturnPct) : undefined}>{SHOW_BENCHMARKS ? fmtPct(row.dayReturnPct) : "—"}</span>
+            <span role="cell" data-label="Sharpe">{SHOW_BENCHMARKS ? fmtNum(row.sharpeRf0) : "—"}</span>
             <span role="cell" data-label="Max DD" className="pp-neg">{fmtPct(row.maxDrawdownPct)}</span>
           </button>
         ))}

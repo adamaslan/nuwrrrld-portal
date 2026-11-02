@@ -18,7 +18,7 @@ card score. Three files, split so the logic is testable without a network:
   the lexicon scorer, the ensemble, §6.4 aggregation, labeling, rank-IC / hit
   rate / decile / Brier metrics, the weight state machine, and `due_jobs()`.
   Covered by an offline test suite.
-- `news_io.py` — Alpaca (shared rate budget), Finnhub (corroboration only),
+- `news_io.py` — Alpaca (no shared rate budget; a 429 stops the run, [[decision-no-shared-alpaca-budget]]), Finnhub (corroboration only),
   DynamoDB stores, Neon helpers.
 - `modal_app.py` — the seven jobs plus a dispatcher.
 

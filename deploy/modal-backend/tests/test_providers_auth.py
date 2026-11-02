@@ -72,14 +72,6 @@ def test_rate_limit_exhausts_retries_and_4xx_is_not_retried(monkeypatch):
 
 
 @respx.mock
-def test_every_request_takes_a_shared_budget_token():
-    respx.get(f"{alpaca.DATA_URL}/v2/stocks/bars").mock(return_value=httpx.Response(200, json=bars_payload("SPY")))
-    taken = []
-    provider(take_tokens=taken.append).daily_bars(["SPY"], dt.date(2026, 10, 5), dt.date(2026, 10, 6))
-    assert taken == [1]
-
-
-@respx.mock
 def test_spread_and_corporate_actions_and_healthcheck():
     respx.get(f"{alpaca.DATA_URL}/v2/stocks/snapshots").mock(return_value=httpx.Response(200, json={"SPY": {"latestQuote": {"ap": 100.1, "bp": 99.9}}}))
     assert provider().spread_bps("SPY") == D("20.000")
