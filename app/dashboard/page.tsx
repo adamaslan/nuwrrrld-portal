@@ -8,6 +8,7 @@ import { isNulogdashAdmin } from "@/lib/nulogdash";
 import { DashboardCockpit } from "./DashboardCockpit";
 import { HealthBanner } from "./HealthBanner";
 import type { IndexChip, MoverChip } from "./DashboardCockpit";
+import { flagLive } from "@/lib/flags";
 import "./dashboard.css";
 
 interface IndexEntry {
@@ -60,7 +61,11 @@ export default async function Dashboard({
   const params = await searchParams;
   const checkoutSuccess = params.checkout === "success";
 
-  const [market, movers] = await Promise.all([fetchMarketOverview(), fetchTopMovers()]);
+  // Top movers are hidden during the dark launch (holdfold data is stale), so skip the read.
+  const [market, movers] = await Promise.all([
+    fetchMarketOverview(),
+    flagLive("holdfold_top_movers") ? fetchTopMovers() : Promise.resolve([] as MoverChip[]),
+  ]);
 
   const indices: IndexChip[] = market?.brief?.indices
     ? Object.entries(market.brief.indices).slice(0, 4).map(([name, idx]) => ({

@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-10-24 (PR #309 slot 2 Terraform landed; parity unchanged at ~62%)_
+_Last updated: 2026-11-02 (PR #309 slot 2 Terraform review; parity unchanged)_
 
 **Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
 JS indicator and card policies and targets `nwf-hydration`. It changes no
@@ -9,7 +9,7 @@ The deployment gates and unverified status are recorded in
 [[entity-ticker-universe-pipeline]] and [[concept-mobile-web-parity]].
 
 **PR #291 and homebase PR #8 scope:** the manual GCP provider preflight and
-unapplied Terraform foundation changed no client or
+Terraform foundation changed no client or
 shared module. The [[concept-mobile-web-parity]] headline and domain matrix
 remain ~62% and unchanged; [[concept-sync-requirements]] adds no mobile port.
 
@@ -67,11 +67,12 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-consent-system]] — cookie/tracking consent (`nu_consent` cookie, `consent_records`), express ToS/Privacy consent at sign-up (`legal_consent_events`), and data-subject-rights endpoints (`/api/privacy/{export,profile,delete}`); `lib/shared/consent.ts`, `lib/consent-db.ts`, `app/api/consent`, PR #77
 
 **Dev Tooling / Workflow**
+- [[entity-new-pipeline-infrastructure]] — historical single-slot `nwf-new-*` Terraform proposal from PR #292; never applied and superseded by the per-slot implementation
+- [[entity-slot2-terraform]] — applied core and hydration Terraform foundation, with 10 additional resources pending owner approval; PR #309
 - [[entity-dev-command-suite]] — the `.claude/commands/` catalog: `/pr`, `/sync-pr`, `/bugmerge1`, `/postbugmergerev`, `/friction`, `/suggest-commands`, `/resume-safe`, `/local-check`, `/nulogdash`; guardrails + the pre-PR conflict guard
 - [[entity-nulogdash]] — the self-audit surface: `FEATURE_META` inventory ↔ `app/api/**` filesystem scan with bidirectional drift warnings, the sweep runner, and the MFA-gated admin console at `/dashboard/nulogdash`
 - [[entity-playwright-e2e]] — the fourth test layer above vitest: `e2e/` credential-gated fault injection (preflight/health/ci/frontend tiers), `e2e-resiliency.yml` CI, and the nulogdash browser-tier merge
 - [[entity-gcp-credential-preflight]] — manual Cloud Run check of existing Alpaca and OpenRouter credentials; no production data writes
-- [[entity-slot2-terraform]] — the one Terraform root for slot 2 GCP identities, registries, buckets, WIF and empty secret containers; applied 2026-10-17, landed on main by PR #309
 
 ---
 
@@ -107,6 +108,7 @@ Cross-cutting patterns and design choices.
 Recorded design decisions — the *why* behind the architecture.
 
 - [[decision-paper-arena-settle-metrics]] — reuse validated settle metrics and batch fallback reads for the arena; keep per-account failure isolation
+- [[decision-paper-slots-run-until-next-slot]] — a paper trading slot runs from its nominal start until the next slot begins, so late cron queues still trade; the 30-minute cap was not a price-freshness constraint because prices refresh in the same job before the POST
 - [[decision-four-field-verdict-scaffold]] — 4 verdict fields, not 6 (small models drop later directives)
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
@@ -115,6 +117,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-no-shared-alpaca-budget]] — Alpaca requests are paced or counted per pipeline; no AWS-backed shared budget
+- [[decision-dark-launch-flags]] — wrong-number surfaces hide behind constant flags that all start `off`; promotion is a reviewed code change
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-exact-offset-and-fresh-price-for-followed-tickers]] — benchmark horizons exit on their own trading-day offset (a missing close voids, never borrows a later one); prices must be dated on or after a freshness bound and record their source
 - [[decision-afternoon-pipeline-cron-split]] — scheduling split across GHA (afternoon pre-close), GCP Cloud Scheduler (market-clock jobs), and Vercel (pre-market warm + weekly calibrator) instead of one runner

@@ -19,6 +19,14 @@
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --out=backups/manual.sqlite
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --tables=ticker_universe,ticker_cards
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --exclude=corpus_chunks,grounding_pack
+ *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --chunk=5000
+ *
+ * Tables are read in keyset-paginated chunks over their PRIMARY KEY (see
+ * scripts/backup-pagination.mjs): Neon's serverless HTTP driver buffers each
+ * query's whole result and rejects responses over 64 MB (507), which killed
+ * this script once daily_bars outgrew the cap. --chunk overrides the starting
+ * chunk size (default 10000 rows); it halves itself automatically if a chunk
+ * still trips the cap.
  *
  * Never overwrites an existing file — each run creates a new timestamped
  * snapshot (or fails if --out already exists), so a bad run can't destroy a
@@ -28,6 +36,7 @@ import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { neon } from "@neondatabase/serverless";
+import { fetchTableChunks, DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
 
 function parseArgs(argv) {
   const out = {};
@@ -137,6 +146,25 @@ async function getColumns(table) {
   return rows;
 }
 
+/** PRIMARY KEY columns in key order, read live like the column list above.
+ * Drives keyset pagination in scripts/backup-pagination.mjs; a table with no
+ * PK returns [] and falls back to OFFSET pagination there. */
+async function getPrimaryKeyColumns(table) {
+  const rows = await sql`
+    SELECT kcu.column_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+     AND tc.table_schema = kcu.table_schema
+     AND tc.table_name = kcu.table_name
+    WHERE tc.table_schema = 'public'
+      AND tc.table_name = ${table}
+      AND tc.constraint_type = 'PRIMARY KEY'
+    ORDER BY kcu.ordinal_position
+  `;
+  return rows.map((r) => r.column_name);
+}
+
 async function main() {
   console.log(`Backing up ${url.replace(/:\/\/.*@/, "://***@")} -> ${outPath}\n`);
 
@@ -194,36 +222,52 @@ async function main() {
     const pgColumns = allPgColumns.filter((c) => sqliteColNames.has(c.column_name));
     const colNames = pgColumns.map((c) => c.column_name);
     const selectList = colNames.map((c) => `"${c}"`).join(", ");
-    // NOTE: each table is read in its own implicit transaction, so a snapshot
-    // taken while the DB is being written can be mixed-time across tables.
-    // `PRAGMA foreign_key_check` below catches cross-table FK inconsistency but
-    // not all skew. A single read-only RepeatableRead transaction for every
-    // read would fix it, but neon()'s `sql.transaction()` takes a static query
-    // list and can't interleave the per-table SQLite INSERTs — that needs a
-    // read-all-then-write-all restructure. Acceptable for a manual/nightly
-    // backup of a low-write DB; revisit if it ever runs against live traffic.
-    const rows = await sql.query(`SELECT ${selectList} FROM "${table}"`);
+    // NOTE: each chunk is read in its own implicit transaction, so a
+    // snapshot taken while the DB is being written can be mixed-time across
+    // (and now within) tables. `PRAGMA foreign_key_check` below catches
+    // cross-table FK inconsistency but not all skew. A single read-only
+    // RepeatableRead transaction for every read would fix it, but neon()'s
+    // HTTP `sql.transaction()` takes a static query list and can't
+    // interleave the per-chunk SQLite INSERTs — and one giant read is
+    // exactly what the 64 MB response cap forbids. Acceptable for a
+    // manual/nightly backup of a low-write DB; revisit if it ever runs
+    // against live traffic.
+    const pkColumns = await getPrimaryKeyColumns(table);
+    const chunkRows = args.chunk ? Number(args.chunk) : DEFAULT_CHUNK_ROWS;
+    if (!Number.isInteger(chunkRows) || chunkRows < 1) {
+      db.close();
+      throw new Error(`--chunk must be a positive integer, got "${args.chunk}"`);
+    }
 
-    if (rows.length) {
-      const placeholders = colNames.map(() => "?").join(", ");
-      const insert = db.prepare(
-        `INSERT INTO "${table}" (${colNames.map((c) => `"${c}"`).join(", ")}) VALUES (${placeholders})`,
-      );
-      db.exec("BEGIN");
-      try {
+    const placeholders = colNames.map(() => "?").join(", ");
+    const insert = db.prepare(
+      `INSERT INTO "${table}" (${colNames.map((c) => `"${c}"`).join(", ")}) VALUES (${placeholders})`,
+    );
+    let rowCount = 0;
+    db.exec("BEGIN");
+    try {
+      const chunks = fetchTableChunks((text, params) => sql.query(text, params), {
+        table,
+        selectList,
+        selectColumns: colNames,
+        pkColumns,
+        chunkRows,
+      });
+      for await (const rows of chunks) {
         for (const row of rows) {
           const values = pgColumns.map((c) => coerce(row[c.column_name], c.data_type));
           insert.run(...values);
         }
-        db.exec("COMMIT");
-      } catch (err) {
-        db.exec("ROLLBACK");
-        throw new Error(`Failed inserting into "${table}": ${err.message}`);
+        rowCount += rows.length;
       }
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw new Error(`Failed backing up "${table}": ${err.message}`);
     }
 
-    summary.push({ table, rows: rows.length });
-    console.log(`  ✓ ${table.padEnd(32)} ${String(rows.length).padStart(6)} rows`);
+    summary.push({ table, rows: rowCount });
+    console.log(`  ✓ ${table.padEnd(32)} ${String(rowCount).padStart(6)} rows`);
   }
 
   // Re-enable and verify: a real FK violation in the exported data (not just
@@ -260,3 +304,4 @@ main().catch((err) => {
   }
   process.exit(1);
 });
+

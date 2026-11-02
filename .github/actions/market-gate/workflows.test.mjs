@@ -169,9 +169,9 @@ test('paper pre-POST refusal fails before any network request', () => {
   assert.ok(end > 0, 'Expected URL construction after the pre-POST refusal');
   const script = step.script.slice(0, end);
   const result = spawnSync('bash', ['-c', script], {
-    env: { ...process.env, RECHECK_ALLOWED: 'false', RECHECK_REASON: 'outside the 15-minute slot window' }, encoding: 'utf8',
+    env: { ...process.env, RECHECK_ALLOWED: 'false', RECHECK_REASON: 'session is closed' }, encoding: 'utf8',
   });
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /::error::Paper slot refused.*15-minute slot window.*No POST was sent/);
+  assert.match(result.stdout, /::error::Paper slot refused.*session is closed.*No POST was sent/);
   assert.doesNotMatch(step.metadata, /if: steps\.recheck/);
 });

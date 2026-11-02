@@ -2,11 +2,11 @@
 
 **Updated:** 2026-11-02. **Initial draft:** 2026-10-15.
 **Target:** Preserve the running backend; build a separately named `new-pipeline` slot in the existing billed `ttb-lang1` project with Alpaca market data, OpenRouter analysis, GitHub Actions (GHA) automation, and Google-delivered warnings when operational goals are missed.
-**Status:** Phase-1 foundation and a manual cloud credential check are implemented. The owner chose same-project placement on 2026-10-16 after the dedicated project's billing link was rejected by quota. A versioned state bucket was created in `ttb-lang1`, and the foundation (core and hydration slots) was applied on 2026-10-17. A read-only plan on 2026-10-24 shows 10 additive creates, 0 changes and 0 destroys still awaiting owner approval. A separate shadow Cloud Run Job successfully checked the Alpaca and OpenRouter credentials. No production routes, schedules, or data writers were changed. See [deployment details](../infra/README.md).
+**Status:** Phase-1 foundation and a manual cloud credential check are implemented. The owner chose same-project placement on 2026-10-16 after the dedicated project's billing link was rejected by quota. A versioned state bucket was created in `ttb-lang1`, and the foundation (core and hydration slots) was applied on 2026-10-17. At the time of that apply, `main` had no `infra/` directory; PR #309 brings the applied code onto `main`. A read-only plan on 2026-10-24 shows 10 additive creates, 0 changes and 0 destroys still awaiting owner approval. A separate shadow Cloud Run Job successfully checked the Alpaca and OpenRouter credentials. No production routes, schedules, or data writers were changed. See [deployment details](../infra/README.md).
 
 > **Placement decision, 2026-10-16:** The earlier dedicated-project design below is historical where it calls for project-level isolation. The current Terraform root is pinned to `ttb-lang1` and creates new resource names, identities, buckets, secrets, and IAM bindings there. Existing `gcp3-backend` resources are outside its state. This removes the billing-project quota blocker but shares project administrators, billing, API enablement, and quotas with the running backend. The sole project API Terraform proposes to enable is STS for GitHub Workload Identity Federation. A separate versioned state bucket and a reviewed zero-destroy plan remain required before apply.
 
-## Implementation status — 2026-10-15
+## Historical implementation snapshot — 2026-10-15
 
 | Work | Result | Evidence / limit |
 | --- | --- | --- |
@@ -16,9 +16,9 @@
 | Mobile/web parity record | Updated; headline unchanged | [Mobile PR #58](https://github.com/adamaslan/gcp-expo1/pull/58) records that the cloud preflight adds no client feature or shared-module change |
 | Actual new-slot pipeline | Pending | No scheduled ingestion, OpenRouter analysis, durable result ledger, watchdog, Google inbox alert, or production promotion has been implemented |
 
-The working preflight uses a dedicated runner identity and slot-specific Secret Manager references in the **existing billed project**. Its success proves only that those two read-only provider requests worked from GCP. It does not establish project-level isolation, feed-wide coverage, model availability, publication, or alert delivery. The related PRs are drafts awaiting independent cross-model verification.
+The working preflight uses a dedicated runner identity and slot-specific Secret Manager references in the **existing billed project**. Its success proves only that those two read-only provider requests worked from GCP. It does not establish project-level isolation, feed-wide coverage, model availability, publication, or alert delivery.
 
-**Next gate:** independently verify PR #309 (which supersedes #292) and review the saved zero-destroy plan for the 10 pending creates before owner-approved apply. Preserve the shadow job as a manual check until a pipeline worker has a shared Alpaca rate-budget path and the later acceptance drills pass.
+**Next gate:** review the saved zero-destroy plan for the 10 pending creates and obtain owner approval before apply. Preserve the shadow job as a manual check until a pipeline worker has a shared Alpaca rate-budget path and the later acceptance drills pass.
 
 ## 1. Verification findings and scope
 

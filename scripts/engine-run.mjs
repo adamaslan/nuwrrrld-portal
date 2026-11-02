@@ -9,6 +9,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { ALPACA_FEED } from "../lib/shared/hydration-constants.mjs";
+
 const env = {};
 try {
   for (const line of readFileSync(join(process.cwd(), ".env.local"), "utf8").split("\n")) {
@@ -36,7 +38,9 @@ if (!SECRET) fail("PORTAL_PUSH_SECRET is not set");
 
 const flag = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const MODE = flag("mode") ?? "shadow";
-const FEED = flag("feed") ?? "iex";
+// Default to the feed hydration stores bars under (hydration-constants.json);
+// a hard-coded fallback here silently computes zero rows when the two drift.
+const FEED = flag("feed") ?? ALPACA_FEED;
 const LIMIT = Number(flag("limit") ?? 400);
 if (!["shadow", "live"].includes(MODE)) fail("--mode must be shadow or live");
 if (!["iex", "sip"].includes(FEED)) fail("--feed must be iex or sip");

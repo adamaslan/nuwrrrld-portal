@@ -43,8 +43,10 @@ jobs:
         # (1 = catalog unreachable / too few working models) still fails the job.
         run: |
           set +e
-          node scripts/refresh-free-models.mjs
+          # Keep the log so the PR body can cite the probe evidence (see "Prepare PR body").
+          node scripts/refresh-free-models.mjs > "$RUNNER_TEMP/refresh.log" 2>&1
           code=$?
+          cat "$RUNNER_TEMP/refresh.log"
           if [ "$code" -eq 0 ]; then exit 0; fi
           if [ "$code" -eq 3 ]; then
             echo "::warning title=SEAT_MODELS has a retired id::Chain refreshed; a seat model no longer exists. Repoint SEAT_MODELS in lib/openrouter.ts. Continuing so the chain PR still opens."
@@ -57,7 +59,38 @@ jobs:
           echo "::error title=refresh-free-models failed::Exited $code — chain left untouched."
           exit "$code"
 
+      - name: Describe the chain change
+        id: chain
+        run: |
+          git show HEAD:lib/openrouter.ts > "$RUNNER_TEMP/previous-openrouter.ts"
+          node scripts/free-model-chain.mjs "$RUNNER_TEMP/previous-openrouter.ts" lib/openrouter.ts > "$RUNNER_TEMP/chain-diff.json"
+          {
+            echo "changed=$(jq -r '.changed' "$RUNNER_TEMP/chain-diff.json")"
+            echo "added=$(jq -r '.added | join(", ")' "$RUNNER_TEMP/chain-diff.json")"
+            echo "removed=$(jq -r '.removed | join(", ")' "$RUNNER_TEMP/chain-diff.json")"
+            echo "chain=$(jq -r '.chain | join(", ")' "$RUNNER_TEMP/chain-diff.json")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prepare PR body
+        env:
+          CHAIN_CHANGED: ${{ steps.chain.outputs.changed }}
+        run: |
+          {
+            echo "Automated weekly refresh of \`FREE_MODEL_CHAIN\` in \`lib/openrouter.ts\`."
+            echo
+            echo "Each listed model is both **\$0-priced** on OpenRouter and passed a **live probe** (returned 200, not 402/429) at refresh time."
+            echo
+            echo "**Probe evidence** (from the refresh run log):"
+            echo
+            echo '```'
+            grep -E '^  (probe|cap|Selected)' "$RUNNER_TEMP/refresh.log" || echo "(no probe lines in the log)"
+            echo '```'
+            echo
+            echo "Merge to redeploy. If this PR is empty/absent, the chain was already current."
+          } > "$RUNNER_TEMP/pr-body.md"
+
       - name: Open PR if the chain changed
+        id: pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ github.token }}
@@ -65,14 +98,58 @@ jobs:
           base: main
           commit-message: 'chore: refresh FREE_MODEL_CHAIN with currently-free, reachable models'
           title: 'chore: weekly free-model chain refresh'
-          body: |
-            Automated weekly refresh of `FREE_MODEL_CHAIN` in `lib/openrouter.ts`.
-
-            Each listed model is both **$0-priced** on OpenRouter and passed a
-            **live probe** (returned 200, not 402/429) at refresh time.
-
-            Merge to redeploy. If this PR is empty/absent, the chain was already current.
+          body-path: ${{ runner.temp }}/pr-body.md
           delete-branch: true
+
+      # Runs only on a successful refresh. A failed refresh alerts through the
+      # notify job below. Delivery is reported on its own line and never fails
+      # the job, so a dead ntfy topic cannot mask a healthy refresh.
+      - name: Notify success (ntfy)
+        id: notify-success
+        if: success()
+        continue-on-error: true
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          CHAIN_CHANGED: ${{ steps.chain.outputs.changed }}
+          CHAIN_ADDED: ${{ steps.chain.outputs.added }}
+          CHAIN_REMOVED: ${{ steps.chain.outputs.removed }}
+          CHAIN: ${{ steps.chain.outputs.chain }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ -z "$NTFY_TOPIC" ]]; then
+            echo "Notification delivery: skipped (NTFY_TOPIC not set)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ ! "$NTFY_TOPIC" =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo "::warning::ntfy skipped: NTFY_TOPIC has characters outside [A-Za-z0-9_-]"
+            echo "Notification delivery: failed (invalid topic)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ "$CHAIN_CHANGED" == "true" ]]; then
+            title="Free-model chain CHANGED"
+            priority=5
+            tags="rotating_light"
+            message="Added: ${CHAIN_ADDED:-none}
+          Removed: ${CHAIN_REMOVED:-none}
+          PR: #${PR_NUMBER:-unknown}
+          Run: ${RUN_URL}"
+          else
+            title="Free-model refresh OK"
+            priority=3
+            tags="white_check_mark"
+            message="Chain unchanged: ${CHAIN}
+          Run: ${RUN_URL}"
+          fi
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \
+            --request POST --header "Title: ${title}" --header "Priority: ${priority}" \
+            --header "Tags: ${tags}" --data-binary "$message" "https://ntfy.sh/${NTFY_TOPIC}" || echo "000")
+          if [[ "$status" == "200" ]]; then
+            echo "Notification delivery: ok (${title})" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::ntfy delivery failed (HTTP ${status}); the refresh itself succeeded"
+            echo "Notification delivery: failed (HTTP ${status}, ${title})" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ── Notify on failure ──────────────────────────────────────────────────
   # This weekly cron has gone red on scheduled runs before with nothing

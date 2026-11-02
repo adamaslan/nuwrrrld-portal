@@ -1,5 +1,5 @@
 ---
-date: 2026-10-24
+date: 2026-11-02
 type: entity
 tags: [terraform, gcp, slot2, infra, workload-identity]
 sources: [../../infra/slots/new-pipeline/main.tf, ../../infra/slots/new-pipeline/hydration.tf, ../../infra/slots/new-pipeline/monitoring.tf, ../../infra/README.md, PR#309, PR#292]
@@ -33,9 +33,10 @@ Remote state lives in a versioned GCS bucket. The foundation was applied on
 code on `main`. PR #309 lands that code; PR #292 carried an earlier
 single-slot design that was never applied and is superseded.
 
-A read-only plan against the live state shows only additive changes: the
-hydration database-URL containers and their bindings, the scheduler identity,
-three service APIs and alert notification channels.
+A read-only plan against the live state shows 10 additive creates, zero
+changes, and zero destroys. These include the hydration database-URL
+containers and bindings, scheduler identity, service APIs, and email
+notification channels; owner approval remains required before apply.
 
 ## Where used
 
@@ -47,9 +48,11 @@ main branch only and is bound to the deploy identity.
 ## Gated parts
 
 The hydration Cloud Run job and its three weekday schedulers (open, midday,
-close, New York time) are defined but created only when a tested image digest
-is supplied. Until then the count is zero, so a scheduled run can never start
-a job with no image.
+close, New York time) are created only when the tested image digest, Neon
+endpoint ID, readiness attestation, and explicit enabled version numbers for
+the four referenced secrets are supplied. The job pins those versions instead
+of relying on `latest`. Terraform currently creates email notification
+channels, but not alert policies or a watchdog.
 
 ## Known failures
 
@@ -71,8 +74,8 @@ Vercel and DNS. Slot 1 is to be retired, not imported.
 > ❓ Open question: should the shared project be split from slot 1 once slot 1
 > is paused? Owner decision, not yet made.
 
-> ❓ Open question: the 10 pending additive changes are not applied yet; they
-> need owner approval of the saved plan.
+> ❓ Open question: the 10 pending additive changes need owner approval of the
+> saved plan before apply.
 
 ## See also
 
