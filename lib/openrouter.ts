@@ -461,7 +461,11 @@ export async function fetchWithModelFallbackChecked(
       if (scan.sawDone && !sawContent) { streamEnded = true; break; }
     }
 
-    console.info(
+    // console.error, not console.info: Playwright's webServer forwards only
+    // the child's STDERR to CI job logs ([WebServer] lines); stdout is held
+    // unless startup fails (PR #335 CI, 2026-11-02: every attempt line here
+    // was emitted but invisible, only the route's console.error surfaced).
+    console.error(
       `[openrouter] health-ai attempt model=${model} status=200 sawContent=${sawContent} ` +
       `parsedLines=${parsedLines} emptyLines=${emptyLines} sawDone=${sawDone} streamEnded=${streamEnded}`,
     );
@@ -597,8 +601,10 @@ export async function runSeat(
     // fallback save in CI logs (2026-11-02, PR #334: five primaries silently
     // skipped, cause unclassifiable from the logs).
     const attemptStart = Date.now();
+    // console.error for the same reason as the health-ai attempt line above:
+    // stderr is the only channel Playwright's webServer pipes into CI logs.
     const logAttempt = (classification: string) =>
-      console.info(
+      console.error(
         `[openrouter] seat=${seat} model=${model} outcome=${classification} latencyMs=${Date.now() - attemptStart}`,
       );
     const ctrl = new AbortController();
