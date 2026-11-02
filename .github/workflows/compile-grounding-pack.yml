@@ -76,7 +76,8 @@ jobs:
           export ISSUE_TITLE="Scheduled grounding-pack compile failed"
           export ISSUE_BODY="**Run:** ${RUN_URL}
 
-          \`scripts/compile_grounding_pack.mjs\` failed on the daily 06:23 UTC
-          schedule. The \`grounding_pack\` table was not refreshed; the corpus a
-          model reads is now whatever the last successful run left."
+          The scheduled grounding-pack compile failed or completed with extraction errors.
+          Check this run's logs for the exact outcome and counts. Failed extraction chunks
+          are skipped so their existing rows stay intact; setup or database failures may
+          prevent any table writes."
           bash scripts/upsert-workflow-failure-issue.sh
