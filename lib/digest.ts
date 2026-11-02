@@ -190,10 +190,9 @@ const ET_TIMEZONE = 'America/New_York';
 /**
  * Header label for the signals digest. Shows when the batch actually ran
  * (market timezone), with the effective trading day as secondary context.
- * Falls back to the digest's own generatedAt for digests saved before
- * lastRunAt existed (those were stamped from the same backend `updated`
- * field on the live path). When nothing trustworthy exists, says "unknown"
- * instead of presenting a calendar date or the current time as a run.
+ * Digests saved before lastRunAt existed have ambiguous generatedAt values:
+ * older adapters used the request time when the source omitted `updated`.
+ * Treat those as unknown instead of presenting a potentially fabricated run.
  */
 export function signalsRunHeader(
   digest: Pick<DigestPayload, 'lastRunAt' | 'generatedAt' | 'asOfDate'>,
@@ -204,14 +203,11 @@ export function signalsRunHeader(
   //    path generatedAt is the adapter's request time, never a run time, so it
   //    must not be shown - report unknown.
   //  - undefined: payload cached before run provenance existed. Its generatedAt
-  //    was stamped from the same backend `updated` field by the live-fetch path
-  //    (the only writer of these caches), so it is the best available run time.
+  //    may be the adapter's request time when the source omitted `updated`, so
+  //    it is not trustworthy as a run timestamp.
   let iso: string | null = null;
   if (typeof digest.lastRunAt === 'string' && !Number.isNaN(Date.parse(digest.lastRunAt))) {
     iso = digest.lastRunAt;
-  } else if (digest.lastRunAt === undefined) {
-    const g = digest.generatedAt;
-    if (typeof g === 'string' && !Number.isNaN(Date.parse(g))) iso = g;
   }
   const runPart = iso
     ? `Signals last run ${new Intl.DateTimeFormat('en-US', {

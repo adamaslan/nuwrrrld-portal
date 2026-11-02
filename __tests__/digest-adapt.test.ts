@@ -272,13 +272,13 @@ describe("signalsRunHeader", () => {
     expect(label).toBe("Signals last run Oct 31, 2026, 9:21 PM EDT · for trading day 2026-11-02");
   });
 
-  it("falls back to generatedAt for digests saved before lastRunAt existed", () => {
+  it("does not trust generatedAt for digests saved before lastRunAt existed", () => {
     const label = signalsRunHeader({
       lastRunAt: undefined,
       generatedAt: "2026-11-01T01:21:06.411914+00:00",
       asOfDate: undefined,
     });
-    expect(label).toBe("Signals last run Oct 31, 2026, 9:21 PM EDT");
+    expect(label).toBe("Signals last run: time unknown");
   });
 
   it("says time unknown rather than showing a calendar date when no run timestamp exists", () => {
