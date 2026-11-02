@@ -286,4 +286,15 @@ describe("signalsRunHeader", () => {
     expect(label).toBe("Signals last run: time unknown · for trading day 2026-11-02");
     expect(label).not.toContain("Signals for");
   });
+
+  it("never shows the adapter's request time as a run: lastRunAt null beats a VALID generatedAt", () => {
+    // Freshly adapted payload whose source omitted `updated`: generatedAt here is
+    // the request time, not a run time - it must NOT be displayed.
+    const label = signalsRunHeader({
+      lastRunAt: null,
+      generatedAt: "2026-11-01T19:00:00Z",
+      asOfDate: "2026-11-02",
+    });
+    expect(label).toBe("Signals last run: time unknown · for trading day 2026-11-02");
+  });
 });
