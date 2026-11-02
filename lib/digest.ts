@@ -198,10 +198,243 @@ const ET_TIMEZONE = 'America/New_York';
 export function signalsRunHeader(
   digest: Pick<DigestPayload, 'lastRunAt' | 'generatedAt' | 'asOfDate'>,
 ): string {
-  const candidates = [digest.lastRunAt, digest.generatedAt];
-  const iso = candidates.find(
-    (c): c is string => typeof c === 'string' && !Number.isNaN(Date.parse(c)),
-  );
+  // lastRunAt is tri-state:
+  //  - string: the source-reported run time - always preferred.
+  //  - null: freshly adapted from a source that reported NO run time. On this
+  //    path generatedAt is the adapter's request time, never a run time, so it
+  //    must not be shown - report unknown.
+  //  - undefined: payload cached before run provenance existed. Its generatedAt
+  //    was stamped from the same backend `updated` field by the live-fetch path
+  //    (the only writer of these caches), so it is the best available run time.
+  let iso: string | null = null;
+  if (typeof digest.lastRunAt === 'string' && !Number.isNaN(Date.parse(digest.lastRunAt))) {
+    iso = digest.lastRunAt;
+  } else if (digest.lastRunAt === undefined) {
+    const g = digest.generatedAt;
+    if (typeof g === 'string' && !Number.isNaN(Date.parse(g))) iso = g;
+  }
+  const runPart = iso
+    ? `Signals last run ${new Intl.DateTimeFormat('en-US', {
+        timeZone: ET_TIMEZONE,
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+ * Signal digest schema — single-sourced for app and web.
+ * Version field guards against render-layer breakage when new signal types ship.
+ */
+
+export const DIGEST_SCHEMA_VERSION = 1;
+
+export type SignalDirection = 'bullish' | 'bearish' | 'neutral';
+export type SignalTimeframe = 'intraday' | 'short' | 'medium' | 'long';
+export type SignalConfidence = 'low' | 'medium' | 'high';
+
+const VALID_DIRECTIONS = new Set<string>(['bullish', 'bearish', 'neutral']);
+const VALID_TIMEFRAMES = new Set<string>(['intraday', 'short', 'medium', 'long']);
+const VALID_CONFIDENCES = new Set<string>(['low', 'medium', 'high']);
+
+function safeDirection(v: unknown): SignalDirection {
+  return VALID_DIRECTIONS.has(String(v)) ? (v as SignalDirection) : 'neutral';
+}
+function safeTimeframe(v: unknown): SignalTimeframe {
+  return VALID_TIMEFRAMES.has(String(v)) ? (v as SignalTimeframe) : 'medium';
+}
+function safeConfidence(v: unknown): SignalConfidence {
+  return VALID_CONFIDENCES.has(String(v)) ? (v as SignalConfidence) : 'low';
+}
+
+/** Signals older than this are flagged stale — daily-refresh data plus a margin for weekends/delays. */
+const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
+
+/** Data-quality guard: true when a signal's timestamp is missing/unparsable or older than the threshold. */
+function computeIsStale(generatedAt: string): boolean {
+  const ms = Date.parse(generatedAt);
+  if (Number.isNaN(ms)) return true;
+  return Date.now() - ms > STALE_THRESHOLD_MS;
+}
+
+export interface SignalPayload {
+  id: string;
+  ticker: string;
+  direction: SignalDirection;
+  timeframe: SignalTimeframe;
+  confidence: SignalConfidence;
+  /** Short headline — shown above the fold */
+  title: string;
+  /** Plain-language "why this signal" explanation for trust */
+  explanation: string;
+  /** Which indicators contributed (e.g. ["RSI", "MACD", "Volume"]) */
+  indicators: string[];
+  generatedAt: string; // ISO
+  /** Weighted confluence score in [-1, 1], when the source computes one */
+  score?: number;
+  /** Per-indicator explanations backing the signal (one sentence each) */
+  reasons?: string[];
+  /** How many contributing signals were bullish/bearish/total, when available */
+  signalCounts?: { bullish: number; bearish: number; total: number };
+  /** True when generatedAt is missing or older than the freshness threshold — display boundary must gate on this */
+  isStale: boolean;
+  /** Which scoring engine/version produced this signal, when the source reports one (provenance) */
+  engineVersion?: string;
+  /** Backend-reported data quality ("fresh" | "stale" | "unknown"), when the source computes one — takes precedence over the client-side isStale heuristic */
+  dataQualityScore?: 'fresh' | 'stale' | 'unknown';
+}
+
+export interface DigestPayload {
+  schemaVersion: typeof DIGEST_SCHEMA_VERSION;
+  periodLabel: string;       // e.g. "Week of Jun 16"
+  signals: SignalPayload[];
+  generatedAt: string;       // ISO
+  /** Source optimizer IDs that produced this digest */
+  sources: string[];
+  /**
+   * Effective trading date the signals apply to (the backend's market-calendar
+   * date, e.g. "2026-11-02"). This is a calendar/trading-day label, NOT when
+   * the signals were computed - never present it as a run time.
+   */
+  asOfDate?: string;
+  /**
+   * ISO timestamp of when the signal batch actually ran, exactly as reported
+   * by the source. null when the source did not report one - display "unknown"
+   * rather than substituting the current date or a request time.
+   */
+  lastRunAt?: string | null;
+}
+
+/**
+ * Adapter: GCP3 Finance API v2 /signals response (symbols map) → DigestPayload.
+ * The live backend returns { date, updated, total, symbols: { TICKER: {...} } }
+ * rather than a signals array. This bridges the two shapes.
+ */
+export function adaptLiveSignals(raw: unknown): DigestPayload {
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid /signals response');
+  const r = raw as Record<string, unknown>;
+  // Validate symbols is a plain object — reject arrays or nulls at the boundary.
+  if (!r.symbols || typeof r.symbols !== 'object' || Array.isArray(r.symbols)) {
+    throw new Error('Invalid /signals response: symbols must be a plain object');
+  }
+  const symbols = r.symbols as Record<string, unknown>;
+  const fallbackDate = String(r.updated ?? new Date().toISOString());
+
+  // Use Object.entries so the map key (authoritative ticker) is always available
+  // even when the inner record omits the redundant `symbol` field.
+  const signals: SignalPayload[] = Object.entries(symbols)
+    .filter(([, s]) => s !== null && typeof s === 'object' && !Array.isArray(s))
+    .map(([symbolKey, s], i) => {
+      const entry = s as Record<string, unknown>;
+      // symbolKey is the authoritative ticker; fall back to inner field only if key is empty
+      const normalizedSymbolKey = symbolKey.trim();
+      const ticker = (normalizedSymbolKey || String(entry.symbol ?? '').trim()).toUpperCase();
+      const action = String(entry.ai_action ?? '').toUpperCase();
+      const direction: SignalDirection =
+        action === 'BUY' ? 'bullish' : action === 'SELL' ? 'bearish' : 'neutral';
+      const rawConf = String(entry.ai_confidence ?? '').toLowerCase();
+      const rawSignals = Array.isArray(entry.signals)
+        ? (entry.signals as unknown[]).filter(
+            (x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x),
+          )
+        : [];
+      const indicators: string[] = rawSignals.map(x => String(x.signal ?? '').trim()).filter(Boolean);
+      const reasons: string[] = rawSignals.map(x => String(x.detail ?? '').trim()).filter(Boolean);
+      const score = typeof entry.confluence_score === 'number' ? entry.confluence_score : undefined;
+      const bullish = typeof entry.bull_count === 'number' ? entry.bull_count : undefined;
+      const bearish = typeof entry.bear_count === 'number' ? entry.bear_count : undefined;
+      const total = typeof entry.signal_count === 'number' ? entry.signal_count : undefined;
+      const engineVersion = typeof entry.engine_version === 'string' ? entry.engine_version : undefined;
+      const rawDqScore = entry.data_quality_score;
+      const dataQualityScore: SignalPayload['dataQualityScore'] =
+        rawDqScore === 'fresh' || rawDqScore === 'stale' || rawDqScore === 'unknown'
+          ? rawDqScore
+          : undefined;
+      // Per-symbol `updated` field, when gcp3 emits one — falls back to the
+      // batch-wide `updated` (fallbackDate) only when a symbol omits it.
+      // Using fallbackDate for every signal regardless of its own `updated`
+      // was the "batch-timestamp blind spot": a symbol whose own data lagged
+      // the rest of the batch would inherit the batch's fresh timestamp and
+      // never trip computeIsStale(), even though ITS data was old — see
+      // e2e/frontend/signal-timing.spec.ts's DIAGNOSE test of the same name.
+      const rawUpdated = entry.updated;
+      const signalGeneratedAt =
+        typeof rawUpdated === 'string' && !Number.isNaN(Date.parse(rawUpdated))
+          ? rawUpdated
+          : fallbackDate;
+      // Prefer the backend's authoritative data_quality_score when present — it
+      // reflects the source industry_cache's true age, not just this signal's
+      // own generatedAt timestamp. Fall back to the per-signal timestamp
+      // heuristic otherwise (e.g. older backend versions that don't emit the
+      // field yet).
+      const isStale = dataQualityScore
+        ? dataQualityScore !== 'fresh'
+        : computeIsStale(signalGeneratedAt);
+      return {
+        id: ticker || `signal-${i}`,
+        ticker,
+        direction,
+        timeframe: 'medium',
+        confidence: safeConfidence(rawConf),
+        title: String(entry.ai_summary ?? ''),
+        explanation: String(entry.ai_outlook ?? ''),
+        indicators,
+        generatedAt: signalGeneratedAt,
+        score,
+        reasons: reasons.length > 0 ? reasons : undefined,
+        signalCounts:
+          bullish !== undefined && bearish !== undefined && total !== undefined
+            ? { bullish, bearish, total }
+            : undefined,
+        isStale,
+        engineVersion,
+        dataQualityScore,
+      };
+    });
+
+  // `date` is the backend's effective trading day (market calendar), not a run
+  // time. `updated` is when the batch actually ran - validate before trusting it.
+  const batchRunAt =
+    typeof r.updated === 'string' && !Number.isNaN(Date.parse(r.updated))
+      ? r.updated
+      : null;
+  return {
+    schemaVersion: DIGEST_SCHEMA_VERSION,
+    periodLabel: `Signals for ${String(r.date ?? '')}`,
+    asOfDate: typeof r.date === 'string' && r.date.trim() ? r.date.trim() : undefined,
+    lastRunAt: batchRunAt,
+    signals,
+    generatedAt: fallbackDate,
+    sources: ['gcp3-signals'],
+  };
+}
+
+const ET_TIMEZONE = 'America/New_York';
+
+/**
+ * Header label for the signals digest. Shows when the batch actually ran
+ * (market timezone), with the effective trading day as secondary context.
+ * Falls back to the digest's own generatedAt for digests saved before
+ * lastRunAt existed (those were stamped from the same backend `updated`
+ * field on the live path). When nothing trustworthy exists, says "unknown"
+ * instead of presenting a calendar date or the current time as a run.
+ */
+export function signalsRunHeader(
+  digest: Pick<DigestPayload, 'lastRunAt' | 'generatedAt' | 'asOfDate'>,
+): string {
+  // lastRunAt is tri-state:
+  //  - string: the source-reported run time - always preferred.
+  //  - null: freshly adapted from a source that reported NO run time. On this
+  //    path generatedAt is the adapter's request time, never a run time, so it
+  //    must not be shown - report unknown.
+  //  - undefined: payload cached before run provenance existed. Its generatedAt
+  //    was stamped from the same backend `updated` field by the live-fetch path
+  //    (the only writer of these caches), so it is the best available run time.
+  let iso: string | null = null;
+  if (typeof digest.lastRunAt === 'string' && !Number.isNaN(Date.parse(digest.lastRunAt))) {
+    iso = digest.lastRunAt;
+  } else if (digest.lastRunAt === undefined) {
+    const g = digest.generatedAt;
+    if (typeof g === 'string' && !Number.isNaN(Date.parse(g))) iso = g;
+  }
   const runPart = iso
     ? `Signals last run ${new Intl.DateTimeFormat('en-US', {
         timeZone: ET_TIMEZONE,
