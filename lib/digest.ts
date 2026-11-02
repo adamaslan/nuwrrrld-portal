@@ -67,6 +67,18 @@ export interface DigestPayload {
   generatedAt: string;       // ISO
   /** Source optimizer IDs that produced this digest */
   sources: string[];
+  /**
+   * Effective trading date the signals apply to (the backend's market-calendar
+   * date, e.g. "2026-11-02"). This is a calendar/trading-day label, NOT when
+   * the signals were computed - never present it as a run time.
+   */
+  asOfDate?: string;
+  /**
+   * ISO timestamp of when the signal batch actually ran, exactly as reported
+   * by the source. null when the source did not report one - display "unknown"
+   * rather than substituting the current date or a request time.
+   */
+  lastRunAt?: string | null;
 }
 
 /**
@@ -156,13 +168,52 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
       };
     });
 
+  // `date` is the backend's effective trading day (market calendar), not a run
+  // time. `updated` is when the batch actually ran - validate before trusting it.
+  const batchRunAt =
+    typeof r.updated === 'string' && !Number.isNaN(Date.parse(r.updated))
+      ? r.updated
+      : null;
   return {
     schemaVersion: DIGEST_SCHEMA_VERSION,
     periodLabel: `Signals for ${String(r.date ?? '')}`,
+    asOfDate: typeof r.date === 'string' && r.date.trim() ? r.date.trim() : undefined,
+    lastRunAt: batchRunAt,
     signals,
     generatedAt: fallbackDate,
     sources: ['gcp3-signals'],
   };
+}
+
+const ET_TIMEZONE = 'America/New_York';
+
+/**
+ * Header label for the signals digest. Shows when the batch actually ran
+ * (market timezone), with the effective trading day as secondary context.
+ * Falls back to the digest's own generatedAt for digests saved before
+ * lastRunAt existed (those were stamped from the same backend `updated`
+ * field on the live path). When nothing trustworthy exists, says "unknown"
+ * instead of presenting a calendar date or the current time as a run.
+ */
+export function signalsRunHeader(
+  digest: Pick<DigestPayload, 'lastRunAt' | 'generatedAt' | 'asOfDate'>,
+): string {
+  const candidates = [digest.lastRunAt, digest.generatedAt];
+  const iso = candidates.find(
+    (c): c is string => typeof c === 'string' && !Number.isNaN(Date.parse(c)),
+  );
+  const runPart = iso
+    ? `Signals last run ${new Intl.DateTimeFormat('en-US', {
+        timeZone: ET_TIMEZONE,
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      }).format(new Date(iso))}`
+    : 'Signals last run: time unknown';
+  return digest.asOfDate ? `${runPart} · for trading day ${digest.asOfDate}` : runPart;
 }
 
 /** Adapter: normalise a raw optimizer response into a DigestPayload. */
