@@ -513,6 +513,11 @@ async function main() {
       (DRY_RUN ? " (dry-run, nothing written)" : ""),
   );
 
+  // Any live extraction failure must exit nonzero, including partial ones.
+  // A zero exit let a retired model id and an exhausted daily quota read as
+  // success, and let the recovery job close an outage while chunks were still
+  // unextracted. Successful chunks were already written above, and budget-only
+  // deferrals return null, so an incremental run stays green.
   const extractionFailure = extractionFailureMessage({
     dryRun: DRY_RUN,
     callsMade,
