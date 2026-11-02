@@ -183,7 +183,7 @@ Fix (applied in `entrypoints.py`, `ingest.py`, `paper.py`): resolve the sleep at
 def _wait_for(conn, ctx, job, run_key, sleep: Callable[[float], None] | None = None) -> bool:
     sleep = sleep or time.sleep
 ```
-~~Still open: tighten the three `... or True` assertions in `tests/test_ops.py:62-66`. As written they cannot fail.~~ *(Resolved on main by 2026-11-02: zero `or True` remains; lines 62-66 are now real watchdog-dedupe assertions.)*
+~~Still open: tighten the three `... or True` assertions in `tests/test_ops.py:62-66`. As written they cannot fail.~~ *(Resolved on main by 2026-11-02: zero `or True` remains; the watchdog dedupe assertions are now at `tests/test_ops.py:67-68`.)*
 
 ### 5.2 Test suite: general speed
 
