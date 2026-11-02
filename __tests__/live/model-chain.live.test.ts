@@ -16,6 +16,7 @@ import {
   DEBATE_SEATS,
   FREE_MODEL_CHAIN,
   fetchWithModelFallback,
+  fetchWithModelFallbackChecked,
   runSeat,
   type CouncilSeat,
 } from "@/lib/openrouter";
@@ -85,9 +86,13 @@ describeLive("LIVE: every council seat can actually answer", () => {
   });
 });
 
-describeLive("LIVE: fetchWithModelFallback (the /api/brief and /api/nuai path)", () => {
-  it("resolves to a model that streams, and reports which one", async () => {
-    const { response, model } = await fetchWithModelFallback(
+describeLive("LIVE: fetchWithModelFallbackChecked (the /api/brief and /api/nuai path)", () => {
+  it("resolves to a model that actually streams content, and reports which one", async () => {
+    // The Checked variant is what /api/brief and /api/nuai call: it resolves
+    // only after a visible content token arrived, so response.ok here really
+    // does mean "a model answered" — the old unchecked call passed on a 200
+    // with an empty completion, which is exactly the shed-free-model case.
+    const { response, model } = await fetchWithModelFallbackChecked(
       LIVE_KEY,
       {
         max_tokens: 48,
