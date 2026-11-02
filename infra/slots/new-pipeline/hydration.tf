@@ -1,12 +1,13 @@
 locals {
   hydration_job_name = "nwf-hydration"
-  # Created only once a tested image digest, the Neon endpoint ID and verified
-  # database-URL secret versions exist, so a scheduled run can never start a job
-  # that Cloud Run cannot launch and page the alert list for nothing.
+  # Created only once a tested image digest, the Neon endpoint ID, and all four
+  # verified secret versions are configured. The explicit versions prevent a
+  # disabled `latest` version from breaking scheduled job startup.
   hydration_enabled = (
     var.hydration_image_digest != "" &&
     var.hydration_neon_endpoint_id != "" &&
-    var.hydration_secrets_ready
+    var.hydration_secrets_ready &&
+    alltrue([for version in values(var.hydration_secret_versions) : version != ""])
   ) ? 1 : 0
 }
 
@@ -68,7 +69,7 @@ resource "google_cloud_run_v2_job" "hydration" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.slot["hydration/source_database_url"].secret_id
-              version = "latest"
+              version = var.hydration_secret_versions.source_database_url
             }
           }
         }
@@ -78,7 +79,7 @@ resource "google_cloud_run_v2_job" "hydration" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.slot["hydration/hydration_database_url"].secret_id
-              version = "latest"
+              version = var.hydration_secret_versions.hydration_database_url
             }
           }
         }
@@ -100,7 +101,7 @@ resource "google_cloud_run_v2_job" "hydration" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.slot["hydration/alpaca_api_key"].secret_id
-              version = "latest"
+              version = var.hydration_secret_versions.alpaca_api_key
             }
           }
         }
@@ -110,7 +111,7 @@ resource "google_cloud_run_v2_job" "hydration" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.slot["hydration/alpaca_api_secret"].secret_id
-              version = "latest"
+              version = var.hydration_secret_versions.alpaca_api_secret
             }
           }
         }

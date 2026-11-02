@@ -103,17 +103,32 @@ node infra/sync-shadow-secrets.mjs .env.local ttb-lang1 core
 Sync populates only the provider credentials; it does **not** provision the
 two hydration database URLs. Before setting `hydration_image_digest`, load
 each URL into its container and verify an enabled version exists. Copy the
-URL to the clipboard first (it is never printed):
+URL to the clipboard first (it is never printed). Replace the clipboard
+contents with the hydration database URL before running the second command:
 
 ```bash
 pbpaste | gcloud secrets versions add nwf-hydration-source-database-url --project=ttb-lang1 --data-file=-
+# Replace the clipboard contents with HYDRATION_DATABASE_URL before this command.
 pbpaste | gcloud secrets versions add nwf-hydration-hydration-database-url --project=ttb-lang1 --data-file=-
 for s in nwf-hydration-source-database-url nwf-hydration-hydration-database-url; do
   gcloud secrets versions list "$s" --project=ttb-lang1 --filter='state=ENABLED' --format='value(name)' | head -1
 done
 ```
-Expect one version number per secret. Only then set
-`hydration_secrets_ready = true` alongside the image digest and endpoint ID.
+Sync populates the Alpaca secrets, while the two commands above populate the
+database secrets. For each of those four secrets, record an enabled version
+number (not `latest`) using:
+
+```bash
+for s in nwf-hydration-alpaca-api-key nwf-hydration-alpaca-api-secret nwf-hydration-source-database-url nwf-hydration-hydration-database-url; do
+  printf '%s=' "$s"
+  gcloud secrets versions list "$s" --project=ttb-lang1 --filter='state=ENABLED' --format='value(name)' | head -1 | sed 's#.*/##'
+done
+```
+
+Copy those four version numbers into `hydration_secret_versions` in the ignored
+`terraform.tfvars`. Only then set `hydration_secrets_ready = true` alongside
+the image digest and endpoint ID. The job pins these exact versions, so a
+disabled `latest` version cannot break scheduled startup.
 
 The script requires an explicit slot, checks for existing enabled versions,
 and does not print credential values. It writes only the secrets each slot
@@ -163,10 +178,12 @@ runtime identity can read only its own slot's secret containers: five for
 hydration database URLs), two for `core`. No identity receives a
 role on an existing `gcp3-backend` resource. All grants are within the shared
 project and apply to newly named resources. Project administrators and shared
-quotas remain common to both slots. The hydration job, its three schedulers
-and the alert policies are defined but created only once `hydration_image_digest`
-and `hydration_neon_endpoint_id` are both set. Firestore and the remaining
-slot 2 features are not yet connected.
+quotas remain common to both slots. The hydration job and its three schedulers
+are created only when `hydration_image_digest`, `hydration_neon_endpoint_id`,
+`hydration_secrets_ready`, and all four pinned secret versions are set.
+Terraform creates alert email notification channels, but this PR does not
+create alert policies or a watchdog. Firestore and the remaining slot 2
+features are not yet connected.
 
 The new image repository has immutable tags. Builds must use a unique tag for
 each image, and deployments must pin the tested digest. The hydration job

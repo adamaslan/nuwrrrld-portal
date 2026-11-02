@@ -1,6 +1,6 @@
 # NWF parallel infrastructure and observable GHA pipeline
 
-**Updated and reviewed:** 2026-10-15.  
+**Updated:** 2026-11-02. **Initial draft:** 2026-10-15.
 **Target:** Preserve the running backend; build a separately named `new-pipeline` slot in the existing billed `ttb-lang1` project with Alpaca market data, OpenRouter analysis, GitHub Actions (GHA) automation, and Google-delivered warnings when operational goals are missed.
 **Status:** Phase-1 foundation and a manual cloud credential check are implemented. The owner chose same-project placement on 2026-10-16 after the dedicated project's billing link was rejected by quota. A versioned state bucket was created in `ttb-lang1`, and the foundation (core and hydration slots) was applied on 2026-10-17. A read-only plan on 2026-10-24 shows 10 additive creates, 0 changes and 0 destroys still awaiting owner approval. A separate shadow Cloud Run Job successfully checked the Alpaca and OpenRouter credentials. No production routes, schedules, or data writers were changed. See [deployment details](../infra/README.md).
 

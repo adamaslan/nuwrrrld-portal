@@ -67,9 +67,30 @@ variable "hydration_neon_endpoint_id" {
 }
 
 variable "hydration_secrets_ready" {
-  description = "Set true only after both hydration database-URL secrets have an enabled version (see infra/README.md). Cloud Run cannot start the job without them."
+  description = "Set true only after the exact enabled version for each of the four secrets used by the hydration job is recorded in hydration_secret_versions."
   type        = bool
   default     = false
+}
+
+variable "hydration_secret_versions" {
+  description = "Explicit enabled Secret Manager version numbers used by the hydration job. Keep empty until all four exact versions are verified."
+  type = object({
+    alpaca_api_key         = string
+    alpaca_api_secret      = string
+    source_database_url    = string
+    hydration_database_url = string
+  })
+  default = {
+    alpaca_api_key         = ""
+    alpaca_api_secret      = ""
+    source_database_url    = ""
+    hydration_database_url = ""
+  }
+
+  validation {
+    condition     = alltrue([for version in values(var.hydration_secret_versions) : version == "" || can(regex("^[1-9][0-9]*$", version))])
+    error_message = "Each hydration secret version must be empty or a positive numeric version number."
+  }
 }
 
 variable "hydration_schedules" {
