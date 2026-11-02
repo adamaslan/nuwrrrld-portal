@@ -1,4 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { formatRunTimeET } from "@/lib/format-time";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -142,7 +143,7 @@ export default async function NulogdashPage() {
       <h1>nulogdash</h1>
       <NulogdashTabs active="sweep" />
       <p className="nld-meta">
-        Last run {new Date(run.runAt).toLocaleString()} · {run.branch}@{run.gitSha} · {run.baseUrl}
+        Last run {formatRunTimeET(run.runAt)} · {run.branch}@{run.gitSha} · {run.baseUrl}
       </p>
 
       {!canMutate && <MfaNotice />}
