@@ -47,7 +47,7 @@ export const FIXTURE_VERDICT = {
  */
 export interface ChainProbe {
   model: string;
-  status: number;
+  status: number | string;
   ok: boolean;
   latencyMs: number;
 }
@@ -68,8 +68,23 @@ export async function probeModel(model: string, apiKey: string): Promise<ChainPr
       max_tokens: 16,
     }),
   });
-  await res.body?.cancel().catch(() => {});
-  return { model, status: res.status, ok: res.ok, latencyMs: Date.now() - started };
+  const latencyMs = Date.now() - started;
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {});
+    return { model, status: res.status, ok: false, latencyMs };
+  }
+  // 200 is not an answer. Production (fetchWithModelFallbackChecked) counts
+  // only a visible content token — a shed free model returns 200 with an
+  // empty completion — so read the body and apply the same rule.
+  let json: { choices?: Array<{ message?: { content?: unknown } }> } | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    return { model, status: "malformed", ok: false, latencyMs };
+  }
+  const content = json?.choices?.[0]?.message?.content;
+  const ok = typeof content === "string" && content.trim().length > 0;
+  return { model, status: ok ? res.status : "empty", ok, latencyMs };
 }
 
 /** Reads an SSE stream to completion, returning the concatenated assistant text. */
