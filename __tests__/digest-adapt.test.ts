@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adaptLiveSignals, DIGEST_SCHEMA_VERSION } from "@/lib/digest";
+import { adaptLiveSignals, DIGEST_SCHEMA_VERSION, signalsRunHeader } from "@/lib/digest";
 
 const FRESH = new Date().toISOString();
 
@@ -235,5 +235,55 @@ describe("adaptLiveSignals — per-ticker generatedAt (closes the batch-timestam
     const aapl = d.signals.find((s) => s.ticker === "AAPL")!;
     expect(soxx.isStale).toBe(true);
     expect(aapl.isStale).toBe(false);
+  });
+});
+
+describe("adaptLiveSignals — run provenance (asOfDate / lastRunAt)", () => {
+  it("records the trading date as asOfDate and the batch updated as lastRunAt", () => {
+    const d = adaptLiveSignals({
+      date: "2026-11-02",
+      updated: "2026-11-01T01:21:06.411914+00:00",
+      symbols: { XLP: {} },
+    });
+    expect(d.asOfDate).toBe("2026-11-02");
+    expect(d.lastRunAt).toBe("2026-11-01T01:21:06.411914+00:00");
+  });
+
+  it("sets lastRunAt to null when the backend omits `updated` (never fabricates a run time)", () => {
+    const d = adaptLiveSignals({ date: "2026-11-02", symbols: { XLP: {} } });
+    expect(d.lastRunAt).toBeNull();
+    expect(d.asOfDate).toBe("2026-11-02");
+  });
+
+  it("sets lastRunAt to null when `updated` is not a parseable timestamp", () => {
+    const d = adaptLiveSignals({ date: "2026-11-02", updated: "not-a-date", symbols: { XLP: {} } });
+    expect(d.lastRunAt).toBeNull();
+  });
+});
+
+describe("signalsRunHeader", () => {
+  it("shows the actual run time in market timezone with the trading day as context", () => {
+    const label = signalsRunHeader({
+      lastRunAt: "2026-11-01T01:21:06.411914+00:00",
+      generatedAt: "2026-11-01T01:21:06.411914+00:00",
+      asOfDate: "2026-11-02",
+    });
+    // 01:21 UTC on Nov 1 = 9:21 PM EDT on Oct 31 (before the Nov 1, 2026 DST fallback)
+    expect(label).toBe("Signals last run Oct 31, 2026, 9:21 PM EDT · for trading day 2026-11-02");
+  });
+
+  it("falls back to generatedAt for digests saved before lastRunAt existed", () => {
+    const label = signalsRunHeader({
+      lastRunAt: undefined,
+      generatedAt: "2026-11-01T01:21:06.411914+00:00",
+      asOfDate: undefined,
+    });
+    expect(label).toBe("Signals last run Oct 31, 2026, 9:21 PM EDT");
+  });
+
+  it("says time unknown rather than showing a calendar date when no run timestamp exists", () => {
+    const label = signalsRunHeader({ lastRunAt: null, generatedAt: "garbage", asOfDate: "2026-11-02" });
+    expect(label).toBe("Signals last run: time unknown · for trading day 2026-11-02");
+    expect(label).not.toContain("Signals for");
   });
 });
