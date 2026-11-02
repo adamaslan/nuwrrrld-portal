@@ -449,11 +449,11 @@ describe("runSeat — per-attempt diagnostics", () => {
   // fallback serving the seat read as healthy in CI logs. Every skipped
   // attempt now logs seat, model, outcome classification and latency - and
   // nothing else (no prompts, completions, headers, keys, error strings).
-  const infoLines = (info: ReturnType<typeof vi.spyOn>) =>
+  const errLines = (info: ReturnType<typeof vi.spyOn>) =>
     info.mock.calls.map((c: unknown[]) => String(c[0])).filter((l: string) => l.includes("outcome="));
 
   it("logs http-<status> for a skipped primary, with seat and model, and still falls through", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
     const { modelsTried } = stubFetchSequence([
       () => errorResponse(429),
       () => jsonCompletion("served by the chain"),
@@ -462,7 +462,7 @@ describe("runSeat — per-attempt diagnostics", () => {
     const result = await runSeat("QUANT", [{ role: "user", content: "hi" }], KEY, 32);
 
     expect(result.answer).toBe("served by the chain"); // behavior unchanged
-    const lines = infoLines(info);
+    const lines = errLines(info);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("seat=QUANT");
     expect(lines[0]).toContain(`model=${modelsTried[0]}`);
@@ -471,7 +471,7 @@ describe("runSeat — per-attempt diagnostics", () => {
   });
 
   it("logs empty-completion for a 200 with no usable content", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
     stubFetchSequence([
       () => new Response(JSON.stringify({ choices: [] }), { status: 200 }),
       () => jsonCompletion("ok"),
@@ -479,11 +479,11 @@ describe("runSeat — per-attempt diagnostics", () => {
 
     await runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32);
 
-    expect(infoLines(info).some((l: string) => l.includes("outcome=empty-completion"))).toBe(true);
+    expect(errLines(info).some((l: string) => l.includes("outcome=empty-completion"))).toBe(true);
   });
 
   it("logs abort-timeout for an aborted attempt and advances", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
     const abort = () => {
       const err = new Error("aborted");
       err.name = "AbortError";
@@ -493,18 +493,18 @@ describe("runSeat — per-attempt diagnostics", () => {
 
     await runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32);
 
-    expect(infoLines(info).some((l: string) => l.includes("outcome=abort-timeout"))).toBe(true);
+    expect(errLines(info).some((l: string) => l.includes("outcome=abort-timeout"))).toBe(true);
   });
 
   it("logs network-error (sanitized, no exception text) and still propagates", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
     stubFetchSequence([
       () => Promise.reject(new TypeError(`fetch failed: https://openrouter.ai/api/v1/chat/completions key=${KEY}`)),
     ]);
 
     await expect(runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32)).rejects.toThrow();
 
-    const lines = infoLines(info);
+    const lines = errLines(info);
     expect(lines.some((l: string) => l.includes("outcome=network-error"))).toBe(true);
     for (const line of lines) {
       expect(line).not.toContain(KEY);
@@ -514,23 +514,23 @@ describe("runSeat — per-attempt diagnostics", () => {
 
   it("keeps the retired-primary warn AND adds the structured line for the same 404", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
     stubFetchSequence([() => errorResponse(404), () => jsonCompletion("ok")]);
 
     await runSeat("QUANT", [{ role: "user", content: "hi" }], KEY, 32);
 
     expect(warn).toHaveBeenCalledTimes(1); // existing loud warn preserved
     expect(String(warn.mock.calls[0][0])).toMatch(/SEAT_MODELS/);
-    expect(infoLines(info).some((l: string) => l.includes("outcome=http-404"))).toBe(true);
+    expect(errLines(info).some((l: string) => l.includes("outcome=http-404"))).toBe(true);
   });
 
   it("logs nothing on a first-try success, and never logs prompts or keys", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
     stubFetchSequence([() => jsonCompletion("ok")]);
 
     await runSeat("T1", [{ role: "user", content: "a secret prompt hi" }], KEY, 32);
 
-    expect(infoLines(info)).toHaveLength(0);
+    expect(errLines(info)).toHaveLength(0);
     for (const call of info.mock.calls as unknown[][]) {
       const line = String(call[0]);
       expect(line).not.toContain("secret prompt");
