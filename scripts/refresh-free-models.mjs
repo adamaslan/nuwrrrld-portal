@@ -6,9 +6,9 @@
  * What it does:
  *   1. Pulls OpenRouter's model catalog and keeps only $0-priced models
  *      (pricing.prompt / completion / request all parse to 0).
- *   2. Live-probes each candidate (1-token completion) so a model that is
- *      priced $0 but returns 402/429 — the exact failure hitting the council
- *      route — is dropped, not trusted.
+ *   2. Live-probes each candidate (tiny completion) so a model that is
+ *      priced $0 but returns 402/429 — or a 200 with no visible content
+ *      token, which production treats as no answer — is dropped, not trusted.
  *   3. Rewrites the FREE_MODEL_CHAIN array in lib/openrouter.ts with the top N
  *      that pass, in preference order.
  *   4. Audits SEAT_MODELS — reports, never rewrites. As of 2026-09-11 the audit
@@ -43,7 +43,8 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
@@ -180,14 +181,16 @@ async function fetchFreeModels() {
  * or `'network'`. Retries once on a first-attempt 429 (an account rate limit is
  * not evidence the model is dead); a 429 on the retry is reported as `ok:false`.
  */
-async function probe(apiKey, model) {
+export async function probe(apiKey, model, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? PROBE_TIMEOUT_MS;
+  const retryDelayMs = opts.retryDelayMs ?? RETRY_429_DELAY_MS;
   // Two attempts: a 429 on the first is an account-level rate limit, not
   // evidence the model is unreachable. Without the retry a momentarily
   // throttled vendor is excluded from the entire week's chain — that is how
   // both Google models were dropped on 2026-09-07 (P4).
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(`${OR_BASE}/chat/completions`, {
         method: 'POST',
@@ -201,17 +204,28 @@ async function probe(apiKey, model) {
         body: JSON.stringify({
           model,
           messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 1,
+          // 8 tokens, not 1: a 1-token cap can be consumed entirely by a
+          // reasoning model's hidden reasoning budget, leaving content empty
+          // and falsely condemning a healthy model.
+          max_tokens: 8,
         }),
       });
-      await res.body?.cancel().catch(() => {});
       if (res.status === 429 && attempt === 0) {
+        await res.body?.cancel().catch(() => {});
         clearTimeout(timer);
-        console.log(`  probe 429  ${model} — rate limited, retrying once in ${RETRY_429_DELAY_MS}ms`);
-        await new Promise((r) => setTimeout(r, RETRY_429_DELAY_MS));
+        console.log(`  probe 429  ${model} — rate limited, retrying once in ${retryDelayMs}ms`);
+        await new Promise((r) => setTimeout(r, retryDelayMs));
         continue;
       }
-      return { model, ok: res.ok, status: res.status };
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return { model, ok: false, status: res.status };
+      }
+      // 200 is not health. Production (fetchWithModelFallbackChecked) counts
+      // only a visible content token as an answer — a shed free model returns
+      // 200 with an empty completion — so the probe reads the body and
+      // applies the same rule instead of trusting the status.
+      return { model, ...(await contentVerdict(res)) };
     } catch (err) {
       return { model, ok: false, status: err?.name === 'AbortError' ? 'timeout' : 'network' };
     } finally {
@@ -219,6 +233,20 @@ async function probe(apiKey, model) {
     }
   }
   return { model, ok: false, status: 429 };
+}
+
+/** Reads the completion body: only a visible content token passes (mirrors fetchWithModelFallbackChecked). */
+async function contentVerdict(res) {
+  let json;
+  try {
+    json = await res.json();
+  } catch {
+    return { ok: false, status: 'malformed' };
+  }
+  const content = json?.choices?.[0]?.message?.content;
+  return typeof content === 'string' && content.trim().length > 0
+    ? { ok: true, status: res.status }
+    : { ok: false, status: 'empty' };
 }
 
 /** Keep at most MAX_PER_VENDOR ids sharing a `vendor/` prefix, order preserved. */
@@ -523,7 +551,15 @@ async function main() {
   if (deadSeats > 0) process.exitCode = EXIT_DEGRADED_SEATS;
 }
 
-main().catch((err) => {
+const invokedAsScript = (() => {
+  try {
+    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedAsScript) main().catch((err) => {
   if (err instanceof KeyRejectedError) {
     console.error(
       `\nrefresh-free-models: ${err.message}. The OpenRouter key is revoked or invalid. ` +
