@@ -54,7 +54,7 @@ resource "google_cloud_run_v2_job" "hydration" {
       timeout         = "1800s"
 
       containers {
-        image = "${google_artifact_registry_repository.images["hydration"].registry_uri}@${var.hydration_image_digest}"
+        image = "${google_artifact_registry_repository.images["hydration"].registry_uri}/${var.hydration_image_name}@${var.hydration_image_digest}"
 
         resources {
           limits = {

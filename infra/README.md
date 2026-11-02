@@ -169,7 +169,10 @@ and `hydration_neon_endpoint_id` are both set. Firestore and the remaining
 slot 2 features are not yet connected.
 
 The new image repository has immutable tags. Builds must use a unique tag for
-each image, and deployments must pin the tested digest. Its cleanup policy is
+each image, and deployments must pin the tested digest. The hydration job
+uses `hydration_image_name` (default `hydration-worker`) between the repository
+URI and digest to form the full Cloud Run image reference. Set it to the name
+used when pushing the image. Its cleanup policy is
 in dry-run mode: it retains the two newest versions per package and proposes
 deleting untagged versions older than one day. Review the dry-run findings
 before allowing deletion; tagged historical images are outside that delete

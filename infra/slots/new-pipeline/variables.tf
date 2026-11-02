@@ -49,6 +49,17 @@ variable "hydration_image_digest" {
   }
 }
 
+variable "hydration_image_name" {
+  description = "Container image name within the hydration Artifact Registry repository."
+  type        = string
+  default     = "hydration-worker"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+([._-][a-z0-9]+)*$", var.hydration_image_name))
+    error_message = "hydration_image_name must be a lowercase container image name."
+  }
+}
+
 variable "hydration_neon_endpoint_id" {
   description = "Neon endpoint ID of the nwf-hydration branch. The worker rejects a target whose hostname does not contain it. Set in the local, ignored terraform.tfvars; not a secret, but kept out of committed files."
   type        = string
