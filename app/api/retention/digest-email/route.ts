@@ -8,7 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { adaptLiveSignals } from "@/lib/digest";
-import { createResendProvider } from "@/lib/notify/email";
+import type { EmailProvider } from "@/lib/notify/email";
+import { selectEmailProvider } from "@/lib/notify/select";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
 const MCP_URL = process.env.MCP_BACKEND_URL;
@@ -23,8 +24,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY not set" }, { status: 503 });
+  let provider: EmailProvider;
+  try {
+    provider = selectEmailProvider(process.env);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "email provider not configured" }, { status: 503 });
+  }
   if (!MCP_URL) return NextResponse.json({ error: "MCP_BACKEND_URL not set" }, { status: 503 });
 
   const body = await req.json().catch(() => ({})) as { userId?: string };
@@ -77,7 +82,7 @@ ${signalHtml}
   `.trim();
 
   try {
-    const res = await createResendProvider(resendKey).send({
+    const res = await provider.send({
       from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
       to: [verifiedEmail],
       subject: "Your weekly signal digest",
