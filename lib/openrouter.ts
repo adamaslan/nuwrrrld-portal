@@ -38,6 +38,7 @@ export const FREE_MODEL_CHAIN = [
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
   'dots-studio/dots-3-note-preview:free',
   'nvidia/nemotron-3.5-lightning:free',
+  'cohere/north-mini-code:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
@@ -103,8 +104,12 @@ const SEAT_MODELS: Record<CouncilSeat, string> = {
   // only the paid slug remains). It was also FREE_MODEL_CHAIN's head, and the
   // plain walks broke on its 404, so brief + health-ai failed outright.
   T1: 'nvidia/nemotron-3.5-lightning:free',
-  T2: 'poolside/laguna-s-2.1:free',
-  RISK: 'poolside/laguna-xs-2.1:free',
+  // 2026-11-03: both poolside/laguna ids 404 — retired from the free catalog.
+  // Replacements probed live with a $0 key (200, catalog pricing 0/0):
+  // CHAIR's ultra model takes T2 (strategic), cohere's north-mini-code takes
+  // RISK (a different vendor from T2 and CHAIR).
+  T2: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+  RISK: 'cohere/north-mini-code:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
