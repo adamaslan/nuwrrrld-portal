@@ -2,7 +2,8 @@
  * POST /api/launch/remind — send a Product Hunt upvote reminder.
  * Called once on launch day via cron or manual trigger.
  * Requires LAUNCH_REMIND_SECRET (bearer token) + DISCORD_FEEDBACK_WEBHOOK_URL for logging.
- * Actual email delivery is via Resend (RESEND_API_KEY).
+ * Actual email delivery is via the selected provider: Resend by default (RESEND_API_KEY),
+ * or Brevo when ALERT_EMAIL_PROVIDER=brevo (BREVO_API_KEY).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     }, { timeoutMs: 10_000 });
     if (res.ok) { sent++; } else {
       failed++;
-      console.error("Resend error for", address, await res.errorText());
+      console.error(`${provider.name} error for`, address, await res.errorText());
     }
   }
 
