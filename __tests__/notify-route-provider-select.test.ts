@@ -11,6 +11,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 vi.mock("@/lib/http-auth", () => ({ bearerTokenMatches: () => true }));
 import { POST as digest } from "@/app/api/retention/digest-email/route";
+import { POST as remind } from "@/app/api/launch/remind/route";
 import { POST as nudge } from "@/app/api/retention/trial-nudge/route";
 
 const req = (path: string, body: object) =>
@@ -63,5 +64,20 @@ describe("routes provider selection (ALERT_EMAIL_PROVIDER)", () => {
     const res = await digest(req("/api/retention/digest-email", {}));
     expect(res.status).toBe(503);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("launch reminder: unset sends to Resend, brevo opt-in sends only to Brevo and logs its name", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true }); vi.stubGlobal("fetch", fetchMock);
+    await remind(req("/api/launch/remind", { to: ["a@x.test"] }));
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.resend.com/emails");
+    vi.stubEnv("ALERT_EMAIL_PROVIDER", "brevo"); vi.stubEnv("BREVO_API_KEY", "b-key");
+    fetchMock.mockClear().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" });
+    const res = await remind(req("/api/launch/remind", { to: ["a@x.test"] }));
+    expect(await res.json()).toEqual({ sent: 0, failed: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.brevo.com/v3/smtp/email");
+    expect(err).toHaveBeenCalledWith("brevo error for", "a@x.test", "boom");
+    log.mockRestore(); err.mockRestore();
   });
 });
