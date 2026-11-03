@@ -110,7 +110,7 @@ describe("routes keep their pre-adapter behavior", () => {
     expect(await res.json()).toEqual({ sent: 1, failed: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).to).toEqual(["b@x.test"]);
-    expect(err).toHaveBeenCalledWith("Resend error for", "b@x.test", "daily_quota_exceeded");
+    expect(err).toHaveBeenCalledWith("resend error for", "b@x.test", "daily_quota_exceeded");
     expect(timeoutSpy).toHaveBeenCalledTimes(2);
     expect(timeoutSpy).toHaveBeenNthCalledWith(1, 10_000);
     expect(timeoutSpy).toHaveBeenNthCalledWith(2, 10_000);
