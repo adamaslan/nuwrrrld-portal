@@ -4,7 +4,7 @@ import { createResendProvider, type EmailProvider } from "./email";
 /**
  * Explicit provider selection. Default (unset) is Resend. Choosing "brevo"
  * without BREVO_API_KEY throws; there is no silent fallback to another
- * provider and no automatic failover. Not wired into any route yet.
+ * provider and no automatic failover. Used by the digest, trial-nudge and launch-reminder routes.
  */
 export function selectEmailProvider(env: Readonly<Record<string, string | undefined>>): EmailProvider {
   const which = (env.ALERT_EMAIL_PROVIDER ?? "resend").toLowerCase();
