@@ -973,3 +973,4 @@ watchlist route.
 ## [2026-10-07] ingest | PR #234 fix(digest): durable stale fallback when live backend is down | pages touched: 1
 ## [2026-10-08] ingest | PR feat(watchlist): CSV import with server-side validation, caps, and CSRF gate | pages touched: 3
 ## [2026-11-02] ingest | PR #332 docs: mark SESSION-SUMMARY test_ops.py or-True items resolved | pages touched: 1
+## [2026-11-02] ingest | PR #328 nulogdash: label pipeline run times with explicit ET timezone | pages touched: 2

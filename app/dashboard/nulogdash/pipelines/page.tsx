@@ -1,4 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { formatRunTimeET } from "@/lib/format-time";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -59,7 +60,7 @@ export function RunRow({ run }: { run: PipelineRunRow }) {
         </Link>
       </td>
       <td><RunModeBadge dryRun={run.dryRun} /></td>
-      <td>{new Date(run.runAt).toLocaleString()}</td>
+      <td>{formatRunTimeET(run.runAt)}</td>
       <td>{run.itemsTotal}</td>
       <td>{run.itemsAi}</td>
       <td>
@@ -154,7 +155,7 @@ export default async function PipelineRunsPage({
                 <span className="nld-card-label">{PIPELINE_LABEL[p]}</span>
                 {latest ? (
                   <>
-                    <strong>{new Date(latest.runAt).toLocaleString()}</strong>
+                    <strong>{formatRunTimeET(latest.runAt)}</strong>
                     <span className="nld-card-sub">
                       <RunModeBadge dryRun={latest.dryRun} /> · {latest.itemsTotal} items ·{" "}
                       {latest.itemsAi} AI
