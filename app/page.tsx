@@ -74,6 +74,7 @@ async function LandingContent() {
           <Link href="/portfolio-intelligence">Portfolio</Link>
           <Link href="/ai-assistant">Nu AI</Link>
           <a href="#council">Council</a>
+          <Link href="/blog">Blog</Link>
           <Link className="nav-keep" href="/sign-in">Sign in</Link>
           <Link className="nav-action" href="/sign-up">Start free →</Link>
         </div>
