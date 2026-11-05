@@ -1,0 +1,70 @@
+# STAGED ACTIVATION, NOT APPLIED. Replace the existing shared-drift-check job in
+# .github/workflows/ci.yml with this block ONLY after scripts/drift-pair/ is on
+# trusted default main, and after its own review and CI pass. Until then the
+# original job stays in place, unchanged and green.
+  shared-drift-check:
+    # Candidate: paired-drift resolution (scripts/drift-pair/). The resolver and
+    # checker are TRUSTED code, read from the PR base commit, never the PR head.
+    # Bootstrap: until the resolver is on default main, the trusted checkout has
+    # no scripts/drift-pair/ and this job fails closed with "No such file".
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted base (resolver + checker)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Checkout web (this repo, PR head = data)
+        uses: actions/checkout@v4
+        with:
+          path: nuwrrrld-portal
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve counterpart (fail-closed)
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" --pr "$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          else
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout mobile at the resolved counterpart SHA
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.resolve.outputs.counterpart_repo }}
+          ref: ${{ steps.resolve.outputs.counterpart_ref }}
+          path: gcp3-mobile
+          persist-credentials: false
+
+      - name: Check shared-core drift
+        env:
+          WEB_ROOT: nuwrrrld-portal
+          MOBILE_ROOT: gcp3-mobile
+        run: node trusted/scripts/check-shared-drift.mjs
+
+      - name: Recheck frozen heads (moved head invalidates result)
+        if: steps.resolve.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MODE: ${{ steps.resolve.outputs.mode }}
+          OWN_SHA: ${{ steps.resolve.outputs.own_sha }}
+          CP_REF: ${{ steps.resolve.outputs.counterpart_ref }}
+          CP_PR: ${{ steps.resolve.outputs.counterpart_pr }}
+        run: |
+          node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" ${PR_NUMBER:+--pr "$PR_NUMBER"} \
+            --verify-mode "$MODE" --verify-own-sha "$OWN_SHA" \
+            --verify-counterpart-sha "$CP_REF" --verify-counterpart-pr "$CP_PR"
+

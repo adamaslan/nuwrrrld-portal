@@ -2,22 +2,28 @@
 // Trusted paired-drift resolver for the shared-core drift gate.
 //
 // Decides which counterpart commit the drift check compares against:
-//   - an UNPAIRED PR compares against the counterpart repo's default branch;
-//   - a PAIRED PR (explicit reciprocal `drift-pair:` references, both sides
-//     open, same-repo heads, base main) compares against the counterpart PR's
-//     frozen head SHA.
-// A pair that is requested but invalid, unreachable or non-reciprocal FAILS
-// CLOSED: the resolver throws and never falls back to the default branch.
+//   - an UNPAIRED PR (or a PR whose counterpart has MERGED) compares against
+//     the counterpart repo's current default branch, with the full comparator;
+//   - a PAIRED PR compares against the counterpart PR's exact head SHA. Pairing
+//     requires reciprocal `drift-pair:` references AND reciprocal exact-SHA pins
+//     (`drift-pair-sha:`) that match both live heads.
+// A pair that is requested but invalid, unavailable, non-reciprocal or whose
+// counterpart is CLOSED WITHOUT MERGE fails closed. It never silently skips.
 //
-// Trust boundary: this file is trusted code, loaded from the BASE branch by
-// the workflow. All PR metadata (titles, bodies, branch names, refs) is
-// untrusted data. It is matched against strict patterns, never executed,
-// never interpolated into a shell, and never used as a filesystem path.
-// No secrets, no privileged events, no counterpart code execution.
+// Binding: the resolver returns a `binding` digest over the complete resolved
+// identity (mode, repos, PR numbers, head SHAs, and every pair/pin line in both
+// bodies). A caller that re-runs resolution after comparison and gets a
+// different binding must fail. This catches a removed back-reference or pin.
+//
+// Trust boundary: this file is trusted code, loaded from the BASE branch by the
+// workflow. All PR metadata (bodies, refs, titles) is untrusted data. It is
+// matched with strict patterns, never executed, never placed in a shell string
+// and never used as a path. No secrets, no privileged event, no counterpart code.
 //
 // Stdlib only (node >= 20). The API is injectable so the logic is testable
 // without network access; see resolve-pair.test.mjs.
 
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 
 // Exact repository pairs that may be compared. Anything else is refused.
@@ -31,10 +37,8 @@ export const ALLOWED_PAIRS = Object.freeze([
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA_RE = /^[0-9a-f]{40}$/;
 const PR_NUMBER_RE = /^[1-9][0-9]{0,6}$/;
-// Reciprocal pair reference, one per PR body, on its own line.
 const PAIR_LINE_RE =
   /^drift-pair:[ \t]*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([1-9][0-9]{0,6})[ \t]*$/gm;
-// Optional declared pin of the counterpart head SHA, checked when present.
 const PIN_LINE_RE =
   /^drift-pair-sha:[ \t]*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)@([0-9a-f]{40})[ \t]*$/gm;
 
@@ -65,6 +69,15 @@ function singleMatch(re, text) {
   return matches[0];
 }
 
+/** Every pair/pin line, normalized, in order. Used for the binding digest. */
+function bindingLines(text) {
+  const out = [];
+  for (const re of [PAIR_LINE_RE, PIN_LINE_RE]) {
+    for (const m of String(text ?? "").matchAll(re)) out.push(m[0].trim());
+  }
+  return out.sort();
+}
+
 function requireRepo(value, code) {
   if (typeof value !== "string" || !REPO_RE.test(value)) {
     throw new PairError(code, "repository name is not in owner/name form");
@@ -84,24 +97,26 @@ function checkedPull(raw, repo, number, label) {
   if (!raw || typeof raw !== "object") {
     throw new PairError("api-unavailable", `${label}: no PR data returned`);
   }
-  const headRepo = raw.head?.repo?.full_name ?? null;
-  const baseRepo = raw.base?.repo?.full_name ?? null;
+  const merged = raw.merged === true;
   return {
     number,
+    repo,
     state: raw.state,
+    merged,
+    mergedAt: raw.merged_at ?? null,
+    mergeCommitSha: raw.merge_commit_sha ?? null,
     draft: raw.draft === true,
     body: typeof raw.body === "string" ? raw.body : "",
     baseRef: raw.base?.ref ?? null,
-    baseRepo,
+    baseRepo: raw.base?.repo?.full_name ?? null,
     headRef: raw.head?.ref ?? null,
-    headRepo,
+    headRepo: raw.head?.repo?.full_name ?? null,
     headSha: requireSha(raw.head?.sha, "bad-sha"),
-    repo,
   };
 }
 
 function assertOpenSameRepoMain(pull, label, code) {
-  if (pull.state !== "open") {
+  if (pull.state !== "open" || pull.merged) {
     throw new PairError(code, `${label} PR #${pull.number} is not open`);
   }
   if (pull.headRepo !== pull.repo) {
@@ -112,30 +127,49 @@ function assertOpenSameRepoMain(pull, label, code) {
   }
 }
 
+function summaryOf(resolved) {
+  return JSON.stringify({
+    mode: resolved.mode,
+    reason: resolved.reason,
+    own: resolved.own,
+    counterpart: resolved.counterpart,
+    ownBinding: resolved.ownBinding,
+    counterpartBinding: resolved.counterpartBinding,
+  });
+}
+
+/** Digest over the complete resolved identity. Stable across runs when nothing moved. */
+export function bindingOf(resolved) {
+  return createHash("sha256").update(summaryOf(resolved)).digest("hex");
+}
+
 /**
  * Resolve the counterpart to compare against.
  *
  * @param {object} args
- * @param {object} args.api   injectable adapter: { getPull(repo, n), getDefaultSha(repo) }
- * @param {string} args.repo  owner/name of the repository running the gate
+ * @param {object} args.api        { getPull(repo, n), getDefaultSha(repo) }
+ * @param {string} args.repo       owner/name of the repository running the gate
  * @param {string|number|null} [args.pr]  PR number, or null for a push run
- * @returns {Promise<{mode: "paired"|"default", own: object, counterpart: object}>}
+ * @param {string|null} [args.eventHeadSha]  head SHA the triggering event carried
  */
-export async function resolvePair({ api, repo, pr = null }) {
+export async function resolvePair({ api, repo, pr = null, eventHeadSha = null }) {
   requireRepo(repo, "bad-repo");
   const counterparty = counterpartOf(repo);
   if (!counterparty) {
     throw new PairError("not-allowlisted", `${repo} is not in ALLOWED_PAIRS`);
   }
 
-  // A push run has no PR: compare the two default branches.
   if (pr === null || pr === undefined || pr === "") {
+    // Push run: default branches only. No PR metadata exists to bind.
     const sha = requireSha(await safeDefaultSha(api, counterparty), "bad-sha");
-    return {
+    return finish({
       mode: "default",
+      reason: "push",
       own: { repo, pr: null, sha: null },
       counterpart: { repo: counterparty, pr: null, sha },
-    };
+      ownBinding: "",
+      counterpartBinding: "",
+    });
   }
 
   const prText = String(pr);
@@ -145,16 +179,27 @@ export async function resolvePair({ api, repo, pr = null }) {
   const ownNumber = Number(prText);
   const own = checkedPull(await safeGetPull(api, repo, ownNumber), repo, ownNumber, "own");
   assertOpenSameRepoMain(own, "own", "own-state");
+  if (eventHeadSha !== null) {
+    // Bind the live head to the head the event carried. Mismatch means stale or
+    // moved input: refuse rather than check something else.
+    requireSha(eventHeadSha, "bad-sha");
+    if (own.headSha !== eventHeadSha) {
+      throw new PairError("event-head-mismatch", "live own head differs from the event head");
+    }
+  }
 
   const pairMatch = singleMatch(PAIR_LINE_RE, own.body);
+  const ownBinding = bindingLines(own.body).join("\n");
   if (!pairMatch) {
-    // Unpaired: ordinary default-branch comparison. Never skips parity.
     const sha = requireSha(await safeDefaultSha(api, counterparty), "bad-sha");
-    return {
+    return finish({
       mode: "default",
+      reason: "unpaired",
       own: { repo, pr: ownNumber, sha: own.headSha },
       counterpart: { repo: counterparty, pr: null, sha },
-    };
+      ownBinding,
+      counterpartBinding: "",
+    });
   }
 
   const [, claimedRepo, claimedNumberText] = pairMatch;
@@ -168,6 +213,24 @@ export async function resolvePair({ api, repo, pr = null }) {
     counterNumber,
     "counterpart",
   );
+
+  // Lifecycle: a MERGED counterpart is no longer a pending pair. Compare against
+  // its current default branch with the full comparator. A merged PR must carry
+  // consistent merge fields; closed-without-merge is refused.
+  if (counter.merged) {
+    if (counter.state !== "closed" || !counter.mergedAt || !counter.mergeCommitSha) {
+      throw new PairError("bad-merge-state", "counterpart merge fields are inconsistent");
+    }
+    const sha = requireSha(await safeDefaultSha(api, counterparty), "bad-sha");
+    return finish({
+      mode: "default",
+      reason: "counterpart-merged",
+      own: { repo, pr: ownNumber, sha: own.headSha },
+      counterpart: { repo: counterparty, pr: counterNumber, sha },
+      ownBinding,
+      counterpartBinding: bindingLines(counter.body).join("\n"),
+    });
+  }
   assertOpenSameRepoMain(counter, "counterpart", "counterpart-state");
 
   // Reciprocity: the counterpart must name this PR back, exactly once.
@@ -176,54 +239,48 @@ export async function resolvePair({ api, repo, pr = null }) {
     throw new PairError("nonreciprocal", "counterpart PR does not reference this PR back");
   }
 
-  // Declared pins, if present, must match the live heads. Pins are optional
-  // and never replace the live SHA check below.
+  // Exact-SHA pins are REQUIRED for a pair, on both sides, and must match the
+  // live heads. Pins live in PR bodies (metadata), never in commit contents.
   const ownPin = singleMatch(PIN_LINE_RE, own.body);
-  if (ownPin && (ownPin[1] !== counterparty || ownPin[2] !== counter.headSha)) {
-    throw new PairError("pin-mismatch", "declared counterpart pin does not match its live head");
-  }
   const counterPin = singleMatch(PIN_LINE_RE, counter.body);
-  if (counterPin && (counterPin[1] !== repo || counterPin[2] !== own.headSha)) {
+  if (!ownPin || !counterPin) {
+    throw new PairError("pin-required", "both PR bodies must carry a drift-pair-sha pin");
+  }
+  if (ownPin[1] !== counterparty || ownPin[2] !== counter.headSha) {
+    throw new PairError("pin-mismatch", "own pin does not match the counterpart live head");
+  }
+  if (counterPin[1] !== repo || counterPin[2] !== own.headSha) {
     throw new PairError("pin-mismatch", "counterpart pin does not match this PR's live head");
   }
 
-  return {
+  return finish({
     mode: "paired",
+    reason: "reciprocal-pin",
     own: { repo, pr: ownNumber, sha: own.headSha },
     counterpart: { repo: counterparty, pr: counterNumber, sha: counter.headSha },
-  };
+    ownBinding,
+    counterpartBinding: bindingLines(counter.body).join("\n"),
+  });
+}
+
+function finish(resolved) {
+  return { ...resolved, binding: bindingOf(resolved) };
 }
 
 /**
- * Recheck both heads after the comparison. A moved head invalidates the result.
- * @returns {Promise<void>} resolves when both heads are unchanged; throws PairError otherwise.
+ * Post-comparison recheck. Re-runs the full resolution from live state and
+ * requires the identical binding. Any moved head, edited or removed pin or
+ * back-reference, lifecycle change or closed counterpart fails here.
  */
-export async function recheckFrozen({ api, resolved }) {
-  const { own, counterpart, mode } = resolved;
-  if (own.pr !== null) {
-    const now = checkedPull(await safeGetPull(api, own.repo, own.pr), own.repo, own.pr, "own");
-    assertOpenSameRepoMain(now, "own", "own-state");
-    if (now.headSha !== own.sha) {
-      throw new PairError("moved-head", "own PR head changed during comparison");
-    }
-  }
-  if (mode === "paired") {
-    const now = checkedPull(
-      await safeGetPull(api, counterpart.repo, counterpart.pr),
-      counterpart.repo,
-      counterpart.pr,
-      "counterpart",
-    );
-    assertOpenSameRepoMain(now, "counterpart", "counterpart-state");
-    if (now.headSha !== counterpart.sha) {
-      throw new PairError("moved-head", "counterpart PR head changed during comparison");
-    }
-  } else {
-    // Unpaired: the counterpart default branch must not have moved either.
-    const sha = await safeDefaultSha(api, counterpart.repo);
-    if (sha !== counterpart.sha) {
-      throw new PairError("moved-head", "counterpart default branch moved during comparison");
-    }
+export async function recheckFrozen({ api, resolved, eventHeadSha = null }) {
+  const again = await resolvePair({
+    api,
+    repo: resolved.own.repo,
+    pr: resolved.own.pr,
+    eventHeadSha,
+  });
+  if (again.binding !== resolved.binding) {
+    throw new PairError("binding-changed", "resolved identity changed during comparison");
   }
 }
 
@@ -247,7 +304,7 @@ async function safeDefaultSha(api, repo) {
 
 // ---------- CLI (used by the workflow) ----------
 
-/** Live adapter over the `gh` CLI. Arguments are passed as an array, never a shell string. */
+/** Live adapter over the `gh` CLI. Arguments are an array, never a shell string. */
 export function ghAdapter(exec = execFile) {
   const ghJson = (args) =>
     new Promise((resolve, reject) => {
@@ -264,8 +321,7 @@ export function ghAdapter(exec = execFile) {
     });
   return {
     async getPull(repo, number) {
-      const pr = await ghJson([`repos/${repo}/pulls/${number}`]);
-      return pr;
+      return ghJson([`repos/${repo}/pulls/${number}`]);
     },
     async getDefaultSha(repo) {
       const meta = await ghJson([`repos/${repo}`]);
@@ -281,11 +337,12 @@ export function ghAdapter(exec = execFile) {
 
 function parseArgs(argv) {
   const out = {};
-  for (let i = 0; i < argv.length; i += 1) {
+  for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i];
-    if (!key.startsWith("--")) throw new PairError("bad-args", `unexpected argument ${key.slice(0, 40)}`);
+    if (!key || !key.startsWith("--")) {
+      throw new PairError("bad-args", "arguments must be --name value pairs");
+    }
     out[key.slice(2)] = argv[i + 1];
-    i += 1;
   }
   return out;
 }
@@ -293,34 +350,31 @@ function parseArgs(argv) {
 async function main(argv) {
   const args = parseArgs(argv);
   const api = ghAdapter();
-  if (args["verify-mode"]) {
-    // Post-comparison recheck of the frozen heads the workflow resolved earlier.
-    // Values come from the workflow's own step outputs and are validated here.
-    const mode = args["verify-mode"];
-    const counterpartRepo = counterpartOf(args.repo);
-    const ownPr = args.pr ? Number(args.pr) : null;
-    const counterpartPr = args["verify-counterpart-pr"] ? Number(args["verify-counterpart-pr"]) : null;
-    const resolved = {
-      mode,
-      own: { repo: args.repo, pr: ownPr, sha: args["verify-own-sha"] || null },
-      counterpart: { repo: counterpartRepo, pr: counterpartPr, sha: args["verify-counterpart-sha"] },
-    };
-    if (mode !== "paired" && mode !== "default") throw new PairError("bad-args", "unknown verify mode");
-    requireSha(resolved.counterpart.sha, "bad-sha");
-    if (resolved.own.pr !== null) requireSha(resolved.own.sha, "bad-sha");
-    await recheckFrozen({ api, resolved });
+  const resolved = await resolvePair({
+    api,
+    repo: args.repo,
+    pr: args.pr ?? null,
+    eventHeadSha: args["event-head-sha"] ?? null,
+  });
+  if (args["expect-binding"]) {
+    // Final re-resolution in the workflow: the binding must be unchanged.
+    await recheckFrozen({ api, resolved, eventHeadSha: args["event-head-sha"] ?? null });
+    if (resolved.binding !== args["expect-binding"]) {
+      throw new PairError("binding-changed", "binding differs from the frozen value");
+    }
     process.stdout.write("recheck=ok\n");
     return;
   }
-  const resolved = await resolvePair({ api, repo: args.repo, pr: args.pr ?? null });
   // Only validated values are written, as key=value lines for $GITHUB_OUTPUT.
   process.stdout.write(
     [
       `mode=${resolved.mode}`,
+      `reason=${resolved.reason}`,
       `counterpart_repo=${resolved.counterpart.repo}`,
       `counterpart_ref=${resolved.counterpart.sha}`,
       `counterpart_pr=${resolved.counterpart.pr ?? ""}`,
       `own_sha=${resolved.own.sha ?? ""}`,
+      `binding=${resolved.binding}`,
       "",
     ].join("\n"),
   );
