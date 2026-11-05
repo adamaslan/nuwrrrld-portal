@@ -1,37 +1,46 @@
 /* Landing styles adapted from gcp3-mobile/landing/index3.html (canonical landing). */
 
 .nwf-landing {
-  /* Single source of truth: repoint the landing's accent tokens onto the
-     app's neon palette (app/globals.css) instead of keeping a separate green
-     brand. --green/--amber/--coral keep their names (used ~60x below) but now
-     resolve to the same colors as the signed-in app. */
-  --bg: #08090c;
-  --ink: #f7f3ea;
-  --muted: #aba89e;
-  --dim: #8d8b80;
-  --panel: rgba(18, 20, 25, 0.82);
-  --panel-solid: #121419;
-  --line: rgba(247, 243, 234, 0.14);
-  --line-strong: rgba(247, 243, 234, 0.24);
-  --blue: #4f7cff;
-  --cyan: #12c8d8;
-  --green: var(--neon-blue);
-  --amber: var(--neon-yellow);
-  --coral: var(--neon-red);
-  --violet: #9b72ff;
-  --shadow: 0 22px 80px rgba(0, 0, 0, 0.34);
+  /* Fixed light palette for every public page, independent of OS theme. */
+  --bg: #ffffff;
+  --ink: #141a24;
+  --muted: #4b5566;
+  --dim: #66707e;
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-solid: #f4f6f9;
+  --line: rgba(20, 26, 36, 0.12);
+  --line-strong: rgba(20, 26, 36, 0.22);
+  --blue: #3355cc;
+  --cyan: #0e8fa8;
+  --green: #0077a8;
+  --amber: #b45309;
+  --coral: #d7263d;
+  --violet: #7c3aed;
+  --shadow: 0 22px 80px rgba(20, 26, 36, 0.14);
+  /* Light-theme remap of the globals.css tokens, so shared pre-login
+     stylesheets (landing-pages.css, pricing.css) that read var(--surface),
+     var(--neon-blue) etc. render light inside the pre-login scope. */
+  --surface: #f4f6f9;
+  --surface-2: #e9edf2;
+  --text: #141a24;
+  --text-dim: #4b5566;
+  --border: rgba(20, 26, 36, 0.12);
+  --neon-blue: #0077a8;
+  --neon-red: #d7263d;
+  --neon-yellow: #b45309;
+  --bull: var(--neon-blue);
+  --bear: var(--neon-red);
+  --background: #ffffff;
+  --foreground: #141a24;
+  --glow-blue: 0 0 12px rgba(0, 119, 168, .35), 0 0 32px rgba(0, 119, 168, .18);
+  --glow-red:  0 0 12px rgba(215, 38, 61, .35),  0 0 32px rgba(215, 38, 61, .18);
   --radius: 8px;
   --max: 1180px;
 
   min-height: 100vh;
   width: 100%;
   color: var(--ink);
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 50% -10%, rgba(18, 200, 216, 0.18), transparent 42%),
-    linear-gradient(135deg, #08090c 0%, #12100e 46%, #071112 100%);
-  background-size: 36px 36px, 36px 36px, auto, auto;
+  background: #ffffff;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.55;
   overflow-x: hidden;
@@ -51,7 +60,7 @@
   min-height: 72px;
   padding: 14px clamp(18px, 4vw, 44px);
   border-bottom: 1px solid var(--line);
-  background: rgba(8, 9, 12, 0.84);
+  background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(18px);
 }
 
@@ -69,12 +78,12 @@
   width: 36px;
   height: 36px;
   border-radius: 7px;
-  color: #06100b;
+  color: #ffffff;
   background: linear-gradient(135deg, var(--green), var(--amber));
   font-size: 0.64rem;
   font-weight: 950;
   letter-spacing: -0.06em;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 10px 28px rgba(79, 124, 255, 0.24);
+  box-shadow: 0 0 0 1px rgba(20, 26, 36, 0.12), 0 10px 28px rgba(79, 124, 255, 0.24);
 }
 
 .nwf-landing .navlinks {
@@ -98,7 +107,7 @@
   padding: 0 16px;
   border: 1px solid rgba(47, 216, 255, 0.32);
   border-radius: 999px;
-  color: #07110b;
+  color: #ffffff;
   background: var(--green);
   font-weight: 900;
   box-shadow: 0 12px 34px rgba(47, 216, 255, 0.24);
@@ -132,9 +141,9 @@
   z-index: -2;
   opacity: 0.56;
   background:
-    linear-gradient(90deg, rgba(8, 9, 12, 0.96) 0%, rgba(8, 9, 12, 0.34) 45%, rgba(8, 9, 12, 0.94) 100%),
-    repeating-linear-gradient(90deg, transparent 0 80px, rgba(247, 243, 234, 0.06) 80px 81px),
-    repeating-linear-gradient(0deg, transparent 0 46px, rgba(247, 243, 234, 0.055) 46px 47px);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.3) 45%, rgba(255, 255, 255, 0.94) 100%),
+    repeating-linear-gradient(90deg, transparent 0 80px, rgba(20, 26, 36, 0.06) 80px 81px),
+    repeating-linear-gradient(0deg, transparent 0 46px, rgba(20, 26, 36, 0.05) 46px 47px);
 }
 
 .nwf-landing .market-wall::before {
@@ -144,7 +153,7 @@
   right: 0;
   top: 34px;
   white-space: nowrap;
-  color: rgba(247, 243, 234, 0.26);
+  color: rgba(20, 26, 36, 0.08);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: clamp(32px, 6vw, 96px);
   font-weight: 900;
@@ -174,7 +183,7 @@
   border: 1px solid rgba(244, 184, 63, 0.34);
   border-radius: 999px;
   background: rgba(244, 184, 63, 0.08);
-  color: #ffd983;
+  color: #92400e;
   font-size: 0.75rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -195,7 +204,7 @@
 
 .nwf-landing .hero-copy {
   max-width: min(760px, calc(100vw - 36px));
-  color: #ddd8c9;
+  color: #4b5566;
   font-size: clamp(1.05rem, 2vw, 1.3rem);
   line-height: 1.65;
   text-wrap: balance;
@@ -245,7 +254,7 @@
   padding: 0 16px;
   border-radius: 999px;
   border: 1px solid var(--line-strong);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(20, 26, 36, 0.06);
   color: var(--ink);
   font-size: 0.95rem;
   font-weight: 700;
@@ -278,7 +287,7 @@
   padding: 16px 18px;
   border-radius: var(--radius);
   border: 1px solid rgba(255, 59, 92, 0.3);
-  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(18, 20, 25, 0.82));
+  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(255, 255, 255, 0.85));
   text-align: left;
 }
 
@@ -336,7 +345,7 @@
 }
 
 .nwf-landing .btn.primary {
-  color: #06100b;
+  color: #ffffff;
   background: var(--green);
   box-shadow: 0 18px 50px rgba(47, 216, 255, 0.28);
 }
@@ -344,7 +353,7 @@
 .nwf-landing .btn.secondary {
   border: 1px solid var(--line-strong);
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(20, 26, 36, 0.08);
   backdrop-filter: blur(14px);
 }
 
@@ -359,9 +368,9 @@
 }
 
 .nwf-landing .phone {
-  border: 1px solid rgba(247, 243, 234, 0.18);
+  border: 1px solid rgba(20, 26, 36, 0.16);
   border-radius: 34px;
-  background: linear-gradient(180deg, #22262d, #090b0f);
+  background: linear-gradient(180deg, #ffffff, #eef1f5);
   box-shadow: var(--shadow), inset 0 0 0 8px #050609;
   overflow: hidden;
 }
@@ -383,8 +392,8 @@
   min-height: 420px;
   padding: 28px 18px 18px;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(180deg, #111722 0%, #17140f 100%);
+    linear-gradient(rgba(20, 26, 36, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, #ffffff 0%, #f4f6f9 100%);
   background-size: 22px 22px, auto;
   text-align: left;
 }
@@ -416,7 +425,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #9aa4b8;
+  color: #66707e;
   margin: 0 0 6px;
 }
 
@@ -427,7 +436,7 @@
   padding: 0 8px;
   border-radius: 999px;
   border: 1px solid rgba(47, 216, 255, 0.34);
-  color: #9ce8ff;
+  color: #0077a8;
   background: rgba(47, 216, 255, 0.1);
   font-size: 0.64rem;
   font-weight: 900;
@@ -437,9 +446,9 @@
 
 .nwf-landing .brief-card,
 .nwf-landing .mini-card {
-  border: 1px solid rgba(247, 243, 234, 0.12);
+  border: 1px solid rgba(20, 26, 36, 0.12);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(20, 26, 36, 0.06);
   padding: 14px;
 }
 
@@ -469,7 +478,7 @@
 
 .nwf-landing .brief-text {
   margin-top: 10px;
-  color: #d8d3c6;
+  color: #4b5566;
   font-size: 0.87rem;
   line-height: 1.55;
 }
@@ -498,7 +507,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(20, 26, 36, 0.08);
   font-size: 0.78rem;
 }
 
@@ -513,7 +522,7 @@
 .nwf-landing .bar {
   height: 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(20, 26, 36, 0.1);
   overflow: hidden;
 }
 
@@ -528,7 +537,7 @@
   margin-top: 10px;
   padding: 12px;
   border-radius: 14px 14px 14px 4px;
-  color: #dcd8cc;
+  color: #4b5566;
   background: rgba(79, 124, 255, 0.12);
   border: 1px solid rgba(79, 124, 255, 0.22);
   font-size: 0.8rem;
@@ -550,7 +559,7 @@
 .nwf-landing .metric {
   min-height: 92px;
   padding: 18px;
-  background: rgba(12, 14, 18, 0.94);
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .nwf-landing .metric strong {
@@ -581,6 +590,10 @@
   gap: 32px;
   align-items: end;
   margin-bottom: 34px;
+}
+
+.nwf-landing .section-head--solo {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .nwf-landing .kicker {
@@ -649,7 +662,7 @@
 .nwf-landing .feature-list li {
   display: flex;
   gap: 9px;
-  color: #d9d4c7;
+  color: #4b5566;
   font-size: 0.88rem;
   line-height: 1.45;
 }
@@ -666,8 +679,8 @@
 
 .nwf-landing .engine {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
-    #0c0e12;
+    linear-gradient(180deg, rgba(20, 26, 36, 0.02), rgba(255, 255, 255, 0)),
+    #ffffff;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -676,7 +689,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  background: #0a0b0f;
+  background: #ffffff;
   box-shadow: var(--shadow);
 }
 
@@ -686,7 +699,7 @@
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
-  background: #121419;
+  background: #f4f6f9;
 }
 
 .nwf-landing .matrix-head strong {
@@ -705,8 +718,8 @@
 
 .nwf-landing .matrix-cell {
   padding: 12px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(20, 26, 36, 0.08);
+  border-bottom: 1px solid rgba(20, 26, 36, 0.08);
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -721,7 +734,7 @@
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(20, 26, 36, 0.04);
 }
 
 .nwf-landing .matrix-cell.name {
@@ -741,19 +754,19 @@
 }
 
 .nwf-landing .buy {
-  color: #9ce8ff;
+  color: #0077a8;
   background: rgba(47, 216, 255, 0.12);
   border: 1px solid rgba(47, 216, 255, 0.3);
 }
 
 .nwf-landing .hold {
-  color: #f8d78a;
+  color: #92400e;
   background: rgba(244, 184, 63, 0.12);
   border: 1px solid rgba(244, 184, 63, 0.28);
 }
 
 .nwf-landing .sell {
-  color: #ffafa3;
+  color: #c7253c;
   background: rgba(255, 59, 92, 0.12);
   border: 1px solid rgba(255, 59, 92, 0.28);
 }
@@ -838,9 +851,9 @@
 
 .nwf-landing .horizon {
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(20, 26, 36, 0.12);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(20, 26, 36, 0.05);
 }
 
 .nwf-landing .horizon b {
@@ -861,9 +874,9 @@
   place-items: center;
   text-align: center;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    #0a0b0f;
+    linear-gradient(rgba(20, 26, 36, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 26, 36, 0.05) 1px, transparent 1px),
+    #ffffff;
   background-size: 30px 30px;
   border-top: 1px solid var(--line);
 }
@@ -928,7 +941,7 @@
   border-radius: 999px;
   border: 1px solid rgba(18, 200, 216, 0.28);
   background: rgba(18, 200, 216, 0.07);
-  color: #a8f0f7;
+  color: #087b90;
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
@@ -1053,7 +1066,7 @@
   font-size: 2.2rem;
   font-weight: 950;
   letter-spacing: -0.06em;
-  color: rgba(247, 243, 234, 0.08);
+  color: rgba(20, 26, 36, 0.06);
 }
 
 .nwf-landing .how-step-icon {
@@ -1077,7 +1090,7 @@
 .nwf-landing .risk-spotlight {
   background:
     linear-gradient(180deg, rgba(255, 59, 92, 0.05), rgba(255, 59, 92, 0)),
-    #0a0b0f;
+    #ffffff;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -1153,7 +1166,7 @@
 
 .nwf-landing .risk-line--risk {
   border-color: rgba(255, 59, 92, 0.3);
-  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(18, 20, 25, 0.82));
+  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(255, 255, 255, 0.85));
 }
 
 .nwf-landing .risk-footer {
@@ -1182,12 +1195,12 @@
 /* RISK leads the seat grid — the most viral idea on the page gets top billing. */
 .nwf-landing .seat-card--risk {
   border-color: rgba(255, 59, 92, 0.35);
-  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(18, 20, 25, 0.82));
+  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(255, 255, 255, 0.85));
 }
 
 .nwf-landing .seat-card.chair {
   border-color: rgba(155, 114, 255, 0.35);
-  background: linear-gradient(180deg, rgba(155, 114, 255, 0.07), rgba(18, 20, 25, 0.82));
+  background: linear-gradient(180deg, rgba(155, 114, 255, 0.07), rgba(255, 255, 255, 0.85));
 }
 
 .nwf-landing .seat-tag {
@@ -1229,7 +1242,7 @@
   border-radius: 6px;
   background: rgba(155, 114, 255, 0.08);
   border: 1px solid rgba(155, 114, 255, 0.22);
-  color: #c8baf8;
+  color: #6d28d9;
   font-size: 0.72rem;
   line-height: 1.4;
   word-break: break-all;
@@ -1307,3 +1320,128 @@
     flex-direction: column;
   }
 }
+
+/* ── Verdict badge (replaces the raw JSON example on the CHAIR seat card) ── */
+.nwf-landing .verdict-badge {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(155, 114, 255, 0.08);
+  border: 1px solid rgba(155, 114, 255, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nwf-landing .verdict-badge-call {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.nwf-landing .verdict-badge-call.buy {
+  background: rgba(47, 216, 255, 0.14);
+  border: 1px solid rgba(47, 216, 255, 0.4);
+  color: var(--neon-blue);
+}
+
+.nwf-landing .verdict-badge-meta {
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.nwf-landing .verdict-badge-inv {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.nwf-landing .verdict-badge-note {
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
+/* PreLoginShell mobile menu: hamburger under 780px; middle links and Sign in move into it */
+.nwf-landing .nav-menu { display: none; }
+@media (max-width: 780px) {
+  .nwf-landing .navlinks a.nav-keep { display: none; }
+  .nwf-landing .nav-menu { display: block; position: relative; }
+  .nwf-landing .nav-menu summary {
+    list-style: none; cursor: pointer; font-size: 1.25rem; line-height: 1;
+    padding: 0.4rem 0.6rem; border: 1px solid rgba(20,26,36,0.16); border-radius: 10px;
+  }
+  .nwf-landing .nav-menu summary::-webkit-details-marker { display: none; }
+  .nwf-landing .nav-menu-links {
+    position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 50;
+    display: flex; flex-direction: column; gap: 0.25rem; min-width: 180px;
+    background: rgba(10,14,18,0.97); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px; padding: 0.6rem;
+  }
+  .nwf-landing .nav-menu-links a { padding: 0.45rem 0.6rem; border-radius: 8px; }
+  .nwf-landing .navlinks a.nav-action { white-space: nowrap; padding: 0 12px; }
+}
+
+/* White direction (Adam, 2026-10-31): pre-login pages render on a white
+   canvas - suppress the signed-in app's dark body and neon haze behind them.
+   globals.css stays untouched, so the signed-in app keeps its current look. */
+html:has(.nwf-landing) { color-scheme: light; }
+body:has(.nwf-landing) { background: #ffffff; color: #141a24; }
+body:has(.nwf-landing)::before,
+body:has(.nwf-landing)::after { display: none; }
+
+.nwf-landing .nav-action, .nwf-landing .hero-cta, .nwf-landing .nav-cta { color: #ffffff; }
+.nwf-landing .feature-more { display: inline-block; margin-top: 1rem; color: var(--green); font-weight: 700; }
+/* Feature-page headlines need normal word spacing at their smaller size. */
+.nwf-landing .landing-hero h1 { letter-spacing: -0.04em; }
+
+/* Adam's monochrome / no-circle direction supersedes the earlier light palette.
+   Scope stays public. Shape and text, never hue alone, communicate state. */
+.nwf-landing {
+  --bg: #fff; --ink: #111; --muted: #444; --dim: #666;
+  --panel: #fff; --panel-solid: #f5f5f5;
+  --line: #ddd; --line-strong: #111;
+  --blue: #111; --cyan: #111; --green: #111; --amber: #111;
+  --coral: #111; --violet: #111;
+  --surface: #f5f5f5; --surface-2: #eee;
+  --text: #111; --text-dim: #444; --border: #ddd;
+  --neon-blue: #111; --neon-red: #111; --neon-yellow: #111;
+  --bull: #111; --bear: #111; --shadow: none;
+  --glow-blue: none; --glow-red: none; --radius: 0;
+  filter: grayscale(1);
+}
+.nwf-landing *, .nwf-landing *::before, .nwf-landing *::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.nwf-landing .market-wall { display: none; }
+.nwf-landing .brand-mark { background: #111; color: #fff; }
+.nwf-landing .hero, .nwf-landing .cta, .nwf-landing .engine,
+.nwf-landing .council, .nwf-landing .risk-spotlight,
+.nwf-landing .screen { background: #fff; }
+.nwf-landing .topbar { background: #fff; backdrop-filter: none; }
+.nwf-landing .hero-inner { text-align: left; }
+.nwf-landing .hero h1 { letter-spacing: -0.045em; }
+.nwf-landing .hero-copy { margin-left: 0; }
+.nwf-landing .hero-actions { justify-content: flex-start; }
+.nwf-landing .hero .hero-subtext { text-align: left; }
+.nwf-landing .eyebrow { padding: 0; border: 0; background: none; color: #111; }
+.nwf-landing .btn.primary, .nwf-landing .nav-action,
+.nwf-landing .hero-cta { background: #111; color: #fff; }
+.nwf-landing .btn.secondary { background: #fff; border: 1px solid #111; }
+.nwf-landing .phone.side, .nwf-landing .phone.side.right {
+  transform: none; opacity: 1;
+}
+.nwf-landing .phone { background: #fff; }
+.nwf-landing ul { list-style: none; }
+.nwf-landing li::marker { content: ''; }
+.nwf-landing .feature-list li::before { content: '- '; color: #111; }
+.nwf-landing a:focus-visible, .nwf-landing button:focus-visible,
+.nwf-landing summary:focus-visible { outline: 3px solid #111; outline-offset: 4px; }
+.nwf-landing .feature-icon { display: none; }
+.nwf-landing .product-stage, .nwf-landing .product-stage > * { transform: none !important; }
