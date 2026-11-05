@@ -69,31 +69,70 @@ jobs:
           DATABASE_URL: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NEON_BRANCH_DATABASE_URL || '' }}
 
   shared-drift-check:
+    # Candidate: paired-drift resolution (scripts/drift-pair/). The resolver and
+    # checker are TRUSTED code, read from the PR base commit, never the PR head.
+    # Bootstrap: until the resolver is on default main, the trusted checkout has
+    # no scripts/drift-pair/ and this job fails closed with "No such file".
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout web (this repo)
+      - name: Checkout trusted base (resolver + checker)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Checkout web (this repo, PR head = data)
         uses: actions/checkout@v4
         with:
           path: nuwrrrld-portal
-          persist-credentials: false
-
-      - name: Checkout mobile
-        uses: actions/checkout@v4
-        with:
-          repository: adamaslan/gcp-expo1
-          path: gcp3-mobile
           persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Check shared-core drift
-        working-directory: nuwrrrld-portal
+      - name: Resolve counterpart (fail-closed)
+        id: resolve
         env:
-          WEB_ROOT: .
-          MOBILE_ROOT: ../gcp3-mobile
-        run: node scripts/check-shared-drift.mjs
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" --pr "$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          else
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout mobile at the resolved counterpart SHA
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.resolve.outputs.counterpart_repo }}
+          ref: ${{ steps.resolve.outputs.counterpart_ref }}
+          path: gcp3-mobile
+          persist-credentials: false
+
+      - name: Check shared-core drift
+        env:
+          WEB_ROOT: nuwrrrld-portal
+          MOBILE_ROOT: gcp3-mobile
+        run: node trusted/scripts/check-shared-drift.mjs
+
+      - name: Recheck frozen heads (moved head invalidates result)
+        if: steps.resolve.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MODE: ${{ steps.resolve.outputs.mode }}
+          OWN_SHA: ${{ steps.resolve.outputs.own_sha }}
+          CP_REF: ${{ steps.resolve.outputs.counterpart_ref }}
+          CP_PR: ${{ steps.resolve.outputs.counterpart_pr }}
+        run: |
+          node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" ${PR_NUMBER:+--pr "$PR_NUMBER"} \
+            --verify-mode "$MODE" --verify-own-sha "$OWN_SHA" \
+            --verify-counterpart-sha "$CP_REF" --verify-counterpart-pr "$CP_PR"
 
   modal-python:
     # deploy/modal-backend (241 tests) and deploy/aws-modal-news (85) had no CI
