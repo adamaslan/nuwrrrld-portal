@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
 import { flagLive } from "@/lib/flags";
+import { getAggregateTrackRecord } from "@/lib/track-record";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
 import { StatCounter } from "@/components/landing/StatCounter";
