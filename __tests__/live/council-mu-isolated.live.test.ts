@@ -1,4 +1,4 @@
-/** Opt-in REAL models + REAL read-only grounding; auth and persistence isolated.
+/** Opt-in REAL models + REAL grounding; auth and persistence isolated. SQL is screened by a SELECT-prefix check only; that is not a read-only guarantee.
  * Never sends HTTP to the portal's publishing API. Not a deployed-auth test. */
 import { expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -14,12 +14,12 @@ vi.mock('@clerk/nextjs/server', () => ({
 }));
 vi.mock('@/lib/subscription', () => ({ hasEntitlement: () => true }));
 vi.mock('@/lib/subscription-admin', () => ({ resolveTier: () => 'free' }));
-// SQL is read-only even when signal-cache/grounding modules try to warm a cache.
+// SQL must start with SELECT. SELECT functions can still mutate, so this is a screen, not a read-only guarantee.
 vi.mock('@/lib/db', async () => {
   const { neon } = await import('@neondatabase/serverless');
   const sql = neon(process.env.DATABASE_URL || 'postgresql://invalid:invalid@invalid.invalid/db');
   return { default: async (parts: TemplateStringsArray, ...values: unknown[]) => {
-    if (!/^\s*SELECT\b/i.test(parts.join('?'))) throw new Error('isolated harness: SQL write blocked');
+    if (!/^\s*SELECT\b/i.test(parts.join('?'))) throw new Error('isolated harness: non-SELECT SQL rejected');
     return sql(parts, ...values as Parameters<typeof sql> extends [unknown, ...infer R] ? R : never);
   } };
 });
@@ -84,7 +84,7 @@ it.skipIf(process.env.RUN_ISOLATED_MU !== '1')('MU real council, free-only and n
       if (typeof cost === 'number' && cost !== 0) throw new Error('nonzero usage cost returned; stop and inspect account');
       return response;
     }
-    return realFetch(input, init); // existing read-only data sources; SQL writes separately blocked
+    return realFetch(input, init); // existing data sources; SQL is SELECT-screened only
   });
   try {
     const { POST } = await import('@/app/api/council/deliberate/route');
