@@ -4,12 +4,13 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
-import { NulogdashTabs } from "../page";
+import { NulogdashTabs } from "../_components/chrome";
+import { RunModeBadge, RunRow, PIPELINE_LABEL } from "./_components/RunRows";
 import { TriggerControls } from "./_components/TriggerControls";
 import { PaperTradingSection } from "./_components/PaperTradingSection";
 import { ScheduledWorkSection } from "./_components/ScheduledWorkSection";
-import { listPipelineRuns, summarizeOutcomes } from "@/lib/pipeline-run-log-db";
-import type { PipelineName, PipelineRunRow } from "@/lib/pipeline-run-log-db";
+import { listPipelineRuns } from "@/lib/pipeline-run-log-db";
+import type { PipelineRunRow } from "@/lib/pipeline-run-log-db";
 import { getPaperAccountStatuses } from "@/lib/paper-status-db";
 import { GITHUB_WORKFLOW_CATALOG, MODAL_APP_CATALOG } from "@/lib/nulogdash-catalog";
 import type { CatalogEntry } from "@/lib/nulogdash-catalog";
@@ -29,47 +30,6 @@ const PIPELINES = [
   "followed-tickers-judge",
   "precompute-ai",
 ] as const;
-
-/** Human labels for the pipelines this page knows how to render.
- * Partial rather than a full `Record<PipelineName, string>`: `PipelineName`
- * widens ahead of a pipeline actually being wired into this dashboard (see
- * docs/modal-pipeline-status.md Design 1), and `RunRow`'s `?? run.pipeline`
- * fallback already covers the raw name until its label is added here. */
-const PIPELINE_LABEL: Partial<Record<PipelineName, string>> = {
-  "followed-tickers": "Followed tickers",
-  "followed-tickers-select": "Followed tickers · select",
-  "followed-tickers-judge": "Followed tickers · judge",
-  "precompute-ai": "Precompute AI",
-};
-
-export function RunModeBadge({ dryRun }: { dryRun: boolean }) {
-  return (
-    <span className={`nld-badge nld-badge--${dryRun ? "blocked" : "pass"}`}>
-      {dryRun ? "Dry run" : "Live"}
-    </span>
-  );
-}
-
-export function RunRow({ run }: { run: PipelineRunRow }) {
-  const outcomes = summarizeOutcomes(run.items);
-  return (
-    <tr className="nld-row">
-      <td>
-        <Link href={`/dashboard/nulogdash/pipelines/${run.id}`}>
-          {PIPELINE_LABEL[run.pipeline] ?? run.pipeline}
-        </Link>
-      </td>
-      <td><RunModeBadge dryRun={run.dryRun} /></td>
-      <td>{formatRunTimeET(run.runAt)}</td>
-      <td>{run.itemsTotal}</td>
-      <td>{run.itemsAi}</td>
-      <td>
-        {outcomes.ok} ok · {outcomes.empty} empty · {outcomes.fail} fail · {outcomes.skip} skip
-      </td>
-      <td>{run.session ?? "—"}</td>
-    </tr>
-  );
-}
 
 const PAGE_SIZES = [50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;
