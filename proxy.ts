@@ -57,6 +57,9 @@ const isProtectedApiRoute = createRouteMatcher([
   '/api/stripe/checkout(.*)',
   '/api/stripe/portal(.*)',
   '/api/stripe/subscription(.*)',
+  // Reconstructed-replay research artifact: handler calls auth() and serves
+  // Adam-private research data (owner gate in the handler).
+  '/api/research/historical-replay(.*)',
 ])
 
 // Routes inside a protected prefix that nonetheless have a legitimate
