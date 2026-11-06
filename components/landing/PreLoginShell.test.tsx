@@ -51,3 +51,11 @@ describe("compact navigation with undecided cookie consent", () => {
     expect(css).toMatch(/body:has\(\.consent-banner\)\s+\.nwf-landing\s+\.nav-menu-links\s*\{[^}]*max-height:[^;]+;[^}]*overflow-y:\s*auto/);
   });
 });
+
+describe("live authentication widget typography", () => {
+  it("limits the Clerk heading instead of inheriting the landing display size", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("app/landing.css", "utf8");
+    expect(css).toMatch(/\.nwf-landing\s+\.public-auth\s+\.cl-headerTitle\s*\{[^}]*font-size:\s*1\.5rem\s*;[^}]*line-height:\s*1\.2/);
+  });
+});
