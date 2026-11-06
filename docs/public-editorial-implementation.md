@@ -40,3 +40,7 @@ A source-rendered fixture is layout evidence only, not deployment, account, data
 ## Current-main reconciliation (18:39 EST)
 
 Main-only updates did not overlap any saved design edits. All 21 design files remain local and unpublished. Targeted 8 component tests and scoped ESLint pass on main92b15ed. Landed deployment safeguards are preserved without alteration. This is not a hosted new-design build result.
+
+## Publication and live evidence
+
+Adam approved SQLite-only parity and skipping live database tests for this separate design PR at 18:59 EST. The branch-specific exception retains lint, unit and offline checks, and the versioned direct Next build bypasses the migration hook. The exception does not cover other PRs or a later merge. No merge is requested before preview/design review. Actual deployed mobile interactions, navigation, console/network capture and screenshots are now the next required evidence. No live evidence is claimed by the earlier source-rendered fixtures.
