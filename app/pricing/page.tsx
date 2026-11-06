@@ -3,8 +3,8 @@ import Link from "next/link";
 import { CheckoutButton } from "./CheckoutButton";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
 import TwoAudiences from "@/components/landing/TwoAudiences";
-import "../landing.css";
 import "./pricing.css";
+import "../landing.css";
 
 export const metadata: Metadata = {
   title: "Pricing",

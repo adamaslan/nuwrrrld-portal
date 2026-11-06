@@ -11,7 +11,6 @@ import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
 import { StatCounter } from "@/components/landing/StatCounter";
 import { MagneticCTA } from "@/components/landing/MagneticCTA";
-import { ParallaxStage, ParallaxLayer } from "@/components/landing/ParallaxStage";
 import { CouncilScrollDebate } from "@/components/landing/CouncilScrollDebate";
 import { RiskSpotlight } from "@/components/landing/RiskSpotlight";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -55,11 +54,11 @@ export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/dashboard");
 
-  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Should I buy it, or not?</h1><p>Market research. Simulated strategies. Recorded outcomes.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
+  return <Suspense fallback={<div className="nwf-landing"><header className="hero"><div className="hero-inner"><h1>Understand the market. See how the ideas hold up.</h1><p>Market research. Simulated strategies. Recorded outcomes.</p><Link href="/sign-up">Start free →</Link></div></header></div>}><LandingContent /></Suspense>;
 }
 
 async function LandingContent() {
-  const { topSignals, council, coverage } = await fetchLandingData();
+  const { council, coverage } = await fetchLandingData();
 
   return (
     <div className="nwf-landing">
@@ -74,88 +73,28 @@ async function LandingContent() {
             <span>Understand the market.</span> <span>See how the ideas hold up.</span>
           </h1>
           <p className="hero-copy">
-            Read the market, compare signals and examine your portfolio. Ask AI about the evidence, follow its simulated portfolios, and check recorded calls against what happened next.
+            Read the market, compare signals and examine your portfolio. Ask AI about the evidence, follow its simulated portfolios, and check recorded calls against what happened next. <a href="#product">Explore the platform →</a>
           </p>
           <div className="hero-actions">
             <MagneticCTA className="btn primary" href="/sign-up">Start free →</MagneticCTA>
-            <a className="btn secondary" href="#product">Explore the platform</a>
+
           </div>
           <p className="hero-subtext">Free to start · no card required</p>
 
-          <ParallaxStage className="product-stage" aria-label="NuWrrrld Financial product preview">
-            <ParallaxLayer depth={10} className="phone side">
-              <div className="screen">
-                <div className="statusbar"><span>9:41</span><span>Briefing</span></div>
-                <div className="app-title"><strong>Market mood</strong><span className="pill">Risk-on</span></div>
-                <div className="brief-card">
-                  <div className="label">Today&apos;s read</div>
-                  <div className="big-number up">Bullish</div>
-                  <p className="brief-text">Most tracked sectors are trending up, and buy calls outnumber sells.</p>
-                </div>
-                <div className="mini-grid">
-                  <div className="mini-card"><strong className="up">22</strong><span>Buy calls</span></div>
-                  <div className="mini-card"><strong className="flat">30</strong><span>Hold calls</span></div>
-                  <div className="mini-card"><strong className="down">2</strong><span>Sell calls</span></div>
-                  <div className="mini-card"><strong className="flat">-0.2%</strong><span>Avg index move</span></div>
-                </div>
-              </div>
-            </ParallaxLayer>
-
-            <ParallaxLayer depth={16} className="phone main">
-              <div className="screen">
-                <div className="statusbar"><span>9:41</span><span>NuWrrrld Financial</span></div>
-                <div className="app-title"><strong>Market snapshot</strong></div>
-                <p className="sample-data-tag">Sample data — illustrative only</p>
-                <div className="brief-card">
-                  <div className="label">S&amp;P 500</div>
-                  <div className="big-number up">5,614</div>
-                  <p className="brief-text">Most tracked sectors are trending up, and buy calls outnumber sells.</p>
-                </div>
-                <div className="mini-grid">
-                  <div className="mini-card"><strong>QQQ</strong><span className="up">+0.84%</span></div>
-                  <div className="mini-card"><strong>DIA</strong><span className="up">+0.31%</span></div>
-                  <div className="mini-card"><strong>IWM</strong><span className="down">-0.12%</span></div>
-                </div>
-              </div>
-            </ParallaxLayer>
-
-            <ParallaxLayer depth={10} className="phone side right">
-              <div className="screen">
-                <div className="statusbar"><span>9:41</span><span>Signals</span></div>
-                <div className="app-title">
-                  <strong>Today</strong>
-                  <span className="pill">{topSignals ? `${topSignals.length} reads` : "Live"}</span>
-                </div>
-                <div className="brief-card">
-                  {topSignals ? topSignals.map((sig) => {
-                    const pct = sig.confidence === "high" ? 91 : sig.confidence === "medium" ? 65 : 40;
-                    const cls = sig.direction === "bullish" ? "up" : sig.direction === "bearish" ? "down" : "flat";
-                    const label = sig.direction === "bullish" ? "BUY" : sig.direction === "bearish" ? "SELL" : "HOLD";
-                    return (
-                      <div key={sig.id} className="signal-row">
-                        <b>{sig.ticker}</b>
-                        <div className="bar"><span style={{ width: `${pct}%` }} /></div>
-                        <span className={cls}>{label}</span>
-                      </div>
-                    );
-                  }) : (
-                    <>
-                      <p className="sample-data-tag">Sample data — live backend unavailable</p>
-                      <div className="signal-row"><b>SOXX</b><div className="bar"><span style={{ width: "91%" }} /></div><span className="up">BUY</span></div>
-                      <div className="signal-row"><b>XLK</b><div className="bar"><span style={{ width: "74%" }} /></div><span className="up">BUY</span></div>
-                      <div className="signal-row"><b>JETS</b><div className="bar"><span style={{ width: "58%" }} /></div><span className="flat">HOLD</span></div>
-                      <div className="signal-row"><b>XLE</b><div className="bar"><span style={{ width: "36%" }} /></div><span className="down">SELL</span></div>
-                    </>
-                  )}
-                </div>
-                <div className="council-bubble">Every signal comes with a confidence level, so you know how much to lean on it.</div>
-              </div>
-            </ParallaxLayer>
-          </ParallaxStage>
+          <figure className="editorial-product" aria-labelledby="product-example-title">
+            <figcaption>Illustrative interface example. Not a live signal or investment recommendation.</figcaption>
+            <div className="editorial-example">
+              <div className="example-heading"><strong>ILLUSTRATIVE</strong><span>Not a live call</span></div>
+              <h2 id="product-example-title">A call you can question.</h2>
+              <dl><div><dt>Direction</dt><dd>Bullish</dd></div><div><dt>Confidence</dt><dd>Medium</dd></div><div><dt>Invalidation</dt><dd>When the original thesis no longer holds</dd></div></dl>
+              <p>A recorded call is a starting point for research, not a promise of a return.</p>
+              <Link href="/verdict/MOO">Explore a recorded verdict →</Link>
+            </div>
+          </figure>
         </div>
       </header>
 
-      <div className="peek-band" aria-label="Key platform metrics">
+      <div className="peek-band" role="group" aria-label="Key platform metrics">
         <div className="metric"><StatCounter value={5} /><span>Specialist AI seats in the council — including one built to argue against you.</span></div>
         <div className="metric">
           {coverage ? <StatCounter value={coverage.checks} /> : <strong>—</strong>}
@@ -178,7 +117,7 @@ async function LandingContent() {
             <span className="wn-chip">Confidence on every signal</span>
             <span className="wn-chip">Public verdict pages</span>
             <span className="wn-chip">Free to start</span>
-            <span className="wn-chip">New dark theme</span>
+
           </div>
         </div>
       </div>
@@ -258,62 +197,22 @@ async function LandingContent() {
             </p>
           </Reveal>
 
-          <Reveal className="matrix" role="img" aria-label="Illustrative signal matrix with decisions across time horizons">
+          <Reveal className="matrix">
             <div className="matrix-head">
-              <strong>Illustrative — XLE</strong>
-              <span className="pill">5 signal families · confluence +0.91</span>
+              <strong>Illustrative signal matrix - XLE</strong>
+              <span className="pill">Example data, not a live recommendation</span>
             </div>
-            <div className="matrix-scroll">
-              <div className="matrix-grid">
-                <div className="matrix-cell head">Signal</div>
-                <div className="matrix-cell head">1D</div>
-                <div className="matrix-cell head">1W</div>
-                <div className="matrix-cell head">1M</div>
-                <div className="matrix-cell head">3M</div>
-                <div className="matrix-cell head">1Y</div>
-                <div className="matrix-cell head">Conf</div>
-
-                <div className="matrix-cell name">Momentum</div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell mono">0.87</div>
-
-                <div className="matrix-cell name">Trend</div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell mono">0.91</div>
-
-                <div className="matrix-cell name">Relative strength</div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell mono">0.82</div>
-
-                <div className="matrix-cell name">Market structure</div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell mono">0.74</div>
-
-                <div className="matrix-cell name">Mean reversion</div>
-                <div className="matrix-cell"><span className="verdict sell">SELL</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict buy">BUY</span></div>
-                <div className="matrix-cell"><span className="verdict hold">HOLD</span></div>
-                <div className="matrix-cell mono">0.69</div>
-              </div>
-            </div>
+            <table className="signal-comparison">
+              <caption>Five signal families across five time horizons. All values are illustrative.</caption>
+              <thead><tr>{["Signal", "1D", "1W", "1M", "3M", "1Y", "Confidence"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+              <tbody>{[
+                ["Momentum", "BUY", "BUY", "HOLD", "BUY", "HOLD", "0.87"],
+                ["Trend", "BUY", "BUY", "BUY", "HOLD", "HOLD", "0.91"],
+                ["Relative strength", "HOLD", "BUY", "BUY", "BUY", "BUY", "0.82"],
+                ["Market structure", "HOLD", "HOLD", "BUY", "BUY", "BUY", "0.74"],
+                ["Mean reversion", "SELL", "HOLD", "BUY", "BUY", "HOLD", "0.69"],
+              ].map(([name, ...values]) => <tr key={name}><th scope="row">{name}</th>{values.map((value, index) => <td key={index} data-label={["1D", "1W", "1M", "3M", "1Y", "Confidence"][index]}>{value}</td>)}</tr>)}</tbody>
+            </table>
           </Reveal>
 
           <div className="moat-grid">
@@ -384,7 +283,7 @@ async function LandingContent() {
               <div className="seat-tag chair-tag">CHAIR</div>
               <h3>The one who calls it</h3>
               <p>Weighs all five arguments, says plainly whether they agree or clash, and hands you one final call.</p>
-              <div className="verdict-badge" aria-label="Illustrative verdict example">
+              <div className="verdict-badge" role="group" aria-label="Illustrative verdict example">
                 <span className="verdict-badge-call buy">BUY</span>
                 <span className="verdict-badge-meta">High confidence · 5-15 day horizon</span>
                 <span className="verdict-badge-inv">Wrong if it falls under $91</span>
@@ -427,8 +326,8 @@ async function LandingContent() {
             <div className="kicker">Who it&rsquo;s for</div>
             <h2>Two ways in.</h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
-            <article style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
+          <div className="editorial-directory">
+            <article className="editorial-entry">
               <h3>New to markets?</h3>
               <p className="section-copy">
                 You don&rsquo;t need to speak finance to follow your money. We turn the flood of
@@ -444,7 +343,7 @@ async function LandingContent() {
                 <Link href="/#council" style={{ fontSize: "0.85rem" }}>See how the council works ↓</Link>
               </div>
             </article>
-            <article style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
+            <article className="editorial-entry">
               <h3>Trade actively?</h3>
               <p className="section-copy">
                 Start the day briefed. Overnight we score and rank signals across the stocks
@@ -473,7 +372,7 @@ async function LandingContent() {
               <h2>Same product. Your depth.</h2>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem", marginTop: "1.5rem" }}>
+          <div className="editorial-directory">
             {[
               { name: "Market overview", tag: "Free",
                 b: "One calm screen: what moved today and why it matters, in words you already know.",
@@ -503,7 +402,7 @@ async function LandingContent() {
                 b: "One account across the web and the mobile app.",
                 t: "Signals and briefings where you are - web at your desk, phone everywhere else." },
             ].map(f => (
-              <article key={f.name} style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
+              <article key={f.name} className="editorial-entry">
                 <h3>{f.name} <span style={{ fontSize: "0.7rem", fontWeight: 600, opacity: 0.7, verticalAlign: "middle" }}>{f.tag}</span></h3>
                 <p className="section-copy"><strong>New to markets:</strong> {f.b}</p>
                 <p className="section-copy" style={{ fontSize: "0.85rem", opacity: 0.8 }}><strong>Trade actively:</strong> {f.t}</p>

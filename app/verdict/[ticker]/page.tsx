@@ -44,14 +44,14 @@ export default async function VerdictPage({ params }: Props) {
     <div className="nwf-landing">
       <PreLoginNav />
 
-      <section className="cta" style={{ minHeight: "70vh" }}>
+      <section className="cta public-verdict">
         <div className="wrap">
           <div className="kicker">Council verdict</div>
-          <h2>${ticker}</h2>
+          <h1>${ticker}</h1>
 
           {latest ? (
             <>
-              <div className="public-demo-result" style={{ maxWidth: 560, margin: "24px auto" }}>
+              <div className="public-demo-result verdict-record">
                 <p className="public-demo-result-label">
                   {DIRECTION_LABEL[latest.direction ?? ""] ?? "VERDICT"} · {latest.confidence ?? "—"} confidence
                 </p>
@@ -59,13 +59,13 @@ export default async function VerdictPage({ params }: Props) {
                   Horizon {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
                 </p>
               </div>
-              <p className="section-copy" style={{ maxWidth: 560, margin: "0 auto 24px" }}>
+              <p className="section-copy verdict-description">
                 A recorded council call, published as it was made — direction, confidence,
                 horizon, and the invalidation level when one was set.
               </p>
             </>
           ) : (
-            <p className="section-copy" style={{ maxWidth: 560, margin: "24px auto" }}>
+            <p className="section-copy verdict-description">
               No council verdict recorded for ${ticker} yet. New verdicts publish
               here when calls are recorded.
             </p>

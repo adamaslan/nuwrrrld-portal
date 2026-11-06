@@ -1,8 +1,9 @@
-import "../landing.css";
 import "../landing-pages.css";
+import "../landing.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import ProductExample from "@/components/landing/ProductExample";
 import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
@@ -61,6 +62,8 @@ export default async function PortfolioIntelligenceLandingPage() {
           <p className="hero-note">Free to start · No card required</p>
         </section>
 
+        <ProductExample kind="portfolio" />
+
         {industry && (
           <section className="landing-signals-preview">
             <h2>Industry performance <span className="live-badge">Live</span></h2>
@@ -99,7 +102,7 @@ export default async function PortfolioIntelligenceLandingPage() {
           ].map(f => (
             <div key={f.title} className="feature-card">
               <span className="feature-icon" aria-hidden="true">{f.icon}</span>
-              <h3>{f.title}</h3>
+              <h2>{f.title}</h2>
               <p>{f.body}</p>
             </div>
           ))}
