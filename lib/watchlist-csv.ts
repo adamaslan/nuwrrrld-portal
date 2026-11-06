@@ -9,9 +9,10 @@ const HEADER_NAMES = ["ticker", "symbol"];
 /**
  * RFC 4180-style tokenizer: quoted fields may contain commas, CR/LF and
  * doubled quotes ("" → "). Rows end at LF or CRLF. Blank rows and rows whose
- * first cell starts with "#" are dropped.
+ * first cell starts with "#" are dropped. A quote left open at end of input is
+ * reported, never silently folded into the last cell.
  */
-function parseRows(text: string): string[][] {
+function parseRows(text: string): { rows: string[][]; unterminatedQuote: boolean } {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -49,25 +50,42 @@ function parseRows(text: string): string[][] {
     } else if (ch === "\r" && text[i + 1] === "\n") {
       endRow();
       i += 1;
-    } else if (ch === "\n") {
+    } else if (ch === "\n" || ch === "\r") {
       endRow();
     } else {
       cell += ch;
     }
     i += 1;
   }
+  const unterminatedQuote = inQuotes;
   if (cell !== "" || row.length > 0) endRow();
-  return rows;
+  return { rows, unterminatedQuote };
 }
 
-export function parseTickerCsv(text: string): string[] {
-  const rows = parseRows(text.replace(/^﻿/, ""));
-  if (rows.length === 0) return [];
+export interface TickerCsvResult {
+  tickers: string[];
+  /** Set when the file is malformed; `tickers` is then empty so nothing partial is imported. */
+  error: string | null;
+}
+
+export const UNTERMINATED_QUOTE_ERROR =
+  "A quoted value is never closed (stray \" character). Fix the file and try again.";
+
+export function parseTickerCsvChecked(text: string): TickerCsvResult {
+  const { rows, unterminatedQuote } = parseRows(text.replace(/^\uFEFF/, ""));
+  if (unterminatedQuote) return { tickers: [], error: UNTERMINATED_QUOTE_ERROR };
+  if (rows.length === 0) return { tickers: [], error: null };
 
   const headerCells = rows[0].map((c) => c.trim().toLowerCase());
   const col = headerCells.findIndex((c) => HEADER_NAMES.includes(c));
-  if (col >= 0) {
-    return rows.slice(1).map((r) => (r[col] ?? "").trim());
-  }
-  return rows.map((r) => (r[0] ?? "").trim());
+  const tickers =
+    col >= 0
+      ? rows.slice(1).map((r) => (r[col] ?? "").trim())
+      : rows.map((r) => (r[0] ?? "").trim());
+  return { tickers, error: null };
+}
+
+/** Tickers only; a malformed file yields [] (fail closed). Use parseTickerCsvChecked for the reason. */
+export function parseTickerCsv(text: string): string[] {
+  return parseTickerCsvChecked(text).tickers;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTickerCsv } from "@/lib/watchlist-csv";
+import { UNTERMINATED_QUOTE_ERROR, parseTickerCsv, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 
 describe("parseTickerCsv", () => {
   it("reads a one-column list with no header", () => {
@@ -46,5 +46,33 @@ describe("parseTickerCsv", () => {
 
   it("leaves a blank ticker cell as an empty string for the server to reject", () => {
     expect(parseTickerCsv("ticker\nAAPL\n\n,x\nMSFT")).toEqual(["AAPL", "", "MSFT"]);
+  });
+});
+
+describe("malformed and legacy input", () => {
+  it("treats a lone CR (classic Mac export) as a row break", () => {
+    expect(parseTickerCsv("ticker\rAAPL\rMSFT")).toEqual(["AAPL", "MSFT"]);
+  });
+
+  it("reports an unterminated quote instead of swallowing the rest of the file", () => {
+    const r = parseTickerCsvChecked('ticker\nAAPL\n"MSFT\nGOOG\nNVDA');
+    expect(r.error).toBe(UNTERMINATED_QUOTE_ERROR);
+    expect(r.tickers).toEqual([]);
+  });
+
+  it("fails closed from the legacy wrapper on an unterminated quote", () => {
+    expect(parseTickerCsv('AAPL\n"MSFT\nGOOG')).toEqual([]);
+  });
+
+  it("does not flag a closed quote at end of file", () => {
+    expect(parseTickerCsvChecked('ticker\nAAPL\n"MSFT"')).toEqual({ tickers: ["AAPL", "MSFT"], error: null });
+  });
+
+  it("keeps a mid-field quote literal rather than opening a quoted run", () => {
+    expect(parseTickerCsvChecked('ticker\nAA"PL\nMSFT')).toEqual({ tickers: ['AA"PL', "MSFT"], error: null });
+  });
+
+  it("returns a header-only file as no tickers without an error", () => {
+    expect(parseTickerCsvChecked("ticker\n")).toEqual({ tickers: [], error: null });
   });
 });
