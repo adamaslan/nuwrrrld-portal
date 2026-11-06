@@ -15,3 +15,27 @@
 .upgrade-note { font-size: .8rem; color: var(--text-dim); margin-top: 1rem; text-align: center; line-height: 1.6; }
 .upgrade-note a { color: var(--neon-blue); }
 .upgrade-disclaimer { font-size: .72rem; color: var(--text-dim); text-align: center; margin-top: .5rem; }
+
+/* CheckoutButton is imported from /pricing but its .checkout-btn styles live in pricing.css; restyle them here so the CTA is not a native button. */
+.upgrade-page .checkout-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--neon-blue);
+  color: var(--bg);
+  border: none;
+  border-radius: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+  margin-top: 0.5rem;
+}
+
+.upgrade-page .checkout-btn:hover:not(:disabled) {
+  box-shadow: var(--glow-blue);
+}
+
+.upgrade-page .checkout-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
