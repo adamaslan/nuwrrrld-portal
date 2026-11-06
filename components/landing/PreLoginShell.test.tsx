@@ -35,3 +35,11 @@ describe("PreLoginFooter", () => {
     expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms-of-service");
   });
 });
+
+describe("public legal dialog contrast", () => {
+  it("keeps the shared disclaimer action readable under monochrome public tokens", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("app/landing.css", "utf8");
+    expect(css).toMatch(/\.nwf-landing\s+\.disclaimer-btn\s*\{[^}]*color:\s*#fff\s*;[^}]*background:\s*#111\s*;[^}]*border-radius:\s*0\s*;/);
+  });
+});
