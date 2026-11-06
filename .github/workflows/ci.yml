@@ -67,7 +67,7 @@ jobs:
         # CodeRabbit review, PR #105.
         env:
           DATABASE_URL: >-
-            ${{ !((github.event_name == 'pull_request' && github.event.pull_request.number == 324) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'feat(pre-login): frontend redesign [frontend-only-324-f5f33c9] (#324)')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NEON_BRANCH_DATABASE_URL || '' }}
+            ${{ !((github.event_name == 'pull_request' && github.event.pull_request.number == 324) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'feat(pre-login): frontend redesign [frontend-only-324-f5f33c9] (#324)') || (github.event_name == 'pull_request' && github.event.pull_request.number == 325) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'test(council): five-judge and Chair orchestration [sqlite-only-325] (#325)')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NEON_BRANCH_DATABASE_URL || '' }}
 
   shared-drift-check:
     runs-on: ubuntu-latest
