@@ -20,7 +20,7 @@ export default function LaunchPage() {
       </nav>
 
       <section className="launch-hero">
-        <p className="launch-badge">🚀 We launched today on Product Hunt</p>
+        <p className="launch-badge">We launched today on Product Hunt</p>
         <h1>AI stock signals that explain themselves</h1>
         <p className="landing-sub">
           Every signal tells you which indicators fired, the timeframe, and why it matters —
@@ -28,7 +28,7 @@ export default function LaunchPage() {
         </p>
         <div className="launch-ctas">
           <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn">
-            <span aria-hidden="true">🏆</span> Support us on Product Hunt
+            <span aria-hidden="true">↗</span> Support us on Product Hunt
           </a>
           <Link href="/pricing" className="hero-cta">Start 7-day free trial</Link>
         </div>
@@ -55,7 +55,7 @@ export default function LaunchPage() {
         <h2>Support us today</h2>
         <p className="launch-sub">A Product Hunt upvote takes 10 seconds and means a lot to a solo founder.</p>
         <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn ph-btn--lg ph-btn--solid">
-          <span aria-hidden="true">🏆</span> Upvote on Product Hunt
+          <span aria-hidden="true">↗</span> Upvote on Product Hunt
         </a>
         <p className="landing-disclaimer">
           <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link>
