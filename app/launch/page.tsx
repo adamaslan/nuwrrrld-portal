@@ -13,7 +13,7 @@ const PH_URL = "https://www.producthunt.com/posts/nuwrrrld-financial";
 
 export default function LaunchPage() {
   return (
-    <main className="launch-page landing-page">
+    <main className="launch-page landing-page nwf-landing">
       <nav className="landing-nav">
         <Link href="/" className="brand">NuWrrrld Financial</Link>
         <Link href="/pricing" className="nav-cta">Start free trial</Link>
