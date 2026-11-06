@@ -10,8 +10,8 @@ vi.mock("@/lib/db", () => ({
 
 import { render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
-import { RunModeBadge, RunRow } from "./page";
-import { OutcomeBadge, ItemRow } from "./[id]/page";
+import { RunModeBadge, RunRow } from "./_components/RunRows";
+import { OutcomeBadge, ItemRow } from "./_components/ItemRows";
 import type { PipelineRunRow } from "@/lib/pipeline-run-log-db";
 
 function run(overrides: Partial<PipelineRunRow> = {}): PipelineRunRow {
