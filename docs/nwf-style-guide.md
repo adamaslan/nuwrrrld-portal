@@ -98,3 +98,35 @@ Defined in `app/globals.css`:
 Every route ships with route-by-route proof: a screenshot plus a functional
 note per page, covering desktop and mobile-critical views. A route that could
 not be tested is marked BLOCKED with the reason - never passed by assumption.
+
+## 9. Figma details (handoff spec)
+
+No live Figma file exists yet; this section is the exact mapping to recreate
+the system in Figma. Create these as Figma variables (color) and styles
+(effect/geometry) so screens stay in lockstep with code tokens.
+
+Color variables (mode: "NWF mono", single mode, no dark mode):
+- `bg` #FFFFFF, `surface` #FFFFFF, `surface-2` #F5F5F5
+- `text` #111111, `text-dim` #555555, `border` #111111
+- `fill-strong` #111111 (primary CTA, bullish solid), `fill-ghost` #FFFFFF
+  (secondary CTA, bearish outline)
+
+Geometry: corner radius 0 on every component. No shadows or glow effects
+(anywhere an effect would go, use "None").
+
+Stroke styles (map to border tokens):
+- `bw-primary` 4px solid `border` - the one primary data block per page
+- `bw-standard` 2px solid `border` - cards, inputs, primary buttons
+- `bw-supporting` 1px solid `border` - metadata, dividers, quiet panels
+
+Component notes:
+- Primary CTA: fill `fill-strong`, label in `bg` (#FFFFFF), radius 0.
+- Ghost/secondary CTA: fill `fill-ghost`, 1-2px `border` stroke, label `text`.
+- Bullish mark: solid `fill-strong` shape. Bearish mark: same shape,
+  `fill-ghost` fill with `border` stroke. Never green/red.
+- No color emoji anywhere in UI chrome; decorative icons render grayscale
+  (`.feature-icon` uses `filter: grayscale(1)`), and glyphs default to text
+  presentation. Direction glyphs in generated images are drawn as SVG shapes.
+- Typography follows the existing code stack (Arial/Helvetica on public
+  chrome; Geist/Inter where already used); emphasis comes from weight, size
+  and border weight, never color.
