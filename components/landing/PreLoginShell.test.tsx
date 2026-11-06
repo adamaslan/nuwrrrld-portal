@@ -43,3 +43,11 @@ describe("public legal dialog contrast", () => {
     expect(css).toMatch(/\.nwf-landing\s+\.disclaimer-btn\s*\{[^}]*color:\s*#fff\s*;[^}]*background:\s*#111\s*;[^}]*border-radius:\s*0\s*;/);
   });
 });
+
+describe("compact navigation with undecided cookie consent", () => {
+  it("reserves narrow-phone consent space and scrolls all menu destinations", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("app/landing.css", "utf8");
+    expect(css).toMatch(/body:has\(\.consent-banner\)\s+\.nwf-landing\s+\.nav-menu-links\s*\{[^}]*max-height:[^;]+;[^}]*overflow-y:\s*auto/);
+  });
+});
