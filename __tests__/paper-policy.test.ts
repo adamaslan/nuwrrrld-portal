@@ -5,11 +5,18 @@ import {
   PAPER_POLICY,
   PAPER_POLICY_VERSION,
   TRADING_ACCOUNTS,
+  type TradingAccount,
   isTradingAccount,
   policyFor,
   MAX_MODEL_CALLS_PER_RUN_ALL_ACCOUNTS,
   MAX_MODEL_CALLS_PER_DAY_ALL_ACCOUNTS,
 } from "@/lib/shared/paper-policy";
+
+/** `TRADING_ACCOUNTS` is declared `PaperAccount[]` (it lives alongside the
+ *  non-trading controls), but every entry is a TradingAccount by construction
+ *  and `PAPER_POLICY` is keyed on the narrower type. Narrowed once here rather
+ *  than cast at each use site (same fix as scripts/paper-sim.ts). */
+const TRADING: TradingAccount[] = TRADING_ACCOUNTS as TradingAccount[];
 
 describe("PAPER_ACCOUNTS / TRADING_ACCOUNTS", () => {
   it("has all eight accounts, seats first then the two controls", () => {
@@ -37,7 +44,7 @@ describe("ACCOUNT_SEAT", () => {
 
 describe("PAPER_POLICY", () => {
   it("has a vector for every trading account", () => {
-    for (const account of TRADING_ACCOUNTS) {
+    for (const account of TRADING) {
       expect(PAPER_POLICY[account]).toBeDefined();
     }
   });
@@ -48,7 +55,7 @@ describe("PAPER_POLICY", () => {
 
   it("risk has the tightest cash floor and position cap (the persona is the risk controls)", () => {
     const risk = PAPER_POLICY.risk;
-    for (const account of TRADING_ACCOUNTS) {
+    for (const account of TRADING) {
       if (account === "risk") continue;
       expect(risk.cashFloor).toBeGreaterThanOrEqual(PAPER_POLICY[account].cashFloor);
       expect(risk.maxPositionWeight).toBeLessThanOrEqual(PAPER_POLICY[account].maxPositionWeight);
@@ -57,20 +64,20 @@ describe("PAPER_POLICY", () => {
 
   it("macro has the widest sector cap (rotation is the thesis)", () => {
     const macro = PAPER_POLICY.macro.sectorCapPct;
-    for (const account of TRADING_ACCOUNTS) {
+    for (const account of TRADING) {
       expect(macro).toBeGreaterThanOrEqual(PAPER_POLICY[account].sectorCapPct);
     }
   });
 
   it("t2 has the longest minimum holding period (matches a multi-year mandate)", () => {
     const t2 = PAPER_POLICY.t2.minHoldingPeriodRuns;
-    for (const account of TRADING_ACCOUNTS) {
+    for (const account of TRADING) {
       expect(t2).toBeGreaterThanOrEqual(PAPER_POLICY[account].minHoldingPeriodRuns);
     }
   });
 
   it("every buyThreshold is strictly above its own sellThreshold (no account can buy what it would immediately sell)", () => {
-    for (const account of TRADING_ACCOUNTS) {
+    for (const account of TRADING) {
       expect(PAPER_POLICY[account].buyThreshold).toBeGreaterThan(PAPER_POLICY[account].sellThreshold);
     }
   });
@@ -101,7 +108,7 @@ describe("model-call ceilings (§4.2)", () => {
   });
 
   it("the sum of every account's per-run cap does not exceed the all-accounts run ceiling", () => {
-    const sum = TRADING_ACCOUNTS.reduce((n, account) => n + PAPER_POLICY[account].maxModelCallsPerRun, 0);
+    const sum = TRADING.reduce((n, account) => n + PAPER_POLICY[account].maxModelCallsPerRun, 0);
     expect(sum).toBeLessThanOrEqual(MAX_MODEL_CALLS_PER_RUN_ALL_ACCOUNTS);
   });
 });
