@@ -1479,3 +1479,13 @@ body:has(.nwf-landing)::after { display: none; }
 
 /* Shared legal dialog inherits public monochrome tokens, not dashboard colors. */
 .nwf-landing .disclaimer-btn { color:#fff; background:#111; border-radius:0; }
+
+/* Keep the compact menu scrollable above the unchosen cookie banner.
+   Reserve its full narrow-phone stack; do not dismiss or alter consent. */
+@media (max-width: 600px) {
+  body:has(.consent-banner) .nwf-landing .nav-menu-links {
+    max-height: max(44px, calc(100dvh - 360px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
