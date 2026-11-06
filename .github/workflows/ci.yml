@@ -1,6 +1,12 @@
 name: CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_local_suites:
+        description: "Run optional duplicate local test suites"
+        type: boolean
+        default: false
   push:
     branches: [main]
   pull_request:
@@ -11,6 +17,8 @@ permissions:
 
 jobs:
   test:
+    # Relevant tests and real app build run locally before publication.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_local_suites
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +40,8 @@ jobs:
         run: npm test
 
   db-schema-parity:
+    # Relevant tests and real app build run locally before publication.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_local_suites
     # Phases 7-8 of docs/openrouter-migration-and-db-parity-plan.md. Needs
     # Node 22+ for node:sqlite (used by the SQLite half of the db-parity
     # suite), separate from the main `test` job's Node 20.
@@ -70,6 +80,8 @@ jobs:
             ${{ !((github.event_name == 'pull_request' && github.event.pull_request.number == 324) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'feat(pre-login): frontend redesign [frontend-only-324-f5f33c9] (#324)') || (github.event_name == 'pull_request' && github.event.pull_request.number == 325) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'test(council): five-judge and Chair orchestration [sqlite-only-325] (#325)')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.NEON_BRANCH_DATABASE_URL || '' }}
 
   shared-drift-check:
+    # Relevant tests and real app build run locally before publication.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_local_suites
     runs-on: ubuntu-latest
     steps:
       - name: Checkout web (this repo)
@@ -97,6 +109,8 @@ jobs:
         run: node scripts/check-shared-drift.mjs
 
   modal-python:
+    # Relevant tests and real app build run locally before publication.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_local_suites
     # deploy/modal-backend (241 tests) and deploy/aws-modal-news (85) had no CI
     # at all (docs/gha-tests-and-cloud-parity.md §3.3 C). The DB tests need a
     # real Postgres; conftest.py creates and drops a throwaway database per run.

@@ -1,10 +1,9 @@
 name: E2E Resiliency
 
+# Explicit diagnostics only: this workflow can reach DB/provider services.
+# Dispatch still requires separately established authority for those effects.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch: {}
 
 # Kills stale runs when a new commit lands on the same PR. Without this, a
 # branch pushed three times in five minutes occupies 12 runners racing to
