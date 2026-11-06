@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   isNulogdashAdmin,
+  isNulogdashReplayOwner,
   canPerformAdminAction,
   summarizeCounts,
   splitResults,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/nulogdash";
 
 const ORIGINAL_ALLOWLIST = process.env.NULOGDASH_ADMIN_EMAILS;
+const ORIGINAL_OWNERLIST = process.env.NULOGDASH_REPLAY_OWNER_EMAILS;
 
 /** Builds a Clerk-shaped user. Defaults to the happy path (single primary,
  * verified) so each test only states the one thing it's varying. */
@@ -298,5 +300,33 @@ describe("splitResults", () => {
     const results = [feature("pass"), feature("fail"), feature("blocked"), feature("not_run"), feature("pass")];
     const { notExercised, exercised } = splitResults(results);
     expect(notExercised.length + exercised.length).toBe(results.length);
+  });
+});
+
+describe("isNulogdashReplayOwner", () => {
+  beforeEach(() => {
+    process.env.NULOGDASH_REPLAY_OWNER_EMAILS = "owner@example.com";
+  });
+  afterEach(() => {
+    if (ORIGINAL_OWNERLIST === undefined) delete process.env.NULOGDASH_REPLAY_OWNER_EMAILS;
+    else process.env.NULOGDASH_REPLAY_OWNER_EMAILS = ORIGINAL_OWNERLIST;
+  });
+
+  it("accepts the verified-primary replay owner", () => {
+    expect(isNulogdashReplayOwner(user({ email: "owner@example.com" }))).toBe(true);
+  });
+  it("fails closed when the owner list is unset", () => {
+    delete process.env.NULOGDASH_REPLAY_OWNER_EMAILS;
+    expect(isNulogdashReplayOwner(user({ email: "owner@example.com" }))).toBe(false);
+  });
+  it("rejects a non-primary matching address", () => {
+    const u = user({ email: "other@example.com", extra: [{ id: "idn_alt", emailAddress: "owner@example.com", verification: { status: "verified" } }] });
+    expect(isNulogdashReplayOwner(u)).toBe(false);
+  });
+  it("rejects an unverified primary address", () => {
+    expect(isNulogdashReplayOwner(user({ email: "owner@example.com", verified: false }))).toBe(false);
+  });
+  it("rejects a different verified primary (shared admin who is not the owner)", () => {
+    expect(isNulogdashReplayOwner(user({ email: "other-admin@example.com" }))).toBe(false);
   });
 });

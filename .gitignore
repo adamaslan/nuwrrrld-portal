@@ -69,3 +69,7 @@ __pycache__/
 # production, including consent_records and user_attribution, so they must
 # never be committed. CI uploads its own copy as a workflow artifact instead.
 /backups/
+
+# Reconstructed-replay research artifact - private research data (see
+# lib/historical-replay-store.ts); the live file must never be committed.
+/data/replay/

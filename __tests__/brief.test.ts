@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBriefPrompt } from "@/app/api/brief/route";
+import { buildBriefPrompt } from "@/lib/brief-prompt";
 import { mapSignalsToHoldFold } from "@/lib/shared/holdfold-map";
 
 // Shape captured from a live GET /signals against the gcp3 backend.
