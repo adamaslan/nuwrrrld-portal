@@ -86,12 +86,9 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error("Error processing Stripe event", event.type, err);
-    // For checkout.session.completed, return 500 so Stripe retries — a missed
-    // entitlement sync here is unrecoverable without a retry.
-    if (event.type === "checkout.session.completed") {
-      return NextResponse.json({ error: "sync failed, will retry" }, { status: 500 });
-    }
-    // For other events, return 200 to avoid infinite Stripe retries on non-critical paths.
+    // Every failed entitlement sync is retryable, including cancellation.
+    // A 2xx here tells Stripe delivery succeeded even if Clerk never changed.
+    return NextResponse.json({ error: "sync failed, will retry" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
@@ -104,12 +101,14 @@ async function syncSubscriptionToClerk(sub: Stripe.Subscription) {
   const clerk = await clerkClient();
   const stripe = getStripe();
   const customer = await stripe.customers.retrieve(customerId);
-  if (customer.deleted) return;
+  if (customer.deleted) throw new Error("Stripe customer deleted before entitlement sync");
 
-  const clerkUserId = (customer as Stripe.Customer).metadata?.clerk_user_id;
+  // Checkout stamps the user on subscription_data before customer metadata
+  // necessarily arrives. Use that binding during out-of-order delivery.
+  const clerkUserId = sub.metadata?.clerk_user_id || (customer as Stripe.Customer).metadata?.clerk_user_id;
   if (!clerkUserId) {
-    console.warn("No clerk_user_id on Stripe customer", customerId);
-    return;
+    // Do not acknowledge success: checkout may stamp the binding later.
+    throw new Error("Stripe subscription has no Clerk user binding yet");
   }
 
   const rawStatus = sub.status as SubscriptionStatus;
