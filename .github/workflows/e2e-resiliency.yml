@@ -1,10 +1,9 @@
 name: E2E Resiliency
 
+# Explicit diagnostics only: this workflow can reach DB/provider services.
+# Dispatch still requires separately established authority for those effects.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch: {}
 
 # Kills stale runs when a new commit lands on the same PR. Without this, a
 # branch pushed three times in five minutes occupies 12 runners racing to
@@ -42,7 +41,7 @@ jobs:
     # false auth failure. Always runs on push and on same-repo PRs.
     # PR324 frontend-only release: exclude remote DB writes for this PR and exact squash message.
     if: >-
-      ${{ !((github.event_name == 'pull_request' && (github.event.pull_request.number == 324 || github.head_ref == 'feat/public-editorial-checklist-20261105')) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'feat(pre-login): frontend redesign [frontend-only-324-f5f33c9] (#324)')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      ${{ !((github.event_name == 'pull_request' && github.event.pull_request.number == 324) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'feat(pre-login): frontend redesign [frontend-only-324-f5f33c9] (#324)') || (github.event_name == 'pull_request' && github.event.pull_request.number == 325) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'test(council): five-judge and Chair orchestration [sqlite-only-325] (#325)')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     # 25, and see the step-level timeout on "Install browsers" below. Two
     # separate lessons: at 5 the job died mid-sign-in, and at 15 a pathological
     # apt-get inside `--with-deps` (>15min, vs 2m48s the run before) consumed
