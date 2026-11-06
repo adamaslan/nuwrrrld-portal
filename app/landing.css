@@ -1476,3 +1476,6 @@ body:has(.nwf-landing)::after { display: none; }
  .nwf-landing .editorial-example dl div { grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:12px; }
 }
 .nwf-landing .checkout-btn { border-radius:0; }
+
+/* Shared legal dialog inherits public monochrome tokens, not dashboard colors. */
+.nwf-landing .disclaimer-btn { color:#fff; background:#111; border-radius:0; }
