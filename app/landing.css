@@ -1498,3 +1498,29 @@ body:has(.nwf-landing)::after { display: none; }
   margin:0;
   overflow-wrap:anywhere;
 }
+
+/* A hidden horizontal overflow turns the root/body into a vertical scroll
+   container too. Sticky must follow the document, not an unscrolled ancestor.
+   Keep this correction on public pages; signed-in layouts are unchanged. */
+html:has(.nwf-landing),
+body:has(.nwf-landing) {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+/* Six full answers do not fit a short viewport or a narrow phone. Keep every
+   answer in normal flow there, instead of pinning a taller-than-screen panel
+   above several empty screens of reserved scroll space. */
+@media (max-width: 1024px), (max-height: 820px) {
+  .nwf-landing .council-debate {
+    height: auto !important;
+  }
+  .nwf-landing .council-debate-sticky {
+    position: static;
+  }
+  .nwf-landing .council-debate-line {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
