@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
-import { MfaNotice, StatusBadge, FeatureRow } from "./page";
+import { MfaNotice, StatusBadge, FeatureRow } from "./_components/chrome";
 import type { FeatureResult } from "@/lib/nulogdash";
 
 function feature(overrides: Partial<FeatureResult> = {}): FeatureResult {
