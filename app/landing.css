@@ -1489,3 +1489,12 @@ body:has(.nwf-landing)::after { display: none; }
     overscroll-behavior: contain;
   }
 }
+
+/* Clerk's real header is an h1: keep display typography out of its widget. */
+.nwf-landing .public-auth .cl-headerTitle {
+  font-size:1.5rem;
+  line-height:1.2;
+  letter-spacing:-.02em;
+  margin:0;
+  overflow-wrap:anywhere;
+}
