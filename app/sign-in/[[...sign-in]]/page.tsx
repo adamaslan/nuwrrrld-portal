@@ -6,7 +6,7 @@ export default function SignInPage() {
   return (
     <div className="nwf-landing">
       <PreLoginNav />
-      <main style={{ display: "flex", justifyContent: "center", padding: "4rem 1rem", flex: 1 }}>
+      <main className="public-auth">
         <SignIn />
       </main>
       <PreLoginFooter />
