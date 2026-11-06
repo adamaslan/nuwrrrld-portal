@@ -1,8 +1,9 @@
-import "../landing.css";
 import "../landing-pages.css";
+import "../landing.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import ProductExample from "@/components/landing/ProductExample";
 import TwoAudiences from "@/components/landing/TwoAudiences";
 
 export const metadata: Metadata = {
@@ -28,6 +29,8 @@ export default function AIAssistantLandingPage() {
           <p className="hero-note">Nu AI is a Pro feature · 7-day Pro trial available</p>
         </section>
 
+        <ProductExample kind="assistant" />
+
         <section className="landing-features">
           {[
             { icon: "💼", title: "Portfolio-aware answers", body: "Questions about your positions get specific answers, grounded in your holdings, watchlist, and the latest signals." },
@@ -37,7 +40,7 @@ export default function AIAssistantLandingPage() {
           ].map(f => (
             <div key={f.title} className="feature-card">
               <span className="feature-icon" aria-hidden="true">{f.icon}</span>
-              <h3>{f.title}</h3>
+              <h2>{f.title}</h2>
               <p>{f.body}</p>
             </div>
           ))}
