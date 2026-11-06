@@ -75,7 +75,7 @@
 
 .hf-count--hold { color: #ffffff; border-color: var(--fill-strong); background: var(--fill-strong); }
 .hf-count--fold { color: var(--text); border-color: var(--text); background: var(--fill-ghost); }
-.hf-count--neutral { color: var(--dim); border-color: var(--line); background: rgba(255,255,255,0.03); }
+.hf-count--neutral { color: var(--dim); border-color: var(--line); background: transparent; }
 
 .hf-updated {
   display: flex;
@@ -182,7 +182,7 @@
   padding: 10px 14px;
   border-radius: 0;
   border: 1px solid transparent;
-  background: rgba(17, 17, 17, 0.6);
+  background: var(--surface, #ffffff);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -317,7 +317,7 @@
 }
 
 .hf-ind-cell {
-  background: rgba(255,255,255,0.03);
+  background: transparent;
   border: 1px solid var(--line);
   border-radius: 0;
   padding: 8px;
@@ -359,7 +359,7 @@
 }
 .hf-sig-badge--bull { color: #ffffff; background: var(--fill-strong); }
 .hf-sig-badge--bear { color: var(--text); background: var(--fill-ghost); border: 1px solid var(--text); }
-.hf-sig-badge--neutral { color: var(--dim); background: rgba(255,255,255,0.05); }
+.hf-sig-badge--neutral { color: var(--dim); background: transparent; }
 
 .hf-sig-text { color: var(--muted); line-height: 1.4; }
 
