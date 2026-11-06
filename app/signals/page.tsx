@@ -1,10 +1,11 @@
 import { getStoredSignals } from "@/app/dashboard/holdfold/stored-signals";
-import "../landing.css";
 import "../landing-pages.css";
+import "../landing.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { adaptLiveSignals, type SignalPayload } from "@/lib/digest";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
+import ProductExample from "@/components/landing/ProductExample";
 import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
@@ -40,6 +41,8 @@ export default async function SignalsLandingPage() {
           <Link href="/sign-up" className="hero-cta">Start free →</Link>
           <p className="hero-note">Free to start · No card required</p>
         </section>
+
+        <ProductExample kind="signals" />
 
         {(topBuy.length > 0 || topSell.length > 0) && (
           <section className="landing-signals-preview">
@@ -85,7 +88,7 @@ export default async function SignalsLandingPage() {
           ].map(f => (
             <div key={f.title} className="feature-card">
               <span className="feature-icon" aria-hidden="true">{f.icon}</span>
-              <h3>{f.title}</h3>
+              <h2>{f.title}</h2>
               <p>{f.body}</p>
             </div>
           ))}
