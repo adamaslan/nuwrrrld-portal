@@ -7,7 +7,7 @@ export default function SignUpPage() {
   return (
     <div className="nwf-landing">
       <PreLoginNav />
-      <main style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "4rem 1rem", gap: "1.5rem", flex: 1 }}>
+      <main className="public-auth">
         <LegalConsentGate>
           <SignUp />
         </LegalConsentGate>
