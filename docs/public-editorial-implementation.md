@@ -44,3 +44,5 @@ Main-only updates did not overlap any saved design edits. All 21 design files re
 ## Publication and live evidence
 
 Adam approved SQLite-only parity and skipping live database tests for this separate design PR at 18:59 EST. The branch-specific exception retains lint, unit and offline checks, and the versioned direct Next build bypasses the migration hook. The exception does not cover other PRs or a later merge. No merge is requested before preview/design review. Actual deployed mobile interactions, navigation, console/network capture and screenshots are now the next required evidence. No live evidence is claimed by the earlier source-rendered fixtures.
+
+Live preview testing found a real issue absent from fixtures: the shared legal disclaimer inherited the monochrome black background token while retaining hardcoded dark button text. Corrected only the public disclaimer action to white on black, square corners. The legal decision and persistence behavior remain unchanged. A source regression test checks this public-scoped override; deployed computed-style and pixel recheck is required after this fix.
