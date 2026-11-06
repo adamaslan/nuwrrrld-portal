@@ -1,21 +1,39 @@
+/* NWF app-wide design tokens — white / black / gray, square, no dark mode.
+   The system: docs/nwf-style-guide.md. Border thickness communicates the
+   importance of the enclosed data (Adam, 2026-11-01); never decoration. */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --bg:        #06070d;
-  --surface:   #0d1018;
-  --surface-2: #141926;
-  --text:      #e8ecf4;
-  --text-dim:  #9aa4bd;
-  --border:    #212a3d;
+  --bg:        #ffffff;
+  --surface:   #ffffff;
+  --surface-2: #f5f5f5;
+  --text:      #111111;
+  --text-dim:  #555555;
+  --border:    #111111;
 
-  --neon-blue:   #2fd8ff;
-  --neon-red:    #ff3b5c;
-  --neon-yellow: #f4b83f;
+  /* Legacy token names kept so existing per-page stylesheets compile.
+     Monochrome semantic scale: meaning is carried by weight, fill and
+     shape, never by color alone. */
+  --neon-blue:   #111111; /* primary ink */
+  --neon-red:    #111111; /* primary ink */
+  --neon-yellow: #555555; /* secondary ink */
   --bull: var(--neon-blue);
   --bear: var(--neon-red);
 
-  --glow-blue: 0 0 12px rgba(47, 216, 255, .55), 0 0 32px rgba(47, 216, 255, .25);
-  --glow-red:  0 0 12px rgba(255, 59, 92, .55),  0 0 32px rgba(255, 59, 92, .25);
+  --glow-blue: none;
+  --glow-red:  none;
+
+  /* Border-weight hierarchy — thickness = importance of the data inside.
+     Ground the weight in what the element shows, not in decoration:
+     primary = the data the page exists for (verdict, live price, key metric),
+     standard = working cards/sections/inputs, supporting = metadata/dividers. */
+  --bw-primary:    4px;
+  --bw-standard:   2px;
+  --bw-supporting: 1px;
+
+  /* Monochrome fill encodings for directional/semantic pairs */
+  --fill-strong: #111111;   /* solid ink fill (bull / pass / positive) */
+  --fill-ghost:  #ffffff;   /* outlined only  (bear / fail / negative) */
 
   /* legacy aliases kept for pages not yet converted */
   --background: var(--bg);
@@ -24,7 +42,7 @@
 
 html {
   height: 100%;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -46,34 +64,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient neon flares — fixed, blurred, non-interactive haze behind content */
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  z-index: -1;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 50%;
-  filter: blur(120px);
-  pointer-events: none;
-  opacity: 0.18;
-  will-change: transform;
-  transform: translateZ(0);
-}
-
-body::before {
-  top: -20vmax;
-  left: -15vmax;
-  background: var(--neon-blue);
-}
-
-body::after {
-  bottom: -20vmax;
-  right: -15vmax;
-  background: var(--neon-red);
-}
-
 * {
   box-sizing: border-box;
   padding: 0;
@@ -86,13 +76,11 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--neon-blue);
+  outline: var(--bw-standard) solid var(--text);
   outline-offset: 2px;
 }
 
-/* Accessibility: honor reduced-motion — kill flare/glow animation + transitions,
-   keeping the static neon look. Required guardrail for the neon theme
-   (portal-10x-council-db-local.md, WS4). */
+/* Accessibility: honor reduced-motion — kill animation + transitions. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
