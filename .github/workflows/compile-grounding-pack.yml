@@ -1,6 +1,6 @@
 name: Compile grounding pack
 
-# Daily, plus on any corpus edit and manual trigger. Runs
+# Daily and manual only, not an automatic consequence of merging corpus/script edits. Runs
 # scripts/compile_grounding_pack.mjs against the Neon database. The compile
 # is incremental (unchanged chunks are skipped by content hash) and budgeted
 # (--max-calls, default 40/day), so a no-change day costs zero model calls and
@@ -8,12 +8,6 @@ name: Compile grounding pack
 on:
   schedule:
     - cron: '23 6 * * *' # daily 06:23 UTC (after the free-model refresh at 06:17)
-  push:
-    branches: [main]
-    paths:
-      - 'corpus/**'
-      - 'scripts/compile_grounding_pack.mjs'
-      - 'scripts/grounding-chunker.mjs'
   workflow_dispatch: {}
 
 # One compile at a time: overlapping runs (cron + corpus push + manual) would
