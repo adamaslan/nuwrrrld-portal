@@ -53,6 +53,7 @@ docs/admin-console-todo.md §1; "middleware" below still names the same file).
 | `/api/referral` | GET, POST | auth-required | Clerk |
 | `/api/retention/digest-email` | POST | internal-secret | `CRON_SECRET` |
 | `/api/retention/streak` | GET, POST | auth-required | Clerk |
+| `/api/research/historical-replay` | GET | auth-required | Clerk + replay-owner gate (NULOGDASH_REPLAY_OWNER_EMAILS, verified primary email; flag-gated 204 while off) |
 | `/api/retention/trial-nudge` | POST | internal-secret | `CRON_SECRET` |
 | `/api/signals/[ticker]/chat` | POST | auth-required | Clerk |
 | `/api/signals/card` | GET | public | shareable SVG card, query params only |
