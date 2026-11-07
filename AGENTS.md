@@ -79,11 +79,11 @@ win. The Captain's Log routes work but cannot expand permission.
 
 - Keep implementation creator and fixer/merger separate: the LLM that wrote the
   implementation does not also fix and merge it. Independent review by a
-  different model family than the author/fixer is binding before merge
-  (bugmerge2). Honor the latest qualifying Claude/Codex review, then the
-  designated fixer fixes and merges; do not add a third merger or repeat a
-  completed valid review. A draft label alone is not an additional
-  owner-confirmation gate.
+  different model family than the author is binding before merge (bugmerge2).
+  Honor the latest qualifying Claude/Codex review; the designated fixer's
+  ordinary fixes under a valid external review do not require another family
+  review. Do not add a third merger or repeat a completed valid review. A
+  draft label alone is not an additional owner-confirmation gate.
 - Check active ownership before starting. Never create parallel writers. Reuse
   completed valid reviews and proof instead of repeating a full review.
 - Merge only after the actual application build at the current head and the
