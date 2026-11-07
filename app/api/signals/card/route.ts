@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const DIRECTION_COLOR: Record<string, string> = {
-  bullish: '#16a34a',
-  bearish: '#dc2626',
-  neutral: '#d97706',
+// Monochrome law: no hue anywhere, including share cards. Direction reads as
+// solid ink (bullish) vs ghost outline (bearish); neutral is gray.
+const DIRECTION_FILL: Record<string, string> = {
+  bullish: '#111111',
+  bearish: '#ffffff',
+  neutral: '#555555',
 };
 
-const DIRECTION_EMOJI: Record<string, string> = {
-  bullish: '📈',
-  bearish: '📉',
-  neutral: '➡️',
+const DIRECTION_STROKE: Record<string, string> = {
+  bullish: 'none',
+  bearish: '#111111',
+  neutral: 'none',
 };
+
+function directionShape(direction: string): string {
+  const fill = DIRECTION_FILL[direction] || '#555555';
+  const stroke = DIRECTION_STROKE[direction] || 'none';
+  const strokeAttr = stroke === 'none' ? '' : ` stroke="${stroke}" stroke-width="4"`;
+  if (direction === 'bullish') {
+    return `<polygon points="80,218 140,218 110,162" fill="${fill}"${strokeAttr} />`;
+  }
+  if (direction === 'bearish') {
+    return `<polygon points="80,162 140,162 110,218" fill="${fill}"${strokeAttr} />`;
+  }
+  return `<rect x="80" y="186" width="42" height="8" fill="${fill}" /><polygon points="122,172 150,190 122,208" fill="${fill}" />`;
+}
 
 const VALID_DIRECTIONS = new Set(['bullish', 'bearish', 'neutral']);
 const VALID_CONFIDENCES = new Set(['low', 'medium', 'high']);
@@ -45,50 +60,44 @@ export async function GET(request: NextRequest) {
   const confidence = VALID_CONFIDENCES.has(rawConfidence) ? rawConfidence : 'low';
   const timeframe = VALID_TIMEFRAMES.has(rawTimeframe) ? rawTimeframe : 'medium';
 
-  const color = DIRECTION_COLOR[direction] || '#666';
-  const emoji = DIRECTION_EMOJI[direction] || '➡️';
+  const barFill = direction === 'bearish' ? '#ffffff' : (DIRECTION_FILL[direction] || '#555555');
+  const barStroke = direction === 'bearish' ? ' stroke="#111111" stroke-width="2"' : '';
 
   // Generate a branded card as SVG (shareable across all platforms)
   const svg = `
     <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#f9fafb;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#f3f4f6;stop-opacity:1" />
-        </linearGradient>
-      </defs>
-
       <!-- Background -->
-      <rect width="1200" height="630" fill="url(#bgGrad)" />
+      <rect width="1200" height="630" fill="#f5f5f5" />
 
       <!-- Left accent bar -->
-      <rect width="8" height="630" fill="${color}" />
+      <rect width="8" height="630" fill="${barFill}"${barStroke} />
 
-      <!-- Card background -->
-      <rect x="40" y="40" width="1120" height="550" fill="white" rx="16" stroke="${color}" stroke-width="2" />
+      <!-- Card background: square, monochrome -->
+      <rect x="40" y="40" width="1120" height="550" fill="#ffffff" rx="0" stroke="#111111" stroke-width="2" />
 
       <!-- Ticker + Direction (large) -->
-      <text x="80" y="140" font-size="120" font-weight="700" fill="#111" font-family="system-ui">
+      <text x="80" y="140" font-size="120" font-weight="700" fill="#111111" font-family="system-ui">
         ${ticker}
       </text>
 
-      <!-- Direction emoji + label -->
-      <text x="80" y="220" font-size="48" fill="${color}" font-family="system-ui">
-        ${emoji} ${direction.toUpperCase()}
+      <!-- Direction mark: solid ink = bullish, ghost outline = bearish, gray bar/arrow = neutral -->
+      ${directionShape(direction)}
+      <text x="170" y="205" font-size="48" font-weight="600" fill="${direction === 'neutral' ? '#555555' : '#111111'}" font-family="system-ui">
+        ${direction.toUpperCase()}
       </text>
 
       <!-- Meta: confidence + timeframe -->
-      <text x="80" y="310" font-size="32" fill="#6b7280" font-family="system-ui">
+      <text x="80" y="310" font-size="32" fill="#555555" font-family="system-ui">
         ${confidence} confidence · ${timeframe} timeframe
       </text>
 
       <!-- Footer: powered by NuWrrrld -->
-      <text x="80" y="570" font-size="20" fill="#9ca3af" font-family="system-ui">
+      <text x="80" y="570" font-size="20" fill="#555555" font-family="system-ui">
         NuWrrrld Financial — Signal Share
       </text>
 
       <!-- Bottom right: disclaimer -->
-      <text x="1080" y="570" font-size="14" fill="#9ca3af" text-anchor="end" font-family="system-ui">
+      <text x="1080" y="570" font-size="14" fill="#555555" text-anchor="end" font-family="system-ui">
         Not financial advice
       </text>
     </svg>

@@ -51,9 +51,9 @@
 .consent-btn {
   padding: 10px 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--neon-yellow);
-  color: #0d1018;
+  color: #111111;
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.01em;
@@ -69,7 +69,7 @@
 .consent-btn-secondary {
   padding: 10px 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0;
   background: transparent;
   color: var(--text);
   font-weight: 700;
@@ -113,7 +113,7 @@
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: 0;
   border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
   background: var(--surface);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);

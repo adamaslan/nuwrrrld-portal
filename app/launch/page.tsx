@@ -13,14 +13,14 @@ const PH_URL = "https://www.producthunt.com/posts/nuwrrrld-financial";
 
 export default function LaunchPage() {
   return (
-    <main className="launch-page landing-page">
+    <main className="launch-page landing-page nwf-landing">
       <nav className="landing-nav">
         <Link href="/" className="brand">NuWrrrld Financial</Link>
         <Link href="/pricing" className="nav-cta">Start free trial</Link>
       </nav>
 
       <section className="launch-hero">
-        <p className="launch-badge">🚀 We launched today on Product Hunt</p>
+        <p className="launch-badge">We launched today on Product Hunt</p>
         <h1>AI stock signals that explain themselves</h1>
         <p className="landing-sub">
           Every signal tells you which indicators fired, the timeframe, and why it matters —
@@ -28,7 +28,7 @@ export default function LaunchPage() {
         </p>
         <div className="launch-ctas">
           <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn">
-            <span aria-hidden="true">🏆</span> Support us on Product Hunt
+            <span aria-hidden="true">↗</span> Support us on Product Hunt
           </a>
           <Link href="/pricing" className="hero-cta">Start 7-day free trial</Link>
         </div>
@@ -54,8 +54,8 @@ export default function LaunchPage() {
       <section className="landing-cta-block">
         <h2>Support us today</h2>
         <p className="launch-sub">A Product Hunt upvote takes 10 seconds and means a lot to a solo founder.</p>
-        <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn ph-btn--lg">
-          <span aria-hidden="true">🏆</span> Upvote on Product Hunt
+        <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn ph-btn--lg ph-btn--solid">
+          <span aria-hidden="true">↗</span> Upvote on Product Hunt
         </a>
         <p className="landing-disclaimer">
           <Link href="/terms-of-service">Terms</Link> · <Link href="/privacy-policy">Privacy</Link>

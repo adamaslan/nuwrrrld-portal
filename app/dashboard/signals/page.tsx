@@ -39,7 +39,7 @@ export default async function SignalsPage() {
 
       {digest?.degraded && (
         <p className="signal-stale-badge">
-          ⚠ Live signals are unavailable right now — showing the last cached digest.
+          ⚠︎ Live signals are unavailable right now — showing the last cached digest.
         </p>
       )}
 
