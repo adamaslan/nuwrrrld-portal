@@ -98,13 +98,24 @@ export const FREE_MODEL_CHAIN = [
 //   (both probed 200 with content; RISK's xs id intermittently 429s and then
 //   falls through to the chain). T2 and RISK now share a vendor, so the spread
 //   is five vendors (qwen, poolside, dots-studio, liquid, nvidia) not six.
-const SEAT_MODELS: Record<CouncilSeat, string> = {
+export const SEAT_MODELS: Record<CouncilSeat, string> = {
   // 2026-10-08: qwen/qwen3.8-27b:free was withdrawn (404 "unavailable for free";
   // only the paid slug remains). It was also FREE_MODEL_CHAIN's head, and the
   // plain walks broke on its 404, so brief + health-ai failed outright.
   T1: 'nvidia/nemotron-3.5-lightning:free',
-  T2: 'poolside/laguna-s-2.1:free',
-  RISK: 'poolside/laguna-xs-2.1:free',
+  // 2026-11-02: both poolside/laguna ids 404 — retired from the free catalog
+  // (confirmed by the model-chain live job on #333: seats fell through to
+  // FREE_MODEL_CHAIN with "likely retired from the catalog"). Replacements are
+  // catalog-\$0 general-chat ids, not specialist (per refresh-free-models.mjs's
+  // SPECIALIST_MODEL_PATTERNS): inkling for T2's strategic job (1M context),
+  // inkling-small for RISK's smaller brief. Same vendor for both, as laguna
+  // s/xs already was; google/gemma-4-26b-a4b-it:free is the documented fallback
+  // if inkling-small probes badly (Google free ids have a 429 history here).
+  // Reachability is verified by __tests__/live/model-chain.live.test.ts, which
+  // probes every seat under the production contract — catalog presence alone
+  // was never sufficient (2026-09-11 note).
+  T2: 'thinkingmachines/inkling:free',
+  RISK: 'thinkingmachines/inkling-small:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
