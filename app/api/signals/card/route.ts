@@ -61,7 +61,11 @@ export async function GET(request: NextRequest) {
   const timeframe = VALID_TIMEFRAMES.has(rawTimeframe) ? rawTimeframe : 'medium';
 
   const barFill = direction === 'bearish' ? '#ffffff' : (DIRECTION_FILL[direction] || '#555555');
-  const barStroke = direction === 'bearish' ? ' stroke="#111111" stroke-width="2"' : '';
+  // Bearish bar is a ghost outline; inset the rect by half the stroke so the
+  // outline is not clipped by the canvas edge.
+  const barRect = direction === 'bearish'
+    ? `<rect x="1" y="1" width="6" height="628" fill="${barFill}" stroke="#111111" stroke-width="2" />`
+    : `<rect width="8" height="630" fill="${barFill}" />`;
 
   // Generate a branded card as SVG (shareable across all platforms)
   const svg = `
@@ -70,7 +74,7 @@ export async function GET(request: NextRequest) {
       <rect width="1200" height="630" fill="#f5f5f5" />
 
       <!-- Left accent bar -->
-      <rect width="8" height="630" fill="${barFill}"${barStroke} />
+      ${barRect}
 
       <!-- Card background: square, monochrome -->
       <rect x="40" y="40" width="1120" height="550" fill="#ffffff" rx="0" stroke="#111111" stroke-width="2" />
