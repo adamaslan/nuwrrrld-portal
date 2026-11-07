@@ -6,9 +6,10 @@
  * What it does:
  *   1. Pulls OpenRouter's model catalog and keeps only $0-priced models
  *      (pricing.prompt / completion / request all parse to 0).
- *   2. Live-probes each candidate (1-token completion) so a model that is
- *      priced $0 but returns 402/429 — the exact failure hitting the council
- *      route — is dropped, not trusted.
+ *   2. Live-probes each candidate under the production streaming contract
+ *      (first visible content token = alive) so a model that is priced $0 but
+ *      returns 402/429 — or a 200 with no visible content token, which
+ *      production treats as no answer — is dropped, not trusted.
  *   3. Rewrites the FREE_MODEL_CHAIN array in lib/openrouter.ts with the top N
  *      that pass, in preference order.
  *   4. Audits SEAT_MODELS — reports, never rewrites. As of 2026-09-11 the audit
@@ -43,7 +44,8 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
@@ -55,7 +57,14 @@ const envChainSize = Number(process.env.MODEL_CHAIN_SIZE);
 // code model is still 4 deep for a council seat.
 const CHAIN_SIZE = Number.isNaN(envChainSize) ? 5 : envChainSize;
 const MIN_WORKING = 1; // never write a chain that would strand the app with zero models
-const PROBE_TIMEOUT_MS = 15_000;
+// The probe request mirrors the production contract — fetchWithModelFallbackChecked
+// (lib/openrouter.ts) as invoked by /api/brief (app/api/brief/route.ts): streaming,
+// a 350-token budget, temperature 0.3, and a 20s per-attempt bound
+// (MODEL_ATTEMPT_TIMEOUT_MS). 350 is the smallest budget among the streaming
+// Checked callers; see probe()'s doc for what this does and does not certify.
+const PROBE_TIMEOUT_MS = 20_000;
+const PROBE_MAX_TOKENS = 350;
+const PROBE_TEMPERATURE = 0.3;
 const RETRY_429_DELAY_MS = 2_000; // pause before the single 429 retry (P4)
 const MAX_PER_VENDOR = 2; // cap chain entries per vendor prefix — an all-one-vendor
 // chain has nominal depth N and real depth 1 against an account-tier outage (P4)
@@ -175,19 +184,44 @@ async function fetchFreeModels() {
 }
 
 /**
- * Send a 1-token chat completion to `model` to check it actually answers.
- * Returns `{ model, ok, status }` where `status` is the HTTP code, `'timeout'`,
- * or `'network'`. Retries once on a first-attempt 429 (an account rate limit is
- * not evidence the model is dead); a 429 on the retry is reported as `ok:false`.
+ * Probe `model` under the production streaming contract to check it actually
+ * answers. Mirrors fetchWithModelFallbackChecked (lib/openrouter.ts) as
+ * invoked by /api/brief: stream: true, max_tokens 350, temperature 0.3, and a
+ * 20s per-attempt abort. The verdict is the production priming rule: the
+ * FIRST visible delta.content token is health; delta.reasoning never counts;
+ * [DONE]/stream-end without any content token is "empty".
+ *
+ * What this certifies: the model begins producing visible content under a
+ * production-representative request. What it does NOT certify: full-answer
+ * quality, sustained streaming, or budgets smaller than 350 (the CHAIR
+ * verdict second call runs at max_tokens≈80 — a model that spends >80 tokens
+ * on hidden reasoning before its first content token can pass this probe and
+ * still fail that call). The trivial prompt also elicits less hidden
+ * reasoning than production's long prompts, so a pass is a floor check, not a
+ * guarantee.
+ *
+ * A 1-8 token non-streaming probe was tried and withdrawn: a reasoning model
+ * can spend the whole tiny budget on hidden reasoning and return 200 with
+ * empty content, falsely condemning a model that serves production fine
+ * (observed 2026-11-02: the small-budget probe reported 0/4 alive while the
+ * same models answered council seats and /api/brief seconds later).
+ *
+ * Returns `{ model, ok, status, latencyMs, detail }` where `status` is the
+ * HTTP code, 'empty', 'timeout', or 'network'. Retries once on a
+ * first-attempt 429 (an account rate limit is not evidence the model is
+ * dead); a 429 on the retry is reported as `ok:false`.
  */
-async function probe(apiKey, model) {
+export async function probe(apiKey, model, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? PROBE_TIMEOUT_MS;
+  const retryDelayMs = opts.retryDelayMs ?? RETRY_429_DELAY_MS;
   // Two attempts: a 429 on the first is an account-level rate limit, not
   // evidence the model is unreachable. Without the retry a momentarily
   // throttled vendor is excluded from the entire week's chain — that is how
   // both Google models were dropped on 2026-09-07 (P4).
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const started = Date.now();
     try {
       const res = await fetch(`${OR_BASE}/chat/completions`, {
         method: 'POST',
@@ -200,25 +234,86 @@ async function probe(apiKey, model) {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 1,
+          messages: [{ role: 'user', content: 'Reply with the single word: OK' }],
+          max_tokens: PROBE_MAX_TOKENS,
+          temperature: PROBE_TEMPERATURE,
+          stream: true,
         }),
       });
-      await res.body?.cancel().catch(() => {});
       if (res.status === 429 && attempt === 0) {
+        await res.body?.cancel().catch(() => {});
         clearTimeout(timer);
-        console.log(`  probe 429  ${model} — rate limited, retrying once in ${RETRY_429_DELAY_MS}ms`);
-        await new Promise((r) => setTimeout(r, RETRY_429_DELAY_MS));
+        console.log(`  probe 429  ${model} — rate limited, retrying once in ${retryDelayMs}ms`);
+        await new Promise((r) => setTimeout(r, retryDelayMs));
         continue;
       }
-      return { model, ok: res.ok, status: res.status };
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return { model, ok: false, status: res.status, latencyMs: Date.now() - started, detail: { parsedLines: 0, emptyLines: 0, sawDone: false, finishReason: null } };
+      }
+      // 200 is not health. Production counts only a visible content token as
+      // an answer — a shed free model returns 200 with an empty completion —
+      // so the probe primes the stream and applies the same rule.
+      return { model, latencyMs: Date.now() - started, ...(await contentVerdict(res)) };
     } catch (err) {
-      return { model, ok: false, status: err?.name === 'AbortError' ? 'timeout' : 'network' };
+      return {
+        model,
+        ok: false,
+        status: err?.name === 'AbortError' ? 'timeout' : 'network',
+        latencyMs: Date.now() - started,
+        detail: { parsedLines: 0, emptyLines: 0, sawDone: false, finishReason: null },
+      };
     } finally {
       clearTimeout(timer);
     }
   }
-  return { model, ok: false, status: 429 };
+  return { model, ok: false, status: 429, detail: { parsedLines: 0, emptyLines: 0, sawDone: false, finishReason: null } };
+}
+
+/**
+ * Production priming rule on the SSE stream: read until the first visible
+ * delta.content token, [DONE], or stream end. Mirrors scanSSEChunk in
+ * lib/openrouter.ts: lines not starting with "data: " (control comments such
+ * as ": OPENROUTER PROCESSING") are skipped, malformed JSON lines are
+ * skipped, delta.reasoning never counts as an answer, and partial lines are
+ * buffered across chunks. Cancels the body as soon as the verdict is decided.
+ * `detail` carries the diagnostics — a 'length' finish_reason with zero
+ * content means the model spent the whole budget on hidden reasoning; a
+ * 'stop' with zero content only means empty under these request parameters
+ * — it does not by itself prove an upstream cause.
+ */
+async function contentVerdict(res) {
+  const reader = res.body?.getReader();
+  if (!reader) return { ok: false, status: 'empty', detail: { parsedLines: 0, emptyLines: 0, sawDone: false, finishReason: null } };
+  const decoder = new TextDecoder();
+  let buffered = '';
+  let parsedLines = 0;
+  let emptyLines = 0;
+  let sawDone = false;
+  let finishReason = null;
+  const verdict = (ok, status) => {
+    reader.cancel().catch(() => {});
+    return { ok, status, detail: { parsedLines, emptyLines, sawDone, finishReason } };
+  };
+  for (;;) {
+    const { done: streamDone, value } = await reader.read();
+    buffered += streamDone ? decoder.decode() : decoder.decode(value, { stream: true });
+    const lines = buffered.split('\n');
+    buffered = streamDone ? '' : (lines.pop() ?? '');
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') { sawDone = true; continue; }
+      let parsed;
+      try { parsed = JSON.parse(payload); } catch { continue; }
+      parsedLines += 1;
+      const choice = parsed?.choices?.[0];
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+      if (choice?.delta?.content) return verdict(true, res.status);
+      emptyLines += 1;
+    }
+    if (streamDone || sawDone) return verdict(false, 'empty');
+  }
 }
 
 /** Keep at most MAX_PER_VENDOR ids sharing a `vendor/` prefix, order preserved. */
@@ -523,7 +618,15 @@ async function main() {
   if (deadSeats > 0) process.exitCode = EXIT_DEGRADED_SEATS;
 }
 
-main().catch((err) => {
+const invokedAsScript = (() => {
+  try {
+    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedAsScript) main().catch((err) => {
   if (err instanceof KeyRejectedError) {
     console.error(
       `\nrefresh-free-models: ${err.message}. The OpenRouter key is revoked or invalid. ` +
