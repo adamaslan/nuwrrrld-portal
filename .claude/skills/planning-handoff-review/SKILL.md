@@ -71,7 +71,7 @@ Report:
 - Anything that changed scope, even slightly, and whether I approved it.
 - Surprises: things we learned that the plan did not predict.
 
-End with a verdict: CONTINUE as planned, ADJUST (say what), or STOP and re-decide. Mark each claim as verified locally, verified in production, or unverified. "Done" without a location is not done.
+End with a verdict: CONTINUE as planned, ADJUST (say what), or STOP and re-decide. Mark each claim as verified in its actual environment (local, CI, staging, preview or production) with its evidence source, or unverified. "Done" without a location is not done.
 ```
 
 ### Pivot or Persevere
