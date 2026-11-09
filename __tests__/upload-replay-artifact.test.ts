@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
@@ -9,6 +10,7 @@ import {
   MAX_ARTIFACT_BYTES,
   REPLAY_SEED_SHA256 as SCRIPT_SEED_SHA256,
   uploadArtifact,
+  assertUploadDatabaseTarget,
   validateArtifactBytes,
 } from "../scripts/lib/replay-artifact-upload.mjs";
 
@@ -160,5 +162,49 @@ describe("parity with the loader", () => {
     const storeSrc = readFileSync(path.join(process.cwd(), "lib", "historical-replay-store.ts"), "utf8");
     expect(storeSrc).toContain("8 * 1024 * 1024");
     expect(MAX_ARTIFACT_BYTES).toBe(8 * 1024 * 1024);
+  });
+});
+
+
+describe("upload database destination interlock", () => {
+  it.each(["localhost", "127.0.0.1", "[::1]"])("permits an explicitly invoked local upload to %s", (host) => {
+    expect(() => assertUploadDatabaseTarget(`postgres://user:secret@${host}/test`)).not.toThrow();
+  });
+  it("refuses arbitrary remote hosts and lookalike loopback names", () => {
+    for (const host of ["prod.example.invalid", "test.example.invalid", "localhost.evil.invalid", "127.0.0.2"]) {
+      expect(() => assertUploadDatabaseTarget(`postgres://user:secret@${host}/db`)).toThrow(/remote database write refused/);
+    }
+  });
+  it("needs both an explicit override and exact host pin for any remote", () => {
+    const url = "postgres://user:secret@prod.example.invalid/db";
+    expect(() => assertUploadDatabaseTarget(url, { allowProduction: true })).toThrow();
+    expect(() => assertUploadDatabaseTarget(url, { expectedHost: "prod.example.invalid" })).toThrow();
+    expect(() => assertUploadDatabaseTarget(url, { allowProduction: true, expectedHost: "other.example.invalid" })).toThrow();
+    expect(() => assertUploadDatabaseTarget(url, { allowProduction: true, expectedHost: "prod.example.invalid" })).not.toThrow();
+  });
+  it("rejects malformed or non-PostgreSQL URLs without printing credentials", () => {
+    for (const url of ["not-a-url-secret", "https://user:secret@prod.example.invalid/db"]) {
+      try { assertUploadDatabaseTarget(url); throw new Error("did not reject"); }
+      catch (err) { expect(String(err)).not.toContain("user:secret"); expect(String(err)).not.toContain("not-a-url-secret"); }
+    }
+  });
+});
+
+
+describe("CLI database guard wiring", () => {
+  it("--check ignores a remote DATABASE_URL, while upload refuses it before client access", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "replay-upload-guard-"));
+    const file = path.join(dir, "fixture.json");
+    writeFileSync(file, BODY);
+    const env = { ...process.env, REPLAY_ARTIFACT_SHA256: PIN, DATABASE_URL: "postgres://user:secret@prod.example.invalid/db", REPLAY_UPLOAD_DATABASE_HOST: "" };
+    try {
+      const check = spawnSync(process.execPath, ["scripts/upload-replay-artifact.mjs", "--check", file], { cwd: process.cwd(), env, encoding: "utf8" });
+      expect(check.status).toBe(0);
+      expect(check.stdout).toContain("--check: no database access performed");
+      const upload = spawnSync(process.execPath, ["scripts/upload-replay-artifact.mjs", file], { cwd: process.cwd(), env, encoding: "utf8" });
+      expect(upload.status).toBe(1);
+      expect(upload.stderr).toContain("remote database write refused");
+      expect(upload.stderr).not.toContain("user:secret");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
