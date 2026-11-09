@@ -38,6 +38,28 @@ export class UploadError extends Error {
   }
 }
 
+/**
+ * Fail closed before constructing a database client. All non-loopback hosts are
+ * treated as potentially production: require both an explicit write override
+ * and an exact host pin. A switch is a safety interlock, not owner permission.
+ * Table creation happens only in the explicitly invoked upload below; the
+ * request loader never creates tables. --check bypasses all database access.
+ */
+export function assertUploadDatabaseTarget(databaseUrl, { allowProduction = false, expectedHost } = {}) {
+  let url;
+  try { url = new URL(databaseUrl); } catch { throw new UploadError("unsafe_target", "invalid DATABASE_URL (value withheld)"); }
+  if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname) {
+    throw new UploadError("unsafe_target", "DATABASE_URL must identify a PostgreSQL host (value withheld)");
+  }
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (!local && (!allowProduction || expectedHost !== url.hostname)) {
+    throw new UploadError("unsafe_target", "remote database write refused: obtain owner approval, then supply --allow-production and an exact REPLAY_UPLOAD_DATABASE_HOST pin");
+  }
+  if (expectedHost && expectedHost !== url.hostname) {
+    throw new UploadError("unsafe_target", "database host does not match REPLAY_UPLOAD_DATABASE_HOST (values withheld)");
+  }
+}
+
 const sha256Hex = (text) => createHash("sha256").update(text, "utf8").digest("hex");
 const isMissingTable = (err) => err?.code === "42P01";
 
