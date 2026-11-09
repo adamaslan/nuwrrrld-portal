@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEED_CARDS, cardProvenance } from "@/lib/shared/se1-catalog";
+import { SEED_CARDS, cardProvenance, type CardStatus } from "@/lib/shared/se1-catalog";
 import { formatProvenance, LOGIC_FEATURES, WAVE0_FEATURES } from "@/lib/shared/ai-features";
 
 // Regression tests for the skill-pass review of PR #346 (see docs/reports/se1-skill-review-2026-11-08.md).
@@ -23,5 +23,18 @@ describe("registry honesty for features with no caller (review finding F2)", () 
       expect(f, id).toBeDefined();
       expect(f?.status, id).toBe("logic_only");
     }
+  });
+});
+
+
+describe("Haiku provenance regression findings", () => {
+  it.each<CardStatus>(["spec", "built", "measured", "retired"])("%s status is not a timestamp", (status) => {
+    const provenance = cardProvenance({ ...SEED_CARDS[0], status });
+    expect(provenance.as_of).toBe("");
+    expect(formatProvenance(provenance)).toBeNull();
+  });
+  it("keeps unbuilt feeds visibly marked", () => {
+    expect(cardProvenance({ ...SEED_CARDS[0], feed: "edgar" }).feed).toBe("SEC EDGAR filings and fundamentals (not built)");
+    expect(cardProvenance({ ...SEED_CARDS[0], feed: "alpaca_bars" }).feed).toBe("Alpaca daily bars");
   });
 });
