@@ -32,6 +32,10 @@ Features are built as recipes over scan cards, not as new prompts. The shared re
 
 > ❓ Open question: the mobile copy of `lib/shared/se1-*.ts` and `ai-features.ts` is not yet in `scripts/check-shared-drift.mjs`, so drift between web and mobile is not gated for these files.
 
+## Roadmap 2: five more pure features
+
+`lib/shared/se1-roadmap2.ts` adds F1 (up to five sourced reasons behind a Hold/Fold call), C9 (up to three scans behind a quick-ask answer), E3 (weakest holding), E1 (portfolio risk with coverage) and D4 (debounced regime banner). All are `logic_only`. The shared rule: a missing input is reported as missing (excluded, unresolved, or null), never filled with a neutral value or counted as zero risk. Like the other logic features, they run on synthetic rows only and nothing calls them yet.
+
 ## See also
 
 - [[decision-se1-pure-logic-before-results-store]] — why these features ship before the results store exists
