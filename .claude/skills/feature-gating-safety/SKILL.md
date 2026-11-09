@@ -12,12 +12,17 @@ House rule: do not expose a feature to users until evidence and safety gates pas
 ```text
 Implement <feature> behind feature flag <flag_name>, default OFF.
 
+Security-enforcement fixes must protect every flag state. If a protection is
+OFF or the kill switch is active, disable the affected path rather than restore
+an unsafe path. Rollback must not reintroduce the original bypass.
+
 Include:
 - Kill switch and rollback procedure.
 - Flag owner and expiry date.
 - Staged rollout plan: dark launch → 1% → 5% → 25% → 100%.
 - Metrics and alerts for error rate, latency, and business impact.
 - Tests for flag ON, flag OFF, and kill switch.
+- For security-enforcement fixes, test the original bypass in all three states.
 - Logging of flag evaluation in relevant events/errors.
 
 Do not expose the feature to users until the evidence and safety gates pass.
