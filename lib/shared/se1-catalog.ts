@@ -260,8 +260,9 @@ export function computeGaps(
  * date, so `as_of` stays empty and the footer fails closed (review finding F1).
  */
 export function cardProvenance(card: ScanCard): { source: string; feed: string; as_of: string; scan_version: string } {
-  const runAt = card.status === "measured" || card.status === "built" ? "run" : "";
-  return { source: card.source_ref, feed: FEED_LABEL[card.feed], as_of: runAt, scan_version: card.version };
+  // Card status is not a run timestamp. No run record is attached here yet.
+  const feed = `${FEED_LABEL[card.feed]}${BUILT_FEEDS.includes(card.feed) ? "" : " (not built)"}`;
+  return { source: card.source_ref, feed, as_of: "", scan_version: card.version };
 }
 
 export function totalPlanned(): number {
