@@ -7,6 +7,8 @@ description: Audit AI-written code for its characteristic failure modes (halluci
 
 House rule: reproduce and collect evidence before changing production code; identify root cause before proposing a fix.
 
+Before any test or reproduction run in these prompts, inspect its side effects. Use a throwaway database and sandboxed services for database or service effects. Without isolation, obtain explicit owner approval for the actual side effects and repetitions. If neither is available, do not run it; report UNVERIFIED.
+
 ## Evidence-First Debugging
 
 ```text
