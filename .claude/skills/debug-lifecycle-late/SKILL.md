@@ -7,6 +7,8 @@ description: Finish a debugging cycle correctly — build and rank a hypothesis 
 
 Pick up with the repro and evidence timeline from **debug-lifecycle-early**. **Rule across these phases:** no fix before a repro, no root cause without evidence that explains every observation, and no "done" without PASS/FAIL/UNVERIFIED and where the evidence came from.
 
+Before any test or reproduction run in these prompts, inspect its side effects. Use a throwaway database and sandboxed services for database or service effects. Without isolation, obtain explicit owner approval for the actual side effects and repetitions. If neither is available, do not run it; report UNVERIFIED.
+
 ---
 
 ## Phase 4: Isolation & Hypotheses
