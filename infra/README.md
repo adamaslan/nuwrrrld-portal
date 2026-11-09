@@ -202,3 +202,11 @@ rollback needs an explicit reviewed Terraform change before removing them.
 `terraform fmt -check -recursive infra` succeeded with Terraform 1.5.7 and
 Google provider 7.46.1. This checks configuration shape only; it does not
 verify a cloud plan, provider permissions, or application behavior.
+
+## Health-check addendum - November 9, 2026
+
+The [NWF health baseline, homebase #82](https://github.com/adamaslan/homebase/pull/82) records a 13:12 ET production `/api/health` response with HTTP 200, overall ok and six dependency fields ok. This is reachability/configuration and newest-card-date evidence, not a successful hydration job, model completion, billing E2E, per-ticker coverage, backup restore or alert-delivery proof. The response may be cached for 60 seconds; degraded JSON still returns HTTP 200.
+
+Owner clarification on November 9: #309 is unapplied. Treat older apply/foundation statements above as dated historical claims, not current cloud inventory or permission. No real plan refresh, state mutation, IAM grant, secret operation or infrastructure apply was performed for the health work. Eleven isolated mocked-provider plan tests passed, exercising default-off and missing-prerequisite gates, full-input job/scheduler counts, wrong-project refusal and pinned-version validation. These do not prove current cloud permissions, enabled secrets, quota, image startup or deployed state.
+
+[Homebase #57](https://github.com/adamaslan/homebase/pull/57) stays status/tracking; [#81](https://github.com/adamaslan/homebase/pull/81) is the calendar/run-ledger/cutover design proposal. Inventory actual triggers and writers before enabling another scheduler or Modal adapter. Keep this as the single implementation PR; merging code does not authorize applying it. Inspect convenience-command effects: local-check and nulogdash can include schema/data writes and are not automatically read-only checks.
