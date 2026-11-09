@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { EvidenceBadge } from "./EvidenceBadge";
 import { ProvenanceFooter } from "./ProvenanceFooter";
-import { FEED_LABEL, BUILT_FEEDS, type ScanCard } from "@/lib/shared/se1-catalog";
-import { EVIDENCE_INFO } from "@/lib/shared/se1-catalog";
+import { EVIDENCE_INFO, cardProvenance, type ScanCard } from "@/lib/shared/se1-catalog";
 
 /** G2 scan card viewer, with A9 "explain this scan" (the card's own prose, no model call). */
 export function ScanCardView({ card }: { card: ScanCard }) {
   const fields = Object.entries(card.output_fields);
-  const feedBuilt = BUILT_FEEDS.includes(card.feed);
   return (
     <article className="ev-card">
       <header>
@@ -35,7 +33,7 @@ export function ScanCardView({ card }: { card: ScanCard }) {
         <RelatedList label="Works with" ids={card.composes_with} />
         <RelatedList label="Disagrees with" ids={card.contradicts} />
       </section>
-      <ProvenanceFooter provenance={{ source: card.source_ref, feed: `${FEED_LABEL[card.feed]}${feedBuilt ? "" : " (not built)"}`, as_of: "not run", scan_version: card.version }} />
+      <ProvenanceFooter provenance={cardProvenance(card)} />
     </article>
   );
 }

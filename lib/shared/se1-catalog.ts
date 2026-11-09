@@ -255,6 +255,15 @@ export function computeGaps(
   }));
 }
 
+/**
+ * Provenance for a card's own page. A card that has never been run has no as-of
+ * date, so `as_of` stays empty and the footer fails closed (review finding F1).
+ */
+export function cardProvenance(card: ScanCard): { source: string; feed: string; as_of: string; scan_version: string } {
+  const runAt = card.status === "measured" || card.status === "built" ? "run" : "";
+  return { source: card.source_ref, feed: FEED_LABEL[card.feed], as_of: runAt, scan_version: card.version };
+}
+
 export function totalPlanned(): number {
   return FAMILIES.reduce((n, f) => n + f.planned, 0);
 }

@@ -13,7 +13,12 @@
 /** C0 no model call · C1 one small-model narration · C2 council. Default is C0. */
 export type CostClass = "C0" | "C1" | "C2";
 export type Surface = "web" | "mobile" | "both";
-export type FeatureStatus = "shipped" | "web_only" | "planned";
+/**
+ * shipped: live on a surface. web_only: rendered on web, no caller in mobile yet.
+ * logic_only: pure functions with tests but no route or component calls them yet.
+ * planned: not built.
+ */
+export type FeatureStatus = "shipped" | "web_only" | "logic_only" | "planned";
 
 export interface AiFeature {
   /** Plan ID, e.g. G1. */
@@ -36,7 +41,7 @@ export const WAVE0_FEATURES: readonly AiFeature[] = [
   { id: "G6", title: "Gap list: what we can't answer yet", track: "Explainability", se1: "P0", surface: "both", cost: "C0", status: "web_only", route: "/scans/gaps" },
   { id: "G7", title: "Scan encyclopedia browser", track: "Explainability", se1: "P0", surface: "web", cost: "C0", status: "web_only", route: "/scans" },
   { id: "G9", title: "Provenance footer", track: "Explainability", se1: "P0", surface: "both", cost: "C0", status: "web_only" },
-  { id: "A3", title: "Scan-ID citations that open the card", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "web_only" },
+  { id: "A3", title: "Scan-ID citations that open the card", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "logic_only" },
   { id: "A9", title: "Explain this scan from the card's prose", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "web_only", route: "/scans/[id]" },
   { id: "I1", title: "Public llms.txt for se1", track: "External", se1: "P0", surface: "web", cost: "C0", status: "web_only", route: "/llms.txt" },
   { id: "A7", title: "Evidence-level filter", track: "Ask", se1: "P0", surface: "web", cost: "C0", status: "web_only", route: "/scans?min=E1" },
@@ -44,15 +49,15 @@ export const WAVE0_FEATURES: readonly AiFeature[] = [
 
 /** Pure-logic features built on dossier rows (lib/shared/se1-dossier.ts). Logic only; no live data feeds them yet. */
 export const LOGIC_FEATURES: readonly AiFeature[] = [
-  { id: "B7", title: "Dossier diff: what changed since last time", track: "Dossiers", se1: "P1", surface: "both", cost: "C0", status: "web_only" },
-  { id: "B9", title: "Dossier export to markdown", track: "Dossiers", se1: "P1", surface: "web", cost: "C0", status: "web_only" },
-  { id: "C4", title: "Council missing-evidence section", track: "Council", se1: "P1", surface: "both", cost: "C0", status: "web_only" },
-  { id: "D6", title: "Contradiction alert (two E3+ scans disagree)", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "web_only" },
-  { id: "D9", title: "Quiet hours and per-ticker alert budgets", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "web_only" },
-  { id: "F2", title: "Hold/Fold confidence as an evidence level", track: "Hold/Fold", se1: "P1", surface: "both", cost: "C0", status: "web_only" },
+  { id: "B7", title: "Dossier diff: what changed since last time", track: "Dossiers", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "B9", title: "Dossier export to markdown", track: "Dossiers", se1: "P1", surface: "web", cost: "C0", status: "logic_only" },
+  { id: "C4", title: "Council missing-evidence section", track: "Council", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "D6", title: "Contradiction alert (two E3+ scans disagree)", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "D9", title: "Quiet hours and per-ticker alert budgets", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "F2", title: "Hold/Fold confidence as an evidence level", track: "Hold/Fold", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
   { id: "G5", title: "Scan contradiction graph", track: "Explainability", se1: "P1", surface: "web", cost: "C0", status: "web_only", route: "/scans/graph" },
-  { id: "J2", title: "Narration faithfulness check", track: "Operations", se1: "P1", surface: "both", cost: "C0", status: "web_only" },
-  { id: "J5", title: "Near-duplicate scan detector", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "web_only" },
+  { id: "J2", title: "Narration faithfulness check", track: "Operations", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "J5", title: "Near-duplicate scan detector", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "logic_only" },
   { id: "J9", title: "Coverage report (built vs spec vs blocked)", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "web_only", route: "/scans/gaps" },
 ];
 
