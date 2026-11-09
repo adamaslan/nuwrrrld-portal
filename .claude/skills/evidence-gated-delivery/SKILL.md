@@ -7,7 +7,7 @@ description: Ship a change only with proof — PR evidence packs, test-first bug
 
 Core rule across every prompt here: **do not say "done" without evidence**, and name where the evidence came from (local, CI, production). Redact secrets and PII in every output.
 
-Apply each proof criterion only when relevant to the change. Mark an inapplicable criterion N/A with a concrete reason (for example, no save action or no feature flag); do not invent flags or actions to satisfy the checklist. Missing evidence for an applicable criterion remains blocking.
+Apply each proof criterion only when relevant to the change. Mark an inapplicable criterion N/A with a concrete reason (for example, no save action, or no feature flag when a flag is not required). An omitted required flag is blocking, not N/A: end-to-end safe delivery still requires its default-OFF flag and flag/kill-switch proof. Do not invent unnecessary flags or actions just to satisfy a checklist. Missing evidence for an applicable criterion remains blocking.
 
 ## Evidence-Gated PR
 
