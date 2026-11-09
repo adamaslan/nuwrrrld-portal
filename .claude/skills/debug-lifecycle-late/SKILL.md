@@ -45,8 +45,10 @@ Output: the first bad commit (or config change / dependency / data slice), its d
 <bug> spans multiple components: <list>. Isolate the faulty one.
 
 At each boundary, replace one side with a known-good stand-in (a fixture, recorded response, stub, or golden file) and re-run the repro:
-- If the bug persists, the fault is downstream of the boundary.
-- If it disappears, it is upstream.
+- Record which side was replaced and the contract at that boundary.
+- If the bug disappears, investigate the replaced component and its interaction with that contract.
+- If it persists, investigate the remaining path and verify the stand-in itself is valid.
+- Treat either result as a hypothesis, not proof that the fault is upstream or downstream.
 
 Halve the search space each time. Output: the boundary map, each substitution made, the result, and the single component (and function) that remains. Do not modify production code; stand-ins live in tests or a scratch harness.
 ```
