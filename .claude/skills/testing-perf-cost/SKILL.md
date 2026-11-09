@@ -26,7 +26,7 @@ Output a ranked gap list: behavior, risk, current coverage, and the cheapest tes
 ```text
 Check whether the tests for <module> would catch a real bug.
 
-Run the unchanged test suite first and record its baseline. If it already fails, fix or isolate that failure before mutation testing. Count a mutant as caught only when it causes a new failure relative to that baseline.
+Before the baseline or any mutation run, inspect the suite for side effects and isolate it with a throwaway database and sandboxed services. This includes `__tests__/signal-queue.integration.test.ts`, which can claim real queue entries when DATABASE_URL is set. If isolation is unavailable, require owner approval for the actual side effects and repeated runs before proceeding. Run the unchanged test suite first and record its baseline. If it already fails, fix or isolate that failure before mutation testing. Count a mutant as caught only when it causes a new failure relative to that baseline.
 
 Make 5–10 small deliberate breaks, one at a time, on a scratch branch: flip a comparison, off-by-one a boundary, drop a null check, return early, swap two arguments. After each, run the tests.
 
