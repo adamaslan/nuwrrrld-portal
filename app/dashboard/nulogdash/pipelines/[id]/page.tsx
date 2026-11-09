@@ -127,6 +127,7 @@ export default async function PipelineRunPage({
         {models.length === 0 ? (
           <p className="nld-empty">No model served in this run.</p>
         ) : (
+          <div className="nld-table-wrap">
           <table className="nld-table">
             <thead>
               <tr><th>Model</th><th>Calls</th><th>Empty</th><th>Fallbacks</th><th>Avg latency</th></tr>
@@ -143,6 +144,7 @@ export default async function PipelineRunPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -151,12 +153,14 @@ export default async function PipelineRunPage({
         {run.items.length === 0 ? (
           <p className="nld-empty">This run recorded no items.</p>
         ) : (
+          <div className="nld-table-wrap">
           <table className="nld-table">
             <thead>
               <tr><th>Subject</th><th>Seat</th><th>Model</th><th>Outcome</th><th>Latency</th><th>Fallback</th></tr>
             </thead>
             <tbody>{run.items.map((it, i) => <ItemRow key={`${it.subject}-${i}`} item={it} />)}</tbody>
           </table>
+          </div>
         )}
       </section>
 
