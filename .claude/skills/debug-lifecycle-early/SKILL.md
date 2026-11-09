@@ -57,7 +57,7 @@ Search, in this order:
 - `git log -S "<error string>"` and `git log --since=<date> -- <suspect paths>`.
 - CI failure history for the same job or test.
 
-For each match: link, how closely it matches (exact / likely / related), its status, and what was already ruled out. If an exact match exists with a recorded cause, stop and report it. Do not re-debug a diagnosed issue.
+For each match: link, how closely it matches (exact / likely / related), its status, and what was already ruled out. If an exact match has a recorded cause, carry its evidence into validation and fix planning for the current occurrence. Skip redundant diagnosis only after confirming the same cause still explains the current evidence; an open or recurring issue still needs a verified fix.
 ```
 
 ---
@@ -68,6 +68,8 @@ For each match: link, how closely it matches (exact / likely / related), its sta
 
 ```text
 Reproduce <bug> deterministically. Do not change production code.
+
+Use isolated fixtures or a sandbox with no real charges, messages, or data changes. A repro with real side effects needs explicit owner approval for those effects and repetitions before running it.
 
 Steps:
 1. Write the exact repro: command, inputs, environment variables (names only, never values), commit, and flag state.
@@ -97,7 +99,7 @@ All local runs are read-only. For each rung, report: what you ran, what it showe
 ### Intermittent / Flaky Bug Repro
 
 ```text
-<bug> is intermittent. Make it reproducible on demand.
+<bug> is intermittent. Make it reproducible on demand. Use isolated fixtures or a sandbox with no real charges, messages, or data changes. Repeating a repro with real side effects requires explicit owner approval for those effects and repetitions first.
 
 Investigate the usual sources of non-determinism:
 - Timing: races, timeouts, retries, cron overlap, cache TTL expiry.
