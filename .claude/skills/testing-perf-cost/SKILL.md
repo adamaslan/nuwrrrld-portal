@@ -26,6 +26,8 @@ Output a ranked gap list: behavior, risk, current coverage, and the cheapest tes
 ```text
 Check whether the tests for <module> would catch a real bug.
 
+Run the unchanged test suite first and record its baseline. If it already fails, fix or isolate that failure before mutation testing. Count a mutant as caught only when it causes a new failure relative to that baseline.
+
 Make 5–10 small deliberate breaks, one at a time, on a scratch branch: flip a comparison, off-by-one a boundary, drop a null check, return early, swap two arguments. After each, run the tests.
 
 Report which breaks were caught and which survived. For each survivor, write the test that would kill it. Revert every break, confirm the tree is clean with `git status`, and list the surviving mutants as the real measure of coverage.
