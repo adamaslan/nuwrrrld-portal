@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #346 se1 evidence surfaces assessment - November 9, 2026
+
+Portal #346 adds public scan specification pages and shared pure TypeScript catalog/dossier/feature-registry modules. The pages are web-only and E0/spec-only; no real scan results are wired. A mobile client port and byte-level shared-module comparison have not been verified. Do not count the new pages or logic-only features as mobile parity, and do not recalculate the historical headline from this scoped assessment. The existing domain matrix is retained as historical evidence, not a fresh all-surface audit. See [[concept-se1-evidence-surfaces]] and [[concept-sync-requirements]].
+
 ## PR #316 assessment — 2026-10-30
 
 The portal now hides five surfaces behind dark-launch flags ([[decision-dark-launch-flags]]): track-record hit rates, paper benchmark metrics, top movers, the news-vote confluence component, and the public council demo. This is a one-surface change with no shared module touched. Whether mobile shows the same figures is unchecked, so the matrix rows for Backtest, Hold/Fold and the public demo are unchanged and the headline percentage is not recomputed here. It is computed on the last-merging branch. Mobile impact: unverified, no port required yet.
