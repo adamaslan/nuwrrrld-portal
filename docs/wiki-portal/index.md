@@ -170,3 +170,8 @@ The 2026-07-15 chain-of-thought leak remains documented as context inside [[deci
 - [[concept-mobile-web-parity]] and [[concept-sync-requirements]]: recovery alerts are operational infrastructure; historical feature headline and domain matrix stay unchanged. PR remains open, stacked on #265.
 - [[entity-workflow-alert-lifecycle]]: exact workflow incidents, eligible recovery, optional push and remaining deployed checks.
 - [[decision-outage-transition-push]]: push on new outage and actual recovery, with conservative recovery ordering.
+
+## se1 scan evidence (2026-11-08)
+
+- [[concept-se1-evidence-surfaces]]: evidence badge, provenance footer, scan pages, gap list, scan graph, and llms.txt; every finding carries its evidence level and source, and missing provenance fails closed.
+- [[decision-se1-pure-logic-before-results-store]]: pure logic and catalog pages ship before the se1 results store; no live results are wired yet.

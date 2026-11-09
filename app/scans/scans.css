@@ -1,0 +1,15 @@
+.ev-page { max-width: 760px; margin: 0 auto; padding: 32px 16px; line-height: 1.55; }
+.ev-page h1 { font-size: 26px; margin: 8px 0; }
+.ev-page h2 { font-size: 16px; margin: 20px 0 6px; }
+.ev-meta, .ev-prov { font-size: 12.5px; opacity: .75; }
+.ev-prov-missing { color: #b3372f; opacity: 1; }
+.ev-note { font-size: 13.5px; padding: 8px 10px; border: 1px solid currentColor; border-radius: 6px; opacity: .85; }
+.ev-badge { display: inline-block; font-size: 12.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.ev-e0 { opacity: .7; }
+.ev-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
+.ev-filters input, .ev-filters select, .ev-filters button { font: inherit; padding: 6px 8px; }
+.ev-list { list-style: none; padding: 0; display: grid; gap: 10px; }
+.ev-list li { border: 1px solid #8884; border-radius: 8px; padding: 12px; }
+.ev-table { width: 100%; border-collapse: collapse; font-size: 13.5px; display: block; overflow-x: auto; }
+.ev-table th, .ev-table td { border: 1px solid #8884; padding: 8px 10px; text-align: left; vertical-align: top; }
+.ev-cite code { font-size: 12.5px; }
