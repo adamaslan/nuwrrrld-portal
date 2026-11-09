@@ -22,10 +22,31 @@ Skills in `.claude/skills/` for nuwrrrld-portal. Each was distilled from the opt
 Run these when the suite changes:
 
 ```bash
-for d in .claude/skills/*/; do n=$(basename "$d"); grep -q "^name: $n$" "$d/SKILL.md" && echo "ok $n" || echo "BAD $n"; done
+python3 - <<'PY_CHECK'
+from pathlib import Path
+import ast, re
+bad = False
+for folder in sorted(Path('.claude/skills').iterdir()):
+    if not folder.is_dir():
+        continue
+    text = (folder / 'SKILL.md').read_text()
+    parts = text.split('---', 2)
+    front = parts[1] if len(parts) == 3 and parts[0].strip() == '' else ''
+    names = re.findall(r'^name:\s*(.*?)\s*$', front, re.M)
+    value = names[0] if len(names) == 1 else None
+    if value and value[:1] in ('"', "'"):
+        try:
+            value = ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            value = None
+    ok = value == folder.name
+    print(('ok ' if ok else 'BAD ') + folder.name)
+    bad |= not ok
+raise SystemExit(1 if bad else 0)
+PY_CHECK
 ```
 
-Expect every line to start with `ok`. A `BAD` line means the frontmatter `name` does not match its folder, so the skill will not load under that name.
+Expect every line to start with `ok`. A `BAD` line means the frontmatter scalar `name` is missing, malformed, duplicated, or does not match its folder, so the skill will not load under that name.
 
 ## Growing the suite
 
