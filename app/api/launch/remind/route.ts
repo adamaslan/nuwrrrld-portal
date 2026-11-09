@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
     }, { timeoutMs: 10_000 });
     if (res.ok) { sent++; } else {
       failed++;
-      console.error(`${provider.name} error for`, address, await res.errorText());
+      // Preserve the existing Resend log prefix used by alerting.
+      const errorPrefix = provider.name === "resend" ? "Resend error for" : "brevo error for";
+      console.error(errorPrefix, address, await res.errorText());
     }
   }
 
