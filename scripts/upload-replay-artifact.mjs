@@ -4,8 +4,11 @@
  * replay_artifact table (the loader's REPLAY_ARTIFACT_SOURCE=db source).
  * Core logic and safety contract: scripts/lib/replay-artifact-upload.mjs.
  *
- * Usage: node scripts/upload-replay-artifact.mjs [--check] [path]
+ * Usage: node scripts/upload-replay-artifact.mjs [--check] [--allow-production] [path]
  *   --check    validate the file only; no DATABASE_URL needed, no DB access
+ *   --allow-production  explicit remote write interlock; requires exact
+ *     REPLAY_UPLOAD_DATABASE_HOST and prior owner approval for DDL/data writes.
+ *   All remote hosts are treated as potentially production, including test DBs.
  *   Unknown arguments are rejected before any file or database access.
  *   This tooling NEVER overwrites: a differing existing row aborts (remove it
  *   by hand with the documented DELETE if replacement is truly intended).
@@ -17,13 +20,14 @@
  * (the loader then reports not_computed), or turn the flag off.
  */
 import { stat, readFile } from "node:fs/promises";
-import { uploadArtifact, validateArtifactBytes, UploadError } from "./lib/replay-artifact-upload.mjs";
+import { uploadArtifact, validateArtifactBytes, assertUploadDatabaseTarget, UploadError } from "./lib/replay-artifact-upload.mjs";
 
 const fail = (msg) => { console.error(`upload-replay-artifact: ${msg}`); process.exit(1); };
 
 const args = process.argv.slice(2);
 const checkOnly = args.includes("--check");
-const rest = args.filter((a) => a !== "--check");
+const allowProduction = args.includes("--allow-production");
+const rest = args.filter((a) => a !== "--check" && a !== "--allow-production");
 const unknownFlags = rest.filter((a) => a.startsWith("--"));
 if (unknownFlags.length > 0) fail(`unknown argument(s): ${unknownFlags.join(", ")}`);
 if (rest.length > 1) fail(`unexpected extra argument(s): ${rest.slice(1).join(", ")}`);
@@ -47,6 +51,11 @@ console.log(`verified: ${file} (${bytes} bytes) sha256=${digest}${engineHash ? "
 if (checkOnly) { console.log("--check: no database access performed"); process.exit(0); }
 
 if (!process.env.DATABASE_URL) fail("DATABASE_URL is required (omit it only with --check)");
+try {
+  assertUploadDatabaseTarget(process.env.DATABASE_URL, { allowProduction, expectedHost: process.env.REPLAY_UPLOAD_DATABASE_HOST });
+} catch (err) {
+  fail(err instanceof UploadError ? `[${err.code}] ${err.message}` : "unsafe database target");
+}
 const { neon } = await import("@neondatabase/serverless");
 const sql = neon(process.env.DATABASE_URL);
 
