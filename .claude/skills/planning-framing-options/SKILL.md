@@ -105,4 +105,4 @@ Save it as `docs/decisions/<topic>-YYYY-MM-DD.md`. Never record a decision I did
 
 **Goal Interview → Success Criteria and Non-Goals → Assumption Register → Option Generator → Decision Matrix → Decision Record** → hand off to **planning-handoff-review** for the milestone plan.
 
-**Short loop for a small project:** Goal Interview → Decision Matrix → (planning-handoff-review's Milestone Plan) → (planning-handoff-review's Checkpoint Review).
+**Short loop for a small project:** compact Goal Interview with explicit success criteria, constraints and options → Decision Matrix → owner decision and short Decision Record → (planning-handoff-review's Milestone Plan) → (planning-handoff-review's Checkpoint Review). Keep each output short, but provide the inputs required by the next step.
