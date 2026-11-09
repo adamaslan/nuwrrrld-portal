@@ -163,6 +163,11 @@ async function streamContentVerdict(
     if (streamDone || sawDone) return verdict(false, "empty");
   }
 }
+/**
+ * Collect newline-delimited SSE content (falling back to reasoning) for live
+ * streaming assertions. Malformed frames and [DONE] are ignored; a final frame
+ * without a terminating newline is not consumed by this helper.
+ */
 export async function drainSSEText(body: ReadableStream<Uint8Array>): Promise<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
