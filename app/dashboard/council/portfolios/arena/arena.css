@@ -1,5 +1,6 @@
-.pa-page { max-width: 1280px; }
-.pa-stack { display: grid; gap: 2rem; margin-top: 1.5rem; }
+.pa-page { width: 100%; min-width: 0; max-width: 1280px; }
+.pa-stack { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 2rem; margin-top: 1.5rem; }
+.pa-stack > * { min-width: 0; }
 .pa-note { opacity: 0.75; max-width: 75ch; line-height: 1.5; font-size: 0.9rem; margin: 0 0 0.75rem; }
 .pa-scroll { overflow-x: auto; }
 .pa-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
