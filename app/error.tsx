@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 /**
  * Route-segment error boundary for everything under app/.
@@ -17,12 +18,23 @@ export default function Error({
   error: Error & { digest?: string };
   unstable_retry: () => void;
 }) {
+  const pathname = usePathname();
+  const isPublic = pathname === "/" || ["/signals", "/portfolio-intelligence", "/ai-assistant", "/pricing", "/paper-trading", "/track-record", "/verdict", "/sign-in", "/sign-up"].some(p => pathname === p || pathname.startsWith(p + "/"));
+
   useEffect(() => {
     console.error("[route-error]", error.digest ?? "(no digest)", error);
   }, [error]);
 
   return (
-    <main style={styles.wrap}>
+    <main className={isPublic ? "nwf-public-error" : undefined} style={styles.wrap}>
+      {isPublic && <style>{`
+        html:has(.nwf-public-error) { color-scheme: light !important; }
+        body:has(.nwf-public-error)::before, body:has(.nwf-public-error)::after { display: none !important; }
+        body:has(.nwf-public-error) { background: #fff !important; color: #111 !important; }
+        .nwf-public-error { --surface: #fff; --surface-2: #f5f5f5; --border: #d1d1d1; --text: #111; --text-dim: #555; --neon-red: #111; --neon-blue: #111; --glow-blue: none; }
+        .nwf-public-error *, .nwf-public-error *::before, .nwf-public-error *::after { border-radius: 0 !important; box-shadow: none !important; text-shadow: none !important; }
+        .nwf-public-error button { background: #111 !important; color: #fff !important; }
+      `}</style>}
       <div style={styles.card}>
         <p style={styles.kicker}>Something broke</p>
         <h1 style={styles.h1}>This page didn&rsquo;t load</h1>

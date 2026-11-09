@@ -13,16 +13,8 @@ name: Integration tests (Neon branch)
 # The default unit suite (npm test) still runs everywhere and needs none of
 # this; the integration test self-skips when DATABASE_URL is unset.
 
+# Cloud branch creation/migration/deletion requires scoped execution authority.
 on:
-  pull_request:
-    paths:
-      - 'lib/signal-queue.ts'
-      - 'lib/shared/signal-lookup.ts'
-      - 'lib/shared/signal-policy.ts'
-      - 'lib/live-price-db.ts'
-      - 'lib/db/schema.sql'
-      - '__tests__/signal-queue.integration.test.ts'
-      - '.github/workflows/integration-tests.yml'
   workflow_dispatch: {}
 
 jobs:

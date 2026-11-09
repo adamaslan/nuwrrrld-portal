@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { formatRunTimeET } from "@/lib/format-time";
 import { join } from "node:path";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
@@ -83,7 +84,7 @@ export default async function PipelineRunPage({
       <h1>{run.pipeline}</h1>
       <NulogdashTabs active="pipelines" />
       <p className="nld-meta">
-        {new Date(run.runAt).toLocaleString()} · {run.dryRun ? "dry run" : "live run"} ·{" "}
+        {formatRunTimeET(run.runAt)} · {run.dryRun ? "dry run" : "live run"} ·{" "}
         session {run.session ?? "—"} · <code>{run.id}</code>
       </p>
 
