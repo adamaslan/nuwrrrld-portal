@@ -275,7 +275,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.hf-watchlist-btn:hover:not(:disabled) { background: var(--border, #111111); }
+.hf-watchlist-btn:hover:not(:disabled) { background: var(--border, #111111); color: var(--bg); }
 .hf-watchlist-btn:disabled { opacity: 0.7; cursor: default; }
 
 .hf-detail-ticker {
@@ -540,7 +540,7 @@
 }
 .hf-live-advanced select,
 .hf-live-advanced input {
-  background: var(--panel, #111111);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 0;
   padding: 8px;
