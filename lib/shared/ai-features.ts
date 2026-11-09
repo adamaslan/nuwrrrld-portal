@@ -59,6 +59,11 @@ export const LOGIC_FEATURES: readonly AiFeature[] = [
   { id: "J2", title: "Narration faithfulness check", track: "Operations", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
   { id: "J5", title: "Near-duplicate scan detector", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "logic_only" },
   { id: "J9", title: "Coverage report (built vs spec vs blocked)", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "web_only", route: "/scans/gaps" },
+  { id: "F1", title: "Hold/Fold: the scans behind the call (max 5)", track: "Hold/Fold", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "C9", title: "Quick-ask returns the top 3 scans behind the answer", track: "Council", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "E3", title: "Weakest-link holding by trend + risk", track: "Portfolio", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "E1", title: "Portfolio-wide risk with coverage", track: "Portfolio", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "D4", title: "Debounced regime-change banner", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
 ];
 
 export const ALL_FEATURES: readonly AiFeature[] = [...WAVE0_FEATURES, ...LOGIC_FEATURES];
