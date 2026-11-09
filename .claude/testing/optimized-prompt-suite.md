@@ -30,8 +30,9 @@ for folder in sorted(Path('.claude/skills').iterdir()):
     if not folder.is_dir():
         continue
     text = (folder / 'SKILL.md').read_text()
-    parts = text.split('---', 2)
-    front = parts[1] if len(parts) == 3 and parts[0].strip() == '' else ''
+    lines = text.splitlines()
+    close = next((i for i in range(1, len(lines)) if lines[i] == '---'), None)
+    front = '\n'.join(lines[1:close]) if lines and lines[0] == '---' and close is not None else ''
     names = re.findall(r'^name:\s*(.*?)\s*$', front, re.M)
     value = names[0] if len(names) == 1 else None
     if value and value[:1] in ('"', "'"):
@@ -45,6 +46,8 @@ for folder in sorted(Path('.claude/skills').iterdir()):
 raise SystemExit(1 if bad else 0)
 PY_CHECK
 ```
+
+This check supports plain names and Python-compatible single/double-quoted scalar names; it is not a full YAML parser. Opening and closing frontmatter delimiters must be standalone `---` lines.
 
 Expect every line to start with `ok`. A `BAD` line means the frontmatter scalar `name` is missing, malformed, duplicated, or does not match its folder, so the skill will not load under that name.
 
