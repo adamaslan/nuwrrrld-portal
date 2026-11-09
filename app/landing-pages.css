@@ -13,7 +13,7 @@
 
 .nwf-landing .landing-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin: 3rem 0; }
 .nwf-landing .feature-card { border: 1px solid var(--border); border-radius: 0; padding: 1.5rem; background: var(--surface); }
-.nwf-landing .feature-icon { font-size: 1.75rem; display: block; margin-bottom: .75rem; }
+.nwf-landing .feature-icon { font-size: 1.75rem; display: block; margin-bottom: .75rem; filter: grayscale(1); }
 .nwf-landing .feature-card h3 { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: .5rem; }
 .nwf-landing .feature-card p { font-size: .9rem; color: var(--text-dim); line-height: 1.6; }
 

@@ -484,7 +484,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
             <p className="port-health-label">Health Check · T2 Council</p>
             {!healthGrounded && (
               <p className="port-health-error" style={{ fontSize: ".8rem" }}>
-                ⚠ Based on general knowledge — your portfolio score was unavailable for this check.
+                ⚠︎ Based on general knowledge — your portfolio score was unavailable for this check.
               </p>
             )}
             <p className="port-health-text">{healthText}</p>

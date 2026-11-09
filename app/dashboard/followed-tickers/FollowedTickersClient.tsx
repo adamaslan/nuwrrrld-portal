@@ -113,7 +113,7 @@ export function FollowedTickersClient({ initial }: Props) {
       </div>
 
       {staleError && (
-        <p className="ft-stale">⚠ Couldn&apos;t refresh — showing the last loaded data.</p>
+        <p className="ft-stale">⚠︎ Couldn&apos;t refresh — showing the last loaded data.</p>
       )}
 
       {tab === "cohort" && <CohortView bulls={view.bulls} bears={view.bears} />}

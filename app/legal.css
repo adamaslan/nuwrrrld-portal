@@ -46,7 +46,7 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 7px;
+  border-radius: 0;
   background: linear-gradient(135deg, var(--blue), var(--coral));
   font-size: 12px;
   font-weight: 700;
@@ -82,7 +82,7 @@
 .nwf-legal .legal-notice {
   border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, transparent);
   background: color-mix(in srgb, var(--neon-yellow) 8%, transparent);
-  border-radius: var(--radius);
+  border-radius: 0;
   padding: 16px 18px;
   margin-bottom: 36px;
   color: var(--neon-yellow);

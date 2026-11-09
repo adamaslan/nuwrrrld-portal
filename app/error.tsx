@@ -77,7 +77,7 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: "34rem",
     background: "var(--surface)",
     border: "1px solid var(--border)",
-    borderRadius: "14px",
+    borderRadius: "0",
     padding: "2rem 1.75rem",
   },
   kicker: {
@@ -106,9 +106,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   primary: {
     background: "var(--neon-blue)",
-    color: "#06070d",
+    color: "#ffffff",
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "0",
     padding: ".7rem 1.3rem",
     fontWeight: 600,
     fontSize: ".95rem",
@@ -121,7 +121,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "transparent",
     color: "var(--text)",
     border: "1px solid var(--border)",
-    borderRadius: "8px",
+    borderRadius: "0",
     padding: ".7rem 1.3rem",
     fontWeight: 500,
     fontSize: ".95rem",
@@ -138,7 +138,7 @@ const styles: Record<string, React.CSSProperties> = {
   code: {
     background: "var(--surface-2)",
     border: "1px solid var(--border)",
-    borderRadius: "5px",
+    borderRadius: "0",
     padding: ".15rem .45rem",
     fontFamily: "var(--font-geist-mono), monospace",
     color: "var(--text)",

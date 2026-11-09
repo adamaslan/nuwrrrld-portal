@@ -1,4 +1,6 @@
 .nld-page {
+  width: 100%;
+  min-width: 0;
   max-width: 960px;
   margin: 0 auto;
   padding: 2.5rem 1.5rem 4rem;
@@ -6,25 +8,25 @@
 }
 .nld-back { color: var(--neon-blue); font-size: .9rem; text-decoration: none; display: inline-block; margin-bottom: .75rem; }
 .nld-page h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: .35rem; color: var(--text); }
-.nld-meta { color: var(--text-dim); font-size: .85rem; margin-bottom: 1.5rem; }
+.nld-meta { overflow-wrap: anywhere; color: var(--text-dim); font-size: .85rem; margin-bottom: 1.5rem; }
 .nld-empty { color: var(--text-dim); }
 
 .nld-headline {
-  border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border); border-radius: 0; padding: 1.25rem 1.5rem;
   background: var(--surface); margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: .35rem;
 }
 .nld-headline strong { font-size: 1.15rem; color: var(--text); }
 .nld-headline-sub { color: var(--text-dim); font-size: .85rem; }
 
 .nld-drift {
-  border: 1px solid var(--bear); border-radius: 12px; padding: 1rem 1.25rem;
+  border: 1px solid var(--bear); border-radius: 0; padding: 1rem 1.25rem;
   margin-bottom: 1.5rem; color: var(--text); font-size: .85rem;
 }
 .nld-drift ul { margin: .5rem 0 0; padding-left: 1.25rem; }
 
 /* Caution, not error: the console still works, only mutating actions are held back. */
 .nld-mfa-notice {
-  border: 1px solid var(--neon-yellow); border-radius: 12px; padding: 1rem 1.25rem;
+  border: 1px solid var(--neon-yellow); border-radius: 0; padding: 1rem 1.25rem;
   margin-bottom: 1.5rem; color: var(--text); font-size: .85rem;
 }
 .nld-mfa-notice p { margin: .4rem 0 0; color: var(--text-dim); }
@@ -40,12 +42,12 @@
 .nld-table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
 
 .nld-badge {
-  display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600;
+  display: inline-block; padding: .15rem .5rem; border-radius: 0; font-size: .75rem; font-weight: 600;
 }
-.nld-badge--pass { background: rgba(34, 197, 94, .15); color: var(--bull, #22c55e); }
-.nld-badge--fail { background: rgba(239, 68, 68, .15); color: var(--bear, #ef4444); }
-.nld-badge--blocked { background: rgba(245, 158, 11, .15); color: #f59e0b; }
-.nld-badge--not_run { background: rgba(148, 163, 184, .15); color: var(--text-dim, #94a3b8); }
+.nld-badge--pass { background: var(--fill-strong); color: #ffffff; }
+.nld-badge--fail { background: var(--fill-ghost); color: var(--text); border: 1px solid var(--text); }
+.nld-badge--blocked { background: rgba(17, 17, 17, .15); color: #555555; }
+.nld-badge--not_run { background: rgba(17, 17, 17, .15); color: var(--text-dim, #555555); }
 
 .nld-reason { cursor: pointer; }
 .nld-reason summary { color: var(--text-dim); font-size: .8rem; }
@@ -57,7 +59,7 @@
    destinations today, so a plain link row rather than a routed tab widget. */
 .nld-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
 .nld-tab {
-  padding: .35rem .85rem; border: 1px solid var(--border); border-radius: 999px;
+  padding: .35rem .85rem; border: 1px solid var(--border); border-radius: 0;
   font-size: .8rem; color: var(--text-dim); text-decoration: none;
 }
 .nld-tab:hover { color: var(--text); border-color: var(--text-dim); }
@@ -69,7 +71,7 @@
 }
 .nld-card {
   display: flex; flex-direction: column; gap: .25rem;
-  border: 1px solid var(--border); border-radius: 12px; padding: .85rem 1rem;
+  border: 1px solid var(--border); border-radius: 0; padding: .85rem 1rem;
 }
 .nld-card-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
 .nld-card strong { font-size: 1.05rem; color: var(--text); }
@@ -79,7 +81,7 @@
    fixed shape, so it is shown rather than parsed. Scrolls in its own box so a
    long blob never widens the page. */
 .nld-pre {
-  border: 1px solid var(--border); border-radius: 12px; padding: 1rem;
+  border: 1px solid var(--border); border-radius: 0; padding: 1rem;
   font-size: .78rem; color: var(--text-dim); overflow-x: auto;
   white-space: pre; margin: 0;
 }
@@ -87,7 +89,7 @@
 /* Informational, not a fault: a dry run succeeding is the expected outcome, so
    this must not borrow .nld-drift's error red. */
 .nld-note {
-  border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem;
+  border: 1px solid var(--border); border-radius: 0; padding: 1rem 1.25rem;
   margin-bottom: 1.5rem; color: var(--text-dim); font-size: .85rem;
 }
 .nld-note strong { color: var(--text); }
@@ -95,24 +97,24 @@
 /* ── pipeline trigger controls (admin, MFA-gated) ───────────────────────── */
 .nld-trigger { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .6rem; }
 .nld-trigger-btn {
-  font: inherit; font-size: .78rem; padding: .3rem .7rem; border-radius: 8px;
+  font: inherit; font-size: .78rem; padding: .3rem .7rem; border-radius: 0;
   border: 1px solid var(--border); background: transparent; color: var(--text);
   cursor: pointer;
 }
 .nld-trigger-btn:hover:not(:disabled) { border-color: var(--text-dim); }
 .nld-trigger-btn:disabled { opacity: .5; cursor: not-allowed; }
-.nld-trigger-btn--live { border-color: #f59e0b; color: #f59e0b; }
+.nld-trigger-btn--live { border-color: #555555; color: #555555; }
 .nld-trigger-confirm {
   display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
   margin-top: .5rem; font-size: .78rem; color: var(--text-dim);
 }
 .nld-trigger-confirm input {
-  font: inherit; font-size: .78rem; padding: .25rem .5rem; border-radius: 6px;
+  font: inherit; font-size: .78rem; padding: .25rem .5rem; border-radius: 0;
   border: 1px solid var(--border); background: transparent; color: var(--text);
 }
 .nld-trigger-msg { font-size: .78rem; margin-top: .4rem; }
-.nld-trigger-msg--ok { color: var(--bull, #22c55e); }
-.nld-trigger-msg--err { color: var(--bear, #ef4444); }
+.nld-trigger-msg--ok { color: var(--text); font-weight: 600; }
+.nld-trigger-msg--err { color: var(--text); font-weight: 600; text-decoration: underline; }
 
 /* ── pipeline categories (paper trading, GHA, Modal) ────────────────────── */
 
@@ -167,4 +169,4 @@
 }
 .nld-result { margin: .4rem 0 0; font-size: .8rem; flex-basis: 100%; }
 .nld-result--ok { color: var(--text); }
-.nld-result--err { color: var(--neon-yellow); }
+.nld-result--err { color: var(--text); font-weight: 600; text-decoration: underline; }
