@@ -14,6 +14,14 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 ## PR #292 infrastructure scope — 2026-10-15
 
 The new pipeline Terraform foundation and deployment status are operational work described by [[entity-new-pipeline-infrastructure]]. They add no mobile port or shared-module de-drift requirement. Feature parity remains at the historical ~62% headline; the existing domain matrix is unchanged. A later API or user-facing pipeline feature will need a separate parity assessment.
+## Portal PR #304 — grounding recovery integrity
+
+The workflow now reports a failed run when live extraction calls fail, so
+partial output cannot be mistaken for complete recovery. This is portal
+pipeline operations; it adds no mobile port, shared-code change, or cross-
+surface contract. Independent Claude review and a truthful scheduled run remain
+pending. No sync requirement or historical ~62% headline changes.
+
 
 Companion page: [[concept-mobile-web-parity]] — the historical ~62% measurement this
 page is a plan to raise. Mobile mirror:

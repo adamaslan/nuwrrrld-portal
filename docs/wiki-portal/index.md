@@ -2,6 +2,14 @@
 
 _Last updated: 2026-10-28 (PR #292 infrastructure and PR #296 hydration assessments; parity unchanged)_
 
+**PR #304 scope:** live grounding extraction failures now fail the scheduled
+workflow, including partial failures, so issue recovery cannot infer a clean
+compile from a partial result. This is portal-only pipeline behavior; no mobile
+port or shared-module sync is required. See [[entity-workflow-alert-lifecycle]],
+[[concept-run-coverage-status]], [[concept-mobile-web-parity]], and
+[[concept-sync-requirements]]. Independent Claude review is pending; the change
+is not deployed.
+
 **Draft PR #296 scope:** a proposed isolated hydration worker uses the existing
 JS indicator and card policies and targets `nwf-hydration`. It changes no
 mobile client or shared module, so the ~62% parity headline remains unchanged.
