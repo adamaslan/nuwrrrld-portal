@@ -7,6 +7,8 @@ description: Ship a change only with proof — PR evidence packs, test-first bug
 
 Core rule across every prompt here: **do not say "done" without evidence**, and name where the evidence came from (local, CI, production). Redact secrets and PII in every output.
 
+Apply each proof criterion only when relevant to the change. Mark an inapplicable criterion N/A with a concrete reason (for example, no save action or no feature flag); do not invent flags or actions to satisfy the checklist. Missing evidence for an applicable criterion remains blocking.
+
 ## Evidence-Gated PR
 
 ```text
@@ -21,7 +23,7 @@ Do not claim completion until you can prove it. Produce a PR evidence pack conta
 - Feature-flag state tested: ON, OFF, and kill switch.
 - Residual risks and known limitations.
 
-Mark every claim as PASS, FAIL, or UNVERIFIED. If evidence is missing, do not say "done." Redact secrets and PII.
+Mark every applicable claim as PASS, FAIL, or UNVERIFIED; mark inapplicable criteria N/A with the reason. If applicable evidence is missing, do not say "done." Redact secrets and PII.
 ```
 
 ## Test-First Proof Builder
@@ -67,7 +69,7 @@ Requirements:
 - Provide dark-launch/canary plan, monitoring, and rollback/kill switch.
 - Produce a PR evidence pack and a go/no-go checklist.
 
-Do not mark complete if any evidence is missing or unverifiable.
+Do not mark complete if any applicable evidence is missing or unverifiable.
 ```
 
 ## PR Gatekeeper Review
@@ -84,7 +86,7 @@ Verify:
 - No secrets or PII are exposed.
 - High-risk changes have human approval.
 
-Output PASS/FAIL per criterion. Reject if evidence is missing, weakened, or unverifiable.
+Output PASS/FAIL per applicable criterion, or N/A with a reason. Reject if applicable evidence is missing, weakened, or unverifiable.
 ```
 
 ## Incident-to-Prevention Loop
