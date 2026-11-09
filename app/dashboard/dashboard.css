@@ -324,7 +324,7 @@
 /* Daily Brief cockpit */
 .cockpit-brief-btn { background: var(--neon-blue); color: var(--bg); border: none; border-radius: 0; padding: .65rem 1.25rem; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .cockpit-brief-btn:hover { opacity: .88; }
-.cockpit-brief-btn--locked { background: var(--surface-2); }
+.cockpit-brief-btn--locked { background: var(--surface-2); color: var(--text); }
 .cockpit-brief-card { background: var(--panel); border: 1px solid var(--line); border-radius: 0; padding: 1rem 1.25rem; }
 .cockpit-brief-card--loading .cockpit-brief-text { opacity: .7; }
 .cockpit-brief-label { font-size: .72rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .5rem; }
