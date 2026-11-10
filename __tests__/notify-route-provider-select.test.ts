@@ -80,4 +80,15 @@ describe("routes provider selection (ALERT_EMAIL_PROVIDER)", () => {
     expect(err).toHaveBeenCalledWith("brevo error for", "a@x.test", "boom");
     log.mockRestore(); err.mockRestore();
   });
+  it("launch reminder reports an ambiguous send and stops before later recipients", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true }).mockRejectedValueOnce(new Error("timeout"));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await remind(req("/api/launch/remind", { to: ["a@x.test", "b@x.test", "c@x.test"] }));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({
+      error: "delivery status unknown; do not retry the entire batch",
+      sent: 1, failed: 0, outcomes: ["sent"], unknownIndex: 1, unattemptedFromIndex: 2,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

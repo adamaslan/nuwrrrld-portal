@@ -43,18 +43,34 @@ export async function POST(req: NextRequest) {
   // Send individually — putting all addresses in `to` exposes recipients to each other.
   let sent = 0;
   let failed = 0;
-  for (const address of recipients) {
-    const res = await provider.send({
-      from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
-      to: [address],
-      subject: "We launched today — upvote us on Product Hunt?",
-      html,
-    }, { timeoutMs: 10_000 });
-    if (res.ok) { sent++; } else {
+  const outcomes: Array<"sent" | "failed"> = [];
+  for (const [index, address] of recipients.entries()) {
+    let res;
+    try {
+      res = await provider.send({
+        from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
+        to: [address],
+        subject: "We launched today — upvote us on Product Hunt?",
+        html,
+      }, { timeoutMs: 10_000 });
+    } catch {
+      // A timeout or connection failure does not prove the provider rejected
+      // the message. Stop and identify the uncertain and unattempted entries.
+      return NextResponse.json({
+        error: "delivery status unknown; do not retry the entire batch",
+        sent,
+        failed,
+        outcomes,
+        unknownIndex: index,
+        unattemptedFromIndex: index + 1,
+      }, { status: 502 });
+    }
+    if (res.ok) { sent++; outcomes.push("sent"); } else {
       failed++;
+      outcomes.push("failed");
       // Preserve the existing Resend log prefix used by alerting.
       const errorPrefix = provider.name === "resend" ? "Resend error for" : "brevo error for";
-      console.error(errorPrefix, address, await res.errorText());
+      console.error(errorPrefix, address, await res.errorText().catch(() => "unable to read provider error"));
     }
   }
 
