@@ -364,7 +364,9 @@
   filter: grayscale(1);
 }
 .cl-userButtonPopoverRootBox,
-.cl-userButtonPopoverRootBox * {
+.cl-userButtonPopoverRootBox *,
+.cl-userButtonPopoverRootBox *::before,
+.cl-userButtonPopoverRootBox *::after {
   border-radius: 0 !important;
   box-shadow: none !important;
   background-image: none !important;
