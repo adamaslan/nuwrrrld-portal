@@ -46,7 +46,7 @@ export default async function BetaPage({
             <a href="mailto:chillcoders@gmail.com">chillcoders@gmail.com</a>
           </li>
           <li>
-            <strong>In-app</strong> — tap the feedback button (✉️) on any screen
+            <strong>In-app</strong> — tap the feedback button (<span className="beta-feedback-icon">✉️</span>) on any screen
           </li>
         </ul>
       </div>
