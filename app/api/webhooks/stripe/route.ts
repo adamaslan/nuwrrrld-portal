@@ -97,15 +97,16 @@ export async function POST(req: NextRequest) {
 async function syncSubscriptionToClerk(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
-  // Resolve Clerk user via clerk_user_id stored on the Stripe customer at creation.
   const clerk = await clerkClient();
-  const stripe = getStripe();
-  const customer = await stripe.customers.retrieve(customerId);
-  if (customer.deleted) throw new Error("Stripe customer deleted before entitlement sync");
-
-  // Checkout stamps the user on subscription_data before customer metadata
-  // necessarily arrives. Use that binding during out-of-order delivery.
-  const clerkUserId = sub.metadata?.clerk_user_id || (customer as Stripe.Customer).metadata?.clerk_user_id;
+  // Checkout stamps the subscription binding before customer metadata. It also
+  // survives customer deletion, so cancellation can still revoke access.
+  let clerkUserId = sub.metadata?.clerk_user_id;
+  if (!clerkUserId) {
+    const stripe = getStripe();
+    const customer = await stripe.customers.retrieve(customerId);
+    if (customer.deleted) throw new Error("Stripe customer deleted before entitlement sync");
+    clerkUserId = customer.metadata?.clerk_user_id;
+  }
   if (!clerkUserId) {
     // Do not acknowledge success: checkout may stamp the binding later.
     throw new Error("Stripe subscription has no Clerk user binding yet");
