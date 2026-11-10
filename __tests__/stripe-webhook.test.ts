@@ -72,6 +72,13 @@ describe('Stripe webhook offline signatures and retries', () => {
     expect((await POST(req('customer.subscription.deleted', sub('canceled')))).status).toBe(500);
     expect(f.metadata).not.toHaveBeenCalled();
   });
+  it('revokes via subscription binding even after the Stripe customer is deleted', async () => {
+    f.customerRetrieve.mockResolvedValue({ id: 'cus_fixture', deleted: true });
+    const canceled = { ...sub('canceled'), metadata: { clerk_user_id: 'user_subscription' } };
+    expect((await POST(req('customer.subscription.deleted', canceled))).status).toBe(200);
+    expect(f.customerRetrieve).not.toHaveBeenCalled();
+    expect(f.metadata).toHaveBeenCalledWith('user_subscription', expect.objectContaining({ publicMetadata: expect.objectContaining({ subscription_status: 'canceled', subscription_tier: 'free' }) }));
+  });
   it('duplicate event converges to identical metadata (does not claim deduplication)', async () => {
     await POST(req('customer.subscription.updated', sub())); await POST(req('customer.subscription.updated', sub()));
     expect(f.metadata).toHaveBeenCalledTimes(2);
