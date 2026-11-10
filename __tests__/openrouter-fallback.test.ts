@@ -512,6 +512,18 @@ describe("runSeat — per-attempt diagnostics", () => {
     }
   });
 
+  it.each([
+    ["invalid JSON", "not-json"],
+    ["non-string content", JSON.stringify({ choices: [{ message: { content: 42 } }] })],
+  ])("logs response-error for %s while preserving the thrown error", async (_label, body) => {
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
+    stubFetchSequence([() => new Response(body, { status: 200 })]);
+
+    await expect(runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32)).rejects.toThrow();
+    expect(errLines(info)).toHaveLength(1);
+    expect(errLines(info)[0]).toContain("outcome=response-error");
+  });
+
   it("keeps the retired-primary warn AND adds the structured line for the same 404", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const info = vi.spyOn(console, "error").mockImplementation(() => {});

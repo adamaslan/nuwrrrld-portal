@@ -609,6 +609,7 @@ export async function runSeat(
       );
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), MODEL_ATTEMPT_TIMEOUT_MS);
+    let receivedResponse = false;
     try {
       const res = await fetch(`${OR_BASE}/chat/completions`, {
         method: 'POST',
@@ -621,6 +622,7 @@ export async function runSeat(
         },
         body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
       });
+      receivedResponse = true;
       if (res.ok) {
         const data = await res.json();
         const answer = data.choices?.[0]?.message?.content ?? '';
@@ -654,7 +656,7 @@ export async function runSeat(
     } catch (err) {
       // Timeout (AbortError from our own ctrl) → try next model; other errors propagate.
       if (err instanceof Error && err.name !== 'AbortError') {
-        logAttempt("network-error");
+        logAttempt(receivedResponse ? "response-error" : "network-error");
         throw err;
       }
       logAttempt("abort-timeout");
