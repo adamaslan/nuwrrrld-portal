@@ -147,7 +147,9 @@ async function streamContentVerdict(
     const { done: streamDone, value } = await reader.read();
     buffered += streamDone ? decoder.decode() : decoder.decode(value, { stream: true });
     const lines = buffered.split("\n");
-    buffered = streamDone ? "" : (lines.pop() ?? "");
+    // Production only parses complete newline-terminated data lines.
+    const fragment = lines.pop() ?? "";
+    buffered = streamDone ? "" : fragment;
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
       const payload = line.slice(6).trim();

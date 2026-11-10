@@ -73,6 +73,11 @@ describe("live harness probeModel — production-contract health", () => {
     expect(r).toMatchObject({ ok: true, status: 200 });
   });
 
+  it("rejects a final content frame without a terminating newline", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse([contentDelta("OK").trimEnd()])));
+    expect(await probeModel(MODEL, KEY, { timeoutMs: 1000 })).toMatchObject({ ok: false, status: "empty" });
+  });
+
   it("skips control frames (comments, blank lines) and still finds content", async () => {
     vi.stubGlobal(
       "fetch",

@@ -100,6 +100,11 @@ describe("refresh-free-models probe — production-contract health", () => {
     expect(r).toMatchObject({ ok: true, status: 200 });
   });
 
+  it("rejects a final content frame without a terminating newline", async () => {
+    stubFetch(sseResponse([contentDelta("OK").trimEnd()]));
+    expect(await probe(KEY, MODEL, { timeoutMs: 1000 })).toMatchObject({ ok: false, status: "empty" });
+  });
+
   it("skips control frames (comments, blank lines) and still finds content", async () => {
     stubFetch(sseResponse([": OPENROUTER PROCESSING\n\n\n\n", contentDelta("OK"), DONE]));
     const r = await probe(KEY, MODEL, { timeoutMs: 1000 });
