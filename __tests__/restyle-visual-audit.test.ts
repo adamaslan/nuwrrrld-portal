@@ -22,6 +22,12 @@ describe('restyle visual-audit regressions', () => {
   it('does not use a shadow on the legal acknowledgement dialog', () => {
     expect(rule(read('components/disclaimer.css'), '.disclaimer-modal')).toMatch(/box-shadow:\s*none/);
   });
+  it('isolates disclaimer viewer typography from its compact centered footer', () => {
+    const css = read('components/disclaimer.css');
+    expect(rule(css, '.disclaimer-modal')).toMatch(/text-align:\s*left/);
+    expect(css).toContain('.disclaimer-footer > p {');
+    expect(css).not.toContain('.disclaimer-footer p {');
+  });
   it('keeps the beta feedback glyph monochrome without changing its meaning', () => {
     expect(read('app/dashboard/beta/page.tsx')).toContain('className="beta-feedback-icon"');
     expect(rule(read('app/dashboard/beta/beta.css'), '.beta-feedback-icon')).toMatch(/filter:\s*grayscale\(1\)/);
