@@ -28,7 +28,7 @@
 @media (max-width: 780px) { .port-body { grid-template-columns: 1fr; } }
 
 /* Panel */
-.port-panel { background: rgba(17, 17, 17, .82); border: 1px solid var(--line); border-radius: 0; padding: 20px 22px; }
+.port-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 0; padding: 20px 22px; }
 .port-panel-title { font-size: .72rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
 
 /* Watchlist */
