@@ -9,10 +9,12 @@ import { ImageResponse } from "next/og";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { recentVerdicts } from "@/lib/council-db";
 
+// Monochrome OG card (style guide): direction is stated in the verdict text
+// itself; the accent only distinguishes emphasis, never meaning by color.
 const DIRECTION_COLOR: Record<string, string> = {
-  bullish: "#2fd8ff",
-  bearish: "#ff3b5c",
-  neutral: "#f4b83f",
+  bullish: "#111111",
+  bearish: "#111111",
+  neutral: "#555555",
 };
 
 export async function GET(_req: Request, { params }: { params: Promise<{ ticker: string }> }) {
@@ -21,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
 
   const [latest] = await recentVerdicts(ticker, 1);
   const direction = latest?.direction ?? null;
-  const color = direction ? DIRECTION_COLOR[direction] ?? "#e8ecf4" : "#e8ecf4";
+  const color = direction ? DIRECTION_COLOR[direction] ?? "#111111" : "#111111";
 
   return new ImageResponse(
     (
@@ -33,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "64px",
-          background: "linear-gradient(135deg, #06070d 0%, #0d1018 100%)",
+          background: "#ffffff",
           fontFamily: "sans-serif",
         }}
       >
@@ -42,43 +44,43 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
             style={{
               width: 44,
               height: 44,
-              borderRadius: 10,
+              borderRadius: 0,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "linear-gradient(135deg, #2fd8ff, #f4b83f)",
-              color: "#06100b",
+              background: "#111111",
+              color: "#ffffff",
               fontSize: 15,
               fontWeight: 900,
             }}
           >
             NWF
           </div>
-          <div style={{ color: "#9aa4bd", fontSize: 22, fontWeight: 700 }}>NuWrrrld Financial</div>
+          <div style={{ color: "#555555", fontSize: 22, fontWeight: 700 }}>NuWrrrld Financial</div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ color: "#9aa4bd", fontSize: 26, fontWeight: 700 }}>6 AI analysts on</div>
-          <div style={{ color: "#e8ecf4", fontSize: 84, fontWeight: 900, letterSpacing: -2 }}>{`$${ticker}`}</div>
+          <div style={{ color: "#555555", fontSize: 26, fontWeight: 700 }}>6 AI analysts on</div>
+          <div style={{ color: "#111111", fontSize: 84, fontWeight: 900, letterSpacing: -2 }}>{`$${ticker}`}</div>
           {direction ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", color, fontSize: 56, fontWeight: 900, textTransform: "uppercase" }}>
                 {direction}
               </div>
               {latest?.invalidation && (
-                <div style={{ display: "flex", color: "#9aa4bd", fontSize: 30, fontWeight: 700 }}>
+                <div style={{ display: "flex", color: "#555555", fontSize: 30, fontWeight: 700 }}>
                   {`Invalidation: ${latest.invalidation}`}
                 </div>
               )}
             </div>
           ) : (
-            <div style={{ color: "#9aa4bd", fontSize: 32, fontWeight: 700 }}>
+            <div style={{ color: "#555555", fontSize: 32, fontWeight: 700 }}>
               Ask the council — free, no account
             </div>
           )}
         </div>
 
-        <div style={{ display: "flex", color: "#747267", fontSize: 20, fontWeight: 700 }}>
+        <div style={{ display: "flex", color: "#555555", fontSize: 20, fontWeight: 700 }}>
           One question. Six arguments. One answer.
         </div>
       </div>
