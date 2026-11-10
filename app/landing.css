@@ -1524,3 +1524,35 @@ body:has(.nwf-landing) {
     transform: none;
   }
 }
+
+/* Clerk public auth surface restyle. */
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) {
+  filter: grayscale(1);
+  color: var(--text);
+}
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root),
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *,
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *::before,
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+.nwf-landing .public-auth .cl-cardBox {
+  border: var(--bw-standard) solid var(--line-strong);
+}
+.nwf-landing .public-auth .cl-card {
+  background: var(--bg);
+}
+.nwf-landing .public-auth :is(.cl-formFieldInput, .cl-socialButtonsBlockButton) {
+  border: var(--bw-supporting) solid var(--line-strong);
+}
+.nwf-landing .public-auth .cl-formButtonPrimary {
+  border: var(--bw-standard) solid var(--line-strong);
+  background: var(--fill-strong);
+  color: var(--bg);
+}
+.nwf-landing .public-auth .cl-formButtonPrimary:hover {
+  background: var(--bg);
+  color: var(--text);
+}
