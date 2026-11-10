@@ -375,3 +375,19 @@
   border: var(--bw-standard) solid var(--border);
   background: var(--bg);
 }
+
+/* Clerk account profile modal restyle. */
+.cl-userProfile-root {
+  filter: grayscale(1);
+  background: var(--bg);
+  border: var(--bw-standard) solid var(--border);
+}
+.cl-userProfile-root,
+.cl-userProfile-root *,
+.cl-userProfile-root *::before,
+.cl-userProfile-root *::after,
+.cl-modalContent:has(.cl-userProfile-root) .cl-modalCloseButton {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
