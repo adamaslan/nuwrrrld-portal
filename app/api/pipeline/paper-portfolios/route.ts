@@ -91,6 +91,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `invalid ?account= "${accountParam}"` }, { status: 400 });
   }
   const late = searchParams.get("late") === "true";
+  // No cron/workflow opts in. One approved targeted current-slot activation only.
+  const initializeControl = searchParams.get("initialize_control") === "true";
+  if (initializeControl && ((accountParam !== "equal" && accountParam !== "spy") || slotParam === "settle")) {
+    return NextResponse.json({ error: "initialize_control requires a single equal or spy account and a trading slot" }, { status: 400 });
+  }
 
   // Queued settles retain the intended session's idempotency key.
   const intendedDate = searchParams.get("trade_date");
@@ -118,7 +123,7 @@ export async function POST(req: NextRequest) {
 
   for (const account of accounts) {
     try {
-      results.push(await runAccountSlot(account, tradeDate, slotParam, { apiKey, globalBudget, late, deadlineMs: routeDeadlineMs }));
+      results.push(await runAccountSlot(account, tradeDate, slotParam, { apiKey, globalBudget, late, deadlineMs: routeDeadlineMs, initializeControl }));
     } catch (err) {
       // One account's DB failure must not take the other seven down — same
       // per-item isolation as followed-tickers' per-pick loop.
