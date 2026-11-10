@@ -67,6 +67,18 @@ export interface DigestPayload {
   generatedAt: string;       // ISO
   /** Source optimizer IDs that produced this digest */
   sources: string[];
+  /**
+   * Effective trading date the signals apply to (the backend's market-calendar
+   * date, e.g. "2026-11-02"). This is a calendar/trading-day label, NOT when
+   * the signals were computed - never present it as a run time.
+   */
+  asOfDate?: string;
+  /**
+   * ISO timestamp of when the signal batch actually ran, exactly as reported
+   * by the source. null when the source did not report one - display "unknown"
+   * rather than substituting the current date or a request time.
+   */
+  lastRunAt?: string | null;
 }
 
 /**
@@ -156,13 +168,59 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
       };
     });
 
+  // `date` is the backend's effective trading day (market calendar), not a run
+  // time. `updated` is when the batch actually ran - validate before trusting it.
+  const batchRunAt =
+    typeof r.updated === 'string' && !Number.isNaN(Date.parse(r.updated))
+      ? r.updated
+      : null;
   return {
     schemaVersion: DIGEST_SCHEMA_VERSION,
     periodLabel: `Signals for ${String(r.date ?? '')}`,
+    asOfDate: typeof r.date === 'string' && r.date.trim() ? r.date.trim() : undefined,
+    lastRunAt: batchRunAt,
     signals,
     generatedAt: fallbackDate,
     sources: ['gcp3-signals'],
   };
+}
+
+const ET_TIMEZONE = 'America/New_York';
+
+/**
+ * Header label for the signals digest. Shows when the batch actually ran
+ * (market timezone), with the effective trading day as secondary context.
+ * Digests saved before lastRunAt existed have ambiguous generatedAt values:
+ * older adapters used the request time when the source omitted `updated`.
+ * Treat those as unknown instead of presenting a potentially fabricated run.
+ */
+export function signalsRunHeader(
+  digest: Pick<DigestPayload, 'lastRunAt' | 'generatedAt' | 'asOfDate'>,
+): string {
+  // lastRunAt is tri-state:
+  //  - string: the source-reported run time - always preferred.
+  //  - null: freshly adapted from a source that reported NO run time. On this
+  //    path generatedAt is the adapter's request time, never a run time, so it
+  //    must not be shown - report unknown.
+  //  - undefined: payload cached before run provenance existed. Its generatedAt
+  //    may be the adapter's request time when the source omitted `updated`, so
+  //    it is not trustworthy as a run timestamp.
+  let iso: string | null = null;
+  if (typeof digest.lastRunAt === 'string' && !Number.isNaN(Date.parse(digest.lastRunAt))) {
+    iso = digest.lastRunAt;
+  }
+  const runPart = iso
+    ? `Signals last run ${new Intl.DateTimeFormat('en-US', {
+        timeZone: ET_TIMEZONE,
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      }).format(new Date(iso))}`
+    : 'Signals last run: time unknown';
+  return digest.asOfDate ? `${runPart} · for trading day ${digest.asOfDate}` : runPart;
 }
 
 /** Adapter: normalise a raw optimizer response into a DigestPayload. */
