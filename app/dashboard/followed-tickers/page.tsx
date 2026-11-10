@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { resolveTier } from "@/lib/subscription-admin";
+import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import { getViewData } from "@/lib/followed-tickers-db";
 import { buildFollowedTickersView } from "@/lib/shared/followed-tickers-view";
 import { FollowedTickersClient } from "./FollowedTickersClient";
@@ -22,7 +22,7 @@ export default async function FollowedTickersPage() {
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = resolveTier(status, user);
+  const tier = await resolveTierWithPendingBeta(status, user);
 
   if (!hasEntitlement("pro_signals", tier)) {
     redirect("/pricing?source=followed-tickers");
