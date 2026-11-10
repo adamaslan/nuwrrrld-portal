@@ -1,0 +1,29 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+const landing = readFileSync(new URL('../app/landing.css', import.meta.url), 'utf8');
+const dashboard = readFileSync(new URL('../app/dashboard/dashboard.css', import.meta.url), 'utf8');
+describe('Clerk restyle surfaces', () => {
+  it('keeps public auth forms monochrome, square and without decorative shadows', () => {
+    const css = landing.split('/* Clerk public auth surface restyle. */')[1];
+    expect(css).toBeDefined();
+    expect(css).toContain('.public-auth');
+    expect(css).toContain('.cl-signIn-root');
+    expect(css).toContain('.cl-signUp-root');
+    expect(css).toContain('filter: grayscale(1)');
+    expect(css).toContain('border-radius: 0 !important');
+    expect(css).toContain('box-shadow: none !important');
+    expect(css).toContain('background-image: none !important');
+    expect(css).toContain('.cl-formFieldInput');
+    expect(css).toContain('border: var(--bw-supporting) solid var(--line-strong)');
+  });
+  it('covers the real account popup, not only its header trigger', () => {
+    const css = dashboard.split('/* Clerk account popup restyle. */')[1];
+    expect(css).toBeDefined();
+    expect(css).toContain('.cl-userButtonPopoverRootBox');
+    expect(css).toContain('filter: grayscale(1)');
+    expect(css).toContain('border-radius: 0 !important');
+    expect(css).toContain('box-shadow: none !important');
+    expect(css).toContain('background-image: none !important');
+    expect(css).toContain('.cl-userButtonPopoverCard');
+  });
+});
