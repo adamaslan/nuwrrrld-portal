@@ -567,7 +567,12 @@ export async function runAccountSlot(
       WHERE (NOT ${controlInitializing} OR (
         NOT EXISTS (SELECT 1 FROM paper_orders WHERE account = ${account})
         AND NOT EXISTS (SELECT 1 FROM paper_positions WHERE account = ${account})
-        AND EXISTS (SELECT 1 FROM paper_accounts WHERE account = ${account} AND cash = ${dbAccount.cash})
+        AND EXISTS (SELECT 1 FROM paper_accounts WHERE account = ${account}
+          AND active AND cash = ${dbAccount.cash} AND starting_cash = ${dbAccount.startingCash}
+          AND policy_version = ${dbAccount.policyVersion})
+        AND (SELECT count(*) FROM paper_watchlists WHERE account = ${account} AND active) = ${filled.length}
+        AND NOT EXISTS (SELECT 1 FROM paper_watchlists WHERE account = ${account} AND active
+          AND NOT (ticker = ANY(${filled.map((o) => o.ticker)}::text[])))
       ))
       ON CONFLICT (account, trade_date, slot) DO NOTHING
     `,
