@@ -4,8 +4,10 @@ The [architecture](../docs/nwf-new-slot-terraform.md) calls for a parallel
 slot. The owner chose the existing billed `ttb-lang1` project on 2026-10-16
 after a dedicated project's billing link hit quota. `slots/new-pipeline` is
 the Terraform root for separately named slot identity, image, artifact, and
-empty credential containers in `ttb-lang1`. It does not manage existing
-`gcp3-backend` resources, deploy an application, publish data, change
+empty credential containers in `ttb-lang1`. It also defines the slot 2
+hydration Cloud Run job, its scheduler and monitoring, but those are gated
+off until a tested image digest and Neon endpoint ID are supplied. It does
+not manage existing `gcp3-backend` resources, publish data, change slot 1
 schedules, or route production traffic. This is resource-level separation,
 not project-level isolation.
 
@@ -21,11 +23,12 @@ not project-level isolation.
   `ALPACA_API_SECRET` to its own Secret Manager container; it never assumes
   the proposed `ALPACA_SECRET_KEY` name exists. Secret containers follow the
   env var names: `nwf-new-alpaca-api-key`, `nwf-new-alpaca-api-secret`,
-  `nwf-new-openrouter-api-key` and the matching `nwf-shadow-*` names, all
-  in `ttb-lang1` but with separate access bindings.
+  `nwf-hydration-openrouter-api-key` and the matching `nwf-shadow-*` names,
+  all in `ttb-lang1` but with separate access bindings. The `core` slot
+  gets only the two Alpaca containers.
 - The live backend references an `OPENROUTER_API_KEY` Secret Manager secret.
-  The Terraform foundation declares distinct empty `nwf-new-*` containers
-  in `ttb-lang1`. The temporary shadow deployment uses `nwf-shadow-*`
+  The Terraform root declares distinct empty `nwf-hydration-*` and
+  `nwf-core-*` containers in `ttb-lang1`. The temporary shadow deployment uses `nwf-shadow-*`
   containers in that project, with versions copied from
   the portal's local environment via `sync-shadow-secrets.mjs` with the
   explicit `shadow` slot argument.
@@ -36,12 +39,10 @@ The dedicated project `nwf-new-pipeline-20261015` was created but billing
 linkage failed because the available billing account reached its project
 quota. It is not the deployment target. No Terraform was applied there.
 The current target `ttb-lang1` is billed. Its existing Artifact Registry,
-Secret Manager, IAM, and Storage APIs are enabled; Terraform proposes to
-enable only `sts.googleapis.com` for GitHub Workload Identity Federation.
-Before connecting a GitHub workflow that impersonates the deploy service
-account, verify that `iamcredentials.googleapis.com` is enabled in the target
-project. That prerequisite has not been checked by this foundation, and this
-root does not manage its enablement.
+Secret Manager, IAM, and Storage APIs are enabled; Terraform enables
+`sts.googleapis.com` for GitHub Workload Identity Federation (applied) and
+proposes `run.googleapis.com`, `cloudscheduler.googleapis.com` and
+`monitoring.googleapis.com` for the hydration job and alerts.
 
 For an immediate cloud proof, a separate Artifact Registry repository,
 service account, three Secret Manager secrets, and a manual Cloud Run Job
@@ -95,11 +96,44 @@ After the new slot's Terraform foundation is applied, populate its
 empty secret containers with Node.js 20.12 or newer:
 
 ```bash
-node infra/sync-shadow-secrets.mjs .env.local ttb-lang1 new
+node infra/sync-shadow-secrets.mjs .env.local ttb-lang1 hydration
+node infra/sync-shadow-secrets.mjs .env.local ttb-lang1 core
 ```
 
+Sync populates only the provider credentials; it does **not** provision the
+two hydration database URLs. Before setting `hydration_image_digest`, load
+each URL into its container and verify an enabled version exists. Copy the
+URL to the clipboard first (it is never printed). Replace the clipboard
+contents with the hydration database URL before running the second command:
+
+```bash
+pbpaste | gcloud secrets versions add nwf-hydration-source-database-url --project=ttb-lang1 --data-file=-
+# Replace the clipboard contents with HYDRATION_DATABASE_URL before this command.
+pbpaste | gcloud secrets versions add nwf-hydration-hydration-database-url --project=ttb-lang1 --data-file=-
+for s in nwf-hydration-source-database-url nwf-hydration-hydration-database-url; do
+  gcloud secrets versions list "$s" --project=ttb-lang1 --filter='state=ENABLED' --format='value(name)' | head -1
+done
+```
+Sync populates the Alpaca secrets, while the two commands above populate the
+database secrets. For each of those four secrets, record an enabled version
+number (not `latest`) using:
+
+```bash
+for s in nwf-hydration-alpaca-api-key nwf-hydration-alpaca-api-secret nwf-hydration-source-database-url nwf-hydration-hydration-database-url; do
+  printf '%s=' "$s"
+  gcloud secrets versions list "$s" --project=ttb-lang1 --filter='state=ENABLED' --format='value(name)' | head -1 | sed 's#.*/##'
+done
+```
+
+Copy those four version numbers into `hydration_secret_versions` in the ignored
+`terraform.tfvars`. Only then set `hydration_secrets_ready = true` alongside
+the image digest and endpoint ID. The job pins these exact versions, so a
+disabled `latest` version cannot break scheduled startup.
+
 The script requires an explicit slot, checks for existing enabled versions,
-and does not print credential values. Both slots use `ttb-lang1` but distinct
+and does not print credential values. It writes only the secrets each slot
+declares: `hydration` gets three, `core` gets the two Alpaca values. All
+slots use `ttb-lang1` but distinct
 secret names. The temporary shadow slot uses `ttb-lang1 shadow`. Do not run either command before its
 secret containers exist.
 
@@ -116,7 +150,7 @@ secret containers exist.
    the `nwf/new-pipeline/terraform` prefix distinct from every other state.
 3. Confirm the trusted GitHub repository and owner numeric IDs, default
    branch, region, bucket name, project APIs, permissions, and billing. Five
-   required APIs are already enabled; the plan adds only STS API enablement.
+   required APIs are already enabled; the applied state added STS, and the pending plan adds Run, Scheduler and Monitoring.
 4. From `infra/slots/new-pipeline`, run:
 
    ```bash
@@ -127,25 +161,35 @@ secret containers exist.
    terraform show phase1.tfplan
    ```
 
-   The 2026-10-17 cloud plan has 17 creates, 0 changes, and 0 destroys, all in
-   `ttb-lang1`. Review the whole saved plan for deletion, replacement, IAM
+   The foundation was applied on 2026-10-17. The current pending plan
+   (2026-10-24) has 10 creates, 0 changes, and 0 destroys, all in
+   `ttb-lang1`. Earlier plans (17 creates single-slot, 30 two-slot) are
+   historical. Review the whole saved plan for deletion, replacement, IAM
    scope, and project identity before an authorized `terraform apply
    phase1.tfplan`. The backend uses state locking and bucket versioning for
    recovery. Never commit state, plans, backend configuration, or populated
    tfvars.
 
 The foundation grants GitHub's trusted numeric repository ID on the chosen
-branch permission to impersonate only the new deploy service account. That
-service account can write only the new image repository. The runtime identity
-can read only the new slot's three secret containers. No identity receives a
+branch permission to impersonate only that slot's deploy service account. Each
+deploy service account can write only its slot's image repository. Each
+runtime identity can read only its own slot's secret containers: five for
+`hydration` (Alpaca key and secret, OpenRouter key, and the source and
+hydration database URLs), two for `core`. No identity receives a
 role on an existing `gcp3-backend` resource. All grants are within the shared
 project and apply to newly named resources. Project administrators and shared
-quotas remain common to both slots. Cloud Run, Firestore, scheduling,
-monitoring, and application code remain to be connected after state ownership
-is verified.
+quotas remain common to both slots. The hydration job and its three schedulers
+are created only when `hydration_image_digest`, `hydration_neon_endpoint_id`,
+`hydration_secrets_ready`, and all four pinned secret versions are set.
+Terraform creates alert email notification channels, but this PR does not
+create alert policies or a watchdog. Firestore and the remaining slot 2
+features are not yet connected.
 
 The new image repository has immutable tags. Builds must use a unique tag for
-each image, and deployments must pin the tested digest. Its cleanup policy is
+each image, and deployments must pin the tested digest. The hydration job
+uses `hydration_image_name` (default `hydration-worker`) between the repository
+URI and digest to form the full Cloud Run image reference. Set it to the name
+used when pushing the image. Its cleanup policy is
 in dry-run mode: it retains the two newest versions per package and proposes
 deleting untagged versions older than one day. Review the dry-run findings
 before allowing deletion; tagged historical images are outside that delete
@@ -158,3 +202,11 @@ rollback needs an explicit reviewed Terraform change before removing them.
 `terraform fmt -check -recursive infra` succeeded with Terraform 1.5.7 and
 Google provider 7.46.1. This checks configuration shape only; it does not
 verify a cloud plan, provider permissions, or application behavior.
+
+## Health-check addendum - November 9, 2026
+
+The [NWF health baseline, homebase #82](https://github.com/adamaslan/homebase/pull/82) records a 13:12 ET production `/api/health` response with HTTP 200, overall ok and six dependency fields ok. This is reachability/configuration and newest-card-date evidence, not a successful hydration job, model completion, billing E2E, per-ticker coverage, backup restore or alert-delivery proof. The response may be cached for 60 seconds; degraded JSON still returns HTTP 200.
+
+Owner clarification on November 9: #309 is unapplied. Treat older apply/foundation statements above as dated historical claims, not current cloud inventory or permission. No real plan refresh, state mutation, IAM grant, secret operation or infrastructure apply was performed for the health work. Eleven isolated mocked-provider plan tests passed, exercising default-off and missing-prerequisite gates, full-input job/scheduler counts, wrong-project refusal and pinned-version validation. These do not prove current cloud permissions, enabled secrets, quota, image startup or deployed state.
+
+[Homebase #57](https://github.com/adamaslan/homebase/pull/57) stays status/tracking; [#81](https://github.com/adamaslan/homebase/pull/81) is the calendar/run-ledger/cutover design proposal. Inventory actual triggers and writers before enabling another scheduler or Modal adapter. Keep this as the single implementation PR; merging code does not authorize applying it. Inspect convenience-command effects: local-check and nulogdash can include schema/data writes and are not automatically read-only checks.
