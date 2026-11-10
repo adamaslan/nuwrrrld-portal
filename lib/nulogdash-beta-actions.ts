@@ -12,6 +12,7 @@
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { canPerformAdminAction } from "@/lib/nulogdash";
+import { BETA_EMAIL_KEY, betaEmailId, readBetaEmails, MAX_PENDING_BETA_EMAILS, MAX_METADATA_BYTES } from "@/lib/beta-email-registry";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildBetaGrant, parseGrantInput, type GrantInput } from "@/lib/beta-grant-admin";
 
@@ -20,7 +21,7 @@ const CHANGE_WINDOW_MS = 5 * 60_000;
 const CLERK_USER_ID_PATTERN = /^user_[A-Za-z0-9]+$/;
 const PANEL_PATH = "/dashboard/nulogdash/beta";
 
-export type BetaActionResult = { ok: true; message: string; inviteUrl?: string } | { ok: false; error: string };
+export type BetaActionResult = { ok: true; message: string; signupUrl?: string } | { ok: false; error: string };
 
 async function requireAdmin(): Promise<{ userId: string }> {
   const { userId } = await auth();
@@ -28,7 +29,7 @@ async function requireAdmin(): Promise<{ userId: string }> {
   const user = await currentUser();
   if (!canPerformAdminAction(user)) {
     throw new Error(
-      "This action needs an allowlisted admin account with two-factor authentication enabled.",
+      "This action needs a verified allowlisted admin account and the configured MFA policy.",
     );
   }
   return { userId };
@@ -54,26 +55,22 @@ export async function grantBeta(raw: GrantInput): Promise<BetaActionResult> {
   const clerk = await clerkClient();
   const { data: matches } = await clerk.users.getUserList({ emailAddress: [parsed.email] });
   if (matches.length === 0) {
-    // Invitations carry only beta entitlements, never admin or billing metadata.
-    // No automatic email: the owner chooses where to share the private link.
-    const { data: pending } = await clerk.invitations.getInvitationList({ status: "pending", query: parsed.email, limit: 100 });
-    const existing = pending.find((i) => i.emailAddress.toLowerCase() === parsed.email);
-    if (existing) {
-      return { ok: false, error: "There is already a pending invitation for this email. Use or revoke it before adding another." };
+    const admin = await clerk.users.getUser(adminId);
+    const entries = readBetaEmails(admin.privateMetadata);
+    const id = betaEmailId(parsed.email);
+    if (!entries[id] && Object.keys(entries).length >= MAX_PENDING_BETA_EMAILS) {
+      return { ok: false, error: "Pending-email capacity reached (10). Revoke an entry before adding another." };
     }
-    const invitation = await clerk.invitations.createInvitation({
-      emailAddress: parsed.email,
-      publicMetadata: { beta: buildBetaGrant(parsed) },
-      notify: false,
-      expiresInDays: 7,
-      redirectUrl: "/sign-up",
-    });
-    console.info("[nulogdash] beta invitation", { by: adminId, invitation: invitation.id });
+    const entry = { email: parsed.email, grant: buildBetaGrant(parsed) };
+    const nextPrivate = { ...admin.privateMetadata, [BETA_EMAIL_KEY]: { ...entries, [id]: entry } };
+    const bytes = Buffer.byteLength(JSON.stringify({ publicMetadata: admin.publicMetadata, privateMetadata: nextPrivate, unsafeMetadata: admin.unsafeMetadata }), "utf8");
+    if (bytes > MAX_METADATA_BYTES) return { ok: false, error: "Account metadata is near capacity. No beta entry was saved." };
+    await clerk.users.updateUserMetadata(adminId, { privateMetadata: { [BETA_EMAIL_KEY]: { [id]: entry } } });
     revalidatePath(PANEL_PATH);
     return {
       ok: true,
-      message: "Invite created. Share the private link with this person. It expires in 7 days; beta access starts when they finish signing up.",
-      inviteUrl: invitation.url,
+      message: "Email added. They get beta Pro after normal signup and verification of this primary email. The signup link conveys no access by itself.",
+      signupUrl: "/sign-up?redirect_url=/dashboard",
     };
   }
 
@@ -120,22 +117,14 @@ export async function revokeBeta(raw: { userId: string }): Promise<BetaActionRes
   return { ok: true, message: "Revoked." };
 }
 
-/** Revoke a pending beta invitation without changing an existing account. */
-export async function revokeBetaInvitation(raw: { invitationId: string }): Promise<BetaActionResult> {
+/** Remove only the current admin's pending-email entry. No account or invitation mutation. */
+export async function revokePendingBeta(raw: { emailId: string }): Promise<BetaActionResult> {
   const { userId: adminId } = await requireAdmin();
-  const id = raw?.invitationId;
-  if (typeof id !== "string" || !/^(inv|invitation)_[A-Za-z0-9]+$/.test(id)) {
-    return { ok: false, error: "Invalid invitation." };
-  }
+  if (!/^[a-f0-9]{64}$/.test(raw?.emailId ?? "")) return { ok: false, error: "Invalid pending entry." };
   const limited = checkRate(adminId);
   if (limited) return limited;
   const clerk = await clerkClient();
-  const { data } = await clerk.invitations.getInvitationList({ status: "pending", limit: 500 });
-  const invitation = data.find((i) => i.id === id &&
-    (i.publicMetadata?.beta as { tier?: unknown } | undefined)?.tier === "pro");
-  if (!invitation) return { ok: false, error: "Pending beta invitation not found. Refresh the page." };
-  await clerk.invitations.revokeInvitation(id);
+  await clerk.users.updateUserMetadata(adminId, { privateMetadata: { [BETA_EMAIL_KEY]: { [raw.emailId]: null } } });
   revalidatePath(PANEL_PATH);
-  console.info("[nulogdash] beta invitation revoke", { by: adminId, invitation: id });
-  return { ok: true, message: "Invitation revoked." };
+  return { ok: true, message: "Pending email revoked." };
 }
