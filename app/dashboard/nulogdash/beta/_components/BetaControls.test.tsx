@@ -5,7 +5,7 @@ import { axe } from "jest-axe";
 vi.mock("@/lib/nulogdash-beta-actions", () => ({
   grantBeta: vi.fn(),
   revokeBeta: vi.fn(),
-  revokeBetaInvitation: vi.fn(),
+  revokePendingBeta: vi.fn(),
 }));
 
 import { grantBeta } from "@/lib/nulogdash-beta-actions";
@@ -31,14 +31,14 @@ describe("GrantForm", () => {
     await waitFor(() => expect(grantBeta).toHaveBeenCalledWith({ email: "tester@example.com", expiresAt: "", note: "" }));
   });
 
-  it("shows a private invite link only after an explicit successful submission", async () => {
-    vi.mocked(grantBeta).mockResolvedValue({ ok: true, message: "Invite created", inviteUrl: "https://example.com/invite" });
+  it("shows a normal signup link only after an explicit successful submission", async () => {
+    vi.mocked(grantBeta).mockResolvedValue({ ok: true, message: "Email added", signupUrl: "/sign-up?redirect_url=/dashboard" });
     render(<GrantForm canMutate />);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "tester@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Add to beta" }));
-    await waitFor(() => expect(screen.getByRole("link", { name: "Private beta invitation link" })).toHaveAttribute("href", "https://example.com/invite"));
-    expect(screen.getByText(/Anyone with this link can use it/)).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("link", { name: "Signup link (no access token)" })).toHaveAttribute("href", "/sign-up?redirect_url=/dashboard"));
+    expect(screen.getByText(/Beta requires a verified primary email/)).toBeVisible();
   });
 
   it("has no accessibility violations", async () => {
