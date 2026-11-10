@@ -358,3 +358,18 @@
 .nwf-dash .cl-userButtonAvatarImage {
   filter: grayscale(1);
 }
+
+/* Clerk account popup restyle. */
+.cl-userButtonPopoverRootBox {
+  filter: grayscale(1);
+}
+.cl-userButtonPopoverRootBox,
+.cl-userButtonPopoverRootBox * {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+.cl-userButtonPopoverRootBox .cl-userButtonPopoverCard {
+  border: var(--bw-standard) solid var(--border);
+  background: var(--bg);
+}
