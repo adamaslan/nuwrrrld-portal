@@ -27,3 +27,17 @@ describe('Clerk restyle surfaces', () => {
     expect(css).toContain('.cl-userButtonPopoverCard');
   });
 });
+
+describe('Clerk account profile restyle', () => {
+  it('covers the separate Manage account modal without changing account behavior', () => {
+    const css = dashboard.split('/* Clerk account profile modal restyle. */')[1];
+    expect(css).toBeDefined();
+    expect(css).toContain('.cl-userProfile-root');
+    expect(css).toContain('filter: grayscale(1)');
+    expect(css).toContain('border-radius: 0 !important');
+    expect(css).toContain('box-shadow: none !important');
+    expect(css).toContain('background-image: none !important');
+    expect(css).toContain('.cl-modalCloseButton');
+    expect(css).toContain('border: var(--bw-standard) solid var(--border)');
+  });
+});
