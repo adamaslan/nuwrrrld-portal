@@ -254,7 +254,8 @@ export async function probe(apiKey, model, opts = {}) {
       // 200 is not health. Production counts only a visible content token as
       // an answer — a shed free model returns 200 with an empty completion —
       // so the probe primes the stream and applies the same rule.
-      return { model, latencyMs: Date.now() - started, ...(await contentVerdict(res)) };
+      const verdict = await contentVerdict(res);
+      return { model, latencyMs: Date.now() - started, ...verdict };
     } catch (err) {
       return {
         model,

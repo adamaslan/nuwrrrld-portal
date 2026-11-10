@@ -65,6 +65,26 @@ describe("refresh-free-models probe — production-contract health", () => {
     expect(r.detail.parsedLines).toBeGreaterThanOrEqual(1);
   });
 
+  it("includes the wait for the first content token in latency", async () => {
+    let now = 1000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        now = 1250;
+        controller.enqueue(new TextEncoder().encode(contentDelta("OK")));
+        controller.close();
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream)));
+    try {
+      const result = await probe(KEY, MODEL, { timeoutMs: 1000 });
+      expect(result.ok).toBe(true);
+      expect(result.latencyMs).toBe(250);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("rejects a reasoning-only stream as empty — reasoning is not an answer", async () => {
     stubFetch(sseResponse([reasoningDelta("let me think"), reasoningDelta("still thinking"), DONE]));
     const r = await probe(KEY, MODEL, { timeoutMs: 1000 });
