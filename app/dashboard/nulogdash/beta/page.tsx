@@ -3,9 +3,9 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
-import { listBetaGrants, listPendingBetaInvitations } from "@/lib/beta-grant-list";
+import { listBetaGrants, listPendingBetaEmails } from "@/lib/beta-grant-list";
 import { NulogdashTabs, MfaNotice } from "../page";
-import { GrantForm, RevokeButton, RevokeInvitationButton } from "./_components/BetaControls";
+import { GrantForm, RevokeButton, RevokePendingButton } from "./_components/BetaControls";
 import "../nulogdash.css";
 
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ export default async function BetaTestersPage() {
   if (!isNulogdashAdmin(user)) notFound();
 
   const canMutate = canPerformAdminAction(user);
-  const [{ grants, truncated }, pending] = await Promise.all([listBetaGrants(), listPendingBetaInvitations()]);
+  const [{ grants, truncated }, pending] = await Promise.all([listBetaGrants(), listPendingBetaEmails(userId)]);
 
   return (
     <main className="nld-page">
@@ -36,22 +36,22 @@ export default async function BetaTestersPage() {
         <h2>Add someone to beta</h2>
         <p className="nld-meta">
           Enter their email. Existing verified accounts get beta Pro immediately. For someone new,
-          you get a private signup link to send yourself. No email is sent automatically.
-          Invite links expire in 7 days. Beta access has no expiry unless you choose one below.
-          This applies only to this site&apos;s Clerk instance, not other environments.
+          their email is saved privately until they sign up and verify it as their primary email.
+          No invitation or email is sent. The signup link is ordinary navigation, not an access token.
+          Beta access has no expiry unless you choose one below. This applies only to this Clerk environment.
         </p>
         <GrantForm canMutate={canMutate} />
       </section>
 
       <section>
-        <h2>Pending beta invitations ({pending.invitations.length})</h2>
-        <p className="nld-meta">Keep links private. Anyone with a link can use it. Revoke a link here if it was shared by mistake.</p>
-        {pending.invitations.length === 0 ? <p className="nld-empty">No pending invitations.</p> :
-          <ul>{pending.invitations.map((i) => <li key={i.id}>
-            {i.email} {canMutate && i.url && <a href={i.url} style={{ textDecoration: "underline" }}>Private invite link</a>}
-            <RevokeInvitationButton invitationId={i.id} canMutate={canMutate} />
+        <h2>Email-based beta grants ({pending.length})</h2>
+        <p className="nld-meta">These grants apply only after ordinary verified-primary-email signup. Your private registry holds up to 10 emails. Revoke here to stop this email-based access. Other admins&apos; grants are separate.</p>
+        {pending.length === 0 ? <p className="nld-empty">No email-based grants.</p> :
+          <ul>{pending.map((i) => <li key={i.id}>
+            {i.email} - {i.active ? "Eligible after verified signup" : "Expired"} - expires {i.expiresAt ?? "never"}
+            <RevokePendingButton emailId={i.id} canMutate={canMutate} />
           </li>)}</ul>}
-        {pending.truncated && <p className="nld-meta">Only the 500 most recent pending invitations are shown.</p>}
+        <Link href="/sign-up?redirect_url=/dashboard" style={{ textDecoration: "underline" }}>Signup link (no access token)</Link>
       </section>
 
       <section>
