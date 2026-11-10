@@ -24,6 +24,7 @@
   border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
   background: var(--surface);
   box-shadow: none;
+  text-align: left;
 }
 
 .disclaimer-modal-header {
@@ -115,7 +116,7 @@
   text-align: center;
 }
 
-.disclaimer-footer p {
+.disclaimer-footer > p {
   color: color-mix(in srgb, var(--text-dim) 60%, transparent);
   font-size: 10px;
   line-height: 1.5;
