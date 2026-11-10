@@ -6,14 +6,14 @@
  * (lib/nulogdash-beta-actions.ts).
  */
 import { useState, useTransition } from "react";
-import { grantBeta, revokeBeta, revokeBetaInvitation, type BetaActionResult } from "@/lib/nulogdash-beta-actions";
+import { grantBeta, revokeBeta, revokePendingBeta, type BetaActionResult } from "@/lib/nulogdash-beta-actions";
 
 function ResultLine({ result }: { result: BetaActionResult | null }) {
   if (!result) return null;
   return (
     <p role="status" className={result.ok ? "nld-result nld-result--ok" : "nld-result nld-result--err"}>
       {result.ok ? result.message : result.error}
-      {result.ok && result.inviteUrl && <><br /><a href={result.inviteUrl} style={{ textDecoration: "underline", overflowWrap: "anywhere" }}>Private beta invitation link</a><br />Only share with the intended person. Anyone with this link can use it.</>}
+      {result.ok && result.signupUrl && <><br /><a href={result.signupUrl} style={{ textDecoration: "underline", overflowWrap: "anywhere" }}>Signup link (no access token)</a><br />This link only opens signup. Beta requires a verified primary email added by an admin.</>}
     </p>
   );
 }
@@ -92,15 +92,15 @@ export function RevokeButton({ userId, canMutate }: { userId: string; canMutate:
   );
 }
 
-export function RevokeInvitationButton({ invitationId, canMutate }: { invitationId: string; canMutate: boolean }) {
+export function RevokePendingButton({ emailId, canMutate }: { emailId: string; canMutate: boolean }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<BetaActionResult | null>(null);
   return <>
     <button type="button" className="nld-trigger-btn" disabled={pending || !canMutate}
       onClick={() => startTransition(async () => {
-        try { setResult(await revokeBetaInvitation({ invitationId })); }
-        catch { setResult({ ok: false, error: "Could not revoke invitation. Try again." }); }
-      })}>{pending ? "Revoking…" : "Revoke invitation"}</button>
+        try { setResult(await revokePendingBeta({ emailId })); }
+        catch { setResult({ ok: false, error: "Could not revoke email grant. Try again." }); }
+      })}>{pending ? "Revoking…" : "Revoke email grant"}</button>
     <ResultLine result={result} />
   </>;
 }
