@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { resolveTier } from "@/lib/subscription-admin";
+import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import { loadArena } from "@/lib/paper-arena";
 import type { ArenaVM } from "@/lib/shared/paper-arena-view";
 import { PaperArenaClient } from "./PaperArenaClient";
@@ -26,7 +26,7 @@ export default async function PaperArenaPage() {
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = resolveTier(status, user);
+  const tier = await resolveTierWithPendingBeta(status, user);
   if (!hasEntitlement(REQUIRED_ENTITLEMENT, tier)) redirect("/pricing?source=paper-arena");
 
   let initial: ArenaVM | null = null;
