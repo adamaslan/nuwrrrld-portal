@@ -23,7 +23,7 @@
   border-radius: 0;
   border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
   background: var(--surface);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
 }
 
 .disclaimer-modal-header {
