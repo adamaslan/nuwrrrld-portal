@@ -271,3 +271,4 @@
 .nwf-blog .blog-basis { font-size: .82rem; line-height: 1.5; color: #4b5563; display: block; }
 .nwf-blog .blog-source-note { border-left: 3px solid #6b7280; padding: .5rem 1rem; margin: 1.5rem 0; background: #f3f4f6; font-size: .9rem; }
 .nwf-blog .blog-source-note a { text-decoration: underline; }
+.nwf-blog .blog-card:hover .blog-basis, .nwf-blog .blog-card:focus-visible .blog-basis { color: #d1d5db; }
