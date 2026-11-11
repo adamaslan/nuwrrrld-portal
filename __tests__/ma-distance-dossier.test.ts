@@ -30,6 +30,9 @@ describe('MA50/ATR14 research dossier',()=>{
     const f=fixture();f.bars= f.bars.map((b,i)=>i===20?{...b,close:bad}:b);
     expect(evaluateMaDistance(f,date(59)).status).toBe('withheld');
   });
+  it('rejects future evaluation dates rather than certifying invented future sessions',()=>{
+    expect(()=>evaluateMaDistance(fixture(),'2099-01-01')).toThrow('future completed session');
+  });
   it('rejects duplicate, unordered and invalid calendar dates',()=>{
     const f=fixture();for(const bars of [[...f.bars,f.bars[0]],[...f.bars].reverse(),[{...f.bars[0],date:'2026-02-30'}]])expect(()=>evaluateMaDistance({...f,bars},date(59))).toThrow();
   });
