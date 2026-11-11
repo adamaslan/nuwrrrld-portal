@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { formatRunTimeET } from "@/lib/format-time";
 import { join } from "node:path";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
@@ -83,7 +84,7 @@ export default async function PipelineRunPage({
       <h1>{run.pipeline}</h1>
       <NulogdashTabs active="pipelines" />
       <p className="nld-meta">
-        {new Date(run.runAt).toLocaleString()} · {run.dryRun ? "dry run" : "live run"} ·{" "}
+        {formatRunTimeET(run.runAt)} · {run.dryRun ? "dry run" : "live run"} ·{" "}
         session {run.session ?? "—"} · <code>{run.id}</code>
       </p>
 
@@ -126,6 +127,7 @@ export default async function PipelineRunPage({
         {models.length === 0 ? (
           <p className="nld-empty">No model served in this run.</p>
         ) : (
+          <div className="nld-table-wrap">
           <table className="nld-table">
             <thead>
               <tr><th>Model</th><th>Calls</th><th>Empty</th><th>Fallbacks</th><th>Avg latency</th></tr>
@@ -142,6 +144,7 @@ export default async function PipelineRunPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -150,12 +153,14 @@ export default async function PipelineRunPage({
         {run.items.length === 0 ? (
           <p className="nld-empty">This run recorded no items.</p>
         ) : (
+          <div className="nld-table-wrap">
           <table className="nld-table">
             <thead>
               <tr><th>Subject</th><th>Seat</th><th>Model</th><th>Outcome</th><th>Latency</th><th>Fallback</th></tr>
             </thead>
             <tbody>{run.items.map((it, i) => <ItemRow key={`${it.subject}-${i}`} item={it} />)}</tbody>
           </table>
+          </div>
         )}
       </section>
 

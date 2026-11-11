@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import constants from "@/lib/shared/hydration-constants.json";
-// @ts-expect-error plain mjs helper
 import { sipHistoryEnd } from "../scripts/lib/hydrate-indicators.mjs";
 
 const source = readFileSync("scripts/engine-bars.mjs", "utf8")

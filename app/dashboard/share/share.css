@@ -3,17 +3,17 @@
 .share-page h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: .5rem; color: var(--text); }
 .share-intro { color: var(--text-dim); line-height: 1.6; margin-bottom: 1.75rem; }
 .share-panel { display: flex; flex-direction: column; gap: 1rem; }
-.share-code-block { display: flex; align-items: center; gap: .75rem; background: var(--surface-2); border-radius: 10px; padding: 1rem 1.25rem; }
+.share-code-block { display: flex; align-items: center; gap: .75rem; background: var(--surface-2); border-radius: 0; padding: 1rem 1.25rem; }
 .share-code { font-family: var(--font-geist-mono, monospace); font-size: 1.3rem; font-weight: 700; letter-spacing: .1em; color: var(--text); flex: 1; }
-.share-copy-btn { background: var(--neon-blue); color: var(--bg); border: none; border-radius: 8px; padding: .5rem 1rem; font-size: .9rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: box-shadow .15s; }
+.share-copy-btn { background: var(--neon-blue); color: var(--bg); border: none; border-radius: 0; padding: .5rem 1rem; font-size: .9rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: box-shadow .15s; }
 .share-copy-btn:hover { box-shadow: var(--glow-blue); }
 .share-url { font-size: .8rem; color: var(--text-dim); word-break: break-all; }
 .share-channels { display: flex; gap: .75rem; flex-wrap: wrap; }
-.share-channel-btn { padding: .6rem 1.2rem; border-radius: 8px; font-size: .9rem; font-weight: 600; text-decoration: none; }
-.share-channel-btn--twitter { background: #000; color: #fff; }
-.share-channel-btn--linkedin { background: #0a66c2; color: #fff; }
+.share-channel-btn { padding: .6rem 1.2rem; border-radius: 0; font-size: .9rem; font-weight: 600; text-decoration: none; }
+.share-channel-btn--twitter { background: #000; color: #ffffff; }
+.share-channel-btn--linkedin { background: #111111; color: #ffffff; }
 .share-stats { display: flex; align-items: baseline; gap: .5rem; font-size: 1rem; color: var(--text); }
 .share-stats strong { font-size: 2rem; font-weight: 800; color: var(--neon-blue); }
 .share-terms { font-size: .78rem; color: var(--text-dim); line-height: 1.6; }
-.share-error { color: var(--bear); }
+.share-error { color: var(--text); font-weight: 600; text-decoration: underline; }
 .share-loading { color: var(--text-dim); }

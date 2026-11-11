@@ -33,6 +33,14 @@ threw, hadFallback, hadEmpty }` into one of four states, checked in this order:
 GitHub issue, the same way each workflow's `notify` job already does.
 `degraded` does not page anyone — it shows up in the daily report instead.
 
+The grounding-pack compiler had a separate false-green case: it skipped chunks
+whose model extraction failed, preserved their prior rows, and still returned
+success when some other chunks succeeded. That allowed its recovery job to
+close an outage while extraction remained incomplete. The current change makes
+any live extraction failure fail the workflow after retaining successful writes;
+chunks deferred solely by the run's extraction budget continue to resume later
+without turning each intentional increment into a failure.
+
 ## Where it appears
 
 The `status` value is stored on [[entity-model-usage-log|`pipeline_run_log`]]'s

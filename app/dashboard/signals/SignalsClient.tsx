@@ -186,7 +186,7 @@ export function SignalsClient({ signals }: Props) {
               </div>
               {sig.isStale ? (
                 <p className="signal-stale-badge">
-                  ⚠ {sig.dataQualityScore === 'unknown' ? 'Data freshness unknown' : 'Stale data'} — last updated {sig.generatedAt}
+                  ⚠︎ {sig.dataQualityScore === 'unknown' ? 'Data freshness unknown' : 'Stale data'} — last updated {sig.generatedAt}
                 </p>
               ) : (
                 <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
