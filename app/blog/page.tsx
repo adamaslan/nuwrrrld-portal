@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BLOG_ARTICLES } from "@/lib/blog/articles";
+import { BLOG_ARTICLES, BLOG_RETURN_BASIS } from "@/lib/blog/articles";
 import "./blog.css";
 
 export const metadata: Metadata = {
@@ -47,6 +47,7 @@ export default function BlogIndexPage() {
                 {a.feature} · {a.date}
               </span>
               <span className="blog-card-title">{a.title}</span>
+              <span className="blog-basis">{BLOG_RETURN_BASIS}</span>
               <span className="blog-card-desc">{a.description}</span>
             </Link>
           </li>
