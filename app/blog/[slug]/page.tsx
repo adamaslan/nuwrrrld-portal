@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BLOG_ARTICLES, getBlogArticle, type BlogBlock } from "@/lib/blog/articles";
+import { BLOG_ARTICLES, getBlogArticle, type BlogBlock, BLOG_RETURN_BASIS } from "@/lib/blog/articles";
 import "../blog.css";
 
 interface Props {
@@ -46,18 +46,19 @@ function Block({ block }: { block: BlogBlock }) {
       );
     case "stats":
       return (
-        <div className="blog-stats">
+        <div className="blog-stats-wrap"><p className="blog-basis">{BLOG_RETURN_BASIS}</p><div className="blog-stats">
           {block.items.map((s) => (
             <div className="blog-stat" key={s.label}>
               <b>{s.value}</b>
               <span>{s.label}</span>
             </div>
           ))}
-        </div>
+        </div></div>
       );
     case "table":
       return (
         <div className="blog-table-wrap">
+          <p className="blog-basis">{BLOG_RETURN_BASIS}</p>
           <table className="blog-table">
             {block.caption ? <caption>{block.caption}</caption> : null}
             <thead>
@@ -107,8 +108,12 @@ export default async function BlogArticlePage({ params }: Props) {
           </p>
           <h1>{article.title}</h1>
           <p className="blog-sub">{article.description}</p>
+          <p className="blog-basis">{BLOG_RETURN_BASIS}</p>
         </header>
 
+        <aside className="blog-source-note">
+          <p>Source: <a href="/blog/backtest-evidence.json">download the saved aggregates and run basis</a>. Headline totals are checked against these per-ticker records. This validates saved arithmetic, not an independent rerun of market data, the original code lineage, or a reconstruction of drawdowns from individual trades. The recorded lab engine is not established as identical to deployed scoring.</p>
+        </aside>
         {article.blocks.map((block, i) => (
           <Block key={i} block={block} />
         ))}
