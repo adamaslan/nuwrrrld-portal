@@ -1,0 +1,411 @@
+{
+  "run_date": "2026-11-01",
+  "data_window": [
+    "2021-11-01",
+    "2026-10-30"
+  ],
+  "basis": "Price-only historical lab results; no fees, slippage or taxes. Saved aggregates, not independently re-run market data. Not live performance.",
+  "source_sha256": "337a386492821da917e5a5334ea1deb1cb3bf40d358c6aa7ad3638489a86ae32",
+  "rows": [
+    {
+      "symbol": "AAPL",
+      "nwf": {
+        "trades": 129,
+        "hit_rate": 0.574,
+        "avg_return": 0.004,
+        "total_return": 0.5315,
+        "max_drawdown": -0.3063,
+        "buyhold": 1.3135740423589128
+      },
+      "sig": {
+        "calls": 10404,
+        "hits": 5322,
+        "chance": 0.5055392614562164
+      }
+    },
+    {
+      "symbol": "MSFT",
+      "nwf": {
+        "trades": 123,
+        "hit_rate": 0.561,
+        "avg_return": -0.0003,
+        "total_return": -0.1464,
+        "max_drawdown": -0.3358,
+        "buyhold": 0.5845704857202898
+      },
+      "sig": {
+        "calls": 10346,
+        "hits": 5177,
+        "chance": 0.5039685914961384
+      }
+    },
+    {
+      "symbol": "NVDA",
+      "nwf": {
+        "trades": 134,
+        "hit_rate": 0.567,
+        "avg_return": 0.0104,
+        "total_return": 1.9863,
+        "max_drawdown": -0.4421,
+        "buyhold": 6.9234909997100615
+      },
+      "sig": {
+        "calls": 10314,
+        "hits": 5250,
+        "chance": 0.5098455174196885
+      }
+    },
+    {
+      "symbol": "GOOGL",
+      "nwf": {
+        "trades": 123,
+        "hit_rate": 0.545,
+        "avg_return": 0.0061,
+        "total_return": 0.8424,
+        "max_drawdown": -0.2951,
+        "buyhold": 0.9501453549731242
+      },
+      "sig": {
+        "calls": 10166,
+        "hits": 5194,
+        "chance": 0.5053425517364136
+      }
+    },
+    {
+      "symbol": "AMZN",
+      "nwf": {
+        "trades": 123,
+        "hit_rate": 0.545,
+        "avg_return": 0.0037,
+        "total_return": 0.345,
+        "max_drawdown": -0.2853,
+        "buyhold": 0.44871630382028216
+      },
+      "sig": {
+        "calls": 9923,
+        "hits": 5034,
+        "chance": 0.5046074775773456
+      }
+    },
+    {
+      "symbol": "TSLA",
+      "nwf": {
+        "trades": 118,
+        "hit_rate": 0.5,
+        "avg_return": 0.0108,
+        "total_return": 1.5967,
+        "max_drawdown": -0.3685,
+        "buyhold": -0.007579107866312773
+      },
+      "sig": {
+        "calls": 9910,
+        "hits": 4870,
+        "chance": 0.49961078275911774
+      }
+    },
+    {
+      "symbol": "META",
+      "nwf": {
+        "trades": 123,
+        "hit_rate": 0.537,
+        "avg_return": 0.0021,
+        "total_return": -0.0263,
+        "max_drawdown": -0.5872,
+        "buyhold": 0.8637189216284242
+      },
+      "sig": {
+        "calls": 10333,
+        "hits": 5229,
+        "chance": 0.5050578590092768
+      }
+    },
+    {
+      "symbol": "JPM",
+      "nwf": {
+        "trades": 133,
+        "hit_rate": 0.602,
+        "avg_return": 0.0056,
+        "total_return": 0.9633,
+        "max_drawdown": -0.2418,
+        "buyhold": 0.9849234539894949
+      },
+      "sig": {
+        "calls": 10652,
+        "hits": 5487,
+        "chance": 0.5156987286089801
+      }
+    },
+    {
+      "symbol": "XOM",
+      "nwf": {
+        "trades": 133,
+        "hit_rate": 0.526,
+        "avg_return": 0.0009,
+        "total_return": 0.0285,
+        "max_drawdown": -0.4165,
+        "buyhold": 1.8531160724716949
+      },
+      "sig": {
+        "calls": 9982,
+        "hits": 5026,
+        "chance": 0.5039318392153496
+      }
+    },
+    {
+      "symbol": "JNJ",
+      "nwf": {
+        "trades": 118,
+        "hit_rate": 0.534,
+        "avg_return": 0.0017,
+        "total_return": 0.1729,
+        "max_drawdown": -0.2054,
+        "buyhold": 0.6758680226165537
+      },
+      "sig": {
+        "calls": 10352,
+        "hits": 5232,
+        "chance": 0.5024453521748731
+      }
+    },
+    {
+      "symbol": "WMT",
+      "nwf": {
+        "trades": 137,
+        "hit_rate": 0.555,
+        "avg_return": 0.0031,
+        "total_return": 0.4518,
+        "max_drawdown": -0.2336,
+        "buyhold": 1.4736631560450308
+      },
+      "sig": {
+        "calls": 10581,
+        "hits": 5271,
+        "chance": 0.5093072488422644
+      }
+    },
+    {
+      "symbol": "KO",
+      "nwf": {
+        "trades": 126,
+        "hit_rate": 0.524,
+        "avg_return": 0.0016,
+        "total_return": 0.1963,
+        "max_drawdown": -0.1436,
+        "buyhold": 0.6749155224838277
+      },
+      "sig": {
+        "calls": 10601,
+        "hits": 5298,
+        "chance": 0.5013037404377844
+      }
+    },
+    {
+      "symbol": "PFE",
+      "nwf": {
+        "trades": 102,
+        "hit_rate": 0.431,
+        "avg_return": -0.0035,
+        "total_return": -0.3407,
+        "max_drawdown": -0.439,
+        "buyhold": -0.3006415929280897
+      },
+      "sig": {
+        "calls": 10081,
+        "hits": 5036,
+        "chance": 0.5000478977425709
+      }
+    },
+    {
+      "symbol": "CAT",
+      "nwf": {
+        "trades": 125,
+        "hit_rate": 0.584,
+        "avg_return": 0.0082,
+        "total_return": 1.4319,
+        "max_drawdown": -0.213,
+        "buyhold": 2.032184171751939
+      },
+      "sig": {
+        "calls": 10372,
+        "hits": 5324,
+        "chance": 0.5056795768828164
+      }
+    },
+    {
+      "symbol": "BA",
+      "nwf": {
+        "trades": 109,
+        "hit_rate": 0.514,
+        "avg_return": 0.002,
+        "total_return": 0.1034,
+        "max_drawdown": -0.3654,
+        "buyhold": -0.20053126298869028
+      },
+      "sig": {
+        "calls": 10363,
+        "hits": 5102,
+        "chance": 0.4999619525509712
+      }
+    },
+    {
+      "symbol": "DIS",
+      "nwf": {
+        "trades": 96,
+        "hit_rate": 0.5,
+        "avg_return": 0.0073,
+        "total_return": 0.8309,
+        "max_drawdown": -0.2736,
+        "buyhold": -0.34814030877283075
+      },
+      "sig": {
+        "calls": 10175,
+        "hits": 5077,
+        "chance": 0.49999840879840884
+      }
+    },
+    {
+      "symbol": "NFLX",
+      "nwf": {
+        "trades": 114,
+        "hit_rate": 0.561,
+        "avg_return": 0.0068,
+        "total_return": 0.8078,
+        "max_drawdown": -0.327,
+        "buyhold": -0.08862685116458124
+      },
+      "sig": {
+        "calls": 10626,
+        "hits": 5390,
+        "chance": 0.501888270459699
+      }
+    },
+    {
+      "symbol": "AMD",
+      "nwf": {
+        "trades": 124,
+        "hit_rate": 0.556,
+        "avg_return": 0.0126,
+        "total_return": 1.8669,
+        "max_drawdown": -0.5174,
+        "buyhold": 3.030982785764012
+      },
+      "sig": {
+        "calls": 10005,
+        "hits": 5003,
+        "chance": 0.5017551224387806
+      }
+    },
+    {
+      "symbol": "INTC",
+      "nwf": {
+        "trades": 109,
+        "hit_rate": 0.477,
+        "avg_return": 0.0135,
+        "total_return": 1.9369,
+        "max_drawdown": -0.4739,
+        "buyhold": 0.3271443622353434
+      },
+      "sig": {
+        "calls": 9881,
+        "hits": 4935,
+        "chance": 0.4998649645061952
+      }
+    },
+    {
+      "symbol": "T",
+      "nwf": {
+        "trades": 114,
+        "hit_rate": 0.553,
+        "avg_return": 0.0054,
+        "total_return": 0.7176,
+        "max_drawdown": -0.185,
+        "buyhold": 0.11733705028949726
+      },
+      "sig": {
+        "calls": 10648,
+        "hits": 5428,
+        "chance": 0.5024122571643233
+      }
+    },
+    {
+      "symbol": "SPY",
+      "nwf": {
+        "trades": 135,
+        "hit_rate": 0.585,
+        "avg_return": 0.0029,
+        "total_return": 0.4514,
+        "max_drawdown": -0.087,
+        "buyhold": 0.6427266252198816
+      },
+      "sig": {
+        "calls": 11375,
+        "hits": 5755,
+        "chance": 0.5104088749345892
+      }
+    },
+    {
+      "symbol": "QQQ",
+      "nwf": {
+        "trades": 133,
+        "hit_rate": 0.624,
+        "avg_return": 0.0038,
+        "total_return": 0.5878,
+        "max_drawdown": -0.149,
+        "buyhold": 0.7822316374256753
+      },
+      "sig": {
+        "calls": 10969,
+        "hits": 5576,
+        "chance": 0.5089251527030723
+      }
+    },
+    {
+      "symbol": "IWM",
+      "nwf": {
+        "trades": 119,
+        "hit_rate": 0.521,
+        "avg_return": 0.0033,
+        "total_return": 0.4133,
+        "max_drawdown": -0.1173,
+        "buyhold": 0.19392194630036008
+      },
+      "sig": {
+        "calls": 10055,
+        "hits": 5043,
+        "chance": 0.5018344817787881
+      }
+    },
+    {
+      "symbol": "GLD",
+      "nwf": {
+        "trades": 120,
+        "hit_rate": 0.542,
+        "avg_return": 0.0052,
+        "total_return": 0.7952,
+        "max_drawdown": -0.0993,
+        "buyhold": 1.1238060512501105
+      },
+      "sig": {
+        "calls": 10711,
+        "hits": 5441,
+        "chance": 0.5058444589674167
+      }
+    },
+    {
+      "symbol": "TLT",
+      "nwf": {
+        "trades": 99,
+        "hit_rate": 0.465,
+        "avg_return": -0.0016,
+        "total_return": -0.1627,
+        "max_drawdown": -0.1741,
+        "buyhold": -0.44113633588174417
+      },
+      "sig": {
+        "calls": 10107,
+        "hits": 5001,
+        "chance": 0.499893426055492
+      }
+    }
+  ]
+}
