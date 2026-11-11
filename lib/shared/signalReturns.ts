@@ -16,6 +16,11 @@ export const RETURN_LABELS: Record<ReturnPeriod, string> = {
 function day(v: unknown): v is string {
   return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
 }
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PERIOD_DAYS: Record<ReturnPeriod, number> = {'1d': 1, '1m': 30, '1y': 365};
+// A bounded calendar tolerance permits weekends/holidays. It does not certify
+// exchange-session completeness or prove the source's adjustment basis.
+const MAX_CALENDAR_GAP_DAYS = 7;
 /** Legacy values remain inspectable but are not ranked without verified interval/basis metadata. */
 export function adaptReturns(values: unknown, metadata: unknown, stale: boolean): SignalReturns {
   const source = values && typeof values === 'object' ? values as Record<string, unknown> : {};
@@ -27,8 +32,15 @@ export function adaptReturns(values: unknown, metadata: unknown, stale: boolean)
     const end = day(m.end) ? m.end : null;
     const basis = m.price_basis === 'split-adjusted-close' ? 'split-adjusted-close' : 'unknown';
     const finite = typeof value === 'number' && Number.isFinite(value);
-    const validInterval = !!start && !!end && start < end && Date.parse(end) <= Date.now();
-    const status: ReturnStatus = value == null ? 'missing' : !finite || (finite && value < -100) ? 'invalid' : stale ? 'stale' : basis === 'unknown' || m.verified !== true || !validInterval ? 'invalid_basis' : 'available';
+    const now = Date.now();
+    const durationDays = start && end ? (Date.parse(end) - Date.parse(start)) / DAY_MS : NaN;
+    const expectedDays = PERIOD_DAYS[period];
+    const validInterval = !!start && !!end && Date.parse(end) <= now
+      && durationDays >= expectedDays && durationDays <= expectedDays + MAX_CALENDAR_GAP_DAYS;
+    // A newly regenerated signal must not launder an old return snapshot.
+    const todayUtc = Math.floor(now / DAY_MS) * DAY_MS;
+    const oldSnapshot = !!end && todayUtc - Date.parse(end) > MAX_CALENDAR_GAP_DAYS * DAY_MS;
+    const status: ReturnStatus = value == null ? 'missing' : !finite || (finite && value < -100) ? 'invalid' : stale || oldSnapshot ? 'stale' : basis === 'unknown' || m.verified !== true || !validInterval ? 'invalid_basis' : 'available';
     return [period, { value: finite ? value : null, status, start, end, basis }];
   })) as SignalReturns;
 }
