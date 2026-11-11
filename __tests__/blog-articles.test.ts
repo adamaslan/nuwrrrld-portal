@@ -2,8 +2,20 @@ import { describe, expect, it } from "vitest";
 import { BLOG_ARTICLES, getBlogArticle } from "@/lib/blog/articles";
 
 describe("blog article data", () => {
-  it("has exactly 10 articles", () => {
-    expect(BLOG_ARTICLES).toHaveLength(10);
+  it("has 14 articles, preserving the ten original backtests", () => {
+    expect(BLOG_ARTICLES).toHaveLength(14);
+  });
+
+  it("separates four sourced method notes from historical backtest evidence", () => {
+    const methods = BLOG_ARTICLES.filter(a => a.kind === "method");
+    expect(methods).toHaveLength(4);
+    for (const a of methods) {
+      expect(a.date).toBe("2026-11-11");
+      expect(a.sources?.length).toBeGreaterThan(0);
+      for (const source of a.sources ?? []) expect(source.href).toMatch(/^https:\/\//);
+      expect(a.blocks.some(b => b.kind === "stats" || b.kind === "table")).toBe(false);
+    }
+    expect(BLOG_ARTICLES.filter(a => a.kind !== "method")).toHaveLength(10);
   });
 
   it("has unique, URL-safe slugs", () => {
