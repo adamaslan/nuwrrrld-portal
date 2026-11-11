@@ -32,7 +32,9 @@ export interface BlogArticle {
 }
 
 const RUN_NOTE =
-  "Run date: 2026-11-01. Data: Yahoo Finance daily bars, 2021-11-01 through the 2026-10-30 close. Offline runs of the public repos' own engines. Past results do not predict future results. Not investment advice.";
+  "Recorded run date: 2026-11-01. No fees, slippage or taxes; price-only historical lab results, not live performance. Data: Yahoo Finance daily bars, 2021-11-01 through the 2026-10-30 close. Offline runs of the public repos' own engines. Past results do not predict future results. Not investment advice.";
+
+export const BLOG_RETURN_BASIS = "Historical lab, price-only returns. No fees, slippage or taxes; not live performance.";
 
 export const BLOG_ARTICLES: BlogArticle[] = [
   {
@@ -68,7 +70,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "What happened" },
       {
         kind: "p",
-        text: "54.2% of the engine's trades closed higher than they opened, with an average return of +0.47% per five-day trade. The strategy ended the five years ahead on 21 of the 25 tickers. One caution before anyone quotes that 54.2%: a trade hit rate has no coin-flip baseline. The chance rate for a five-day hold is not 50%, and this run did not compute a random-entry comparison, so we report the hit rate next to its average return and the buy-and-hold benchmark rather than as an edge claim.",
+        text: "54.2% of the engine's trades closed higher than they opened, with an average return of +0.47% per five-day trade. The strategy had a positive total return on 21 of the 25 tickers; it outperformed buy-and-hold on 8. One caution before anyone quotes that 54.2%: a trade hit rate has no coin-flip baseline. The chance rate for a five-day hold is not 50%, and this run did not compute a random-entry comparison, so we report the hit rate next to its average return and the buy-and-hold benchmark rather than as an edge claim.",
       },
       {
         kind: "p",
@@ -113,7 +115,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         kind: "p",
-        text: "The plain bullish bucket hit 54.4% versus a 54.2% chance rate. The plain bearish bucket hit 45.6% versus 45.8%. Both sit close enough to chance that the honest read is this: the detectors, on their own, did not beat luck in this window.",
+        text: "The plain bullish bucket hit 54.4% versus a 54.2% chance rate. The plain bearish bucket hit 45.6% versus 45.8%. Both sit close enough to chance that the honest read is this: the aggregate rounded rate was close to the recorded baseline in this window. This is not a statistical significance test.",
       },
       { kind: "h2", text: "What we do with that" },
       {
@@ -159,7 +161,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         kind: "p",
-        text: "Eight wins out of 25 is not a victory lap. It is a map: this strategy earns its place in falling and choppy markets, and pays for it in runaway ones.",
+        text: "Eight wins out of 25 is not a victory lap. It is a map: the saved sample includes outperformance in some falling names and underperformance in several strong gainers. It does not establish a general market-regime rule.",
       },
       { kind: "h2", text: "Why show both numbers" },
       {
@@ -186,7 +188,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     blocks: [
       {
         kind: "p",
-        text: "The engine finished ahead on 21 of 25 tickers. This article is about the other four, because losses teach more than wins.",
+        text: "The engine had a positive total return on 21 of 25 tickers, not 21 benchmark wins. This article is about the other four, because losses teach more than wins.",
       },
       { kind: "h2", text: "PFE: the worst hit rate" },
       {
@@ -206,7 +208,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "What this changes in the product" },
       {
         kind: "p",
-        text: "This is why the AI council includes a seat whose whole job is to argue against the trade, and why every verdict names the price that would prove it wrong. A backtest cannot feel pain. Your account can. The losses in this table are the case for building the skeptic in from the start.",
+        text: "This is why the AI council includes a seat whose whole job is to argue against the trade, and why a useful verdict should name what would prove it wrong. A backtest cannot feel pain. Your account can. The losses in this table are the case for building the skeptic in from the start.",
       },
       {
         kind: "list",
@@ -248,11 +250,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "What stands out" },
       {
         kind: "p",
-        text: "QQQ produced the best hit rate of all 25 tickers we tested, stocks included: 62.4%. Broad, liquid indexes gave the engine cleaner reads than single companies with earnings surprises and headlines.",
+        text: "QQQ produced the best hit rate of all 25 tickers we tested, stocks included: 62.4%. That is a result for this chosen sample and window, not evidence that liquidity or headlines caused the difference.",
       },
       {
         kind: "p",
-        text: "The drawdowns tell the same story. The worst equity-curve dip among these five ETFs was -17.4%. Among the 20 single stocks, the deepest drawdowns ran to -47%, -52%, and -59%. The strategy did not remove risk anywhere, but on ETFs it never fell apart.",
+        text: "The drawdowns tell the same story. The worst equity-curve dip among these five ETFs was -17.4%. Among the 20 single stocks, the deepest drawdowns ran to -47%, -52%, and -59%. The strategy did not remove risk anywhere, and these five saved ETF drawdowns were smaller than the largest single-stock drawdowns.",
       },
       {
         kind: "p",
@@ -261,7 +263,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "Why we care about the ETF layer" },
       {
         kind: "p",
-        text: "Most people should not start by picking single stocks, and much of our signals coverage is built around sector and industry ETFs for that reason. These results are the first recorded check that the scoring approach behaves sensibly on that layer: higher hit rates, smaller drawdowns, and honest misses.",
+        text: "The product includes sector and industry ETFs. This five-ETF sample offers a limited comparison of recorded hit rates and drawdowns; it does not establish that the scoring approach generalizes or that ETFs suit every investor.",
       },
       { kind: "list", items: [RUN_NOTE] },
     ],
@@ -283,7 +285,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         kind: "list",
         items: [
           "Universe: 25 tickers (10 mega-cap tech, 10 other large companies, 5 ETFs)",
-          "Data: Yahoo Finance daily bars, 2021-11-01 through 2026-10-30, about 1,055 bars per ticker",
+          "Data: Yahoo Finance daily bars, 2021-11-01 through 2026-10-30, about 1,255 bars per ticker",
           "Warmup: the first 60 bars of each series only feed the indicators; no trades",
           "Costs: none modeled. No fees, no slippage, price-only returns",
         ],
@@ -307,7 +309,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { kind: "h2", text: "What this design gets right and wrong" },
       {
         kind: "p",
-        text: "Right: the rules are simple enough to audit, there is no lookahead, and no trade can hide inside another trade. Wrong: equal weights and nine discrete scores make a blunt instrument, and a five-day clock is a crude exit. A name that would keep running for a month still gets sold on day five.",
+        text: "Right: the rules are simple enough to audit, the declared design uses only information available by each bar, but no independent lookahead audit is established here, and no trade can hide inside another trade. Wrong: equal weights and nine discrete scores make a blunt instrument, and a five-day clock is a crude exit. A name that would keep running for a month still gets sold on day five.",
       },
       {
         kind: "p",
@@ -443,7 +445,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     blocks: [
       {
         kind: "p",
-        text: "Every number in this blog comes from one recorded run on November 1, 2026. The two engines are public repos and the price data is free, but the exact comparison script and raw output files currently live in a private documentation repo. We would rather say that plainly than promise a one-command replay that does not exist today. What we can give you here is the complete method - enough to build an equivalent run - and the full results table, so the arithmetic is checkable.",
+        text: "Every number in this blog comes from one recorded run on November 1, 2026. The two engines are public repos and the price data is free, but the exact comparison script and raw output files currently live in a private documentation repo. We would rather say that plainly than promise a one-command replay that does not exist today. The linked public evidence file contains the saved per-ticker aggregates used by the headline checks. The method below describes the intended run, but it is not a verified one-command reproduction.",
       },
       { kind: "h2", text: "The method, precisely" },
       {
