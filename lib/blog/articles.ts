@@ -29,6 +29,9 @@ export interface BlogArticle {
   date: string; // ISO date of publication
   feature: string; // product area the article highlights
   blocks: BlogBlock[];
+  /** Method notes are not attributed to the historical backtest run. */
+  kind?: "method";
+  sources?: { title: string; href: string }[];
 }
 
 const RUN_NOTE =
@@ -36,7 +39,286 @@ const RUN_NOTE =
 
 export const BLOG_RETURN_BASIS = "Historical lab, price-only returns. No fees, slippage or taxes; not live performance.";
 
+export const BLOG_METHOD_BASIS = "Research method note. No new performance results or live feature claim; not investment advice.";
+
 export const BLOG_ARTICLES: BlogArticle[] = [
+{
+  "slug": "fresh-signal-old-prices",
+  "title": "A fresh signal can still be built from old prices",
+  "description": "Run time, market-bar time and retrieval time answer different questions. Check them separately before trusting a ranking.",
+  "feature": "Data quality",
+  "blocks": [
+    {
+      "kind": "p",
+      "text": "A page can refresh right now and still show yesterday's analysis of last month's prices. The newest timestamp tells you when something happened, but not necessarily what happened. Before asking whether a signal is bullish, ask how old its inputs are."
+    },
+    {
+      "kind": "h2",
+      "text": "Keep three clocks separate"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Market-bar time: the session the price actually describes.",
+        "Computed time: when the engine ran its rules on those inputs.",
+        "Retrieved time: when a page or service received the result."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A new retrieval does not create a new market bar. A new computation does not make an old return window current. If a source does not report a clock, the honest value is unknown, not the time the browser loaded."
+    },
+    {
+      "kind": "h2",
+      "text": "Read the interval, not only the headline"
+    },
+    {
+      "kind": "p",
+      "text": "For a return ranking, check both the baseline session and the final session. Two tickers can have fresh computations but different endpoints. Comparing them as one league table can reward a timing mismatch rather than price performance."
+    },
+    {
+      "kind": "h2",
+      "text": "What we changed in research code"
+    },
+    {
+      "kind": "p",
+      "text": "An unmerged NWF change checks the return snapshot date independently of signal freshness and rejects intervals that do not fit their period labels. Its tests include an old snapshot inside a freshly generated signal. This is implementation evidence, not a claim that production price feeds are repaired or the change is live."
+    },
+    {
+      "kind": "h2",
+      "text": "A practical reading checklist"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Find the last underlying price date, not only the page refresh time.",
+        "Check whether the return endpoints match the other rows you are comparing.",
+        "Treat missing source time or an unknown price basis as missing evidence, not a neutral or zero result."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Weekends and market holidays complicate age checks. A bounded calendar tolerance can catch obvious gaps, but it is not a substitute for an exchange calendar. Past results do not predict future results. This is a method note, not investment advice."
+    }
+  ],
+  "sources": [
+    {
+      "title": "NWF return-ranking implementation and review status",
+      "href": "https://github.com/adamaslan/nuwrrrld-portal/pull/361"
+    }
+  ],
+  "date": "2026-11-11",
+  "kind": "method"
+},
+{
+  "slug": "returns-splits-and-periods",
+  "title": "Before ranking returns, agree on the price basis",
+  "description": "A split, a dividend and a lookback label can change what a percentage means. Here is how to keep the comparison consistent.",
+  "feature": "Method",
+  "blocks": [
+    {
+      "kind": "p",
+      "text": "A return starts with simple arithmetic: ending price divided by starting price, minus one. The hard part is making sure both prices describe the same thing. Sorting a precise-looking percentage does not solve that input problem."
+    },
+    {
+      "kind": "h2",
+      "text": "A split is not automatically an investment loss"
+    },
+    {
+      "kind": "p",
+      "text": "Consider an invented three-for-one split. A holding of one share at $90 becomes three shares at $30 before any market move. Looking only at the raw per-share price would show a large drop even though the value in this simplified example is unchanged. This is an arithmetic illustration, not a result for a real ticker."
+    },
+    {
+      "kind": "p",
+      "text": "A consistently split-adjusted history can remove that mechanical discontinuity. Mixing an adjusted endpoint with an unadjusted baseline can create a misleading return. A column named adjusted_close does not, by itself, prove the entire series shares one adjustment convention."
+    },
+    {
+      "kind": "h2",
+      "text": "Price return and total return are different"
+    },
+    {
+      "kind": "p",
+      "text": "Split adjustment and dividend treatment are separate choices. A price-only comparison need not include cash distributions. Total return needs an explicit treatment of those distributions and reinvestment. Name the basis rather than comparing the two as if they were interchangeable."
+    },
+    {
+      "kind": "h2",
+      "text": "Trailing month is not month-to-date"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Trailing 30 calendar days looks back from the selected final date, using the declared baseline rule.",
+        "Month-to-date starts at the month boundary under a stated convention.",
+        "Trailing 365 calendar days is not automatically the same interval as year-to-date or a fixed number of trading sessions."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "On a nontrading date, the baseline may move to a prior completed session. Show the actual endpoints and keep that rule the same across tickers. If the available history is too short, withhold the return instead of silently using a much older price."
+    },
+    {
+      "kind": "h2",
+      "text": "Verify before repairing"
+    },
+    {
+      "kind": "p",
+      "text": "An unusual number is a reason to investigate, not permission to divide a stored series by a guessed split factor. Preserve the original records, compare a declared independent reference and inspect corporate actions before proposing a repair. The current NWF work does not establish that any named ticker's stored history has been corrected."
+    },
+    {
+      "kind": "p",
+      "text": "Past results do not predict future results. The invented split example explains the calculation only; it is not investment advice or a new backtest."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Return validation and its unresolved history checks",
+      "href": "https://github.com/adamaslan/gcp3/pull/89"
+    },
+    {
+      "title": "NWF numeric return contract",
+      "href": "https://github.com/adamaslan/nuwrrrld-portal/pull/361"
+    }
+  ],
+  "date": "2026-11-11",
+  "kind": "method"
+},
+{
+  "slug": "confluence-is-not-probability",
+  "title": "More agreeing signals do not mean more independent evidence",
+  "description": "Confluence is a summary of detector agreement. Overlapping inputs can make a bigger count look more convincing than it is.",
+  "feature": "Signals",
+  "blocks": [
+    {
+      "kind": "p",
+      "text": "Price above a moving average, positive recent momentum and a rising trend can all describe the same move. Counting them separately may help explain the chart. It does not make them independent witnesses."
+    },
+    {
+      "kind": "h2",
+      "text": "Ask what the score is summarizing"
+    },
+    {
+      "kind": "p",
+      "text": "A directional agreement score combines the observations a rule set emits. Its value depends on which observations are eligible, their weights and the denominator. A label such as HIGH describes that scoring rule; it is not a measured probability that the next trade will win."
+    },
+    {
+      "kind": "h2",
+      "text": "One price move can produce several observations"
+    },
+    {
+      "kind": "p",
+      "text": "A scan can inspect several moving-average windows, momentum horizons or volatility thresholds. If those recipes depend on the same price history, their agreement may be highly correlated. Adding more window variants can increase the observation count without adding a new data source."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Raw observation count: what the detectors emitted.",
+        "Eligible evidence: what passed source, timing and validity checks.",
+        "Independent information: a stronger claim that needs evaluation, not a count of names."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Context is useful without becoming another vote"
+    },
+    {
+      "kind": "p",
+      "text": "Distance from a moving average can tell a reader how stretched the price is relative to recent volatility. That is useful context even when there is no tested reason to turn it into a BUY or SELL vote. Our offline MA-distance research output uses zero confluence weight and is not promoted into the live signal set."
+    },
+    {
+      "kind": "h2",
+      "text": "What would justify a stronger claim?"
+    },
+    {
+      "kind": "p",
+      "text": "Freeze the rule and evaluation horizon, compare it with a baseline on later held-out data, and report failures as well as aggregate results. Account for repeated trials, overlapping windows and trading costs where a trading-performance claim is made. Until that work exists, agreement remains agreement."
+    },
+    {
+      "kind": "p",
+      "text": "Past results do not predict future results. No probability calibration, extra live detectors or performance improvement is claimed by this method note. It is not investment advice."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Current detector orchestration source",
+      "href": "https://raw.githubusercontent.com/adamaslan/signals-app/d9cb9738dead78ea8e318f566ff6790d2590045b/src/signals_app/detection/orchestrator.py"
+    },
+    {
+      "title": "Offline context implementation and status",
+      "href": "https://github.com/adamaslan/nuwrrrld-portal/pull/361"
+    }
+  ],
+  "date": "2026-11-11",
+  "kind": "method"
+},
+{
+  "slug": "reading-a-single-stock-scan",
+  "title": "How to read a broad scan of one stock",
+  "description": "Detector evaluations, observations and state changes are different counts. A useful scan shows all of them without manufacturing a target.",
+  "feature": "Research",
+  "blocks": [
+    {
+      "kind": "p",
+      "text": "Running many checks against one stock can produce a useful research dossier. The first question should be what actually executed, not whether the output reached an impressive target number."
+    },
+    {
+      "kind": "h2",
+      "text": "Start with a real input snapshot"
+    },
+    {
+      "kind": "p",
+      "text": "Keep the symbol, source, completed-session dates, adjustment convention and input hash with the result. Indicators need earlier bars before the evaluation window begins. A short history should not masquerade as a full warmup, and a provider failure should not look like a clean zero-hit scan."
+    },
+    {
+      "kind": "h2",
+      "text": "Keep these counts distinct"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Detector evaluations count the checks that ran on each historical bar. They are not all successful signals.",
+        "Observations count emitted states or events, including neutral context. A repeated state can appear on several days.",
+        "State transitions record an observed change under a stated rule. First-row initialization is not proof that a new market event occurred then.",
+        "Source coverage records what was available, missing or failed. An unavailable options or news feed does not become zero evidence against a stock."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Do not add overlapping windows"
+    },
+    {
+      "kind": "p",
+      "text": "A 21-bar summary can sit inside a 63-bar summary, which can sit inside a longer one. Adding their totals counts the same observations again. Use the windows to compare recent and longer context, not to inflate one grand total."
+    },
+    {
+      "kind": "h2",
+      "text": "What the new runner actually does"
+    },
+    {
+      "kind": "p",
+      "text": "A new unmerged signals-app runner accepts one explicit stock symbol and a local daily-price CSV. It executes the 19 currently registered detector classes on each historical prefix, keeps neutral observations and reports failures separately. A synthetic run verifies execution and accounting. It is not a real-stock result, 500 newly activated detectors or a completed 100-source research system."
+    },
+    {
+      "kind": "h2",
+      "text": "A replay must not know the future"
+    },
+    {
+      "kind": "p",
+      "text": "For each historical decision, recompute indicators using only rows available through that decision date. A useful negative control changes later prices and checks that earlier decisions stay identical. Even that test does not prove the original data was available then: provider restatements, retrospective adjustments and universe selection still need their own checks."
+    },
+    {
+      "kind": "p",
+      "text": "Past results do not predict future results. A detector occurrence is not trade profit, and this method note reports no new backtest performance or app activation. It is not investment advice."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Single-stock runner, tests and current review status",
+      "href": "https://github.com/adamaslan/signals-app/pull/53"
+    }
+  ],
+  "date": "2026-11-11",
+  "kind": "method"
+},
   {
     slug: "3019-backtest-trades",
     title: "We ran 3,019 backtest trades through our own engine",
@@ -445,7 +727,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     blocks: [
       {
         kind: "p",
-        text: "Every number in this blog comes from one recorded run on November 1, 2026. The two engines are public repos and the price data is free, but the exact comparison script and raw output files currently live in a private documentation repo. We would rather say that plainly than promise a one-command replay that does not exist today. The linked public evidence file contains the saved per-ticker aggregates used by the headline checks. The method below describes the intended run, but it is not a verified one-command reproduction.",
+        text: "Every historical backtest number in this article comes from one recorded run on November 1, 2026. The two engines are public repos and the price data is free, but the exact comparison script and raw output files currently live in a private documentation repo. We would rather say that plainly than promise a one-command replay that does not exist today. The linked public evidence file contains the saved per-ticker aggregates used by the headline checks. The method below describes the intended run, but it is not a verified one-command reproduction.",
       },
       { kind: "h2", text: "The method, precisely" },
       {
