@@ -34,3 +34,23 @@ describe('source-grounded return ranking',()=>{
     expect(sortSignals([a,b],'1d-gainers')).toEqual([]);
   });
 });
+
+describe('return interval and independent source freshness guards',()=>{
+  const metadata=(start:string,end:string)=>({start,end,price_basis:'split-adjusted-close',verified:true});
+  it('does not let a fresh signal revalidate an old return snapshot',()=>{
+    const r=adaptReturns({'1d':8},{'1d':metadata('2026-09-01','2026-09-02')},false);
+    expect(r['1d'].status).toBe('stale');
+  });
+  it('rejects intervals incompatible with the named trailing period',()=>{
+    const values={'1d':8,'1m':8,'1y':8};
+    for(const period of ['1d','1m','1y'] as const){
+      const start=period==='1d'?'2026-10-01':'2026-11-09';
+      expect(adaptReturns(values,{[period]:metadata(start,'2026-11-10')},false)[period].status).toBe('invalid_basis');
+    }
+    expect(adaptReturns(values,{'1m':metadata('2026-08-01','2026-11-10')},false)['1m'].status).toBe('invalid_basis');
+  });
+  it('accepts bounded weekend/holiday lookbacks and true trailing windows',()=>{
+    const r=adaptReturns({'1d':1,'1m':2,'1y':3},{'1d':metadata('2026-11-06','2026-11-09'),'1m':metadata('2026-10-09','2026-11-10'),'1y':metadata('2025-11-10','2026-11-10')},false);
+    for(const period of ['1d','1m','1y'] as const)expect(r[period].status).toBe('available');
+  });
+});
