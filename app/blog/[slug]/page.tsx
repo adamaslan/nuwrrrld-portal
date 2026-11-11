@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BLOG_ARTICLES, getBlogArticle, type BlogBlock, BLOG_RETURN_BASIS } from "@/lib/blog/articles";
+import { BLOG_ARTICLES, getBlogArticle, type BlogBlock, BLOG_RETURN_BASIS, BLOG_METHOD_BASIS } from "@/lib/blog/articles";
 import "../blog.css";
 
 interface Props {
@@ -108,12 +108,15 @@ export default async function BlogArticlePage({ params }: Props) {
           </p>
           <h1>{article.title}</h1>
           <p className="blog-sub">{article.description}</p>
-          <p className="blog-basis">{BLOG_RETURN_BASIS}</p>
+          <p className="blog-basis">{article.kind === "method" ? BLOG_METHOD_BASIS : BLOG_RETURN_BASIS}</p>
         </header>
 
-        <aside className="blog-source-note">
+        {article.kind === "method" ? <aside className="blog-source-note">
+          <p>Research method note, not a new backtest or a live feature announcement. Source code and review status:</p>
+          <ul>{article.sources?.map(source => <li key={source.href}><a href={source.href}>{source.title}</a></li>)}</ul>
+        </aside> : <aside className="blog-source-note">
           <p>Source: <a href="/blog/backtest-evidence.json">download the saved aggregates and run basis</a>. Headline totals are checked against these per-ticker records. This validates saved arithmetic, not an independent rerun of market data, the original code lineage, or a reconstruction of drawdowns from individual trades. The recorded lab engine is not established as identical to deployed scoring.</p>
-        </aside>
+        </aside>}
         {article.blocks.map((block, i) => (
           <Block key={i} block={block} />
         ))}
