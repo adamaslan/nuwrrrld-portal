@@ -44,6 +44,7 @@ function day(s: unknown): s is string {
  */
 export function evaluateMaDistance(input: DossierInput, asOf: string): MaDistanceResult {
   if (!day(asOf)) throw new Error('asOf must be a real YYYY-MM-DD date');
+  if (Date.parse(asOf) > Math.floor(Date.now()/86400000)*86400000) throw new Error('asOf cannot be a future completed session');
   if (!input || typeof input.symbol !== 'string' || !/^[A-Z0-9.^-]{1,20}$/.test(input.symbol)
     || typeof input.source !== 'string' || !input.source.trim() || input.source.length > 200
     || !['split-adjusted-ohlc','raw','unknown'].includes(input.priceBasis)
