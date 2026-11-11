@@ -92,7 +92,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "hit-rate-vs-chance",
     title: "A hit rate means nothing without a chance rate",
     description:
-      "54% sounds good until you learn that 54% of all days were up. How we grade signals against luck, not vibes.",
+      "Detector hit rate versus the recorded direction baseline. Why this is not a random-entry strategy test.",
     date: "2026-11-01",
     feature: "Signals",
     blocks: [
@@ -437,9 +437,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   },
   {
     slug: "reproduce-this-backtest",
-    title: "Reproduce these numbers yourself",
+    title: "Check these saved backtest numbers",
     description:
-      "The engines are public; the exact run files are not, yet. Here is the full method so you can build the same run, and the full results so you can check our arithmetic.",
+      "The engines are public. Check the saved per-ticker arithmetic and read the method and reproduction limits.",
     date: "2026-11-01",
     feature: "Open source",
     blocks: [
