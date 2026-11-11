@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BLOG_ARTICLES, BLOG_RETURN_BASIS } from "@/lib/blog/articles";
+import { BLOG_ARTICLES, BLOG_RETURN_BASIS, BLOG_METHOD_BASIS } from "@/lib/blog/articles";
 import "./blog.css";
 
 export const metadata: Metadata = {
   title: "Blog — Backtests, signals, and how the engine works",
   description:
-    "Measured results from the NuWrrrld Financial engines: backtests, methodology, and what the numbers do and do not say.",
+    "Backtests and practical research notes from NuWrrrld Financial: source data, signal interpretation, and what the numbers do and do not say.",
   alternates: { canonical: "/blog" },
   openGraph: {
     title: "NuWrrrld Financial Blog",
@@ -34,8 +34,8 @@ export default function BlogIndexPage() {
         <p className="blog-kicker">The NWF blog</p>
         <h1>Measured, not marketed</h1>
         <p className="blog-sub">
-          Backtests of our own engines, with the method, the losses, and the
-          caveats attached. Historical analysis, not investment advice.
+          Backtests of our own engines and practical notes on data, signals and
+          research. The method, the losses and the limits stay attached. Not investment advice.
         </p>
       </header>
 
@@ -47,7 +47,7 @@ export default function BlogIndexPage() {
                 {a.feature} · {a.date}
               </span>
               <span className="blog-card-title">{a.title}</span>
-              <span className="blog-basis">{BLOG_RETURN_BASIS}</span>
+              <span className="blog-basis">{a.kind === "method" ? BLOG_METHOD_BASIS : BLOG_RETURN_BASIS}</span>
               <span className="blog-card-desc">{a.description}</span>
             </Link>
           </li>
