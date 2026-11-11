@@ -34,7 +34,7 @@ This one-row example intentionally returns `insufficient_history`. Supply at lea
 - `ATR14`: true range `max(high-low, abs(high-previousClose), abs(low-previousClose))`, first true range `high-low`, Wilder recursive smoothing with alpha `1/14`, seeded at that first range. The entire supplied prefix sets the seed history. Use the same frozen history when comparing implementations.
 - `distanceAtr = (close-SMA50)/ATR14`; also return `distancePercent = (close/SMA50-1)*100` for comparison.
 - A signed distance is context: above/below the average, not a BUY/SELL prediction. No untested extreme threshold or inferred win probability is added.
-- Invalid/nonfinite/nonpositive OHLC, negative volume, malformed/duplicate/unordered dates, zero ATR, stale latest bars and gaps over seven calendar days are rejected or withheld. Seven days is a bounded research guard, not an exchange calendar.
+- Invalid/nonfinite/nonpositive OHLC, negative volume, malformed/duplicate/unordered dates, future evaluation dates, zero ATR, stale latest bars and gaps over seven calendar days are rejected or withheld. Seven days is a bounded research guard, not an exchange calendar.
 - Result includes scan/version, symbol, declared source/basis, evaluation date, bars used and a SHA256 over the versioned input prefix. It excludes future prices from that hash. No source declaration is independently authenticated.
 
 Existing signals-app `MADistanceExpandedDetector` at `d9cb9738dead78ea8e318f566ff6790d2590045b` uses percentage thresholds across SMA windows. It is **not** the same as this ATR-unit context. This implementation reuses portal `buildFrame`/WilderATR14 and `smaSeries` instead of claiming a name match proves parity.
