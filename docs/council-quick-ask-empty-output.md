@@ -21,7 +21,7 @@ Source: https://openrouter.ai/api/v1/models
 
 Reasoning counts toward completion tokens and can leave empty content. Disabling optional reasoning addresses that supported failure mode without allocating more tokens. This is a mitigation, not proof that it was the sole cause of this production request. Source: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
 
-No usable content still fails503, never fake200. Stable failure codes distinguish missing configuration, no usable content, provider failure and invalid structured output. Logs now include per-attempt model/status/finish reason/reasoning-token count only, never reasoning text, prompts, responses, credentials or headers. Those diagnostics can distinguish a future length-budget failure from rate limits/provider errors. Existing signal data stays visible and unchanged.
+No usable content still fails503, never fake200. Stable failure codes distinguish missing configuration, no usable content, provider failure and invalid structured output. The new provider-attempt diagnostics include model/status/finish reason/reasoning-token count only, never reasoning text, prompts, credentials or headers; the existing route format-failure log still records a bounded 200-character response preview for debugging. Those diagnostics can distinguish a future length-budget failure from rate limits/provider errors. Existing signal data stays visible and unchanged.
 
 ## Validation and open gates
 
