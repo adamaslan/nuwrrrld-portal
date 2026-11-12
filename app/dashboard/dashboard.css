@@ -341,7 +341,22 @@
     grid-template-columns: 1fr;
   }
 
-  .nwf-dash .topnav a:not(:last-child) {
-    display: none;
+  .nwf-dash .topbar {
+    position: static;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .nwf-dash .topnav {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+  }
+
+  .nwf-dash .topnav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 }
