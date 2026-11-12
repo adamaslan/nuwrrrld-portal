@@ -49,7 +49,34 @@ export interface AdminIdentity {
   twoFactorEnabled?: boolean;
 }
 
-/** Admin gate for the nulogdash console.
+/** Owner gate for the reconstructed-replay research artifact.
+ *
+ * The replay artifact is Adam-private research data, so the shared admin
+ * allowlist is NOT sufficient: every admin in NULOGDASH_ADMIN_EMAILS would
+ * otherwise read it. This gate binds the route to the replay owner's
+ * VERIFIED PRIMARY email only (NULOGDASH_REPLAY_OWNER_EMAILS), leaving the
+ * shared admin gate and its other callers untouched.
+ *
+ * Same discipline as isNulogdashAdmin: only the primary address counts and
+ * it must be verified. Fails closed: unset/empty env denies everyone. */
+export function isNulogdashReplayOwner(user: AdminIdentity | undefined | null): boolean {
+  if (!user?.primaryEmailAddressId) return false;
+
+  const primary = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId);
+  if (!primary) return false;
+  if (primary.verification?.status !== "verified") return false;
+
+  const allowlist = (process.env.NULOGDASH_REPLAY_OWNER_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowlist.length === 0) return false;
+
+  return allowlist.includes(primary.emailAddress.trim().toLowerCase());
+}
+
+/**
+ * Admin gate for the nulogdash console.
  *
  * Takes the Clerk user rather than a bare email string on purpose: both
  * checks below can be silently bypassed by a caller that resolves the

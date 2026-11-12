@@ -3,6 +3,14 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // The canonical replay seed is read at runtime; it is not reachable via
+  // static import tracing, so include it explicitly for standalone output.
+  outputFileTracingIncludes: {
+    "/api/research/historical-replay": ["./lib/replay/universe_symbols.csv"],
+    // The owner-only SSR page calls the same loader (and reads the same seed)
+    // per request, so it needs its own tracing entry.
+    "/dashboard/research/historical-replay": ["./lib/replay/universe_symbols.csv"],
+  },
   async headers() {
     return [
       {

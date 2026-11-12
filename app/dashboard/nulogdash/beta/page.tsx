@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
 import { listBetaGrants } from "@/lib/beta-grant-list";
-import { NulogdashTabs, MfaNotice } from "../page";
+import { NulogdashTabs, MfaNotice } from "../_components/chrome";
 import { GrantForm, RevokeButton } from "./_components/BetaControls";
 import "../nulogdash.css";
 
