@@ -1,15 +1,24 @@
+/* Public evidence pages use the same white, square, monochrome system as
+   the restyle. Scope the root treatment to these routes only. */
+body:has(.ev-page) { background: #fff; color: #111; color-scheme: light; }
+body:has(.ev-page)::before, body:has(.ev-page)::after { display: none; }
+.ev-page { color: #111; background: #fff; min-height: 100vh; width: 100%; }
+.ev-page a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.ev-page :focus-visible { outline: 2px solid #111; outline-offset: 3px; }
 .ev-page { max-width: 760px; margin: 0 auto; padding: 32px 16px; line-height: 1.55; }
 .ev-page h1 { font-size: 26px; margin: 8px 0; }
 .ev-page h2 { font-size: 16px; margin: 20px 0 6px; }
 .ev-meta, .ev-prov { font-size: 12.5px; opacity: .75; }
-.ev-prov-missing { color: #b3372f; opacity: 1; }
-.ev-note { font-size: 13.5px; padding: 8px 10px; border: 1px solid currentColor; border-radius: 6px; opacity: .85; }
-.ev-badge { display: inline-block; font-size: 12.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.ev-prov-missing { color: #111; font-weight: 700; opacity: 1; }
+.ev-note { font-size: 13.5px; padding: 8px 10px; border: 1px solid currentColor; border-radius: 0; opacity: .85; }
+.ev-badge { display: inline-block; font-size: 12.5px; padding: 2px 8px; border-radius: 0; border: 1px solid currentColor; }
 .ev-e0 { opacity: .7; }
 .ev-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
-.ev-filters input, .ev-filters select, .ev-filters button { font: inherit; padding: 6px 8px; }
+.ev-filters input, .ev-filters select, .ev-filters button { font: inherit; padding: 6px 8px; min-width: 0; max-width: 100%; color: #111; background: #fff; border: 1px solid #111; border-radius: 0; }
+.ev-filters button { color: #fff; background: #111; }
+.ev-filters input::placeholder { color: #555; opacity: 1; }
 .ev-list { list-style: none; padding: 0; display: grid; gap: 10px; }
-.ev-list li { border: 1px solid #8884; border-radius: 8px; padding: 12px; }
+.ev-list li { border: 1px solid #555; border-radius: 0; padding: 12px; }
 .ev-table { width: 100%; border-collapse: collapse; font-size: 13.5px; display: block; overflow-x: auto; }
-.ev-table th, .ev-table td { border: 1px solid #8884; padding: 8px 10px; text-align: left; vertical-align: top; }
+.ev-table th, .ev-table td { border: 1px solid #555; padding: 8px 10px; text-align: left; vertical-align: top; }
 .ev-cite code { font-size: 12.5px; }
