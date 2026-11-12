@@ -343,16 +343,19 @@ export async function runAccountSlot(
   };
   let controlInitializing = false;
   if ((account === "equal" || account === "spy") && positions.length === 0) {
+    // Refusals are NOT persisted: a paper_runs row is the idempotency key checked
+    // by getRun() at the top of runAccountSlot, so a refused cron slot would block
+    // the one authorized targeted activation for that same slot.
     if (!options.initializeControl || !dbAccount.active) {
-      return persistSkippedRun(runId, account, tradeDate, slot, dbAccount.policyVersion,
+      return refusedWithoutRecord(account, tradeDate, slot,
         !dbAccount.active ? "control_account_inactive" : "control_initialization_not_authorized");
     }
     if (slot === "settle" || tradeDate !== todayEasternDate()) {
-      return persistSkippedRun(runId, account, tradeDate, slot, dbAccount.policyVersion, "control_initialization_requires_current_trading_slot");
+      return refusedWithoutRecord(account, tradeDate, slot, "control_initialization_requires_current_trading_slot");
     }
     const controlPlan = planControlInception(account, dbAccount.cash, dbAccount.startingCash,
       positions.length, await controlOrdersCount(account), activeWatchlist, tradeablePrices);
-    if (!controlPlan.ok) return persistSkippedRun(runId, account, tradeDate, slot, dbAccount.policyVersion, controlPlan.reason);
+    if (!controlPlan.ok) return refusedWithoutRecord(account, tradeDate, slot, controlPlan.reason);
     plan.orders = controlPlan.orders;
     controlInitializing = plan.orders.length > 0;
   }
@@ -783,6 +786,19 @@ export async function runAccountSlot(
     ordersN: filled.length,
     modelCalls: modelCallsUsed,
     alreadyRan: false,
+  };
+}
+
+/** A refusal reported to the caller but never stored (see runAccountSlot). */
+function refusedWithoutRecord(
+  account: PaperAccount,
+  tradeDate: string,
+  slot: Slot,
+  skipReason: string,
+): RunResult {
+  return {
+    account, tradeDate, slot, status: "skipped", skipReason,
+    candidatesN: 0, ordersN: 0, modelCalls: 0, alreadyRan: false,
   };
 }
 

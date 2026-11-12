@@ -23,3 +23,16 @@ describe("control engine integration without real DB/data/model calls",()=>{
 
 it("ordinary cron does not authorize funding, even with complete fresh prices",async()=>{m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date().toISOString()}]]));const r=await runAccountSlot("spy",todayEasternDate(),"midday");expect(r.skipReason).toBe("control_initialization_not_authorized");expect(m.sql.transaction).not.toHaveBeenCalled();});
 it("inactive control cannot be funded even on explicit activation",async()=>{m.getAccount.mockResolvedValue({active:false,cash:10000,startingCash:10000,policyVersion:"v4"});m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);m.getLivePricesWithAge.mockResolvedValue(new Map());const r=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(r.skipReason).toBe("control_account_inactive");expect(m.sql.transaction).not.toHaveBeenCalled();});
+// Regression: a refused control slot must not write a paper_runs row, because that row is the
+// idempotency key — otherwise ordinary cron would block the one authorized activation for the slot.
+const wroteRunRow=()=>m.sql.mock.calls.some(([s]:unknown[])=>Array.isArray(s)&&s.join("").includes("INSERT INTO paper_runs"));
+it("refused control slots (cron, inactive, stale price) persist no run row",async()=>{
+ m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);
+ m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date().toISOString()}]]));
+ const cron=await runAccountSlot("spy",todayEasternDate(),"midday");expect(cron.skipReason).toBe("control_initialization_not_authorized");expect(wroteRunRow()).toBe(false);
+ m.getAccount.mockResolvedValue({active:false,cash:10000,startingCash:10000,policyVersion:"v4"});
+ const inactive=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(inactive.skipReason).toBe("control_account_inactive");expect(wroteRunRow()).toBe(false);
+ m.getAccount.mockResolvedValue({active:true,cash:10000,startingCash:10000,policyVersion:"v4"});
+ m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date(Date.now()-3600000).toISOString()}]]));
+ const stale=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(stale.skipReason).toBe("control_prices_missing_or_stale");expect(wroteRunRow()).toBe(false);
+});
