@@ -1,3 +1,4 @@
+import { adaptReturns, type SignalReturns } from "@/lib/shared/signalReturns";
 /**
  * Signal digest schema — single-sourced for app and web.
  * Version field guards against render-layer breakage when new signal types ship.
@@ -34,6 +35,8 @@ function computeIsStale(generatedAt: string): boolean {
 }
 
 export interface SignalPayload {
+  returns?: SignalReturns;
+  contributions?: { name: string; strength: string; weight: number; family: string }[];
   id: string;
   ticker: string;
   direction: SignalDirection;
@@ -165,6 +168,8 @@ export function adaptLiveSignals(raw: unknown): DigestPayload {
         isStale,
         engineVersion,
         dataQualityScore,
+        returns: adaptReturns(entry.returns, entry.return_metadata, isStale),
+        contributions: rawSignals.filter(x => typeof x.weight === 'number' && Number.isFinite(x.weight) && x.weight >= 0).map(x => ({ name: String(x.signal ?? ''), strength: String(x.strength ?? 'unknown'), weight: x.weight as number, family: String(x.category ?? 'unknown') })),
       };
     });
 
