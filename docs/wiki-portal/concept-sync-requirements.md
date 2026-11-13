@@ -233,3 +233,7 @@ lands in:
 - [[entity-signal-data-plane]] · [[entity-holdfold-cache]] · [[entity-portfolio-intelligence]] · [[entity-backtest-engine]] · [[entity-ai-council]] · [[entity-billing]]
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md` — the principle behind §1
 - `gcp3-mobile/docs/wiki-mobile/overview.md` — open-issue #6 (adapter divergence)
+
+## Drift-gate pairing — 2026-11-05 (candidate, PR #337)
+
+A pairing-aware resolver for the shared-core gate is on draft PR #337 (`fix/drift-pair-resolver`). It is **not active**: `shared-drift-check` still compares against the mobile default branch, and pairing is not wired onto the open #327 or mobile #61. The 13-file gated set is unchanged. Feature-domain parity and the blended headline (~62%) are unchanged; no requirement percentage was recomputed. The candidate job is staged at `scripts/drift-pair/activation/` and applies only after the helpers reach trusted main.
