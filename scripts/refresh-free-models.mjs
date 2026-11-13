@@ -218,10 +218,13 @@ export async function probe(apiKey, model, opts = {}) {
   // evidence the model is unreachable. Without the retry a momentarily
   // throttled vendor is excluded from the entire week's chain — that is how
   // both Google models were dropped on 2026-09-07 (P4).
+  // Hoisted so the post-loop 429-exhausted return can report latency too;
+  // per-attempt returns keep their own per-attempt measurement.
+  let started = Date.now();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    const started = Date.now();
+    started = Date.now();
     try {
       const res = await fetch(`${OR_BASE}/chat/completions`, {
         method: 'POST',
@@ -268,7 +271,7 @@ export async function probe(apiKey, model, opts = {}) {
       clearTimeout(timer);
     }
   }
-  return { model, ok: false, status: 429, detail: { parsedLines: 0, emptyLines: 0, sawDone: false, finishReason: null } };
+  return { model, ok: false, status: 429, latencyMs: Date.now() - started, detail: { parsedLines: 0, emptyLines: 0, sawDone: false, finishReason: null } };
 }
 
 /**
