@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import type { HoldFoldPayload, HoldFoldVerdict } from "@/app/api/holdfold/route";
 import { buildCouncilPrompt, type CouncilSeat } from "@/lib/shared/prompts";
@@ -208,6 +208,8 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
 }
 
 export function HoldFoldClient({ data }: Props) {
+  const selectedRow = useRef<HTMLButtonElement | null>(null);
+  const searchInput = useRef<HTMLInputElement | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<HoldFoldVerdict | null>(null);
   const [filter, setFilter] = useState<"all" | "HOLD EM" | "FOLD EM" | "NEUTRAL">("all");
@@ -222,6 +224,7 @@ export function HoldFoldClient({ data }: Props) {
     <div className="hf-body">
       <div className="hf-controls">
         <input
+          ref={searchInput}
           className="hf-search"
           type="text"
           placeholder="Search ticker or industry…"
@@ -247,7 +250,13 @@ export function HoldFoldClient({ data }: Props) {
             list - matching the narrow-screen visual order. Desktop restores
             list-left/detail-right with explicit grid placement in CSS. */}
         {selected && (
-          <VerdictDetail v={selected} onClose={() => setSelected(null)} />
+          <VerdictDetail v={selected} onClose={() => {
+            setSelected(null);
+            // Close removes the focused control. Return to its ticker, or
+            // search if filtering has removed that ticker from the list.
+            if (selectedRow.current?.isConnected) selectedRow.current.focus();
+            else searchInput.current?.focus();
+          }} />
         )}
         <div className="hf-list">
           {filtered.length === 0 && <p className="hf-no-results">No tickers match your search.</p>}
@@ -258,7 +267,10 @@ export function HoldFoldClient({ data }: Props) {
               <button
                 key={v.ticker}
                 className={`hf-row ${verdictCls}${isActive ? " hf-row--active" : ""}`}
-                onClick={() => setSelected(isActive ? null : v)}
+                onClick={event => {
+                  selectedRow.current = event.currentTarget;
+                  setSelected(isActive ? null : v);
+                }}
               >
                 <span className="hf-row-ticker">{v.ticker}</span>
                 <span className="hf-row-industry">{v.industry}</span>
