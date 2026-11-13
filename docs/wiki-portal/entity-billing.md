@@ -221,3 +221,5 @@ web-Pro / mobile-Free asymmetry for testers is unchanged.
 - [[concept-sync-requirements]] — the de-drift priority list `lib/subscription.ts` was item 1 on
 - `docs/clerk-stripe-auth.md` — full architecture + CLI reference
 - `gcp3-mobile/docs/wiki-mobile/entity-billing.md` — the mobile sibling (thin client over this same portal-owned Stripe integration)
+
+- [[decision-holdings-alert-engine-before-storage]] — first consumer of the `watchlist_alerts` Pro feature, which was defined but unused
