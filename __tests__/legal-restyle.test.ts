@@ -13,3 +13,23 @@ describe('legal page restyle', () => {
     expect(mark).toMatch(/border-radius:\s*0/);
   });
 });
+
+describe('legal page text boundaries', () => {
+  // JSX trims leading whitespace of a text node that spans a newline, so
+  // "advice.</strong> Our Service ..." rendered as "advice.Our". The explicit
+  // {" "} boundary keeps the space without changing any legal wording.
+  it('keeps an explicit space boundary after the inline strong in Terms', () => {
+    const tsx = readFileSync(new URL('../app/terms-of-service/page.tsx', import.meta.url), 'utf8');
+    expect(tsx).toContain('advice.</strong>{" "}Our Service');
+    expect(tsx).not.toMatch(/advice\.<\/strong> Our/);
+  });
+  it('keeps explicit space boundaries after every inline strong in Privacy', () => {
+    const tsx = readFileSync(new URL('../app/privacy-policy/page.tsx', import.meta.url), 'utf8');
+    // Every </strong> followed by text must use an explicit {" "} boundary;
+    // a literal space is trimmed whenever the text node spans a newline.
+    const bare = tsx.match(/<\/strong> [^{]/g) || [];
+    expect(bare).toEqual([]);
+    expect(tsx).toContain('<strong>Stripe</strong>{" "}- payment processing');
+    expect(tsx).toContain('<strong>Right to access:</strong>{" "}You may request');
+  });
+});
