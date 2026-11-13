@@ -32,6 +32,7 @@ import { BY_SCORE, type CoreBook } from "./paper-core-books";
 import { isMegaOrLargeCap, sectorFor, type PaperSector } from "./paper-sectors";
 
 export type OrderReason =
+  | "control_seed"
   | "score_entry"
   | "score_exit"
   | "stop"
