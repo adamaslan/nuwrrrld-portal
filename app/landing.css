@@ -1525,9 +1525,12 @@ body:has(.nwf-landing) {
   }
 }
 
-/* Clerk public auth surface restyle. */
+/* Clerk public auth surface restyle. No grayscale filter here: it would
+   strip the standard color from provider sign-in logos (Google's branding
+   guidelines require the standard-color "G" and tie compliance to OAuth app
+   verification), and a CSS filter on the root cannot be undone per-child.
+   Square borders and token colors below carry the monochrome system. */
 .nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) {
-  filter: grayscale(1);
   color: var(--text);
 }
 .nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root),
