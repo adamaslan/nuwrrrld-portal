@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Public track-record view and tab fix assessment - November 13, 2026
+
+Adds an aggregate, counts-only recorded-outcomes section to the public `/track-record` page and fixes a hover-contrast rule on the Followed Tickers dashboard tabs. Both are web-only presentation: the mobile app has no equivalent public marketing page and the dashboard CSS is not shared. No shared module, API contract or parity-matrix row changed. The historical headline and matrix remain unchanged; this is a scoped assessment, not a fresh parity audit. Not deployed when written.
+
 ## PR #346 se1 evidence surfaces assessment - November 9, 2026
 
 Portal #346 adds public scan specification pages and shared pure TypeScript catalog/dossier/feature-registry modules. The pages are web-only and E0/spec-only; no real scan results are wired. A mobile client port and byte-level shared-module comparison have not been verified. Do not count the new pages or logic-only features as mobile parity, and do not recalculate the historical headline from this scoped assessment. The existing domain matrix is retained as historical evidence, not a fresh all-surface audit. See [[concept-se1-evidence-surfaces]] and [[concept-sync-requirements]].
