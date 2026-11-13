@@ -26,7 +26,7 @@ export default function NotFound() {
           maxWidth: "34rem",
           background: "var(--surface)",
           border: "1px solid var(--border)",
-          borderRadius: "14px",
+          borderRadius: "0",
           padding: "2rem 1.75rem",
         }}
       >
@@ -55,8 +55,8 @@ export default function NotFound() {
               display: "inline-flex",
               alignItems: "center",
               background: "var(--neon-blue)",
-              color: "#06070d",
-              borderRadius: "8px",
+              color: "#ffffff",
+              borderRadius: "0",
               padding: ".7rem 1.3rem",
               fontWeight: 600,
               fontSize: ".95rem",
@@ -72,7 +72,7 @@ export default function NotFound() {
               alignItems: "center",
               color: "var(--text)",
               border: "1px solid var(--border)",
-              borderRadius: "8px",
+              borderRadius: "0",
               padding: ".7rem 1.3rem",
               fontWeight: 500,
               fontSize: ".95rem",

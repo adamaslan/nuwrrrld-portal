@@ -203,11 +203,21 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     ],
   },
   {
+    id: "credential-scan.yml",
+    label: "Credential scan",
+    source: ".github/workflows/credential-scan.yml",
+    trigger: "Push to main & pull requests",
+    manual: false,
+    subFeatures: [
+      { label: "credential-scan", detail: "Scans changed commit history with redacted findings and trusted-base rules." },
+    ],
+  },
+  {
     id: "ci.yml",
     label: "CI",
     source: ".github/workflows/ci.yml",
-    trigger: "Push to main & pull requests",
-    manual: false,
+    trigger: "Push to main & pull requests (workflow lint) · manual opt-in suites",
+    manual: true,
     subFeatures: [
       { label: "test", detail: "Unit and component tests." },
       { label: "db-schema-parity", detail: "Checks the Postgres and SQLite schemas agree." },
@@ -220,8 +230,8 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "e2e-resiliency.yml",
     label: "E2E resiliency",
     source: ".github/workflows/e2e-resiliency.yml",
-    trigger: "Push to main & pull requests",
-    manual: false,
+    trigger: "Manual only (requires scoped execution authority)",
+    manual: true,
     subFeatures: [
       { label: "auth", detail: "Signs in through the auth flow." },
       { label: "e2e", detail: "Runs the Playwright end-to-end specs." },
@@ -232,7 +242,7 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "live-smoke.yml",
     label: "Live model-chain smoke",
     source: ".github/workflows/live-smoke.yml",
-    trigger: "Cron Mon 07:35 UTC · PRs touching the chain · manual",
+    trigger: "Cron Mon 07:35 UTC · manual",
     manual: true,
     subFeatures: [
       { label: "model-chain", detail: "Live free-chain reachability, council seats and fallback path; fails if the key is missing." },

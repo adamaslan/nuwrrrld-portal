@@ -26,7 +26,7 @@ describe("CORE_50", () => {
 });
 
 describe("EXTRAS", () => {
-  const seats = ["t1", "t2", "risk", "macro", "quant", "chair"];
+  const seats = ["t1", "t2", "risk", "macro", "quant", "chair"] as const;
 
   it("has exactly 25 distinct tickers per seat, none overlapping the Core 50", () => {
     const core = new Set(CORE_50);
@@ -51,7 +51,7 @@ describe("ACCOUNTS / ACCOUNT_IDS", () => {
   });
 
   it("each of the 6 trading accounts has a 75-name watchlist (Core 50 + 25 extras)", () => {
-    for (const seat of ["t1", "t2", "risk", "macro", "quant", "chair"]) {
+    for (const seat of ["t1", "t2", "risk", "macro", "quant", "chair"] as const) {
       expect(ACCOUNTS[seat].tickers).toHaveLength(75);
       expect(new Set(ACCOUNTS[seat].tickers).size).toBe(75);
       expect(ACCOUNTS[seat].seat).toBe(seat.toUpperCase());
@@ -69,7 +69,12 @@ describe("ACCOUNTS / ACCOUNT_IDS", () => {
   });
 
   it("total watchlist row count is 501, not the design doc's original (incorrect) 526", () => {
-    const total = ACCOUNT_IDS.reduce((n: number, id: string) => n + ACCOUNTS[id].tickers.length, 0);
+    // ACCOUNT_IDS is inferred as string[] from the plain .mjs script; the test above
+    // pins its exact contents, so narrow the id to the account keys.
+    const total = ACCOUNT_IDS.reduce(
+      (n: number, id: string) => n + ACCOUNTS[id as keyof typeof ACCOUNTS].tickers.length,
+      0,
+    );
     expect(total).toBe(501);
   });
 });

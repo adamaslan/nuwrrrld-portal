@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 
 # Concept — What Each Surface Needs to Sync
 
+## Portal PR #346 se1 evidence surfaces - November 9, 2026
+
+Before calling se1 cross-surface, compare the mobile copies of `lib/shared/se1-catalog.ts`, `lib/shared/se1-dossier.ts` and `lib/shared/ai-features.ts` against the exact landed portal versions; mobile availability and current drift coverage remain unverified. If a mobile port is chosen, preserve E0/spec-only labels, missing-provenance failure, unbuilt-feed markers and logic-only feature status. Test both surfaces before adding these modules to the shared drift gate. Public scan pages exist on web; no live results or new mobile parity percentage is claimed. #347 is the stacked provenance/status fix and must follow #346. See [[concept-se1-evidence-surfaces]] and [[concept-mobile-web-parity]].
+
 ## PR #316 — dark-launch flags, no port yet
 
 [[decision-dark-launch-flags]] hides five wrong-number surfaces on the portal only. Mobile needs one check, not a port: confirm whether the mobile app shows track-record hit rates, paper benchmark figures, holdfold movers or a news-inclusive confluence score from the same data. If it does, the same figures are wrong there too and need an equivalent hide. This stays open until that check is done.
@@ -14,6 +18,14 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 ## PR #292 infrastructure scope — 2026-10-15
 
 The new pipeline Terraform foundation and deployment status are operational work described by [[entity-new-pipeline-infrastructure]]. They add no mobile port or shared-module de-drift requirement. Feature parity remains at the historical ~62% headline; the existing domain matrix is unchanged. A later API or user-facing pipeline feature will need a separate parity assessment.
+## Portal PR #304 — grounding recovery integrity
+
+The workflow now reports a failed run when live extraction calls fail, so
+partial output cannot be mistaken for complete recovery. This is portal
+pipeline operations; it adds no mobile port, shared-code change, or cross-
+surface contract. Independent Claude review and a truthful scheduled run remain
+pending. No sync requirement or historical ~62% headline changes.
+
 
 Companion page: [[concept-mobile-web-parity]] — the historical ~62% measurement this
 page is a plan to raise. Mobile mirror:

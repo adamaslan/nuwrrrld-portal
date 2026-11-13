@@ -36,8 +36,21 @@ describe("GET /api/signals/card", () => {
     const body = await res.text();
 
     expect(res.status).toBe(200);
-    // 'sideways' is not a valid direction, so the neutral colour is used.
-    expect(body).toContain("#d97706");
+    // 'sideways' is not a valid direction, so the neutral treatment is used:
+    // monochrome gray, never a hue (design law: black/white/gray only).
+    expect(body).toContain("#555555");
+    expect(body).not.toMatch(/#16a34a|#dc2626|#d97706/i);
+  });
+
+  it("keeps the share card monochrome and square for every direction", async () => {
+    for (const direction of ["bullish", "bearish", "neutral"]) {
+      const res = await GET(cardRequest(`ticker=KIE&direction=${direction}`));
+      const body = await res.text();
+
+      expect(res.status).toBe(200);
+      expect(body).toContain('rx="0"');
+      expect(body).not.toMatch(/#16a34a|#dc2626|#d97706|linearGradient/i);
+    }
   });
 
   it("escapes XML metacharacters so a ticker cannot inject markup", async () => {
