@@ -101,11 +101,11 @@ describe("HoldFoldClient", () => {
     render(<HoldFoldClient data={payload} />);
 
     await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
-    expect(screen.getByText("AI OUTLOOK")).toBeInTheDocument();
+    expect(screen.getByText("STORED SIGNAL SUMMARY")).toBeInTheDocument();
     expect(screen.getByText("Outlook text")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
-    expect(screen.queryByText("AI OUTLOOK")).not.toBeInTheDocument();
+    expect(screen.queryByText("STORED SIGNAL SUMMARY")).not.toBeInTheDocument();
   });
 
   it("the close (✕) button in the detail panel closes it", async () => {
@@ -113,7 +113,7 @@ describe("HoldFoldClient", () => {
     render(<HoldFoldClient data={payload} />);
     await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
     await user.click(screen.getByRole("button", { name: "Close" }));
-    expect(screen.queryByText("AI OUTLOOK")).not.toBeInTheDocument();
+    expect(screen.queryByText("STORED SIGNAL SUMMARY")).not.toBeInTheDocument();
   });
 
   it("selecting a different row swaps the detail panel content", async () => {
