@@ -35,7 +35,7 @@ export default function TermsOfService() {
         <h2>2. Not financial or investment advice</h2>
         <p>
           <strong>NuWrrrld Financial does not provide personalized financial,
-          investment, legal, or tax advice.</strong> Our Service provides informational
+          investment, legal, or tax advice.</strong>{" "}Our Service provides informational
           tools, market briefings, signals, trade analysis (Hold/Fold verdicts), and
           AI-generated commentary (the &quot;AI Council&quot;). These are educational tools and
           information products only.
