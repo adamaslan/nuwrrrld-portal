@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Holdings alert engine assessment - November 13, 2026
+
+Adds a pure signal-change detector for watchlist tickers in portal `lib/`, gated on the existing Pro feature `watchlist_alerts`. It has no storage, endpoint or delivery path yet. It is a candidate for `lib/shared/` once a mobile push consumer exists, but nothing is shared today and no mobile counterpart was compared. No parity-matrix row changed; the historical headline remains. Scoped assessment, not a fresh parity audit. Not deployed when written.
+
 ## PR #346 se1 evidence surfaces assessment - November 9, 2026
 
 Portal #346 adds public scan specification pages and shared pure TypeScript catalog/dossier/feature-registry modules. The pages are web-only and E0/spec-only; no real scan results are wired. A mobile client port and byte-level shared-module comparison have not been verified. Do not count the new pages or logic-only features as mobile parity, and do not recalculate the historical headline from this scoped assessment. The existing domain matrix is retained as historical evidence, not a fresh all-surface audit. See [[concept-se1-evidence-surfaces]] and [[concept-sync-requirements]].
