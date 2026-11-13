@@ -122,6 +122,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-compile-time-grounding]] — grounding is a weekly build step, not request-time RAG
 - [[decision-free-tier-model-chain]] — every seat but T1 uses `:free` models; T1 is paid (~$0.20–$0.50/deliberation)
 - [[decision-free-pr-review-lenses-and-verifier]] — review by closed lens questions, quote anchoring and a verifier; free-ness proven at three layers
+- [[decision-verdict-pages-indexable-when-recorded]] — verdict pages are listed in the sitemap and indexable only for tickers with a recorded verdict; empty ones are noindex
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-no-shared-alpaca-budget]] — Alpaca requests are paced or counted per pipeline; no AWS-backed shared budget

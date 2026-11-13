@@ -122,3 +122,5 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - `gcp3-mobile/docs/wiki-mobile/entity-council-composer.md` — the mobile council this was ported from
 - `../moo-council-simulation-todo.md` — the MOO ETF simulation build-out this PR shipped step 1 of
 - [[entity-openrouter-client]] failures #8, #9 — the two production defects this PR's simulation run found and fixed
+
+- [[decision-verdict-pages-indexable-when-recorded]] — recorded verdicts are now discoverable through the sitemap and indexable per page
