@@ -7,6 +7,9 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Indexable verdict pages assessment - November 13, 2026
+
+Adds sitemap entries and per-page metadata for the public `/verdict/[ticker]` pages. Web-only SEO surface: the mobile app has no crawlable equivalent. No shared module, API contract or parity-matrix row changed. The historical headline and matrix remain unchanged; this is a scoped assessment, not a fresh parity audit. Not deployed when written.
 ## Public track-record view and tab fix assessment - November 13, 2026
 
 Adds an aggregate, counts-only recorded-outcomes section to the public `/track-record` page and fixes a hover-contrast rule on the Followed Tickers dashboard tabs. Both are web-only presentation: the mobile app has no equivalent public marketing page and the dashboard CSS is not shared. No shared module, API contract or parity-matrix row changed. The historical headline and matrix remain unchanged; this is a scoped assessment, not a fresh parity audit. Not deployed when written.
