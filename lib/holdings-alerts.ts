@@ -10,12 +10,16 @@
  *
  * Fail-closed rules, each covered by a test:
  *  - a ticker seen for the first time produces nothing (no baseline, no change);
- *  - a stale or unknown-quality current signal produces nothing;
+ *  - a stale, unknown-quality or missing-quality current signal produces nothing;
  *  - a current signal that is not newer than the previous one produces nothing;
+ *  - an unparsable timestamp on either side produces nothing;
+ *  - a duplicate snapshot with an unparsable timestamp never suppresses a
+ *    parseable one;
  *  - only tickers the user holds are considered.
  */
+import { resolveTier, type TierAdminIdentity } from "@/lib/subscription-admin";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
-import { hasEntitlement, type SubscriptionTier } from "@/lib/subscription";
+import { hasEntitlement, type SubscriptionStatus } from "@/lib/subscription";
 
 export type AlertDirection = "bullish" | "bearish" | "neutral";
 
@@ -46,8 +50,8 @@ export const DEFAULT_MAX_ALERTS = 20;
 
 const KIND_PRIORITY: Record<AlertKind, number> = { reversed: 0, turned: 1, faded: 2 };
 
-export function canReceiveHoldingsAlerts(tier: SubscriptionTier): boolean {
-  return hasEntitlement("watchlist_alerts", tier);
+export function canReceiveHoldingsAlerts(status: SubscriptionStatus, identity?: TierAdminIdentity | null): boolean {
+  return hasEntitlement("watchlist_alerts", resolveTier(status, identity));
 }
 
 function classify(from: AlertDirection, to: AlertDirection): AlertKind | null {
@@ -70,7 +74,9 @@ function describe(ticker: string, kind: AlertKind, from: AlertDirection, to: Ale
 
 function isTrustworthy(s: SignalSnapshot): boolean {
   if (s.isStale) return false;
-  if (s.dataQualityScore === "stale" || s.dataQualityScore === "unknown") return false;
+  // Fail closed on quality: only an explicit "fresh" reading is trustworthy,
+  // so a missing score counts the same as "unknown".
+  if (s.dataQualityScore !== "fresh") return false;
   return Number.isFinite(Date.parse(s.generatedAt));
 }
 
@@ -80,8 +86,17 @@ function indexByTicker(snapshots: readonly SignalSnapshot[]): Map<string, Signal
     const t = normalizeTicker(s.ticker);
     if (!t) continue;
     const existing = out.get(t);
-    // If a ticker appears twice, keep the newest.
-    if (!existing || Date.parse(s.generatedAt) > Date.parse(existing.generatedAt)) out.set(t, s);
+    // If a ticker appears twice, keep the newest. A parseable timestamp always
+    // beats an unparsable one: Date.parse returns NaN for bad input, and NaN
+    // comparisons are always false, so an unguarded comparison would keep the
+    // bad entry and let it suppress a valid duplicate.
+    if (!existing) {
+      out.set(t, s);
+      continue;
+    }
+    const ts = Date.parse(s.generatedAt);
+    const existingTs = Date.parse(existing.generatedAt);
+    if (Number.isFinite(ts) && (!Number.isFinite(existingTs) || ts > existingTs)) out.set(t, s);
   }
   return out;
 }
@@ -106,6 +121,10 @@ export function detectHoldingsAlerts(input: {
     const before = prev.get(ticker);
     const now = curr.get(ticker);
     if (!before || !now) continue;
+    // Fail closed on an unparsable baseline timestamp: Date.parse returns NaN,
+    // and the freshness comparison below is always false against NaN, which
+    // would let a bogus baseline through instead of skipping it.
+    if (!Number.isFinite(Date.parse(before.generatedAt))) continue;
     if (!isTrustworthy(now)) continue;
     if (Date.parse(now.generatedAt) <= Date.parse(before.generatedAt)) continue;
     const kind = classify(before.direction, now.direction);
