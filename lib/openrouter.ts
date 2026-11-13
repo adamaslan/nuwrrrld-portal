@@ -641,8 +641,8 @@ export async function runSeat(
           ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
         }),
       });
-      receivedResponse = true;
       lastStatus = res.status;
+      receivedResponse = true;
       if (res.ok) {
         const data = await res.json();
         const choice = data.choices?.[0];
@@ -686,9 +686,8 @@ export async function runSeat(
         logAttempt(receivedResponse ? "response-error" : "network-error");
         throw err;
       }
-      logAttempt("abort-timeout");
-      if (err instanceof Error && err.name !== 'AbortError') throw err;
       attempts.push({ model, status: "timeout" });
+      logAttempt("abort-timeout");
     } finally {
       clearTimeout(timer);
     }
