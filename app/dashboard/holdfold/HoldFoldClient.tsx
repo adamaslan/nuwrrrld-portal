@@ -153,6 +153,9 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
           <WatchlistButton ticker={v.ticker} />
         </div>
         <p className="hf-detail-industry">{v.industry}</p>
+        <p className="hf-detail-dates">
+          Market bar {v.barDate ?? "unknown"} · Calculated {Number.isNaN(Date.parse(v.updatedAt)) ? "unknown" : new Date(v.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}
+        </p>
       </div>
 
       <div className="hf-detail-conf">
@@ -182,7 +185,7 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
 
       {v.aiOutlook && (
         <div className="hf-outlook">
-          <p className="hf-section-label">AI OUTLOOK</p>
+          <p className="hf-section-label">STORED SIGNAL SUMMARY</p>
           <p className="hf-outlook-text">{v.aiOutlook}</p>
         </div>
       )}
