@@ -1,0 +1,38 @@
+import { beforeEach,describe,it,expect,vi } from "vitest";
+const m=vi.hoisted(()=>({getRun:vi.fn(),getAccount:vi.fn(),getPositions:vi.fn(),listActiveWatchlist:vi.fn(),controlOrdersCount:vi.fn(),controlPreviousClose:vi.fn(),latestCardBarDate:vi.fn(),getLivePricesWithAge:vi.fn(),sql:Object.assign(vi.fn(),{transaction:vi.fn()}),updateRunDetail:vi.fn(),countOrders:vi.fn(),computeMetricsForAccount:vi.fn()}));
+vi.mock("@/lib/db",()=>({default:m.sql}));vi.mock("@/lib/paper-db",()=>m);
+vi.mock("@/lib/ticker-cards-db",()=>({latestCardBarDate:m.latestCardBarDate}));vi.mock("@/lib/live-price-db",()=>({getLivePricesWithAge:m.getLivePricesWithAge}));
+vi.mock("@/lib/paper-arbitration",()=>({arbitrateOne:vi.fn(()=>{throw new Error("no model calls permitted");})}));
+vi.mock("@/lib/paper-firestore-mirror",()=>({mirrorPaperAccount:async()=>({ok:true}),mirrorWatchlistIfVersionChanged:async()=>({ok:true})}));vi.mock("@/lib/paper-reconcile",()=>({reconcileAccount:async()=>({ok:true})}));vi.mock("@/lib/paper-metrics",()=>({computeMetricsForAccount:m.computeMetricsForAccount}));
+import {runAccountSlot,todayEasternDate} from "@/lib/paper-engine";
+import {controlTickers} from "@/lib/shared/paper-control-core";
+beforeEach(()=>{vi.resetAllMocks();m.getRun.mockResolvedValue(null);m.getAccount.mockResolvedValue({active:true,cash:10000,startingCash:10000,policyVersion:"v4"});m.getPositions.mockResolvedValue([]);m.controlOrdersCount.mockResolvedValue(0);m.controlPreviousClose.mockResolvedValue(null);m.latestCardBarDate.mockResolvedValue(null);m.sql.mockImplementation((s,...v)=>({query:s.join("?"),values:v}));m.sql.transaction.mockResolvedValue([]);});
+describe("control engine integration without real DB/data/model calls",()=>{
+ for(const account of ["equal","spy"] as const){
+ it(`${account} initializes on a current trading slot even without scored ticker cards`,async()=>{
+  const tickers=controlTickers(account);m.listActiveWatchlist.mockResolvedValue(tickers.map(ticker=>({ticker,watchlistVersion:1})));m.getLivePricesWithAge.mockResolvedValue(new Map(tickers.map(t=>[t,{price:100,tradedAt:new Date().toISOString()}])));
+  const result=await runAccountSlot(account,todayEasternDate(),"midday",{initializeControl:true});expect(result.ordersN).toBe(tickers.length);expect(result.modelCalls).toBe(0);
+  const qs=m.sql.transaction.mock.calls[0][0];expect(qs[0].query).toContain("pg_advisory_xact_lock");expect(qs[1].query).toContain("NOT EXISTS (SELECT 1 FROM paper_orders");expect(qs[1].query).toContain("NOT EXISTS (SELECT 1 FROM paper_positions");expect(qs[1].query).toContain("AND active AND cash");expect(qs[1].query).toContain("starting_cash");expect(qs[1].query).toContain("SELECT count(*) FROM paper_watchlists");expect(qs[1].query).toContain("ANY(");
+  expect(qs.filter((q:{query:string})=>q.query.includes("INSERT INTO paper_orders"))).toHaveLength(tickers.length);
+ });}
+ it("never initializes at settle or backdates a recovery",async()=>{m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date().toISOString()}]]));for(const [date,slot] of [[todayEasternDate(),"settle"],["2020-01-01","midday"]] as const){const r=await runAccountSlot("spy",date,slot,{initializeControl:true});expect(r.status).toBe("skipped");expect(r.skipReason).toContain("current_trading_slot");}expect(m.sql.transaction).not.toHaveBeenCalled();});
+ it("refuses a stale or future-dated price, leaving cash untouched",async()=>{m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);for(const age of [-3600000,3600000]){m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date(Date.now()+age).toISOString()}]]));const r=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(r.status).toBe("skipped");expect(r.skipReason).toBe("control_prices_missing_or_stale");}expect(m.sql.transaction).not.toHaveBeenCalled();});
+ it("a history-read error cannot become permission to reseed",async()=>{m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);m.getLivePricesWithAge.mockResolvedValue(new Map());m.controlOrdersCount.mockRejectedValue(new Error("DB unavailable"));await expect(runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true})).rejects.toThrow("DB unavailable");expect(m.sql.transaction).not.toHaveBeenCalled();});
+ it("invested control marks price movement without buying again, day return uses prior invested close",async()=>{m.getAccount.mockResolvedValue({cash:0,startingCash:10000,policyVersion:"v4"});m.getPositions.mockResolvedValue([{ticker:"IVV",quantity:100,avgCost:100,runsHeld:1,highWater:100}]);m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV",watchlistVersion:1}]);m.controlPreviousClose.mockResolvedValue(10000);m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:110,tradedAt:new Date().toISOString()}]]));const r=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(r.ordersN).toBe(0);const qs=m.sql.transaction.mock.calls[0][0];const nav=qs.find((q:{query:string})=>q.query.includes("INSERT INTO paper_nav"));expect(nav.values).toContain(11000);expect(nav.values.some((v:unknown)=>typeof v==="number"&&Math.abs(v-.1)<1e-10)).toBe(true);expect(m.controlOrdersCount).not.toHaveBeenCalled();});
+});
+
+it("ordinary cron does not authorize funding, even with complete fresh prices",async()=>{m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date().toISOString()}]]));const r=await runAccountSlot("spy",todayEasternDate(),"midday");expect(r.skipReason).toBe("control_initialization_not_authorized");expect(m.sql.transaction).not.toHaveBeenCalled();});
+it("inactive control cannot be funded even on explicit activation",async()=>{m.getAccount.mockResolvedValue({active:false,cash:10000,startingCash:10000,policyVersion:"v4"});m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);m.getLivePricesWithAge.mockResolvedValue(new Map());const r=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(r.skipReason).toBe("control_account_inactive");expect(m.sql.transaction).not.toHaveBeenCalled();});
+// Regression: a refused control slot must not write a paper_runs row, because that row is the
+// idempotency key — otherwise ordinary cron would block the one authorized activation for the slot.
+const wroteRunRow=()=>m.sql.mock.calls.some(([s]:unknown[])=>Array.isArray(s)&&s.join("").includes("INSERT INTO paper_runs"));
+it("refused control slots (cron, inactive, stale price) persist no run row",async()=>{
+ m.listActiveWatchlist.mockResolvedValue([{ticker:"IVV"}]);
+ m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date().toISOString()}]]));
+ const cron=await runAccountSlot("spy",todayEasternDate(),"midday");expect(cron.skipReason).toBe("control_initialization_not_authorized");expect(wroteRunRow()).toBe(false);
+ m.getAccount.mockResolvedValue({active:false,cash:10000,startingCash:10000,policyVersion:"v4"});
+ const inactive=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(inactive.skipReason).toBe("control_account_inactive");expect(wroteRunRow()).toBe(false);
+ m.getAccount.mockResolvedValue({active:true,cash:10000,startingCash:10000,policyVersion:"v4"});
+ m.getLivePricesWithAge.mockResolvedValue(new Map([["IVV",{price:100,tradedAt:new Date(Date.now()-3600000).toISOString()}]]));
+ const stale=await runAccountSlot("spy",todayEasternDate(),"midday",{initializeControl:true});expect(stale.skipReason).toBe("control_prices_missing_or_stale");expect(wroteRunRow()).toBe(false);
+});

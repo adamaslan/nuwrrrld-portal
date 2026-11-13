@@ -48,6 +48,8 @@ import {
   getRecentlyStoppedTickers,
   updateRunDetail,
   countOrders,
+  controlOrdersCount,
+  controlPreviousClose,
   type Slot,
   type RunStatus,
   type OrderRow,
@@ -77,6 +79,7 @@ import {
   type ConsensusVote,
 } from "@/lib/shared/paper-engine-core";
 import { buildTieBreak } from "@/lib/shared/paper-persona";
+import { planControlInception } from "@/lib/shared/paper-control-core";
 import { coreBookFor } from "@/lib/shared/paper-core-books";
 import { arbitrateOne } from "@/lib/paper-arbitration";
 import { mirrorPaperAccount, mirrorWatchlistIfVersionChanged } from "@/lib/paper-firestore-mirror";
@@ -102,6 +105,8 @@ export interface ModelCallBudget {
 }
 
 export interface RunAccountSlotOptions {
+  /** Explicit one-time activation only. Ordinary cron must never fund a cash control. */
+  initializeControl?: boolean;
   /** OPENROUTER_API_KEY. Arbitration is skipped entirely when absent —
    *  degrades to deterministic-only rather than failing (guardrail #4). */
   apiKey?: string;
@@ -235,13 +240,12 @@ export async function runAccountSlot(
   const watchlist = await listActiveWatchlist(account);
   const activeWatchlist = new Set(watchlist.map((w) => w.ticker));
 
-  // equal/spy never trade — mark-to-market only, every slot, forever (§2.1's
-  // "equal" and "spy" controls). A trading account also does no trading on
+  // Controls buy once at inception, then only mark. A trading account does no trading on
   // the settle slot (§4.1 — settle is mark-to-market + metrics only).
   const policy = policyFor(account);
   const tradingSlot = isTradingAccount(account) && slot !== "settle";
 
-  if (!barDate) {
+  if (!barDate && isTradingAccount(account)) {
     return persistSkippedRun(runId, account, tradeDate, slot, dbAccount.policyVersion, "market_closed");
   }
 
@@ -265,7 +269,7 @@ export async function runAccountSlot(
     );
   }
   const now = Date.now();
-  const isFresh = (tradedAt: string): boolean => now - Date.parse(tradedAt) <= MAX_PRICE_AGE_MINUTES * 60_000;
+  const isFresh = (tradedAt: string): boolean => Number.isFinite(Date.parse(tradedAt)) && now - Date.parse(tradedAt) >= -5 * 60_000 && now - Date.parse(tradedAt) <= MAX_PRICE_AGE_MINUTES * 60_000;
   // Used for MARK/valuation (every price this run knows about, stale or not —
   // valuing an existing position against its last known price is still more
   // accurate than falling back to avgCost). `prices` keeps the original
@@ -275,7 +279,7 @@ export async function runAccountSlot(
   // trust for a fill. A stale price must mean "no reference price this slot"
   // to the planner, same as a genuinely missing one, never a real fill price.
   const tradeablePrices = new Map<string, number>(
-    [...pricesWithAge].filter(([, v]) => isFresh(v.tradedAt)).map(([t, v]) => [t, v.price]),
+    [...pricesWithAge].filter(([, v]) => isFresh(v.tradedAt) && Number.isFinite(v.price) && v.price > 0).map(([t, v]) => [t, v.price]),
   );
   const stalePrices = allTickers.filter((t) => {
     const row = pricesWithAge.get(t);
@@ -306,7 +310,7 @@ export async function runAccountSlot(
   if (tradingSlot && policy) {
     const horizons = horizonsFor(policy.cardHorizon);
     try {
-      const screenRows = await getScreenCandidates(account, horizons, policy.dataQualityGate, barDate);
+      const screenRows = await getScreenCandidates(account, horizons, policy.dataQualityGate, barDate!);
       candidates = reduceToScorePerTicker(screenRows);
       recentlyStopped = await getRecentlyStoppedTickers(account, stopCooldownStart(tradeDate));
     } catch (err) {
@@ -337,6 +341,24 @@ export async function runAccountSlot(
     orders: [],
     turnoverUsed: 0,
   };
+  let controlInitializing = false;
+  if ((account === "equal" || account === "spy") && positions.length === 0) {
+    // Refusals are NOT persisted: a paper_runs row is the idempotency key checked
+    // by getRun() at the top of runAccountSlot, so a refused cron slot would block
+    // the one authorized targeted activation for that same slot.
+    if (!options.initializeControl || !dbAccount.active) {
+      return refusedWithoutRecord(account, tradeDate, slot,
+        !dbAccount.active ? "control_account_inactive" : "control_initialization_not_authorized");
+    }
+    if (slot === "settle" || tradeDate !== todayEasternDate()) {
+      return refusedWithoutRecord(account, tradeDate, slot, "control_initialization_requires_current_trading_slot");
+    }
+    const controlPlan = planControlInception(account, dbAccount.cash, dbAccount.startingCash,
+      positions.length, await controlOrdersCount(account), activeWatchlist, tradeablePrices);
+    if (!controlPlan.ok) return refusedWithoutRecord(account, tradeDate, slot, controlPlan.reason);
+    plan.orders = controlPlan.orders;
+    controlInitializing = plan.orders.length > 0;
+  }
   if (tradingSlot && policy) {
     if (account === "chair") {
       const siblingSeats = TRADING_ACCOUNTS.filter((a): a is TradingAccount => a !== "chair");
@@ -490,7 +512,11 @@ export async function runAccountSlot(
     0,
   );
   const finalNav = finalCash + finalPositionsMv;
-  const dayReturn = nav > 0 ? finalNav / nav - 1 : null;
+  const previousControlNav = account === "equal" || account === "spy"
+    ? await controlPreviousClose(account, tradeDate) : null;
+  const dayReturn = account === "equal" || account === "spy"
+    ? previousControlNav != null && previousControlNav > 0 ? finalNav / previousControlNav - 1 : null
+    : nav > 0 ? finalNav / nav - 1 : null;
   const totalReturn = dbAccount.startingCash > 0 ? finalNav / dbAccount.startingCash - 1 : null;
 
   // Ids assigned here (not left to filled.map(() => sql`...randomUUID()...`))
@@ -527,19 +553,30 @@ export async function runAccountSlot(
     runDetail.account_policy_version = dbAccount.policyVersion;
     runDetail.policy_version_mismatch = true;
   }
+  if (controlInitializing) runDetail.control_inception = { tradeDate, slot, holdings: plan.orders.length, historicalCashMarksExcluded: true };
   if (stalePrices.length > 0) runDetail.stale_prices = stalePrices;
   if (options.late) runDetail.late = true;
 
   const queries = [
+    ...(controlInitializing ? [sql`SELECT pg_advisory_xact_lock(hashtext(${'paper-control:' + account}))`] : []),
     sql`
       INSERT INTO paper_runs
         (id, account, trade_date, slot, status, skip_reason, candidates_n, orders_n,
          model_calls, policy_version, detail, finished_at)
-      VALUES (
+      SELECT
         ${runId}, ${account}, ${tradeDate}, ${slot}, 'ok', null, ${candidates.length},
         ${filled.length}, ${modelCallsUsed}, ${PAPER_POLICY_VERSION},
         ${JSON.stringify(runDetail)}, now()
-      )
+      WHERE (NOT ${controlInitializing} OR (
+        NOT EXISTS (SELECT 1 FROM paper_orders WHERE account = ${account})
+        AND NOT EXISTS (SELECT 1 FROM paper_positions WHERE account = ${account})
+        AND EXISTS (SELECT 1 FROM paper_accounts WHERE account = ${account}
+          AND active AND cash = ${dbAccount.cash} AND starting_cash = ${dbAccount.startingCash}
+          AND policy_version = ${dbAccount.policyVersion})
+        AND (SELECT count(*) FROM paper_watchlists WHERE account = ${account} AND active) = ${filled.length}
+        AND NOT EXISTS (SELECT 1 FROM paper_watchlists WHERE account = ${account} AND active
+          AND NOT (ticker = ANY(${filled.map((o) => o.ticker)}::text[])))
+      ))
       ON CONFLICT (account, trade_date, slot) DO NOTHING
     `,
     ...filledWithIds.map((o) => {
@@ -749,6 +786,19 @@ export async function runAccountSlot(
     ordersN: filled.length,
     modelCalls: modelCallsUsed,
     alreadyRan: false,
+  };
+}
+
+/** A refusal reported to the caller but never stored (see runAccountSlot). */
+function refusedWithoutRecord(
+  account: PaperAccount,
+  tradeDate: string,
+  slot: Slot,
+  skipReason: string,
+): RunResult {
+  return {
+    account, tradeDate, slot, status: "skipped", skipReason,
+    candidatesN: 0, ordersN: 0, modelCalls: 0, alreadyRan: false,
   };
 }
 
