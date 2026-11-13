@@ -1,16 +1,15 @@
 import { buildPublicTrackRecord, type PublicTrackRecord } from "@/lib/public-track-record";
 
-/**
- * Reads the scoreboard. Null when nothing is scored, or when the read or the
- * DB module itself failed. The import is lazy on purpose: lib/db throws at
- * import time when DATABASE_URL is unset, and this page is prerendered, so a
- * build without a database must fall back to the empty state, not fail.
- */
-export async function getPublicTrackRecord(): Promise<PublicTrackRecord | null> {
+export type PublicTrackRecordRead =
+  | { status: "ready"; record: PublicTrackRecord }
+  | { status: "empty" | "unavailable"; record: null };
+
+/** Read errors stay distinct from a successfully read, unscored dataset. */
+export async function getPublicTrackRecord(): Promise<PublicTrackRecordRead> {
   try {
     const { getAllScores } = await import("@/lib/followed-tickers-db");
-    const rows = await getAllScores();
-    return buildPublicTrackRecord(
+    const rows = await getAllScores({ throwOnError: true });
+    const record = buildPublicTrackRecord(
       rows.map((r) => ({
         horizon: r.horizon,
         outcome: r.outcome,
@@ -18,7 +17,8 @@ export async function getPublicTrackRecord(): Promise<PublicTrackRecord | null> 
         resolvedOn: r.resolvedOn,
       })),
     );
+    return record ? { status: "ready", record } : { status: "empty", record: null };
   } catch {
-    return null;
+    return { status: "unavailable", record: null };
   }
 }
