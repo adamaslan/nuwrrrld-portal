@@ -413,6 +413,16 @@ async function LandingContent() {
         </Reveal>
       </section>
 
+      <section id="nvidia-research" className="editorial-section" aria-labelledby="nvidia-research-title">
+        <div className="wrap">
+          <p className="kicker">Research note · November 13, 2026</p>
+          <h2 id="nvidia-research-title">NVIDIA: six forward-looking checkpoints</h2>
+          <p className="section-copy">One week and 1, 3, 6, 9 and 12 months: upside, continuity and downside paths, with the evidence that would change each view.</p>
+          <p className="section-copy">Conditional scenarios, not predictions, probabilities or investment advice. Historical scan inputs stop on November 12, 2026; this is not a live quote or signal.</p>
+          <Link className="feature-more" href="/research/nvidia-forward-scenarios">Read the NVIDIA scenario article →</Link>
+        </div>
+      </section>
+
       <section id="access" className="cta">
         <Reveal className="wrap">
           <div className="kicker">Start today</div>
