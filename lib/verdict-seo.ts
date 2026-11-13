@@ -18,6 +18,21 @@ export interface RecordedVerdict {
   direction: string | null;
   confidence: string | null;
   horizon: string | null;
+  /** Record-creation timestamp from council_verdicts.created_at. It marks
+   *  when the row was written - never present it as a market timestamp. */
+  createdAt?: string | null;
+}
+
+/**
+ * Display label for when a verdict was recorded, as YYYY-MM-DD UTC. Returns
+ * null for missing or unparsable input: a verdict with no readable record
+ * date is shown without one, never with a guessed or fabricated one.
+ */
+export function recordedDateLabel(createdAt: string | null | undefined): string | null {
+  if (!createdAt) return null;
+  const t = Date.parse(createdAt);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toISOString().slice(0, 10);
 }
 
 export function directionLabel(direction: string | null | undefined): string | null {
@@ -31,7 +46,13 @@ export function isVerdictIndexable(latest: RecordedVerdict | null | undefined): 
 
 export function verdictTitle(ticker: string, latest: RecordedVerdict | null | undefined): string {
   const label = latest ? directionLabel(latest.direction) : null;
-  return label ? `$${ticker} council verdict: ${label}` : `$${ticker} council verdict`;
+  if (!label) return `$${ticker} council verdict`;
+  // Always marked as a stored record, with the record date when it is known,
+  // so a title never reads as a current call.
+  const date = recordedDateLabel(latest?.createdAt);
+  return date
+    ? `$${ticker} council verdict: ${label} (recorded ${date})`
+    : `$${ticker} council verdict: ${label} (recorded)`;
 }
 
 export function verdictDescription(ticker: string, latest: RecordedVerdict | null | undefined): string {
@@ -41,8 +62,10 @@ export function verdictDescription(ticker: string, latest: RecordedVerdict | nul
   }
   const parts = [`The recorded council call on $${ticker} is ${label}`];
   if (latest.confidence) parts.push(`with ${latest.confidence} confidence`);
-  if (latest.horizon) parts.push(`over a ${latest.horizon} horizon`);
-  return `${parts.join(" ")}. Published as it was made, with the invalidation level when one was set. Research, not investment advice.`;
+  if (latest.horizon) parts.push(`over a ${latest.horizon} horizon as recorded`);
+  const date = recordedDateLabel(latest.createdAt);
+  const when = date ? ` Record created ${date} UTC, not a market-data freshness timestamp.` : "";
+  return `${parts.join(" ")}.${when} Stored historical call, not current advice. Published as it was made, with the invalidation level when one was set. Research, not investment advice.`;
 }
 
 export interface SitemapEntry {
