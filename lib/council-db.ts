@@ -79,11 +79,15 @@ export async function saveVerdict(
 export async function tickersWithVerdicts(limit = 2000): Promise<string[]> {
   try {
     const rows = await sql`
-      SELECT ticker, max(created_at) AS last_at
-      FROM council_verdicts
-      WHERE ticker IS NOT NULL AND direction IS NOT NULL
-      GROUP BY ticker
-      ORDER BY last_at DESC
+      SELECT ticker
+      FROM (
+        SELECT DISTINCT ON (ticker) ticker, direction, created_at
+        FROM council_verdicts
+        WHERE ticker IS NOT NULL
+        ORDER BY ticker, created_at DESC
+      ) AS latest
+      WHERE direction IN ('bullish', 'bearish', 'neutral')
+      ORDER BY created_at DESC
       LIMIT ${limit}
     `;
     return rows.map((r) => r.ticker as string);
