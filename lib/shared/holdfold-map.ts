@@ -26,6 +26,9 @@ export interface HoldFoldVerdict {
   aiSummary: string;
   aiOutlook: string;
   updatedAt: string;
+  /** ISO market-bar date when the source supplies it; null when unknown.
+   *  Never derived from the compute timestamp - different facts. */
+  barDate?: string | null;
 }
 
 export interface HoldFoldPayload {
