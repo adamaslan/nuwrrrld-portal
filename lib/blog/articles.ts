@@ -2,7 +2,7 @@
  * Blog article data for /blog.
  *
  * Every number quoted in these articles comes from one recorded run:
- * the 25-ticker, 5-year backtest comparison executed on 2026-11-01 using the
+ * the saved 25-ticker, 5-year backtest comparison recorded on 2026-11-01 using the
  * public engines (signals-app + this repo's tools/nwf-lab),
  * data through the 2026-10-30 close. The full method, raw output files, and
  * caveats are archived in the team's private documentation repo (not publicly
@@ -41,7 +41,7 @@ export const BLOG_RETURN_BASIS = "Historical lab, price-only returns. No fees, s
 
 export const BLOG_METHOD_BASIS = "Research method note. No new performance results or live feature claim; not investment advice.";
 
-export const BLOG_ARTICLES: BlogArticle[] = [
+const BLOG_LIBRARY: BlogArticle[] = [
 {
   "slug": "fresh-signal-old-prices",
   "title": "A fresh signal can still be built from old prices",
@@ -82,7 +82,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     },
     {
       "kind": "p",
-      "text": "An unmerged NWF change checks the return snapshot date independently of signal freshness and rejects intervals that do not fit their period labels. Its tests include an old snapshot inside a freshly generated signal. This is implementation evidence, not a claim that production price feeds are repaired or the change is live."
+      "text": "NWF's merged return-ranking change checks the return snapshot date independently of signal freshness and rejects intervals that do not fit their period labels. Its tests include an old snapshot inside a freshly generated signal. Deployed source includes the guard, but verified backend return metadata and real price-history reconciliation remain unfinished. This is not proof that production price feeds have been repaired."
     },
     {
       "kind": "h2",
@@ -781,6 +781,20 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     ],
   },
 ];
+
+/** Six-article public release, selected Nov12. Other drafts remain in the source library. */
+export const BLOG_RELEASE_SLUGS = [
+  "fresh-signal-old-prices", "returns-splits-and-periods", "confluence-is-not-probability",
+  "reading-a-single-stock-scan", "3019-backtest-trades", "reproduce-this-backtest",
+] as const;
+export const BLOG_ARTICLES: BlogArticle[] = BLOG_RELEASE_SLUGS.map(slug => {
+  const article = BLOG_LIBRARY.find(a => a.slug === slug);
+  if (!article) throw new Error(`Missing release article: ${slug}`);
+  return { ...article, date: "2026-11-12" };
+});
+/** The two landing-page cards are method notes, not performance advertising. */
+export const LANDING_BLOG_ARTICLES = BLOG_ARTICLES.filter(a =>
+  a.slug === "fresh-signal-old-prices" || a.slug === "confluence-is-not-probability");
 
 export function getBlogArticle(slug: string): BlogArticle | undefined {
   return BLOG_ARTICLES.find((a) => a.slug === slug);
