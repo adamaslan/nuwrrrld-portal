@@ -116,6 +116,36 @@ describe("HoldFoldClient", () => {
     expect(screen.queryByText("STORED SIGNAL SUMMARY")).not.toBeInTheDocument();
   });
 
+  it("returns focus to the selected ticker after pointer Close", async () => {
+    const user = userEvent.setup();
+    render(<HoldFoldClient data={payload} />);
+    const row = screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ });
+    await user.click(row);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(row).toHaveFocus();
+  });
+
+  it("returns focus to the latest selected ticker after keyboard Close", async () => {
+    const user = userEvent.setup();
+    render(<HoldFoldClient data={payload} />);
+    await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
+    const row = screen.getByRole("button", { name: /TSLA.*Automotive/ });
+    await user.click(row);
+    screen.getByRole("button", { name: "Close" }).focus();
+    await user.keyboard("{Enter}");
+    expect(row).toHaveFocus();
+  });
+
+  it("returns focus to search if the selected row is no longer shown", async () => {
+    const user = userEvent.setup();
+    render(<HoldFoldClient data={payload} />);
+    await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
+    const search = screen.getByPlaceholderText("Search ticker or industry…");
+    await user.type(search, "TSLA");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(search).toHaveFocus();
+  });
+
   it("selecting a different row swaps the detail panel content", async () => {
     const user = userEvent.setup();
     render(<HoldFoldClient data={payload} />);
