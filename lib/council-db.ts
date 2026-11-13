@@ -74,6 +74,24 @@ export async function saveVerdict(
   }
 }
 
+/** Tickers that have at least one recorded verdict, most recently active first.
+ *  Feeds the public sitemap, so it returns [] on any failure rather than throw. */
+export async function tickersWithVerdicts(limit = 2000): Promise<string[]> {
+  try {
+    const rows = await sql`
+      SELECT ticker, max(created_at) AS last_at
+      FROM council_verdicts
+      WHERE ticker IS NOT NULL AND direction IS NOT NULL
+      GROUP BY ticker
+      ORDER BY last_at DESC
+      LIMIT ${limit}
+    `;
+    return rows.map((r) => r.ticker as string);
+  } catch {
+    return [];
+  }
+}
+
 /** Recent verdicts for a ticker — fed back into grounding so the council can
  *  confront its own record ("we were bullish here on <date> and were wrong"). */
 export async function recentVerdicts(
