@@ -4,12 +4,16 @@ const landing = readFileSync(new URL('../app/landing.css', import.meta.url), 'ut
 const dashboard = readFileSync(new URL('../app/dashboard/dashboard.css', import.meta.url), 'utf8');
 describe('Clerk restyle surfaces', () => {
   it('keeps public auth forms monochrome, square and without decorative shadows', () => {
-    const css = landing.split('/* Clerk public auth surface restyle. */')[1];
+    const css = landing.split('/* Clerk public auth surface restyle.')[1];
     expect(css).toBeDefined();
     expect(css).toContain('.public-auth');
     expect(css).toContain('.cl-signIn-root');
     expect(css).toContain('.cl-signUp-root');
-    expect(css).toContain('filter: grayscale(1)');
+    // Provider sign-in logos must keep their standard colors (Google
+    // branding guidelines, required for OAuth app verification); a root
+    // filter cannot be undone per-child, so the auth surface carries none.
+    const rootRule = css.split('.cl-signUp-root) {')[1].split('}')[0];
+    expect(rootRule).not.toContain('filter');
     expect(css).toContain('border-radius: 0 !important');
     expect(css).toContain('box-shadow: none !important');
     expect(css).toContain('background-image: none !important');
