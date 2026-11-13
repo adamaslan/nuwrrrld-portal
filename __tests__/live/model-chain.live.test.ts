@@ -95,7 +95,14 @@ describeLive("LIVE: fetchWithModelFallbackChecked (the /api/brief and /api/nuai 
     const { response, model } = await fetchWithModelFallbackChecked(
       LIVE_KEY,
       {
-        max_tokens: 48,
+        // 350, not 48: the Checked contract condemns a model whose first
+        // visible token lands after the budget, and chain reasoning models
+        // (nemotron-3-nano-omni, dots-3-note) can spend >48 tokens on hidden
+        // reasoning before their first content token. /api/brief runs this
+        // path at max_tokens 350 (app/api/brief/route.ts); a smaller test
+        // budget re-creates the false-empty failure the content-aware probes
+        // exist to eliminate.
+        max_tokens: 350,
         stream: true,
         temperature: 0.3,
         messages: [{ role: "user", content: "In one sentence, what is an RSI indicator?" }],
