@@ -13,14 +13,15 @@ function signedPct(n: number | null): string {
  * Recorded Followed Tickers outcomes, every horizon, misses included.
  * Server component: takes already-aggregated counts, renders no tickers.
  */
-export default function RecordedOutcomes({ record }: { record: PublicTrackRecord | null }) {
+export default function RecordedOutcomes({ record, status }: { record: PublicTrackRecord | null; status?: "ready" | "empty" | "unavailable" }) {
   if (!record) {
     return (
       <section className="record-outcomes" aria-labelledby="record-outcomes-title">
         <h2 id="record-outcomes-title">Recorded outcomes</h2>
         <p>
-          No scored outcomes are available right now. A rate is only shown once enough calls have
-          resolved, so an empty table here means the record is still building, not that it is hidden.
+          {status === "empty"
+            ? "No scored outcomes were found in the latest successful read. The record is still building; a rate appears only when enough decisive calls have resolved."
+            : "Recorded outcomes are temporarily unavailable. This view could not verify the record and does not mean there are no scored outcomes. Please try again later."}
         </p>
       </section>
     );
