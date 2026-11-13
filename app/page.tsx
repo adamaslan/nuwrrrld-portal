@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { LandingBlogArticles } from "@/components/landing/LandingBlogArticles";
 import { getStoredSignals } from "@/app/dashboard/holdfold/stored-signals";
 import { getCouncilSample } from "@/app/dashboard/holdfold/council-sample";
 import Link from "next/link";
@@ -413,6 +414,8 @@ async function LandingContent() {
           </div>
         </Reveal>
       </section>
+
+      <LandingBlogArticles />
 
       <section id="access" className="cta">
         <Reveal className="wrap">
