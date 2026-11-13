@@ -57,7 +57,7 @@ export default async function HoldFoldPage() {
               </div>
               <p className="hf-updated">
                 <span className="hf-updated-dot" />
-                Updated {formatUpdated(data.updatedAt)}
+                Signals computed {formatUpdated(data.updatedAt)}
               </p>
             </div>
           )}
