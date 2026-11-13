@@ -13,7 +13,7 @@ import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell"
 import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
-import { isVerdictIndexable, verdictDescription, verdictTitle } from "@/lib/verdict-seo";
+import { isVerdictIndexable, recordedDateLabel, verdictDescription, verdictTitle } from "@/lib/verdict-seo";
 import "../../landing.css";
 
 // Verdicts change a few times a day at most; cache each ticker page for an hour.
@@ -68,14 +68,18 @@ export default async function VerdictPage({ params }: Props) {
               <div className="public-demo-result verdict-record">
                 <p className="public-demo-result-label">
                   {DIRECTION_LABEL[latest.direction ?? ""] ?? "VERDICT"} · {latest.confidence ?? "—"} confidence
+                  {recordedDateLabel(latest.createdAt)
+                    ? ` · record created ${recordedDateLabel(latest.createdAt)} UTC`
+                    : " · record date unavailable"}
                 </p>
                 <p className="public-demo-result-text">
-                  Horizon {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
+                  Horizon at recording: {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
                 </p>
               </div>
               <p className="section-copy verdict-description">
                 A recorded council call, published as it was made — direction, confidence,
-                horizon, and the invalidation level when one was set.
+                horizon, and the invalidation level when one was set. A stored historical
+                call, not current advice. The record date shows when this row was saved, not the freshness of market data.
               </p>
             </>
           ) : (
