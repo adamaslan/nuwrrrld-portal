@@ -513,16 +513,26 @@ describe("runSeat — per-attempt diagnostics", () => {
     }
   });
 
-  it.each([
-    ["invalid JSON", "not-json"],
-    ["non-string content", JSON.stringify({ choices: [{ message: { content: 42 } }] })],
-  ])("logs response-error for %s while preserving the thrown error", async (_label, body) => {
+  it("logs response-error for invalid JSON while preserving the thrown error", async () => {
+    const body = "not-json";
     const info = vi.spyOn(console, "error").mockImplementation(() => {});
     stubFetchSequence([() => new Response(body, { status: 200 })]);
 
     await expect(runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32)).rejects.toThrow();
     expect(errLines(info)).toHaveLength(1);
     expect(errLines(info)[0]).toContain("outcome=response-error");
+  });
+
+  it("logs non-string content as empty and preserves current-main fallback behavior", async () => {
+    const info = vi.spyOn(console, "error").mockImplementation(() => {});
+    stubFetchSequence([
+      () => new Response(JSON.stringify({ choices: [{ message: { content: 42 } }] }), { status: 200 }),
+      () => jsonCompletion("recovered answer"),
+    ]);
+    const result = await runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32);
+    expect(result.answer).toBe("recovered answer");
+    expect(errLines(info)).toHaveLength(1);
+    expect(errLines(info)[0]).toContain("outcome=empty-completion");
   });
 
   it("keeps the retired-primary warn AND adds the structured line for the same 404", async () => {
