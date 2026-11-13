@@ -14,6 +14,9 @@ describe('Clerk restyle surfaces', () => {
     // filter cannot be undone per-child, so the auth surface carries none.
     const rootRule = css.split('.cl-signUp-root) {')[1].split('}')[0];
     expect(rootRule).not.toContain('filter');
+    // span.cl-providerIcon__* carries the provider logo as a CSS background
+    // image; the universal background-image removal must exclude it.
+    expect(css).toContain(':not([class*="cl-providerIcon"])');
     expect(css).toContain('border-radius: 0 !important');
     expect(css).toContain('box-shadow: none !important');
     expect(css).toContain('background-image: none !important');
@@ -29,6 +32,7 @@ describe('Clerk restyle surfaces', () => {
     expect(css).toContain('box-shadow: none !important');
     expect(css).toContain('background-image: none !important');
     expect(css).toContain('.cl-userButtonPopoverCard');
+    expect(css).toContain(':not([class*="cl-providerIcon"])');
   });
 });
 
