@@ -68,7 +68,10 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 .ft-tab:hover { color: var(--text); }
-.ft-tab--active {
+/* The hover rule above out-ranks a bare .ft-tab--active, so hovering the tab
+   that was just clicked painted --text (#111) over the #111 active fill. */
+.ft-tab--active,
+.ft-tab--active:hover {
   background: var(--neon-blue);
   color: var(--bg);
 }
