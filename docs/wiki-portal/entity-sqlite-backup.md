@@ -2,7 +2,7 @@
 date: 2026-09-04
 type: entity
 tags: [database, backup, sqlite, neon, offline]
-sources: [../../scripts/backup-to-sqlite.mjs, ../../scripts/gen-sqlite-schema.mjs, ../../lib/db/schema.sqlite.sql, ../../.github/workflows/backup-to-sqlite.yml, ../local-sqlite-backup-and-offline-dev.md, ../sqlite-backup-code.md, ../openrouter-migration-and-db-parity-plan.md, PR#98, PR#105]
+sources: [../../scripts/backup-to-sqlite.mjs, ../../scripts/gen-sqlite-schema.mjs, ../../lib/db/schema.sqlite.sql, ../../.github/workflows/backup-to-sqlite.yml, ../local-sqlite-backup-and-offline-dev.md, ../sqlite-backup-code.md, ../openrouter-migration-and-db-parity-plan.md, ../r02-safe-data-backup-audit-2026-10-21.md, PR#98, PR#105]
 ---
 
 # Entity: SQLite Backup (`scripts/backup-to-sqlite.mjs`)
@@ -103,12 +103,14 @@ native build step.
    modules themselves compatible; the harder remainder (`unnest()`,
    `= ANY(array)`, `string_agg(DISTINCT …)`) is the concrete list of what a
    live SQLite-backed mode would still need to solve.
+5. **Development backup safety is not established** ([R02 audit](../r02-safe-data-backup-audit-2026-10-21.md), 2026-10-21). The available `nwf-core` and `nwf-hydration` Neon branches descend from production `main`; no restore rehearsal or scheduled Neon snapshot was verified. The separate SQLite artifact is retained for 14 days and is not a tested restore path.
 
 ## Open questions
 
-- ❓ Should a restore-from-backup path exist (SQLite file → fresh Neon
-  branch), or is read-only inspection the only intended use? No current
-  consumer needs restore.
+- ❓ R02 readiness requires a restore rehearsal into a confirmed safe,
+  nonproduction target, but the target and data-sanitization policy are not
+  confirmed. The SQLite file remains a one-way export until an owner approves
+  and verifies that restore path.
 - ❓ `node:sqlite` is still flagged experimental by Node itself
   (`ExperimentalWarning: SQLite is an experimental feature and might change
   at any time`). Worth revisiting if a future Node LTS stabilizes it, or if

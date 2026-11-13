@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasEntitlement } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { callCouncilSeat, type CouncilSeat } from "@/lib/openrouter";
+import { callCouncilSeat, CouncilUnavailableError, type CouncilSeat } from "@/lib/openrouter";
 import { parseStructuredVerdict, directionFromOutlook } from "@/lib/council-verdict";
 import { validateStructuredVerdict, buildRepairMessage } from "@/lib/council-validate";
 import { createSession, saveMessage, saveVerdict } from "@/lib/council-db";
@@ -22,6 +22,9 @@ import { createSession, saveMessage, saveVerdict } from "@/lib/council-db";
  * council_verdicts ledger (same table the /api/council/deliberate flow
  * writes to) so the T1/T2 quick-ask also contributes to the verdict record.
  */
+// Allow the existing bounded primary/fallback + format/validation walks to finish.
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "Council not configured" }, { status: 503 });
+  if (!apiKey) return NextResponse.json({ error: "council_not_configured" }, { status: 503 });
 
   const body = await req.json().catch(() => ({}));
   const { prompt, seat: rawSeat = "T1", ticker = null } = (body || {}) as {
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
   const seat: CouncilSeat = rawSeat;
 
   try {
-    let result = await callCouncilSeat(seat, prompt, apiKey);
+    let result = await callCouncilSeat(seat, prompt, apiKey, 1200, { answerOnly: true });
     let verdict = parseStructuredVerdict(result.answer);
 
     if (!verdict) {
@@ -67,7 +70,7 @@ export async function POST(req: NextRequest) {
         `Your previous response did not follow the required format. ` +
         `Respond again using ONLY the four required labeled fields (OUTLOOK, BECAUSE, ` +
         `INVALIDATION, EXECUTION) — no other text.`;
-      result = await callCouncilSeat(seat, retryPrompt, apiKey);
+      result = await callCouncilSeat(seat, retryPrompt, apiKey, 1200, { answerOnly: true });
       verdict = parseStructuredVerdict(result.answer);
     }
 
@@ -91,6 +94,8 @@ export async function POST(req: NextRequest) {
         seat,
         `${prompt}\n\nYour previous response:\n${result.answer}\n\n${buildRepairMessage(flags)}`,
         apiKey,
+        1200,
+        { answerOnly: true },
       );
       const repairedVerdict = parseStructuredVerdict(repaired.answer);
       // Parsing alone doesn't prove the flagged numbers/ordering were fixed —
@@ -123,7 +128,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ verdict, model: result.model, seat });
   } catch (err) {
+    if (err instanceof CouncilUnavailableError) {
+      console.error("Council provider failure", { seat, code: err.code, attempts: err.attempts });
+      return NextResponse.json({ error: err.code }, { status: 503 });
+    }
     console.error("Council error", err);
-    return NextResponse.json({ error: "Council unavailable" }, { status: 503 });
+    return NextResponse.json({ error: "council_provider_unavailable" }, { status: 503 });
   }
 }

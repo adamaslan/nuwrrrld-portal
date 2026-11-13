@@ -35,10 +35,9 @@ const OR_BASE = 'https://openrouter.ai/api/v1';
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  'liquid/lfm-2.5-2.6b:free',
   'dots-studio/dots-3-note-preview:free',
+  'nvidia/nemotron-3.5-lightning:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
@@ -568,6 +567,22 @@ function isRetryableStatus(status: number, isPrimary: boolean): boolean {
  * wall-clock latency (persisted for observability). Throws only if every model
  * in the chain fails — callers isolate per-seat failures.
  */
+/** Known optional-reasoning $0 models, checked against the public catalog Nov10.
+ * Mandatory-reasoning models must never receive a disable parameter.
+ */
+const OPTIONAL_REASONING_MODELS = new Set<string>([
+  "nvidia/nemotron-3.5-lightning:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "dots-studio/dots-3-note-preview:free",
+]);
+export interface CouncilAttempt { model: string; status: number | "timeout"; finishReason?: string; reasoningTokens?: number; }
+export class CouncilUnavailableError extends Error {
+  constructor(public readonly code: "council_no_content" | "council_provider_unavailable", seat: CouncilSeat, status: number, public readonly attempts: CouncilAttempt[] = []) {
+    super(`OpenRouter ${status}: council ${seat}: ` + (code === "council_no_content" ? "no usable answer; at least one completion was empty" : "provider chain unavailable"));
+    this.name = "CouncilUnavailableError";
+  }
+}
+
 export async function runSeat(
   seat: CouncilSeat,
   messages: CouncilMessage[],
@@ -580,13 +595,15 @@ export async function runSeat(
   maxTokens = 1200,
   temperature = 0.4,
   modelOverride?: string,
+  options: { answerOnly?: boolean } = {},
 ): Promise<CouncilResponse> {
   const primaryModel = modelOverride ?? SEAT_MODELS[seat];
   const modelChain = [primaryModel, ...FREE_MODEL_CHAIN.filter(m => m !== primaryModel)];
 
   const started = Date.now();
-  let lastStatus = 503;
   let anyEmptyModel = false;
+  let lastStatus = 503;
+  const attempts: CouncilAttempt[] = [];
   for (const [index, model] of modelChain.entries()) {
     const isPrimary = index === 0;
     const ctrl = new AbortController();
@@ -601,11 +618,21 @@ export async function runSeat(
           'HTTP-Referer': 'https://financial.nuwrrrld.com',
           'X-Title': 'NuWrrrld Financial AI Council',
         },
-        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature,
+          ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
+        }),
       });
+      lastStatus = res.status;
       if (res.ok) {
         const data = await res.json();
-        const answer = data.choices?.[0]?.message?.content ?? '';
+        const choice = data.choices?.[0];
+        const reasoningTokens = data.usage?.completion_tokens_details?.reasoning_tokens;
+        attempts.push({ model, status: res.status,
+          ...(typeof choice?.finish_reason === "string" ? { finishReason: choice.finish_reason.slice(0, 32) } : {}),
+          ...(typeof reasoningTokens === "number" && Number.isFinite(reasoningTokens) ? { reasoningTokens } : {}),
+        });
+        const rawContent = choice?.message?.content;
+        const answer = typeof rawContent === 'string' ? rawContent : '';
         if (answer.trim()) {
           return { answer, model, seat, latencyMs: Date.now() - started };
         }
@@ -618,7 +645,7 @@ export async function runSeat(
         anyEmptyModel = true;
         continue;
       }
-      lastStatus = res.status;
+      attempts.push({ model, status: res.status });
       await res.body?.cancel().catch(() => {});
       if (!isRetryableStatus(res.status, isPrimary)) break;
       if (isPrimary && isRetiredModelStatus(res.status)) {
@@ -634,15 +661,14 @@ export async function runSeat(
     } catch (err) {
       // Timeout (AbortError from our own ctrl) → try next model; other errors propagate.
       if (err instanceof Error && err.name !== 'AbortError') throw err;
+      attempts.push({ model, status: "timeout" });
     } finally {
       clearTimeout(timer);
     }
   }
-  throw new Error(
-    anyEmptyModel
-      ? `OpenRouter: council ${seat} — every model returned an empty completion`
-      : `OpenRouter ${lastStatus}: council ${seat} — all models failed`,
-  );
+  // anyEmptyModel is not proof every provider was empty: a chain can mix
+  // empty200, retired404, rate429 and timeouts. Never claim more than observed.
+  throw new CouncilUnavailableError(anyEmptyModel ? "council_no_content" : "council_provider_unavailable", seat, lastStatus, attempts);
 }
 
 /** System prompt for a seat — exported so the deliberation route can compose rounds. */
@@ -656,6 +682,7 @@ export async function callCouncilSeat(
   userPrompt: string,
   apiKey: string,
   maxTokens = 1200,
+  options: { answerOnly?: boolean } = {},
 ): Promise<CouncilResponse> {
   return runSeat(
     seat,
@@ -665,5 +692,8 @@ export async function callCouncilSeat(
     ],
     apiKey,
     maxTokens,
+    0.4,
+    undefined,
+    options,
   );
 }
