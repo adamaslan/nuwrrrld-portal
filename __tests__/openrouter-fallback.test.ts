@@ -19,6 +19,7 @@ import {
   fetchWithModelFallback,
   fetchWithModelFallbackChecked,
   runSeat,
+  callCouncilSeat,
   toHeaderSafe,
 } from "@/lib/openrouter";
 
@@ -349,7 +350,7 @@ describe("runSeat — per-seat chain composition", () => {
     // same as a retryable failure and advance the chain.
     stubFetchSequence([() => new Response(JSON.stringify({ choices: [] }), { status: 200 })]);
     await expect(runSeat("T1", [{ role: "user", content: "hi" }], KEY, 32)).rejects.toThrow(
-      /every model returned an empty completion/,
+      /no usable answer/,
     );
   });
 
@@ -508,5 +509,26 @@ describe("toHeaderSafe — X-Title must survive as an HTTP header", () => {
       // The raw form is what would have thrown; the guard is what makes it safe.
       expect(safe).toMatch(/^[\x20-\x7E]*$/);
     }
+  });
+});
+
+
+describe("quick ask content budgets", () => {
+  it("disables optional reasoning without raising tokens or adding requests", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonCompletion("answer"));
+    await callCouncilSeat("T1", "fixture", KEY, 1200, { answerOnly: true });
+    const body = JSON.parse(String(spy.mock.calls[0][1]?.body));
+    expect(body.reasoning).toEqual({ enabled: false });
+    expect(body.max_tokens).toBe(1200);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+  it("keeps mandatory/unknown reasoning models unchanged and never returns reasoning text", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonCompletion("answer"));
+    await runSeat("T1", [{ role: "user", content: "fixture" }], KEY, 1200, 0.4, "unknown/model", { answerOnly: true });
+    expect(JSON.parse(String(spy.mock.calls[0][1]?.body)).reasoning).toBeUndefined();
+  });
+  it("reports mixed empty and rate limited chains without claiming all were empty", async () => {
+    stubFetchSequence([() => jsonCompletion(""), () => errorResponse(429)]);
+    await expect(callCouncilSeat("T1", "fixture", KEY)).rejects.toMatchObject({ code: "council_no_content" });
   });
 });

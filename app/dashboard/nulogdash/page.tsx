@@ -1,9 +1,11 @@
+import { loadLatestReport } from "@/lib/nulogdash-report";
+import { ReportNotice } from "./ReportNotice";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { formatRunTimeET } from "@/lib/format-time";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getLatestRun, isNulogdashAdmin, canPerformAdminAction, summarizeCounts, splitResults } from "@/lib/nulogdash";
+import { isNulogdashAdmin, canPerformAdminAction, summarizeCounts, splitResults } from "@/lib/nulogdash";
 import type { FeatureResult, FeatureStatus } from "@/lib/nulogdash";
 import "./nulogdash.css";
 
@@ -104,22 +106,21 @@ export default async function NulogdashPage() {
   // missing instead of finding out when one silently fails.
   const canMutate = canPerformAdminAction(user);
 
-  const run = getLatestRun();
+  const report = loadLatestReport();
 
-  if (!run) {
+  if (report.status !== "ready") {
     return (
       <main className="nld-page">
         <Link href="/dashboard" className="nld-back">← Dashboard</Link>
         <h1>nulogdash</h1>
         <NulogdashTabs active="sweep" />
         {!canMutate && <MfaNotice />}
-        <p className="nld-empty">
-          No run yet. From Claude Code, run <code>/nulogdash</code>, or from a
-          terminal: <code>npm run nulogdash</code>.
-        </p>
+        <ReportNotice state={report} />
       </main>
     );
   }
+
+  const run = report.run;
 
   // Playwright (scripts/nulogdash-merge-e2e.mjs) merges tier: "browser" rows
   // into the same results array nulogdash.mjs's tier: "api" rows land in —

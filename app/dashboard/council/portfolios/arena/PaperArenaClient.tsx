@@ -165,7 +165,7 @@ function MetricsTable({
               <td>{r.isBaseline ? "base" : r.judgeRank != null ? `#${r.judgeRank}` : "—"}</td>
               <td>
                 <LineKey account={r.account} />
-                <button type="button" className="pa-th" aria-label={`Select ${r.label} account`} aria-pressed={selected === r.account}><strong>{r.label}</strong></button> <span className="pp-seat">{r.seat ?? "control"}</span>
+                <button type="button" className="pa-th" aria-label={`Select ${r.label} account`} aria-pressed={selected === r.account}><strong>{r.label}</strong></button> <span className="pp-seat">{r.seat ?? "control"}</span>{r.baselineStatus === "awaiting_inception" && <span className="pp-seat" style={{ display: "block", fontStyle: "normal", whiteSpace: "normal", maxWidth: 250 }}>Awaiting first investment - cash only</span>}
               </td>
               <td>{fmtUsd(r.nav)}</td>
               {JUDGE_COLUMNS.map((c) => {
