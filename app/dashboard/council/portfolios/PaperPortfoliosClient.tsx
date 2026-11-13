@@ -179,7 +179,7 @@ export function PaperPortfoliosClient({ initial }: Props) {
             onClick={() => setSelected(row.account)}
           >
             <span role="cell" data-label="Account">
-              <strong>{row.label}</strong> <span className="pp-seat">{row.seat ?? "control"}</span>
+              <strong>{row.label}</strong> <span className="pp-seat">{row.seat ?? "control"}</span>{row.baselineStatus === "awaiting_inception" && <span className="pp-seat" style={{ display: "block", fontStyle: "normal", whiteSpace: "normal", maxWidth: 250 }}>Awaiting first investment - cash only</span>}
             </span>
             <span role="cell" data-label="NAV">${row.nav.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
             <span role="cell" data-label="Total return" className={returnClass(row.totalReturnPct)}>{fmtPct(row.totalReturnPct)}</span>

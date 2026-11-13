@@ -1,4 +1,5 @@
 import type { CatalogEntry } from "@/lib/nulogdash-catalog";
+import { formatRunTimeET } from "@/lib/format-time";
 import type { PipelineRunRow } from "@/lib/pipeline-run-log-db";
 import { summarizeOutcomes } from "@/lib/pipeline-run-log-db";
 
@@ -15,7 +16,7 @@ function EvidenceLine({ entry, latestRun }: { entry: CatalogEntry; latestRun: Pi
   const outcomes = summarizeOutcomes(latestRun.items);
   return (
     <span className="nld-card-sub">
-      Last recorded {new Date(latestRun.runAt).toLocaleString()} ·{" "}
+      Last recorded {formatRunTimeET(latestRun.runAt)} ·{" "}
       {latestRun.dryRun ? "dry run" : "live"} · {outcomes.ok} ok · {outcomes.fail} fail
     </span>
   );

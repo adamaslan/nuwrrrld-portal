@@ -1,6 +1,14 @@
 slot_project_id       = "ttb-lang1"
 region                = "us-central1"
 artifact_bucket_name  = "nwf-new-artifacts-ttb-lang1"
+hydration_image_name  = "hydration-worker"
+hydration_secret_versions = {
+  alpaca_api_key         = ""
+  alpaca_api_secret      = ""
+  source_database_url    = ""
+  hydration_database_url = ""
+}
 github_repository_id  = "123456789"
 github_owner_id       = "987654321"
 github_ref            = "refs/heads/main"
+alert_emails          = ["replace-with-your-alert-address@example.com"] # required; replace before plan

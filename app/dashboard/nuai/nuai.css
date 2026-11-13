@@ -11,7 +11,7 @@
 .nuai-empty-title { font-size: 1.4rem; font-weight: 700; color: var(--text); margin-bottom: .5rem; }
 .nuai-empty-sub { font-size: .95rem; color: var(--text-dim); line-height: 1.6; max-width: 360px; }
 
-.nuai-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: 16px; }
+.nuai-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: 0; }
 .nuai-bubble--user { background: var(--neon-blue); align-self: flex-end; border-bottom-right-radius: 4px; }
 .nuai-bubble--assistant { background: var(--surface-2); align-self: flex-start; border-bottom-left-radius: 4px; }
 .nuai-bubble-text { font-size: .95rem; line-height: 1.55; white-space: pre-wrap; }
@@ -21,13 +21,13 @@
 .nuai-error { font-size: .85rem; color: var(--bear); text-align: center; }
 
 .nuai-input-row { display: flex; gap: .5rem; align-items: flex-end; padding: .75rem 0; border-top: 1px solid var(--border); flex-shrink: 0; }
-.nuai-input { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 12px; padding: .65rem .9rem; font-size: .95rem; font-family: inherit; outline: none; background: var(--surface); color: var(--text); }
+.nuai-input { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 0; padding: .65rem .9rem; font-size: .95rem; font-family: inherit; outline: none; background: var(--surface); color: var(--text); }
 .nuai-input:focus { border-color: var(--neon-blue); }
-.nuai-send { width: 40px; height: 40px; border-radius: 20px; background: var(--neon-blue); color: var(--bg); border: none; font-size: 1.1rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+.nuai-send { width: 40px; height: 40px; border-radius: 0; background: var(--neon-blue); color: var(--bg); border: none; font-size: 1.1rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
 .nuai-send:disabled { opacity: .5; cursor: not-allowed; }
 
 .nuai-chips { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; margin: 1rem 0; }
-.nuai-chip { background: color-mix(in srgb, var(--neon-blue) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--neon-blue) 30%, var(--border)); color: var(--neon-blue); font-size: .82rem; font-weight: 500; padding: .4rem .85rem; border-radius: 20px; cursor: pointer; transition: background .15s; }
+.nuai-chip { background: color-mix(in srgb, var(--neon-blue) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--neon-blue) 30%, var(--border)); color: var(--neon-blue); font-size: .82rem; font-weight: 500; padding: .4rem .85rem; border-radius: 0; cursor: pointer; transition: background .15s; }
 .nuai-chip:hover { background: color-mix(in srgb, var(--neon-blue) 20%, var(--surface)); }
 
 .nuai-disclaimer, .nuai-footer-disclaimer { font-size: .72rem; color: var(--text-dim); text-align: center; padding-bottom: .5rem; }
@@ -39,4 +39,4 @@
 .nuai-bubble-text p:last-child { margin-bottom: 0; }
 .nuai-bubble-text ul, .nuai-bubble-text ol { margin: 0 0 .5rem; padding-left: 1.25rem; }
 .nuai-bubble-text ul:last-child, .nuai-bubble-text ol:last-child { margin-bottom: 0; }
-.nuai-bubble-text code { font-size: .85em; background: rgba(127,127,127,.18); padding: .1em .3em; border-radius: 4px; }
+.nuai-bubble-text code { font-size: .85em; background: rgba(127,127,127,.18); padding: .1em .3em; border-radius: 0; }

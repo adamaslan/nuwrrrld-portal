@@ -7,6 +7,10 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## PR #346 se1 evidence surfaces assessment - November 9, 2026
+
+Portal #346 adds public scan specification pages and shared pure TypeScript catalog/dossier/feature-registry modules. The pages are web-only and E0/spec-only; no real scan results are wired. A mobile client port and byte-level shared-module comparison have not been verified. Do not count the new pages or logic-only features as mobile parity, and do not recalculate the historical headline from this scoped assessment. The existing domain matrix is retained as historical evidence, not a fresh all-surface audit. See [[concept-se1-evidence-surfaces]] and [[concept-sync-requirements]].
+
 ## PR #316 assessment — 2026-10-30
 
 The portal now hides five surfaces behind dark-launch flags ([[decision-dark-launch-flags]]): track-record hit rates, paper benchmark metrics, top movers, the news-vote confluence component, and the public council demo. This is a one-surface change with no shared module touched. Whether mobile shows the same figures is unchecked, so the matrix rows for Backtest, Hold/Fold and the public demo are unchanged and the headline percentage is not recomputed here. It is computed on the last-merging branch. Mobile impact: unverified, no port required yet.
@@ -14,6 +18,15 @@ The portal now hides five surfaces behind dark-launch flags ([[decision-dark-lau
 ## PR #292 infrastructure assessment — 2026-10-15
 
 The NWF portal now proposes a separate Terraform slot and records its validation and billing gate in [[entity-new-pipeline-infrastructure]]. This PR changes no client feature or shared application module. The existing feature-domain matrix, its denominator, and the historical ~62% headline remain unchanged; this is a scoped assessment, not a fresh parity audit. The mobile mirror records the same disposition.
+## PR #304 assessment — 2026-10-21
+
+Portal PR #304 makes scheduled grounding compilation fail when a live model
+extraction fails, including partial failures, and clarifies the recovery alert.
+This changes backend workflow reliability only: no mobile feature, shared
+client module, API contract, or parity-matrix row changed. The historical ~62%
+headline and matrix remain unchanged; this is a scoped assessment, not a fresh
+parity audit. The fix is pending independent Claude review and is not deployed.
+
 
 ## PR #296 assessment — 2026-10-18
 

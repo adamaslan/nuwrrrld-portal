@@ -6,6 +6,7 @@ import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
 import { resolveTier } from "@/lib/subscription-admin";
 import { getOrFetchDigest } from "@/lib/digest-cache";
+import { signalsRunHeader } from "@/lib/digest";
 import { SignalsClient } from "./SignalsClient";
 import "./signals.css";
 
@@ -34,12 +35,12 @@ export default async function SignalsPage() {
       <div className="signals-header">
         <Link href="/dashboard" className="signals-back">← Dashboard</Link>
         <h1>Signal Digest</h1>
-        {digest && <p className="signals-period">{digest.periodLabel}</p>}
+        {digest && <p className="signals-period">{signalsRunHeader(digest)}</p>}
       </div>
 
       {digest?.degraded && (
         <p className="signal-stale-badge">
-          ⚠ Live signals are unavailable right now — showing the last cached digest.
+          ⚠︎ Live signals are unavailable right now — showing the last cached digest.
         </p>
       )}
 
