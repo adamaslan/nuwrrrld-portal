@@ -159,6 +159,9 @@
 
 @media (min-width: 900px) {
   .hf-layout { grid-template-columns: 380px 1fr; }
+  /* Detail is first in DOM for focus order; keep it in the right column. */
+  .hf-layout > .hf-list { grid-column: 1; grid-row: 1; }
+  .hf-layout > .hf-detail { grid-column: 2; grid-row: 1; }
 }
 
 /* List */
