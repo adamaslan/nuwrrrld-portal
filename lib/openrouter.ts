@@ -96,8 +96,8 @@ export const FREE_MODEL_CHAIN = [
 // 2026-10-02: inclusionai's Ling 3.0 Flash Fin and nex-agi's n2.5-mini now 404.
 //   T1 moved to qwen/qwen3.8-27b:free and RISK to poolside/laguna-xs-2.1:free
 //   (both probed 200 with content; RISK's xs id intermittently 429s and then
-//   falls through to the chain). T2 and RISK now share a vendor, so the spread
-//   is five vendors (qwen, poolside, dots-studio, liquid, nvidia) not six.
+//   falls through to the chain). T2 and RISK shared a vendor at that point;
+//   see the 2026-11-02 note below for the current picks and their vendors.
 export const SEAT_MODELS: Record<CouncilSeat, string> = {
   // 2026-10-08: qwen/qwen3.8-27b:free was withdrawn (404 "unavailable for free";
   // only the paid slug remains). It was also FREE_MODEL_CHAIN's head, and the
@@ -105,17 +105,28 @@ export const SEAT_MODELS: Record<CouncilSeat, string> = {
   T1: 'nvidia/nemotron-3.5-lightning:free',
   // 2026-11-02: both poolside/laguna ids 404 — retired from the free catalog
   // (confirmed by the model-chain live job on #333: seats fell through to
-  // FREE_MODEL_CHAIN with "likely retired from the catalog"). Replacements are
-  // catalog-\$0 general-chat ids, not specialist (per refresh-free-models.mjs's
-  // SPECIALIST_MODEL_PATTERNS): inkling for T2's strategic job (1M context),
-  // inkling-small for RISK's smaller brief. Same vendor for both, as laguna
-  // s/xs already was; google/gemma-4-26b-a4b-it:free is the documented fallback
-  // if inkling-small probes badly (Google free ids have a 429 history here).
+  // FREE_MODEL_CHAIN with "likely retired from the catalog"; still absent from
+  // the 2026-11-12 catalog snapshot). The first replacements picked
+  // (thinkingmachines/inkling*) were withdrawn: those ids are gated to
+  // agentic harnesses for this account (the 2026-09-11 note above), their
+  // provider terms don't cover this traffic, and they are no longer in the
+  // catalog at all (2026-11-12 snapshot). Current picks, from the live catalog
+  // and the provider data-policy table:
+  //   T2: google/gemma-4-31b-it:free — the only non-nvidia, non-gated $0
+  //     general-chat id with a recent successful live probe under this key
+  //     (200 after one 429 retry in the 2026-11-09 refresh run, #350). 262k
+  //     context. Google free ids have a 429 history here; a 429 primary
+  //     degrades to the chain and the seat live test now fails loudly on that.
+  //   RISK: baidu/ernie-5.5-flash-preview:free — catalog-$0 today, 1M context,
+  //     does-not-train per the current provider table, and a new vendor so the
+  //     two seats don't both sit on Google. UNPROBED as of 2026-11-12: if the
+  //     seat live test shows it falling through, use the documented fallback
+  //     google/gemma-4-26b-a4b-it:free instead.
   // Reachability is verified by __tests__/live/model-chain.live.test.ts, which
   // probes every seat under the production contract — catalog presence alone
   // was never sufficient (2026-09-11 note).
-  T2: 'thinkingmachines/inkling:free',
-  RISK: 'thinkingmachines/inkling-small:free',
+  T2: 'google/gemma-4-31b-it:free',
+  RISK: 'baidu/ernie-5.5-flash-preview:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
