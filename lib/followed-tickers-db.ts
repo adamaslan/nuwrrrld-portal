@@ -310,7 +310,7 @@ export interface ScoreRow extends HorizonScore {
 
 /** Every resolved score joined to its pick, for the scoreboard renderer and
  *  the aggregate computation. */
-export async function getAllScores(): Promise<ScoreRow[]> {
+export async function getAllScores(options: { throwOnError?: boolean } = {}): Promise<ScoreRow[]> {
   try {
     const rows = await sql`
       SELECT s.pick_id, s.horizon, s.resolved_on, s.exit_price, s.return_pct,
@@ -333,7 +333,8 @@ export async function getAllScores(): Promise<ScoreRow[]> {
       confidence: (r.confidence as ScoreRow["confidence"]) ?? null,
       judgeScore: r.judge_score == null ? null : Number(r.judge_score),
     }));
-  } catch {
+  } catch (error) {
+    if (options.throwOnError) throw error;
     return [];
   }
 }
