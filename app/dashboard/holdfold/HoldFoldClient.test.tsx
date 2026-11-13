@@ -295,4 +295,22 @@ describe("HoldFoldClient", () => {
       expect(screen.getByRole("button", { name: "Long-Term (T2)" })).toBeInTheDocument();
     });
   });
+
+  it("renders the selected detail before the ticker list in DOM focus order", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HoldFoldClient data={payload} />);
+    await user.click(screen.getByRole("button", { name: /TSLA/ }));
+    const detail = container.querySelector(".hf-detail");
+    const list = container.querySelector(".hf-list");
+    expect(detail).not.toBeNull();
+    expect(list).not.toBeNull();
+    // Focus traversal follows DOM order: the detail (with its Close control)
+    // must precede the long list, matching the narrow-screen visual order.
+    expect(detail!.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Selection and close behavior unchanged: Enter on Close deselects.
+    const close = screen.getByRole("button", { name: "Close" });
+    close.focus();
+    await user.keyboard("{Enter}");
+    expect(container.querySelector(".hf-detail")).toBeNull();
+  });
 });
