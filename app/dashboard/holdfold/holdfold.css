@@ -304,6 +304,7 @@
 .hf-verdict--neutral { color: var(--dim); border-color: var(--line); background: transparent; }
 
 .hf-detail-industry { font-size: 0.78rem; color: var(--dim); margin: 0; }
+.hf-detail-dates { font-size: 0.72rem; color: var(--dim); margin: 4px 0 0; }
 
 .hf-detail-conf {
   display: flex;
