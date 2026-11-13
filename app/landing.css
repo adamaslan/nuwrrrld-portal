@@ -1533,10 +1533,14 @@ body:has(.nwf-landing) {
 .nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) {
   color: var(--text);
 }
+/* Provider icons (span.cl-providerIcon__*) are functional sign-in marks
+   rendered as CSS background images - the universal removal must not strip
+   them (deployed preview showed the Google "G" missing). Decorative gradient
+   removal still applies to every other descendant. */
 .nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root),
-.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *,
-.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *::before,
-.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *::after {
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *:not([class*="cl-providerIcon"]),
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *:not([class*="cl-providerIcon"])::before,
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *:not([class*="cl-providerIcon"])::after {
   border-radius: 0 !important;
   box-shadow: none !important;
   background-image: none !important;
