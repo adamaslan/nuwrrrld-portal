@@ -15,7 +15,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {"title": "Top performers need a record | NuWrrrld Financial", "description": "A confident call is a claim. A recorded outcome gives you something to check. Follow simulated portfolio leaders and the app's strongest monthly stock calls as two different kinds of evidence.", "alternates": {"canonical": "/track-record"}};
 
 export default async function Page() {
-  const record = await getPublicTrackRecord();
+  const { record, status } = await getPublicTrackRecord();
   return (
     <div className="nwf-landing">
       <PreLoginNav />
@@ -26,7 +26,7 @@ export default async function Page() {
           <Link href="/pricing" className="hero-cta">See Pro access →</Link>
         </section>
 
-        <RecordedOutcomes record={record} />
+        <RecordedOutcomes record={record} status={status} />
 
         <ProductExample kind="record" />
         <TwoAudiences title="Understand the record before following the rank" beginner={{"heading": "Two ways to see what happened", "paragraphs": ["The paper leaderboard compares AI-managed practice portfolios. Followed Tickers tracks the app's strongest bullish and bearish calls from each monthly group.", "A top-ranked book is a simulated result. A strongest call is selected for conviction, not because it is known to become a winner. Neither promises what happens next."]}} trader={{"heading": "Separate portfolio results from pick outcomes", "paragraphs": ["The paper leaderboard shows recorded portfolio values and returns, with positions and orders behind each book. Followed Tickers freezes ten bullish and ten bearish calls per monthly cohort and scores realized price outcomes across seven horizons.", "Reasoning grades are separate from price outcomes. Small unresolved samples and unavailable measurements should stay visible as gaps. Benchmark-relative paper metrics are currently withheld."]}} />
