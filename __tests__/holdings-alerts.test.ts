@@ -143,8 +143,22 @@ describe("detectHoldingsAlerts", () => {
 });
 
 describe("canReceiveHoldingsAlerts", () => {
+  it("uses the verified admin override without changing billing status", () => {
+    const identity = { primaryEmailAddressId: "primary", emailAddresses: [{ id: "primary", emailAddress: "chart-review@example.invalid", verification: { status: "verified" } }] };
+    const before = process.env.NULOGDASH_ADMIN_EMAILS;
+    process.env.NULOGDASH_ADMIN_EMAILS = "chart-review@example.invalid";
+    try {
+      expect(canReceiveHoldingsAlerts("free", identity)).toBe(true);
+      expect(canReceiveHoldingsAlerts("free", { ...identity, emailAddresses: [{ ...identity.emailAddresses[0], verification: { status: "unverified" } }] })).toBe(false);
+      expect(canReceiveHoldingsAlerts("free", null)).toBe(false);
+      expect(canReceiveHoldingsAlerts("canceled", null)).toBe(false);
+    } finally {
+      if (before === undefined) delete process.env.NULOGDASH_ADMIN_EMAILS;
+      else process.env.NULOGDASH_ADMIN_EMAILS = before;
+    }
+  });
   it("is a Pro feature", () => {
     expect(canReceiveHoldingsAlerts("free")).toBe(false);
-    expect(canReceiveHoldingsAlerts("pro")).toBe(true);
+    expect(canReceiveHoldingsAlerts("active")).toBe(true);
   });
 });
