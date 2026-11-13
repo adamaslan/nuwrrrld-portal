@@ -239,6 +239,13 @@ export function HoldFoldClient({ data }: Props) {
       </div>
 
       <div className="hf-layout">
+        {/* Detail precedes the list in DOM so keyboard focus reaches the
+            selected verdict (and its Close control) before the long ticker
+            list - matching the narrow-screen visual order. Desktop restores
+            list-left/detail-right with explicit grid placement in CSS. */}
+        {selected && (
+          <VerdictDetail v={selected} onClose={() => setSelected(null)} />
+        )}
         <div className="hf-list">
           {filtered.length === 0 && <p className="hf-no-results">No tickers match your search.</p>}
           {filtered.map(v => {
@@ -259,9 +266,6 @@ export function HoldFoldClient({ data }: Props) {
           })}
         </div>
 
-        {selected && (
-          <VerdictDetail v={selected} onClose={() => setSelected(null)} />
-        )}
       </div>
     </div>
   );
