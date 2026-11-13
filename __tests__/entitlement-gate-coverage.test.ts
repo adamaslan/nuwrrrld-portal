@@ -5,7 +5,7 @@ import { globSync } from "tinyglobby";
 
 /**
  * Structural guard: every feature gate must resolve tier through
- * `resolveTier()`/`parseSubscriptionMetadataWithAdmin()` (lib/subscription-admin),
+ * `resolveTierWithPendingBeta()`/`parseSubscriptionWithPendingBeta()` (lib/subscription-admin-server),
  * never through bare `tierFromStatus()` (lib/subscription).
  *
  * Why this exists as a test rather than a code review note: PR #119 added the
@@ -66,14 +66,20 @@ describe("entitlement gate coverage", () => {
       if (ALLOWED_BARE_TIER_FROM_STATUS.has(rel)) return false;
       const src = readFileSync(join(REPO_ROOT, rel), "utf8");
       if (!/\bhasEntitlement\s*\(/.test(src)) return false;
-      return !/\b(resolveTier|parseSubscriptionMetadataWithAdmin)\s*\(/.test(src);
+      return !/\b(resolveTierWithPendingBeta|parseSubscriptionWithPendingBeta)\s*\(/.test(src);
     });
 
     expect(
       offenders,
       `These files call hasEntitlement() without resolving tier through ` +
-        `lib/subscription-admin, so the admin Pro override never applies to them.`,
+        `lib/subscription-admin-server, so pending-email beta never applies to them.`,
     ).toEqual([]);
+  });
+
+  it("all application subscription callers use the async registry-aware server module", () => {
+    const legacy = sourceFiles().filter((rel) => rel.startsWith("app/") &&
+      /from ["']@\/lib\/subscription-admin["']/.test(readFileSync(join(REPO_ROOT, rel), "utf8")));
+    expect(legacy).toEqual([]);
   });
 
   it("guards the real gated surfaces, not an empty set", () => {

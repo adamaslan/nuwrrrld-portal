@@ -6,13 +6,14 @@
  * (lib/nulogdash-beta-actions.ts).
  */
 import { useState, useTransition } from "react";
-import { grantBeta, revokeBeta, type BetaActionResult } from "@/lib/nulogdash-beta-actions";
+import { grantBeta, revokeBeta, revokePendingBeta, type BetaActionResult } from "@/lib/nulogdash-beta-actions";
 
 function ResultLine({ result }: { result: BetaActionResult | null }) {
   if (!result) return null;
   return (
     <p role="status" className={result.ok ? "nld-result nld-result--ok" : "nld-result nld-result--err"}>
       {result.ok ? result.message : result.error}
+      {result.ok && result.signupUrl && <><br /><a href={result.signupUrl} style={{ textDecoration: "underline", overflowWrap: "anywhere" }}>Signup link (no access token)</a><br />This link only opens signup. Beta requires a verified primary email added by an admin.</>}
     </p>
   );
 }
@@ -48,6 +49,8 @@ export function GrantForm({ canMutate }: { canMutate: boolean }) {
         Email
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
       </label>
+      <details>
+      <summary>Optional expiry and note</summary>
       <label>
         Expires (optional)
         <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
@@ -56,8 +59,9 @@ export function GrantForm({ canMutate }: { canMutate: boolean }) {
         Note (optional)
         <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
+      </details>
       <button type="submit" className="nld-trigger-btn" disabled={pending || !canMutate}>
-        {pending ? "Granting…" : "Grant Pro"}
+        {pending ? "Adding…" : "Add to beta"}
       </button>
       <ResultLine result={result} />
     </form>
@@ -86,4 +90,17 @@ export function RevokeButton({ userId, canMutate }: { userId: string; canMutate:
       <ResultLine result={result} />
     </>
   );
+}
+
+export function RevokePendingButton({ emailId, canMutate }: { emailId: string; canMutate: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<BetaActionResult | null>(null);
+  return <>
+    <button type="button" className="nld-trigger-btn" disabled={pending || !canMutate}
+      onClick={() => startTransition(async () => {
+        try { setResult(await revokePendingBeta({ emailId })); }
+        catch { setResult({ ok: false, error: "Could not revoke email grant. Try again." }); }
+      })}>{pending ? "Revoking…" : "Revoke email grant"}</button>
+    <ResultLine result={result} />
+  </>;
 }

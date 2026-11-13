@@ -1,3 +1,5 @@
+import { readBetaEmails } from "@/lib/beta-email-registry";
+import { hasActiveBetaGrant } from "@/lib/beta-grant";
 /**
  * Lists users holding a `publicMetadata.beta` grant, for the nulogdash panel.
  *
@@ -38,4 +40,12 @@ export async function listBetaGrants(now: Date = new Date()): Promise<BetaGrantL
   // Active first, then most recently granted.
   grants.sort((a, b) => Number(b.active) - Number(a.active) || (b.grantedAt ?? "").localeCompare(a.grantedAt ?? ""));
   return { grants, truncated: users.length >= USER_PAGE_SIZE };
+}
+
+export async function listPendingBetaEmails(adminId: string) {
+  const clerk = await clerkClient();
+  const admin = await clerk.users.getUser(adminId);
+  return Object.entries(readBetaEmails(admin.privateMetadata)).map(([id, entry]) => ({
+    id, email: entry.email, active: hasActiveBetaGrant({ beta: entry.grant }), expiresAt: entry.grant.expiresAt,
+  }));
 }

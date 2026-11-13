@@ -3,9 +3,9 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isNulogdashAdmin, canPerformAdminAction } from "@/lib/nulogdash";
-import { listBetaGrants } from "@/lib/beta-grant-list";
+import { listBetaGrants, listPendingBetaEmails } from "@/lib/beta-grant-list";
 import { NulogdashTabs, MfaNotice } from "../page";
-import { GrantForm, RevokeButton } from "./_components/BetaControls";
+import { GrantForm, RevokeButton, RevokePendingButton } from "./_components/BetaControls";
 import "../nulogdash.css";
 
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ export default async function BetaTestersPage() {
   if (!isNulogdashAdmin(user)) notFound();
 
   const canMutate = canPerformAdminAction(user);
-  const { grants, truncated } = await listBetaGrants();
+  const [{ grants, truncated }, pending] = await Promise.all([listBetaGrants(), listPendingBetaEmails(userId)]);
 
   return (
     <main className="nld-page">
@@ -33,13 +33,25 @@ export default async function BetaTestersPage() {
       {!canMutate && <MfaNotice />}
 
       <section>
-        <h2>Grant beta Pro</h2>
+        <h2>Add someone to beta</h2>
         <p className="nld-meta">
-          The person must already have an account with a verified email. A grant runs until the
-          start of its expiry date (UTC), or indefinitely if left blank. This only applies to the
-          Clerk instance this site is running against.
+          Enter their email. Existing verified accounts get beta Pro immediately. For someone new,
+          their email is saved privately until they sign up and verify it as their primary email.
+          No invitation or email is sent. The signup link is ordinary navigation, not an access token.
+          Beta access has no expiry unless you choose one below. This applies only to this Clerk environment.
         </p>
         <GrantForm canMutate={canMutate} />
+      </section>
+
+      <section>
+        <h2>Email-based beta grants ({pending.length})</h2>
+        <p className="nld-meta">These grants apply only after ordinary verified-primary-email signup. Your private registry holds up to 10 emails. Revoke here to stop this email-based access. Other admins&apos; grants are separate.</p>
+        {pending.length === 0 ? <p className="nld-empty">No email-based grants.</p> :
+          <ul>{pending.map((i) => <li key={i.id}>
+            {i.email} - {i.active ? "Eligible after verified signup" : "Expired"} - expires {i.expiresAt ?? "never"}
+            <RevokePendingButton emailId={i.id} canMutate={canMutate} />
+          </li>)}</ul>}
+        <Link href="/sign-up?redirect_url=/dashboard" style={{ textDecoration: "underline" }}>Signup link (no access token)</Link>
       </section>
 
       <section>

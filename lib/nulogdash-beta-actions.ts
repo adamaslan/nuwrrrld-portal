@@ -6,12 +6,13 @@
  *
  * Granting Pro is a mutating admin action, so every call re-derives identity
  * from the session and requires `canPerformAdminAction` (allowlisted admin +
- * two-factor), the same gate as nulogdash-actions.ts. Nothing the client sends
+ * configured MFA policy), the same gate as nulogdash-actions.ts. Nothing the client sends
  * about who it is is trusted.
  */
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { canPerformAdminAction } from "@/lib/nulogdash";
+import { BETA_EMAIL_KEY, betaEmailId, readBetaEmails, MAX_PENDING_BETA_EMAILS, MAX_METADATA_BYTES } from "@/lib/beta-email-registry";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildBetaGrant, parseGrantInput, type GrantInput } from "@/lib/beta-grant-admin";
 
@@ -20,7 +21,7 @@ const CHANGE_WINDOW_MS = 5 * 60_000;
 const CLERK_USER_ID_PATTERN = /^user_[A-Za-z0-9]+$/;
 const PANEL_PATH = "/dashboard/nulogdash/beta";
 
-export type BetaActionResult = { ok: true; message: string } | { ok: false; error: string };
+export type BetaActionResult = { ok: true; message: string; signupUrl?: string } | { ok: false; error: string };
 
 async function requireAdmin(): Promise<{ userId: string }> {
   const { userId } = await auth();
@@ -28,7 +29,7 @@ async function requireAdmin(): Promise<{ userId: string }> {
   const user = await currentUser();
   if (!canPerformAdminAction(user)) {
     throw new Error(
-      "This action needs an allowlisted admin account with two-factor authentication enabled.",
+      "This action needs a verified allowlisted admin account and the configured MFA policy.",
     );
   }
   return { userId };
@@ -54,7 +55,23 @@ export async function grantBeta(raw: GrantInput): Promise<BetaActionResult> {
   const clerk = await clerkClient();
   const { data: matches } = await clerk.users.getUserList({ emailAddress: [parsed.email] });
   if (matches.length === 0) {
-    return { ok: false, error: "No account with that email. Ask them to sign up first, then grant." };
+    const admin = await clerk.users.getUser(adminId);
+    const entries = readBetaEmails(admin.privateMetadata);
+    const id = betaEmailId(parsed.email);
+    if (!entries[id] && Object.keys(entries).length >= MAX_PENDING_BETA_EMAILS) {
+      return { ok: false, error: "Pending-email capacity reached (10). Revoke an entry before adding another." };
+    }
+    const entry = { email: parsed.email, grant: buildBetaGrant(parsed) };
+    const nextPrivate = { ...admin.privateMetadata, [BETA_EMAIL_KEY]: { ...entries, [id]: entry } };
+    const bytes = Buffer.byteLength(JSON.stringify({ publicMetadata: admin.publicMetadata, privateMetadata: nextPrivate, unsafeMetadata: admin.unsafeMetadata }), "utf8");
+    if (bytes > MAX_METADATA_BYTES) return { ok: false, error: "Account metadata is near capacity. No beta entry was saved." };
+    await clerk.users.updateUserMetadata(adminId, { privateMetadata: { [BETA_EMAIL_KEY]: { [id]: entry } } });
+    revalidatePath(PANEL_PATH);
+    return {
+      ok: true,
+      message: "Email added. They get beta Pro after normal signup and verification of this primary email. The signup link conveys no access by itself.",
+      signupUrl: "/sign-up?redirect_url=/dashboard",
+    };
   }
 
   // Only a verified address counts: Clerk's email filter also matches
@@ -98,4 +115,16 @@ export async function revokeBeta(raw: { userId: string }): Promise<BetaActionRes
   console.info("[nulogdash] beta revoke", { by: adminId, target: targetId });
   revalidatePath(PANEL_PATH);
   return { ok: true, message: "Revoked." };
+}
+
+/** Remove only the current admin's pending-email entry. No account or invitation mutation. */
+export async function revokePendingBeta(raw: { emailId: string }): Promise<BetaActionResult> {
+  const { userId: adminId } = await requireAdmin();
+  if (!/^[a-f0-9]{64}$/.test(raw?.emailId ?? "")) return { ok: false, error: "Invalid pending entry." };
+  const limited = checkRate(adminId);
+  if (limited) return limited;
+  const clerk = await clerkClient();
+  await clerk.users.updateUserMetadata(adminId, { privateMetadata: { [BETA_EMAIL_KEY]: { [raw.emailId]: null } } });
+  revalidatePath(PANEL_PATH);
+  return { ok: true, message: "Pending email revoked." };
 }
