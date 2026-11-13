@@ -159,6 +159,9 @@
 
 @media (min-width: 900px) {
   .hf-layout { grid-template-columns: 380px 1fr; }
+  /* Detail is first in DOM for focus order; keep it in the right column. */
+  .hf-layout > .hf-list { grid-column: 1; grid-row: 1; }
+  .hf-layout > .hf-detail { grid-column: 2; grid-row: 1; }
 }
 
 /* List */
@@ -246,8 +249,10 @@
 }
 
 .hf-close {
-  position: absolute;
-  top: 0; right: 0;
+  position: static;
+  align-self: flex-end;
+  min-width: 44px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--dim);
@@ -260,6 +265,7 @@
 
 .hf-detail-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
@@ -298,6 +304,7 @@
 .hf-verdict--neutral { color: var(--dim); border-color: var(--line); background: transparent; }
 
 .hf-detail-industry { font-size: 0.78rem; color: var(--dim); margin: 0; }
+.hf-detail-dates { font-size: 0.72rem; color: var(--dim); margin: 4px 0 0; }
 
 .hf-detail-conf {
   display: flex;
@@ -560,3 +567,12 @@
 .hf-fib-row { padding: 2px 0; font-size: 0.85rem; }
 .hf-fib-price { font-weight: 600; border-top: 1px dashed currentColor; border-bottom: 1px dashed currentColor; margin: 4px 0; }
 .hf-fib-zones { margin-top: 6px; font-size: 0.8rem; opacity: 0.8; }
+
+/* Put a selected verdict within reach before the long ticker list on phones. */
+@media (max-width: 899px) {
+  .hf-detail {
+    grid-row: 1;
+    position: static;
+    max-height: none;
+  }
+}

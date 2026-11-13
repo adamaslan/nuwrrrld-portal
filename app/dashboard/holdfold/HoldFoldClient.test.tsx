@@ -101,11 +101,11 @@ describe("HoldFoldClient", () => {
     render(<HoldFoldClient data={payload} />);
 
     await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
-    expect(screen.getByText("AI OUTLOOK")).toBeInTheDocument();
+    expect(screen.getByText("STORED SIGNAL SUMMARY")).toBeInTheDocument();
     expect(screen.getByText("Outlook text")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
-    expect(screen.queryByText("AI OUTLOOK")).not.toBeInTheDocument();
+    expect(screen.queryByText("STORED SIGNAL SUMMARY")).not.toBeInTheDocument();
   });
 
   it("the close (✕) button in the detail panel closes it", async () => {
@@ -113,7 +113,37 @@ describe("HoldFoldClient", () => {
     render(<HoldFoldClient data={payload} />);
     await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
     await user.click(screen.getByRole("button", { name: "Close" }));
-    expect(screen.queryByText("AI OUTLOOK")).not.toBeInTheDocument();
+    expect(screen.queryByText("STORED SIGNAL SUMMARY")).not.toBeInTheDocument();
+  });
+
+  it("returns focus to the selected ticker after pointer Close", async () => {
+    const user = userEvent.setup();
+    render(<HoldFoldClient data={payload} />);
+    const row = screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ });
+    await user.click(row);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(row).toHaveFocus();
+  });
+
+  it("returns focus to the latest selected ticker after keyboard Close", async () => {
+    const user = userEvent.setup();
+    render(<HoldFoldClient data={payload} />);
+    await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
+    const row = screen.getByRole("button", { name: /TSLA.*Automotive/ });
+    await user.click(row);
+    screen.getByRole("button", { name: "Close" }).focus();
+    await user.keyboard("{Enter}");
+    expect(row).toHaveFocus();
+  });
+
+  it("returns focus to search if the selected row is no longer shown", async () => {
+    const user = userEvent.setup();
+    render(<HoldFoldClient data={payload} />);
+    await user.click(screen.getByRole("button", { name: /AAPL.*Consumer Electronics/ }));
+    const search = screen.getByPlaceholderText("Search ticker or industry…");
+    await user.type(search, "TSLA");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(search).toHaveFocus();
   });
 
   it("selecting a different row swaps the detail panel content", async () => {
@@ -294,5 +324,23 @@ describe("HoldFoldClient", () => {
       // T2 seat button is unaffected and still shows its idle label
       expect(screen.getByRole("button", { name: "Long-Term (T2)" })).toBeInTheDocument();
     });
+  });
+
+  it("renders the selected detail before the ticker list in DOM focus order", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HoldFoldClient data={payload} />);
+    await user.click(screen.getByRole("button", { name: /TSLA/ }));
+    const detail = container.querySelector(".hf-detail");
+    const list = container.querySelector(".hf-list");
+    expect(detail).not.toBeNull();
+    expect(list).not.toBeNull();
+    // Focus traversal follows DOM order: the detail (with its Close control)
+    // must precede the long list, matching the narrow-screen visual order.
+    expect(detail!.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Selection and close behavior unchanged: Enter on Close deselects.
+    const close = screen.getByRole("button", { name: "Close" });
+    close.focus();
+    await user.keyboard("{Enter}");
+    expect(container.querySelector(".hf-detail")).toBeNull();
   });
 });

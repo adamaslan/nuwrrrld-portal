@@ -147,7 +147,7 @@ export default async function TickerDetailPage(
           </Link>
           <p className="hf-updated" style={{ margin: 0 }}>
             <span className="hf-updated-dot" />
-            {new Date(v.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+            Market bar {v.barDate ?? "unknown"} · Calculated {new Date(v.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
           </p>
         </div>
       </div>

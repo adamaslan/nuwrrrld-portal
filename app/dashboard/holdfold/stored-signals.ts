@@ -3,6 +3,7 @@ import { bipolarCards, getCard, type StoredCard } from "@/lib/ticker-cards-db";
 import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { mapSignalsToHoldFold, type HoldFoldPayload, type HoldFoldVerdict } from "@/lib/shared/holdfold-map";
+import { latestComputedAt, tokenStrength } from "@/lib/shared/stored-card-honesty";
 
 export const SIGNALS_PER_SIDE = 24;
 
@@ -17,8 +18,9 @@ function cardToEntry(card: StoredCard): Record<string, unknown> {
     ai_confidence: card.tokens.confluence === "strong" ? "HIGH" : card.tokens.confluence === "moderate" ? "MEDIUM" : "LOW",
     ai_summary: `${card.action} · stored ${card.horizon} card`,
     ai_outlook: tokens.map(([key, value]) => `${key}: ${value}`).join(" · "),
-    signals: tokens.map(([key, value]) => ({ signal: `${key}: ${value}`, detail: `Stored ${key} regime: ${value}`, category: key, strength: card.tokens.direction })),
+    signals: tokens.map(([key, value]) => ({ signal: `${key}: ${value}`, detail: `Stored ${key} regime: ${value}`, category: key, strength: tokenStrength(value) })),
     updated: card.computedAt,
+    bar_date: card.barDate,
     confluence_score: card.score,
     engine_version: card.scoreVersion,
   };
@@ -31,7 +33,7 @@ export const getStoredSignals = cache(async function getStoredSignals() {
   for (const card of cards) {
     symbols[card.ticker] = cardToEntry(card);
   }
-  return { symbols, updated: cards.map(card => card.computedAt).sort().at(-1) ?? "" };
+  return { symbols, updated: latestComputedAt(cards) };
 });
 
 function finite(value: unknown): number | null {
@@ -50,6 +52,7 @@ export function mapAvailableVerdict(ticker: string, entry: Record<string, unknow
     high52w: finite(entry["52w_high"]) ?? Number.NaN,
     low52w: finite(entry["52w_low"]) ?? Number.NaN,
     updatedAt: String(entry.updated ?? ""),
+    barDate: typeof entry.bar_date === "string" && entry.bar_date ? entry.bar_date : null,
   };
 }
 

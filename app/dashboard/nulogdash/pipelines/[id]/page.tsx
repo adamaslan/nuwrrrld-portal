@@ -48,7 +48,7 @@ function localReportPath(runAt: string, pipeline: string): string | null {
 export function ItemRow({ item }: { item: RunItem }) {
   return (
     <tr className="nld-row">
-      <td>{item.subject}</td>
+      <td><div className="nld-item-subject" tabIndex={0} role="region" aria-label="Full subject">{item.subject}</div></td>
       <td>{item.seat ?? "—"}</td>
       <td>{item.model ?? "—"}</td>
       <td><OutcomeBadge outcome={item.outcome} /></td>
