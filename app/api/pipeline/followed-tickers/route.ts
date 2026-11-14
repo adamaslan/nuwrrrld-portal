@@ -32,8 +32,8 @@ import {
   getObservations,
   getPickIdsObservedOn,
   getResolvedHorizons,
-  upsertObservation,
   insertObservationClose,
+  upsertObservationEnrichment,
   type Pick,
 } from "@/lib/followed-tickers-db";
 
@@ -189,25 +189,6 @@ export async function POST(req: NextRequest) {
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
 
     // Enrich the already-saved required observation with optional fields.
-    const liveDir = liveSignalDir
-      ? liveSignalDir.toLowerCase().includes("buy")
-        ? "bull"
-        : liveSignalDir.toLowerCase().includes("sell")
-          ? "bear"
-          : null
-      : null;
-    if (price != null && !dryRun) {
-      await upsertObservation({
-        pickId: pick.id,
-        observedOn: today,
-        closePrice: price.price,
-        priceSource: price.source,
-        signalDir: liveDir,
-        backtestRate,
-        councilJson: null,
-      });
-    }
-
     const councilMsLeft = COUNCIL_DEADLINE_MS - (Date.now() - startedAt);
     let timer: ReturnType<typeof setTimeout> | undefined;
     // The race limits waiting, not provider execution. Late work may finish;
@@ -258,8 +239,13 @@ export async function POST(req: NextRequest) {
         : null;
     const thesisHolding = normLive == null ? null : normLive === pick.direction;
 
-    if (price != null && !dryRun && (council || normLive !== liveDir)) {
-      await upsertObservation({
+    // Persist the day's signal/backtest (and any council verdict) for EVERY
+    // priced pick, not only when something changed: a quiet day must not
+    // leave the scoreboard sparse. The preserving upsert never wipes an
+    // existing value with a null result, so a same-day overlap cannot erase
+    // a council verdict already stored.
+    if (price != null && !dryRun) {
+      await upsertObservationEnrichment({
         pickId: pick.id,
         observedOn: today,
         closePrice: price.price,
