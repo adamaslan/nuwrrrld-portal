@@ -752,11 +752,13 @@ _EVAL_SLOTS = ((10, 0), (10, 30))
 _SCORE_BACKLOG_SLOT = (17, 30)  # after the final aggregate, so ingest-time scoring misses are caught before the next session
 
 
-def due_jobs(now: datetime) -> list[str]:
+def due_jobs(now: datetime, *, profile: str = "legacy") -> list[str]:
     """Which jobs §5.1 says should start this minute (evaluated in America/New_York).
 
     Holidays are handled inside the jobs (broker clock/calendar), not here.
     """
+    if profile not in {"legacy", "shadow-batch"}:
+        raise ValueError("Unknown nwf4 cadence profile")
     local = now.astimezone(NEW_YORK)
     hour, minute, weekday = local.hour, local.minute, local.weekday()
     on_weekday = weekday < 5
@@ -764,13 +766,14 @@ def due_jobs(now: datetime) -> list[str]:
     due: list[str] = []
 
     in_ingest_window = on_weekday and 7 <= hour < 20
-    if (in_ingest_window and minute % 5 == 0) or (not in_ingest_window and minute % 30 == 0):
+    ingest_minutes = 15 if profile == "shadow-batch" else 2
+    if (in_ingest_window and minute % ingest_minutes == 0) or (not in_ingest_window and minute % 30 == 0):
         due.append(JOB_INGEST)
 
     in_market = on_weekday and (9, 30) <= clock <= (16, 0)
     if in_market and minute in (0, 30):
         due.append(JOB_CORROBORATE)
-    if in_market and minute % 5 == 0:
+    if in_market and profile == "legacy":
         due.append(JOB_POLLER)
     if on_weekday and clock == (9, 20):
         due.append(JOB_AGGREGATE_PREVIEW)
