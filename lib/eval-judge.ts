@@ -17,7 +17,7 @@ import type { StructuredVerdict } from "@/lib/council-verdict";
 
 /** Current rubric version. Changing the rubric or the judge model starts a new
  *  scoring series — judge scores are comparable only within a version. */
-export const JUDGE_VERSION = "v1";
+export const JUDGE_VERSION = "v2-frozen-selection-day";
 
 /** Gold-set agreement below this fraction discards the whole run's scores. */
 export const GOLD_AGREEMENT_THRESHOLD = 0.8;
@@ -172,14 +172,15 @@ export interface GoldGateResult {
  * is discarded — the only defense against silent judge drift when the free-tier
  * model chain swaps a model out from under the harness.
  */
-export function evaluateGoldGate(comparisons: readonly GoldComparison[]): GoldGateResult {
-  if (comparisons.length === 0) {
+export function evaluateGoldGate(comparisons: readonly GoldComparison[], expectedCount = comparisons.length): GoldGateResult {
+  if (!Number.isInteger(expectedCount) || expectedCount <= 0 || comparisons.length > expectedCount || comparisons.length === 0) {
     // No gold set = judge rule 5 is unenforceable = the judge column is
     // unfalsifiable. Treat as a hard fail rather than a vacuous pass.
     return { agreementRate: 0, passed: false, comparisons: [] };
   }
   const agree = comparisons.filter((c) => c.agrees).length;
-  const rate = agree / comparisons.length;
+  // Failed/unparseable gold responses are disagreements, not dropped denominator rows.
+  const rate = agree / expectedCount;
   return {
     agreementRate: rate,
     passed: rate >= GOLD_AGREEMENT_THRESHOLD,
