@@ -513,3 +513,5 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - [[entity-openrouter-client]] — PR #46's account-wide free-tier quota finding, relevant to any future council-based mobile brief work
 - `gcp3-mobile/docs/wiki-mobile/overview.md` — open-issue #6 (adapter divergence)
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`
+
+**PR #375 (2026-11-14), scoped assessment.** Four se1 rows are now web-only: A2, A3, B2 and G3. The shared logic they call (`lib/shared/se1/ask.ts`, `dossiers.ts`, `explain.ts`) is not copied to `gcp3-mobile` and is not in the shared-drift gate. The historical headline and domain matrix are unchanged. This is not a fresh parity audit. Mobile port of these rows is still open, and the ledger lists it as `planned`.
