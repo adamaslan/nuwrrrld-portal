@@ -285,9 +285,11 @@ function JudgeView({ view }: { view: FollowedTickersViewVM }) {
 
   return (
     <div className="ft-judge">
+      <p>Research grading series: {view.judgeVersion}. Other or unknown versions excluded: {view.excludedJudgeGrades}.</p>
+      <p>Selection-day context only. Same-day updates may replace the stored brief; this is not an immutable original-prediction record.</p>
       {j == null ? (
         <p className="ft-judge-empty">
-          No verdicts have been graded yet. The weekly judge run grades a sample of
+          No verdicts in this grading series have been graded yet. The weekly judge run grades a sample of
           that week&apos;s council verdicts against a five-criterion rubric.
         </p>
       ) : (
@@ -302,32 +304,34 @@ function JudgeView({ view }: { view: FollowedTickersViewVM }) {
         </div>
       )}
 
-      <h3 className="ft-quadrant-title">Outcome × reasoning quality</h3>
+      {j == null ? <p>No Judge scores in this series yet; the quadrant appears once verdicts are graded.</p> : <>
+      <h3 className="ft-quadrant-title">Recorded outcome × research Judge score</h3>
       <p className="ft-quadrant-lead">
-        The bottom-left cell is the one to watch: right for no articulable reason.
+        Counts group recorded hit/miss outcomes by research Judge score. They do not establish strategy skill, reasoning validity or why an outcome happened.
       </p>
       <div className="ft-quadrant">
         <div className="ft-quad ft-quad--good">
           <span className="ft-quad-label">Hit · judge ≥ 7</span>
           <span className="ft-quad-n">{q.hitHighJudge}</span>
-          <span className="ft-quad-note">Working as intended</span>
+          <span className="ft-quad-note">Recorded hit; Judge score ≥ 7</span>
         </div>
         <div className="ft-quad">
           <span className="ft-quad-label">Miss · judge ≥ 7</span>
           <span className="ft-quad-n">{q.missHighJudge}</span>
-          <span className="ft-quad-note">Sound process, unlucky</span>
+          <span className="ft-quad-note">Recorded miss; Judge score ≥ 7</span>
         </div>
         <div className="ft-quad ft-quad--danger">
           <span className="ft-quad-label">Hit · judge &lt; 7</span>
           <span className="ft-quad-n">{q.hitLowJudge}</span>
-          <span className="ft-quad-note">Right for no reason</span>
+          <span className="ft-quad-note">Recorded hit; Judge score &lt; 7</span>
         </div>
         <div className="ft-quad ft-quad--broken">
           <span className="ft-quad-label">Miss · judge &lt; 7</span>
           <span className="ft-quad-n">{q.missLowJudge}</span>
-          <span className="ft-quad-note">Genuinely broken</span>
+          <span className="ft-quad-note">Recorded miss; Judge score &lt; 7</span>
         </div>
       </div>
+      </>}
     </div>
   );
 }
