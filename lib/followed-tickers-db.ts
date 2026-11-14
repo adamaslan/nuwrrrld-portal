@@ -339,32 +339,31 @@ export async function getAllScores(options: { throwOnError?: boolean } = {}): Pr
   }
 }
 
-/** Recently-resolved scores that still need a judge grade — the weekly judge
- *  run's sample. Only verdicts with a stored council_json can be graded. */
+/** Recently resolved scores, joined only to the selection-day observation.
+ * Never substitute the latest author's verdict for the entry-day verdict.
+ * Missing original context stays in the sample for explicit skip reporting.
+ * Errors propagate: a failed evaluator read is not an empty successful run. */
 export async function getUnjudgedScoresSince(sinceIso: string): Promise<
-  Array<{ pickId: string; horizon: Horizon; councilJson: unknown }>
+  Array<{ pickId: string; horizon: Horizon; ticker: string; selectedAt: string;
+    observedOn: string | null; councilJson: unknown }>
 > {
-  try {
-    const rows = await sql`
-      SELECT s.pick_id, s.horizon, o.council_json
-      FROM followed_ticker_scores s
-      JOIN followed_ticker_observations o
-        ON o.pick_id = s.pick_id AND o.observed_on = (
-          SELECT max(observed_on) FROM followed_ticker_observations
-          WHERE pick_id = s.pick_id
-        )
-      WHERE s.judge_score IS NULL
-        AND s.resolved_on >= ${sinceIso}
-        AND o.council_json IS NOT NULL
-    `;
-    return rows.map((r) => ({
-      pickId: r.pick_id as string,
-      horizon: r.horizon as Horizon,
-      councilJson: r.council_json,
-    }));
-  } catch {
-    return [];
-  }
+  const rows = await sql`
+    SELECT s.pick_id, s.horizon, p.ticker, p.selected_at, o.observed_on, o.council_json
+    FROM followed_ticker_scores s
+    JOIN followed_ticker_picks p ON p.id = s.pick_id
+    LEFT JOIN followed_ticker_observations o
+      ON o.pick_id = s.pick_id
+      AND o.observed_on = (p.selected_at AT TIME ZONE 'America/New_York')::date
+    WHERE s.judge_score IS NULL AND s.resolved_on >= ${sinceIso}
+  `;
+  return rows.map((r) => ({
+    pickId: r.pick_id as string,
+    horizon: r.horizon as Horizon,
+    ticker: r.ticker as string,
+    selectedAt: new Date(r.selected_at as string).toISOString(),
+    observedOn: r.observed_on == null ? null : new Date(r.observed_on as string).toISOString().slice(0, 10),
+    councilJson: r.council_json ?? null,
+  }));
 }
 
 export async function saveJudgeScore(
@@ -412,6 +411,7 @@ export interface ViewData {
     directional: number | null;
     returnPct: number | null;
     judgeScore: number | null;
+    judgeVersion: string | null;
   }>;
 }
 
@@ -444,7 +444,7 @@ export async function getViewData(): Promise<ViewData> {
         ORDER BY observed_on ASC
       `,
       sql`
-        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score
+        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score, judge_version
         FROM followed_ticker_scores
         WHERE pick_id = ANY(${ids}::uuid[])
       `,
@@ -482,6 +482,7 @@ export async function getViewData(): Promise<ViewData> {
         directional: r.directional == null ? null : Number(r.directional),
         returnPct: r.return_pct == null ? null : Number(r.return_pct),
         judgeScore: r.judge_score == null ? null : Number(r.judge_score),
+        judgeVersion: r.judge_version == null ? null : String(r.judge_version),
       })),
     };
   } catch {
