@@ -183,6 +183,59 @@ export async function upsertObservation(obs: Observation): Promise<void> {
   `;
 }
 
+/** Enrich a saved observation with optional context. On a same-day conflict,
+ *  fresh non-null values replace stale ones, but a null result NEVER wipes a
+ *  value already stored: a quiet retry or an overlapping run cannot erase an
+ *  existing signal, backtest or council verdict. Throws on a real DB failure. */
+export async function upsertObservationEnrichment(obs: {
+  pickId: string;
+  observedOn: string;
+  closePrice: number;
+  priceSource: PriceSource;
+  signalDir: string | null;
+  backtestRate: number | null;
+  councilJson: unknown;
+}): Promise<void> {
+  await sql`
+    INSERT INTO followed_ticker_observations
+      (pick_id, observed_on, close_price, price_source, signal_dir, backtest_rate, council_json)
+    VALUES (
+      ${obs.pickId}, ${obs.observedOn}, ${obs.closePrice}, ${obs.priceSource},
+      ${obs.signalDir}, ${obs.backtestRate},
+      ${obs.councilJson == null ? null : JSON.stringify(obs.councilJson)}
+    )
+    ON CONFLICT (pick_id, observed_on) DO UPDATE SET
+      close_price   = EXCLUDED.close_price,
+      price_source  = EXCLUDED.price_source,
+      signal_dir    = COALESCE(EXCLUDED.signal_dir, followed_ticker_observations.signal_dir),
+      backtest_rate = COALESCE(EXCLUDED.backtest_rate, followed_ticker_observations.backtest_rate),
+      council_json  = COALESCE(EXCLUDED.council_json, followed_ticker_observations.council_json)
+  `;
+}
+
+/** Save the required daily close without touching optional context. Unlike
+ *  upsertObservation, a same-day conflict updates only close_price and
+ *  price_source, so a failed or deferred enrichment pass can never erase an
+ *  existing signal, backtest or council value. Throws on a real DB failure. */
+export async function insertObservationClose(obs: {
+  pickId: string;
+  observedOn: string;
+  closePrice: number;
+  priceSource: PriceSource;
+}): Promise<void> {
+  await sql`
+    INSERT INTO followed_ticker_observations
+      (pick_id, observed_on, close_price, price_source, signal_dir, backtest_rate, council_json)
+    VALUES (
+      ${obs.pickId}, ${obs.observedOn}, ${obs.closePrice}, ${obs.priceSource},
+      null, null, null
+    )
+    ON CONFLICT (pick_id, observed_on) DO UPDATE SET
+      close_price  = EXCLUDED.close_price,
+      price_source = EXCLUDED.price_source
+  `;
+}
+
 /** Replace only the council verdict on an existing observation, leaving its price,
  *  source, signal and backtest fields as the observer wrote them. */
 export async function setObservationCouncil(pickId: string, observedOn: string, councilJson: unknown): Promise<void> {
@@ -196,21 +249,30 @@ export async function setObservationCouncil(pickId: string, observedOn: string, 
 /** Pick IDs that already have an observation on `observedOn`. The observer uses
  *  this to skip a pick on a second run the same day (the track gate accepts a
  *  whole afternoon window, so a double fire is expected). */
-export async function getPickIdsObservedOn(observedOn: string): Promise<Set<string>> {
+export async function getPickIdsObservedOn(
+  observedOn: string,
+  opts: { strict?: boolean } = {},
+): Promise<Set<string>> {
   try {
     const rows = await sql`
       SELECT pick_id FROM followed_ticker_observations
       WHERE observed_on = ${observedOn}
     `;
     return new Set(rows.map((r) => r.pick_id as string));
-  } catch {
+  } catch (err) {
+    // Strict callers decide what is already observed before writing; a silent
+    // empty set would re-observe and overwrite same-day context.
+    if (opts.strict) throw err;
     return new Set();
   }
 }
 
 /** All observations for a pick, oldest first — the price series outcome
  *  scoring reads to find a horizon's close and to compute days_held. */
-export async function getObservations(pickId: string): Promise<
+export async function getObservations(
+  pickId: string,
+  opts: { strict?: boolean } = {},
+): Promise<
   Array<{ observedOn: string; closePrice: number; signalDir: string | null; councilJson: unknown }>
 > {
   try {
@@ -226,7 +288,10 @@ export async function getObservations(pickId: string): Promise<
       signalDir: (r.signal_dir as string) ?? null,
       councilJson: r.council_json ?? null,
     }));
-  } catch {
+  } catch (err) {
+    // Strict callers treat a failed read as failed horizon work, not as "no
+    // observations": an empty result would silently skip required resolution.
+    if (opts.strict) throw err;
     return [];
   }
 }

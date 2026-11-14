@@ -186,11 +186,64 @@ jobs:
             if [[ -f /tmp/track.json ]]; then
               echo ""
               echo '```json'
-              jq '{scored: (.readings // [] | length), degraded: .meta.degraded, backtest_engine: .meta.backtest_available}' \
+              jq '{status: .meta.status, observed_readings: (.readings // [] | length), enriched: .meta.enriched, observation_deferred: .meta.observationDeferred, observation_failed: .meta.observationFailed, enrichment_deferred: .meta.deferred, enrichment_failed: .meta.enrichmentFailed, horizon_retry_failed: .meta.horizonRetryFailed, degraded: .meta.degraded, backtest_engine: .meta.backtest_available}' \
                 /tmp/track.json 2>/dev/null || true
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require mandatory observation completion
+        if: steps.track.outputs.status == '200'
+        run: |
+          # Fail closed: a missing, malformed or wrongly-typed counter is an
+          # error, never a silent pass. Genuine mandatory-work failures or
+          # deferrals keep the existing failure alert. Closes that are simply
+          # unavailable from price sources (no bar after a confirmed close)
+          # warn WITHOUT the failure path - no new phone notifications for a
+          # routine unavailable-bar day. The gap stays fully visible: the
+          # route still reports mandatoryComplete=false / status=partial in
+          # the response, the run log, the step summary and the tracker UI.
+          # Note: the route cannot distinguish "no bar exists" from a price
+          # provider outage today; both land here as missedObservations, which
+          # matches pre-gate behavior (no alert) for that ambiguity.
+          set -euo pipefail
+          # Recognized transitional state: the select job has not published any
+          # live picks, so the route answers ok=true, empty readings and a
+          # note-only meta. Validate that exact shape (nothing more, nothing
+          # less), surface a truthful visible warning, and do NOT fail or
+          # phone. Any deviation falls through to the counter validation below
+          # and fails closed.
+          if jq -e '.ok == true and (.readings | type == "array" and length == 0) and ((.meta | keys | sort) == ["note", "runLogged"]) and (.meta.note | type == "string" and contains("no live cohort")) and (.meta.runLogged | type == "boolean")' /tmp/track.json > /dev/null; then
+            echo "::warning::followed-tickers cohort is empty (no live picks published by the select job); nothing observed or enriched; transitional state, not phoned"
+            exit 0
+          fi
+          for f in observationFailed horizonRetryFailed observationDeferred horizonRetryDeferred missedObservations enrichmentFailed deferred degraded mandatoryComplete status; do
+            jq -e ".meta | has(\"$f\")" /tmp/track.json > /dev/null || { echo "::error::track response missing meta.$f - failing closed"; exit 1; }
+          done
+          jq -e '. as $m | ([$m.meta.observationFailed, $m.meta.horizonRetryFailed, $m.meta.observationDeferred, $m.meta.horizonRetryDeferred, $m.meta.missedObservations, $m.meta.enrichmentFailed, $m.meta.deferred, $m.meta.degraded] | all(type == "number" and . >= 0 and . == floor and . < infinite)) and ($m.meta.mandatoryComplete | type == "boolean") and ($m.meta.status | type == "string")' /tmp/track.json > /dev/null \
+            || { echo "::error::track response meta has unexpected types - failing closed"; exit 1; }
+          FAILED=$(jq -r '[.meta.observationFailed, .meta.horizonRetryFailed, .meta.observationDeferred, .meta.horizonRetryDeferred] | add' /tmp/track.json)
+          MISSED=$(jq -r '.meta.missedObservations' /tmp/track.json)
+          OPTIONAL=$(jq -r '[.meta.enrichmentFailed, .meta.deferred, .meta.degraded] | add' /tmp/track.json)
+          COMPLETE=$(jq -r '.meta.mandatoryComplete' /tmp/track.json)
+          if [[ "$FAILED" != "0" ]]; then
+            echo "::error::followed-tickers mandatory observation/horizon work failed or deferred in $FAILED case(s); inspect artifact"
+            exit 1
+          fi
+          if [[ "$COMPLETE" == "true" && ( "$FAILED" != "0" || "$MISSED" != "0" ) ]]; then
+            echo "::error::mandatoryComplete is true with failed/deferred/missed counters nonzero - inconsistent response, failing closed"
+            exit 1
+          fi
+          if [[ "$COMPLETE" != "true" && "$FAILED" == "0" && "$MISSED" == "0" ]]; then
+            echo "::error::mandatoryComplete is false with zero failed/deferred/missed counters - inconsistent response, failing closed"
+            exit 1
+          fi
+          if [[ "$MISSED" != "0" ]]; then
+            echo "::warning::$MISSED close(s) unavailable from price sources after confirmed session close; gap remains visible in response meta, run log and tracker UI; not phoned"
+          fi
+          if [[ "$OPTIONAL" != "0" ]]; then
+            echo "::warning::followed-tickers optional enrichment incomplete ($OPTIONAL case(s)); required observations completed"
+          fi
 
       - name: Upload tracking artifact
         if: always()
@@ -226,5 +279,5 @@ jobs:
 
           **Track:** ${{ needs.track.outputs.track_status || 'skipped' }}
 
-          Expected while \`/api/pipeline/followed-tickers\` is unbuilt — see docs/tickers-followed.md."
+          Transport failure or incomplete observation/enrichment/horizon coverage. Inspect the run summary and retained artifact; HTTP 200 alone is not completion."
           bash scripts/upsert-workflow-failure-issue.sh
