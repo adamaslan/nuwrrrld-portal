@@ -28,6 +28,7 @@ import { resolveFollowedPrice, nyDateOf, type FollowedPrice } from "@/lib/follow
 import type { Horizon } from "@/lib/eval-scoring";
 import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
 import {
+  countObservationContext,
   getLivePicks,
   getObservations,
   getPickIdsObservedOn,
@@ -149,6 +150,18 @@ export async function POST(req: NextRequest) {
   let horizonsRetried = 0;
   let retriedHorizonsResolved = 0;
   let enriched = 0;
+  // Stage evidence (T-001/T-002): what the enrichment phase actually produced
+  // and wrote, so a silent drop is distinguishable from "never produced".
+  let signalMissing = 0;
+  let backtestMissing = 0;
+  let enrichmentWritten = 0;
+  let enrichmentSkippedNoPrice = 0;
+  const stageErrors: { stage: "observation" | "enrichment"; ticker: string; message: string }[] = [];
+  const recordStageError = (stage: "observation" | "enrichment", ticker: string, err: unknown): void => {
+    const message = (err instanceof Error ? err.message : String(err)).slice(0, 200);
+    console.error(`[followed-track] STAGE_FAILED stage=${stage} ticker=${ticker} err=${message}`);
+    if (stageErrors.length < 10) stageErrors.push({ stage, ticker, message });
+  };
 
   // Complete required close observations and due-horizon resolution across the
   // cohort before any signal/backtest enrichment or optional council work.
@@ -187,6 +200,8 @@ export async function POST(req: NextRequest) {
     const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
+    if (liveSignalDir == null) signalMissing++;
+    if (backtestRate == null) backtestMissing++;
 
     // Enrich the already-saved required observation with optional fields.
     const councilMsLeft = COUNCIL_DEADLINE_MS - (Date.now() - startedAt);
@@ -254,6 +269,9 @@ export async function POST(req: NextRequest) {
         backtestRate,
         councilJson: council?.raw ?? null,
       });
+      enrichmentWritten++;
+    } else if (price == null) {
+      enrichmentSkippedNoPrice++;
     }
 
     enriched++;
@@ -283,7 +301,7 @@ export async function POST(req: NextRequest) {
         return;
       }
       const pick = pending[observationIndex++];
-      try { await observePick(pick); } catch { observationFailed++; }
+      try { await observePick(pick); } catch (err) { observationFailed++; recordStageError("observation", pick.ticker, err); }
     }
   };
   await Promise.all(Array.from({ length: Math.min(PICK_CONCURRENCY, pending.length) }, observationWorker));
@@ -298,6 +316,14 @@ export async function POST(req: NextRequest) {
     } catch { horizonRetryFailed++; }
   }
   const enrichmentPending = pending.filter((p) => captured.has(p.id));
+  const readContext = async () => {
+    if (dryRun) return null;
+    try { return await countObservationContext(today); } catch (err) {
+      console.error(`[followed-track] CONTEXT_COUNT_FAILED err=${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
+      return null;
+    }
+  };
+  const contextBefore = await readContext();
   let nextIndex = 0;
   const worker = async (): Promise<void> => {
     while (nextIndex < enrichmentPending.length) {
@@ -307,10 +333,23 @@ export async function POST(req: NextRequest) {
         return;
       }
       const pick = enrichmentPending[nextIndex++];
-      try { await processPick(pick); } catch { enrichmentFailed++; }
+      try { await processPick(pick); } catch (err) { enrichmentFailed++; recordStageError("enrichment", pick.ticker, err); }
     }
   };
   await Promise.all(Array.from({ length: Math.min(PICK_CONCURRENCY, enrichmentPending.length) }, worker));
+
+  const contextAfter = await readContext();
+  const stageEvidence = {
+    enrichmentAttempted: enrichmentPending.length,
+    enrichmentWritten,
+    enrichmentSkippedNoPrice,
+    signalMissing,
+    backtestMissing,
+    contextBefore,
+    contextAfter,
+    errors: stageErrors,
+  };
+  console.log(`[followed-track] STAGE_EVIDENCE ${JSON.stringify({ today, ...stageEvidence })}`);
 
   const backtestAvailable = readings.some((r) => r.backtestRate != null);
   const horizonsResolved = retriedHorizonsResolved + readings.reduce((n, r) => n + r.resolved.length, 0);
@@ -340,6 +379,7 @@ export async function POST(req: NextRequest) {
       councilDegraded,
       backtestAvailable,
       horizonsResolved,
+      stageEvidence,
     },
   });
 
@@ -365,6 +405,7 @@ export async function POST(req: NextRequest) {
       degraded: councilDegraded,
       backtest_available: backtestAvailable,
       horizonsResolved,
+      stageEvidence,
       runLogged,
     },
   });
