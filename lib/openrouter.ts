@@ -35,9 +35,10 @@ const OR_BASE = 'https://openrouter.ai/api/v1';
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'google/gemma-4-31b-it:free',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  'dots-studio/dots-3-note-preview:free',
-  'nvidia/nemotron-3.5-lightning:free',
+  'xingchen-agi/xing4.0-29b-a4b:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
