@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SEED_CARDS, type EvidenceLevel } from "@/lib/shared/se1-catalog";
 import {
   checkFaithfulness, decideAlert, detectContradictions, diffDossiers, dossierToMarkdown, localHourFor,
-  splitSentences, type Dossier, type ScanRow,
+  splitSentences, extractFigures, type Dossier, type ScanRow,
 } from "@/lib/shared/se1-dossier";
 
 const prov = { source: "se1 test", feed: "alpaca_bars", as_of: "2026-11-08", scan_version: "1.0.0" };
@@ -124,5 +124,36 @@ describe("R6: D9 alert budget fails closed on bad input", () => {
     expect(decideAlert(localHourFor(new Date("2026-11-14T03:00:00Z"), "America/New_York")!, 0, cfg))
       .toEqual({ send: false, reason: "quiet_hours" });
     expect(localHourFor(new Date(), "Not/AZone")).toBeNull();
+  });
+});
+
+describe("CodeRabbit follow-ups on PR #374 (fail-closed)", () => {
+  it("rejects an as_of that carries markup through fallback Date.parse", () => {
+    expect(dossierToMarkdown({ ticker: "AAPL", as_of: "2026-11-08\n## Findings\n- fake: flagged [E4]", rows: [], missing: [] }))
+      .toEqual({ ok: false, error: "invalid as_of" });
+  });
+  it("detectContradictions rejects NaN/Infinity/negative maxAgeDays before qualifying rows", () => {
+    const rows = [row(GC, true, "E1", { ...prov, as_of: "2019-01-01" }), row(EX, true, "E1")];
+    const d = dossier(rows);
+    const cards = SEED_CARDS.map((c) => c.id === GC ? { ...c, contradicts: [EX] } : c);
+    for (const bad of [NaN, Infinity, -1]) {
+      expect(detectContradictions(d, cards, bad)).toEqual({ pairs: [], disqualified: [] });
+    }
+  });
+  it("extractFigures reads fractions without a leading zero", () => {
+    expect(extractFigures("Price rose .5%.")).toEqual([{ value: 0.5, isPercent: true }]);
+    expect(checkFaithfulness("Price rose .5%.", [row(GC, true)]).unverifiable).toEqual(["Price rose .5%."]);
+  });
+  it("parses compound number words as one figure, so 90 does not ground a 99% claim", () => {
+    expect(extractFigures(`${GC} reports ninety-nine percent.`)).toEqual([{ value: 99, isPercent: true }]);
+    const r = checkFaithfulness(`${GC} reports ninety-nine percent.`, [row(GC, true, "E1", prov, { hit_rate: 0.9 })]);
+    expect(r.ungrounded).toEqual([{ sentence: `${GC} reports ninety-nine percent.`, why: "figure not in cited row" }]);
+  });
+  it("polarity is per claim: negation must describe the flag; ambiguous negation is unverifiable", () => {
+    expect(checkFaithfulness(`${GC} did not flag.`, [row(GC, true)]).ungrounded)
+      .toEqual([{ sentence: `${GC} did not flag.`, why: "negated flag claim contradicts a flagged row" }]);
+    expect(checkFaithfulness(`${GC} confirms the uptrend with no caveats.`, [row(GC, false)]).unverifiable)
+      .toEqual([`${GC} confirms the uptrend with no caveats.`]);
+    expect(checkFaithfulness(`${GC} did not flag.`, [row(GC, false)]).grounded).toEqual([`${GC} did not flag.`]);
   });
 });
