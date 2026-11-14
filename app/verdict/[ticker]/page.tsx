@@ -6,13 +6,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { recentVerdicts } from "@/lib/council-db";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
 import TwoAudiences from "@/components/landing/TwoAudiences";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
+import { isVerdictIndexable, recordedDateLabel, verdictDescription, verdictTitle } from "@/lib/verdict-seo";
 import "../../landing.css";
+
+// Verdicts change a few times a day at most; cache each ticker page for an hour.
+export const revalidate = 3600;
+
+// generateMetadata and the page both need the latest verdict; one query each render.
+const latestVerdict = cache(async (ticker: string) => (await recentVerdicts(ticker, 1))[0] ?? null);
 
 interface Props {
   params: Promise<{ ticker: string }>;
@@ -21,13 +29,19 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { ticker: raw } = await params;
   const ticker = normalizeTicker(raw);
-  const title = ticker ? `$${ticker} — 6 AI analysts, one call` : "Verdict";
-  const ogImage = ticker ? `/api/og/verdict/${ticker}` : undefined;
+  if (!ticker) return { title: "Verdict", robots: { index: false, follow: false } };
+  const latest = await latestVerdict(ticker);
+  const title = verdictTitle(ticker, latest);
+  const description = verdictDescription(ticker, latest);
+  const ogImage = `/api/og/verdict/${ticker}`;
   return {
     title,
-    description: `The recorded council call on $${ticker ?? ""}: direction, confidence, horizon, and the invalidation level when one was set.`,
-    openGraph: ogImage ? { images: [{ url: ogImage, width: 1200, height: 630 }] } : undefined,
-    twitter: ogImage ? { card: "summary_large_image", images: [ogImage] } : undefined,
+    description,
+    alternates: { canonical: `/verdict/${ticker}` },
+    // A ticker with no recorded verdict is a thin page: keep it out of the index.
+    robots: { index: isVerdictIndexable(latest), follow: true },
+    openGraph: { title, description, images: [{ url: ogImage, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
   };
 }
 
@@ -38,7 +52,7 @@ export default async function VerdictPage({ params }: Props) {
   const ticker = normalizeTicker(raw);
   if (!ticker) notFound();
 
-  const [latest] = await recentVerdicts(ticker, 1);
+  const latest = await latestVerdict(ticker);
 
   return (
     <div className="nwf-landing">
@@ -54,14 +68,18 @@ export default async function VerdictPage({ params }: Props) {
               <div className="public-demo-result verdict-record">
                 <p className="public-demo-result-label">
                   {DIRECTION_LABEL[latest.direction ?? ""] ?? "VERDICT"} · {latest.confidence ?? "—"} confidence
+                  {recordedDateLabel(latest.createdAt)
+                    ? ` · record created ${recordedDateLabel(latest.createdAt)} UTC`
+                    : " · record date unavailable"}
                 </p>
                 <p className="public-demo-result-text">
-                  Horizon {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
+                  Horizon at recording: {latest.horizon ?? "—"}. Invalidation: {latest.invalidation ?? "not recorded"}.
                 </p>
               </div>
               <p className="section-copy verdict-description">
                 A recorded council call, published as it was made — direction, confidence,
-                horizon, and the invalidation level when one was set.
+                horizon, and the invalidation level when one was set. A stored historical
+                call, not current advice. The record date shows when this row was saved, not the freshness of market data.
               </p>
             </>
           ) : (

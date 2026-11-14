@@ -1,0 +1,24 @@
+.nvda-research { max-width: 860px; margin: 0 auto; padding: 72px 28px; color: #171717; line-height: 1.75; overflow-wrap: anywhere; }
+.nvda-research h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; letter-spacing: -.035em; margin: 16px 0 28px; }
+.nvda-research h2 { font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.25; margin: 12px 0 24px; scroll-margin-top: 100px; }
+.nvda-research h3 { font-size: 1rem; margin: 26px 0 8px; }
+.nvda-research p { margin: 16px 0; }
+.nvda-research section { border-top: 1px solid #d4d4d4; margin-top: 48px; padding-top: 32px; }
+.nvda-note { border: 1px solid #b5b5b5; padding: 20px; margin: 24px 0; background: #fafafa; }
+.nvda-note p { margin-bottom: 0; }
+.nvda-caption { color: #525252; font-size: .88rem; }
+.nvda-horizons { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 28px 0; }
+.nvda-horizons a { min-height: 44px; display: inline-flex; align-items: center; text-decoration: underline; }
+.nvda-sources { padding-left: 24px; }
+.nvda-sources li { padding-left: 6px; margin-bottom: 28px; }
+.nvda-research a { text-decoration: underline; text-underline-offset: 3px; }
+.nvda-research a:focus-visible { outline: 3px solid #111; outline-offset: 5px; }
+@media(max-width: 480px) { .nvda-research { padding: 44px 22px; } .nvda-note { padding: 16px; } }
+
+.nvda-chart { margin: 48px 0; border: 1px solid #ccc; padding: 20px; }
+.nvda-chart svg { display: block; width: 100%; height: auto; color: #171717; }
+.nvda-chart figcaption { font-size: .85rem; color: #444; }
+.nvda-chart-values { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 20px; }
+.nvda-chart-values dt { font-size: .85rem; }
+.nvda-chart-values dd { margin: 0; font-weight: 700; }
+@media(max-width:480px) { .nvda-chart { padding: 12px; margin-left: -8px; margin-right: -8px; } }
