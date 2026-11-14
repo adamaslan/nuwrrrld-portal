@@ -426,3 +426,30 @@ class TestScheduler:
         assert nc.JOB_AGGREGATE_FINAL in nc.due_jobs(winter)
         summer = datetime(2026, 10, 8, 20, 5, tzinfo=timezone.utc)   # 16:05 EDT
         assert nc.JOB_AGGREGATE_FINAL in nc.due_jobs(summer)
+
+
+class TestShadowBatchCadence:
+    def test_all_required_daily_retry_slots_still_reachable(self):
+        from zoneinfo import ZoneInfo
+        start=datetime(2026, 11, 16, tzinfo=ZoneInfo("America/New_York"))
+        jobs=[nc.due_jobs(start+timedelta(minutes=m),profile="shadow-batch") for m in range(0,1440,5)]
+        for job in [nc.JOB_INGEST,nc.JOB_CORROBORATE,nc.JOB_AGGREGATE_PREVIEW,nc.JOB_AGGREGATE_FINAL,nc.JOB_LABEL,nc.JOB_SCORE_BACKLOG]:
+            assert any(job in due for due in jobs)
+        assert sum(nc.JOB_AGGREGATE_FINAL in due for due in jobs)==2
+        assert sum(nc.JOB_LABEL in due for due in jobs)==2
+        assert all(nc.JOB_POLLER not in due for due in jobs)
+    def test_shadow_ingest_is_fifteen_minutes_not_legacy_two(self):
+        from zoneinfo import ZoneInfo
+        for minute in range(60):
+            due=nc.due_jobs(datetime(2026,11,16,10,minute,tzinfo=ZoneInfo("America/New_York")),profile="shadow-batch")
+            assert (nc.JOB_INGEST in due)==(minute%15==0)
+    def test_deployment_selects_profile_and_lock_exceeds_runtime(self):
+        source=(Path(__file__).resolve().parents[1]/"modal_app.py").read_text()
+        assert 'schedule=modal.Cron("*/5 * * * *")' in source
+        assert 'due_jobs(_utcnow(), profile="shadow-batch")' in source
+        assert 'INGEST_LOCK_TTL_SECONDS = 360' in source
+    def test_unknown_profile_is_rejected(self):
+        with pytest.raises(ValueError):nc.due_jobs(datetime.now(UTC),profile="typo")
+    def test_shadow_dst_fixed_slots_survive_summer_and_winter(self):
+        for instant in [datetime(2026,12,8,21,5,tzinfo=UTC),datetime(2026,10,8,20,5,tzinfo=UTC)]:
+            assert nc.JOB_AGGREGATE_FINAL in nc.due_jobs(instant,profile="shadow-batch")
