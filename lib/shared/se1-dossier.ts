@@ -99,10 +99,10 @@ export type DossierMarkdownResult = { ok: true; markdown: string } | { ok: false
  *  Invalid identifiers are rejected, never rendered: a hostile ticker, scan ID or date cannot inject markup. */
 export function dossierToMarkdown(d: Dossier): DossierMarkdownResult {
   if (!TICKER_RE.test(d.ticker)) return { ok: false, error: "invalid ticker" };
-  if (!d.as_of || Number.isNaN(Date.parse(d.as_of))) return { ok: false, error: "invalid as_of" };
+  if (!d.as_of || !/^\d{4}-\d{2}-\d{2}([T ][0-9:.Zz+-]*)?$/.test(d.as_of) || Number.isNaN(Date.parse(d.as_of))) return { ok: false, error: "invalid as_of" };
   for (const r of d.rows) if (!isScanId(r.scan_id)) return { ok: false, error: `invalid scan_id: ${r.scan_id.slice(0, 40)}` };
   for (const m of d.missing) if (!isScanId(m.scan_id)) return { ok: false, error: `invalid scan_id: ${m.scan_id.slice(0, 40)}` };
-  const lines = [`# ${d.ticker} dossier`, `As of ${d.as_of}. Research context only, not advice.`, "", "## Findings"];
+  const lines = [`# ${d.ticker} dossier`, `As of ${escapeMarkdownText(d.as_of)}. Research context only, not advice.`, "", "## Findings"];
   if (d.rows.length === 0) lines.push("No scan rows.");
   for (const r of d.rows) {
     const prov = formatProvenance(r.provenance);
@@ -133,6 +133,7 @@ export function detectContradictions(
   maxAgeDays: number,
   minLevel: EvidenceLevel = "E3",
 ): ContradictionReport {
+  if (!Number.isFinite(maxAgeDays) || maxAgeDays < 0) return { pairs: [], disqualified: [] };
   const cardById = new Map(cards.map((c) => [c.id, c]));
   const dossierTime = Date.parse(d.as_of);
   const strong = new Set<string>();
@@ -252,6 +253,10 @@ export interface FaithfulnessResult {
 const NEGATION = /\b(not|no|never|nothing|without|avoid|avoids|failed|fails|didn\'t|did not|doesn\'t|does not|absent)\b/i;
 
 /** Number words that act as figures in narration (small prose words like "one" are excluded on purpose). */
+const UNIT_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+};
+
 const NUMBER_WORDS: Record<string, number> = {
   double: 2, doubled: 2, triple: 3, tripled: 3, quadruple: 4, quadrupled: 4,
   half: 0.5, halved: 0.5, quarter: 0.25,
@@ -274,15 +279,24 @@ export function splitSentences(text: string): string[] {
 /** Every figure a sentence states: digit tokens (with decimals, commas, %) and narration number words. */
 export function extractFigures(sentence: string): { value: number; isPercent: boolean }[] {
   const out: { value: number; isPercent: boolean }[] = [];
-  for (const m of sentence.matchAll(/(?<![\w.])-?[\d,]+(?:\.\d+)?\s*%?/g)) {
+  for (const m of sentence.matchAll(/(?<![\w.])-?(?:[\d,]+(?:\.\d+)?|\.\d+)\s*%?/g)) {
     const raw = m[0].trim();
     if (!/\d/.test(raw)) continue;
     const isPercent = raw.endsWith("%");
     const value = Number(raw.replace(/[%\s,]/g, ""));
     if (Number.isFinite(value)) out.push({ value, isPercent });
   }
-  for (const m of sentence.toLowerCase().matchAll(/\b(double|doubled|triple|tripled|quadruple|quadrupled|half|halved|quarter|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/g)) {
-    out.push({ value: NUMBER_WORDS[m[1]], isPercent: /%\b|\bpercent\b/.test(sentence.toLowerCase()) });
+  const lower = sentence.toLowerCase();
+  const isPct = /%\b|\bpercent\b/.test(lower);
+  // Compound phrases ("ninety-nine", "twenty five") are one figure; their words are consumed here.
+  const compoundSpans: [number, number][] = [];
+  for (const m of lower.matchAll(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[-\s](one|two|three|four|five|six|seven|eight|nine)\b/g)) {
+    compoundSpans.push([m.index!, m.index! + m[0].length]);
+    out.push({ value: NUMBER_WORDS[m[1]] + UNIT_WORDS[m[2]], isPercent: isPct });
+  }
+  for (const m of lower.matchAll(/\b(double|doubled|triple|tripled|quadruple|quadrupled|half|halved|quarter|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/g)) {
+    if (compoundSpans.some(([a, b]) => m.index! >= a && m.index! < b)) continue;
+    out.push({ value: NUMBER_WORDS[m[1]], isPercent: isPct });
   }
   return out;
 }
@@ -327,9 +341,22 @@ export function checkFaithfulness(
         continue;
       }
     }
-    if (citedRows.some((r) => !r.flag) && !NEGATION.test(sentence)) {
-      result.ungrounded.push({ sentence, why: "cites a non-flagged row without saying so" });
+    // Polarity must agree per claim: only flag-specific negation ("did not flag", "unflagged")
+    // licenses citing a non-flagged row; any other negated wording is ambiguous, not grounded.
+    const flagNeg = /\b(?:not|no|never|didn't|didnt|without)\b[^.;]*?\bflag|\bunflagged\b/i.test(sentence);
+    if (flagNeg && citedRows.some((r) => r.flag)) {
+      result.ungrounded.push({ sentence, why: "negated flag claim contradicts a flagged row" });
       continue;
+    }
+    if (citedRows.some((r) => !r.flag)) {
+      if (!flagNeg && NEGATION.test(sentence)) {
+        result.unverifiable.push(sentence);
+        continue;
+      }
+      if (!NEGATION.test(sentence)) {
+        result.ungrounded.push({ sentence, why: "cites a non-flagged row without saying so" });
+        continue;
+      }
     }
     result.grounded.push(sentence);
   }
