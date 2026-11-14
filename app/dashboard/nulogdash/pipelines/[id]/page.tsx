@@ -6,9 +6,10 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isNulogdashAdmin } from "@/lib/nulogdash";
-import { NulogdashTabs } from "../../page";
+import { NulogdashTabs } from "../../ReportComponents";
+import { ItemRow } from "../ItemComponents";
 import { getPipelineRun, summarizeOutcomes } from "@/lib/pipeline-run-log-db";
-import type { RunItem, RunItemOutcome, PerModelStats } from "@/lib/pipeline-run-log-db";
+import type { PerModelStats } from "@/lib/pipeline-run-log-db";
 import "../../nulogdash.css";
 
 export const metadata: Metadata = {
@@ -16,19 +17,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-/** Maps a run item's outcome onto the badge classes nulogdash.css already
- * defines, so this page adds no parallel colour vocabulary. */
-const OUTCOME_BADGE: Record<RunItemOutcome, string> = {
-  ok: "pass",
-  empty: "blocked",
-  fail: "fail",
-  skip: "not_run",
-};
-
-export function OutcomeBadge({ outcome }: { outcome: RunItemOutcome }) {
-  return <span className={`nld-badge nld-badge--${OUTCOME_BADGE[outcome]}`}>{outcome}</span>;
-}
 
 /** The on-disk HTML report for this run, if `scripts/pipeline-run-report.mjs`
  * generated one locally. The filename is deterministic — the same
@@ -43,19 +31,6 @@ function localReportPath(runAt: string, pipeline: string): string | null {
   const base = `${new Date(runAt).toISOString().replace(/[:.]/g, "-")}-${pipeline}`;
   const abs = join(process.cwd(), "docs", "pipeline-runs", `${base}.html`);
   return existsSync(abs) ? abs : null;
-}
-
-export function ItemRow({ item }: { item: RunItem }) {
-  return (
-    <tr className="nld-row">
-      <td>{item.subject}</td>
-      <td>{item.seat ?? "—"}</td>
-      <td>{item.model ?? "—"}</td>
-      <td><OutcomeBadge outcome={item.outcome} /></td>
-      <td>{typeof item.latencyMs === "number" ? `${item.latencyMs}ms` : "—"}</td>
-      <td>{item.fallback ? "yes" : "—"}</td>
-    </tr>
-  );
 }
 
 export default async function PipelineRunPage({

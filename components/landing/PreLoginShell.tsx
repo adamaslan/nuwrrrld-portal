@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 
 const primary = [["Signals", "/signals"], ["Portfolio", "/portfolio-intelligence"], ["Nu AI", "/ai-assistant"], ["Pricing", "/pricing"]] as const;
-const secondary = [["Product", "/#product"], ["Paper trading", "/paper-trading"], ["Track record", "/track-record"]] as const;
+const secondary = [["Blog", "/blog"], ["Product", "/#product"], ["Paper trading", "/paper-trading"], ["Track record", "/track-record"]] as const;
 const destinations = [...primary, ...secondary, ["Sign in", "/sign-in"], ["Start free →", "/sign-up"]] as const;
 
 /** Public navigation and footer only. No signed-in dashboard styles or access changes. */

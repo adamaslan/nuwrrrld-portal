@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { LandingBlogArticles } from "@/components/landing/LandingBlogArticles";
 import { getStoredSignals } from "@/app/dashboard/holdfold/stored-signals";
 import { getCouncilSample } from "@/app/dashboard/holdfold/council-sample";
 import Link from "next/link";
@@ -64,6 +65,7 @@ async function LandingContent() {
     <div className="nwf-landing">
       <SmoothScroll />
       <PreLoginNav />
+
 
       <header className="hero">
         <div className="market-wall" aria-hidden="true" />
@@ -422,6 +424,8 @@ async function LandingContent() {
           <Link className="feature-more" href="/research/nvidia-forward-scenarios">Read the NVIDIA scenario article →</Link>
         </div>
       </section>
+
+      <LandingBlogArticles />
 
       <section id="access" className="cta">
         <Reveal className="wrap">
