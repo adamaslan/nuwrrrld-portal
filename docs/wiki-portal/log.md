@@ -977,3 +977,4 @@ watchlist route.
 ## [2026-10-21] ingest | PR #304 fix: fail grounding compile on extraction errors | pages touched: 6
 ## [2026-11-02] ingest | PR #332 docs: mark SESSION-SUMMARY test_ops.py or-True items resolved | pages touched: 1
 ## [2026-11-02] ingest | PR #328 nulogdash: label pipeline run times with explicit ET timezone | pages touched: 2
+## [2026-11-14] ingest | PR #378 feat(judge-sim): deterministic rubric proxies (T-013–T-018) | pages touched: 3
