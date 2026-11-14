@@ -22,7 +22,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
-import { buildGroundedBrief } from "@/lib/council-grounding";
+import { frozenCouncilBrief } from "@/lib/shared/frozen-council-context";
 import { runSeat, seatSystemPrompt, seatPrimaryModel } from "@/lib/openrouter";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import type { StructuredVerdict } from "@/lib/council-verdict";
@@ -165,10 +165,10 @@ export async function POST(req: NextRequest) {
   const goldComparisons = [];
   for (const g of goldSet) {
     const result = await judgeVerdict(g.verdict, g.brief, call);
-    if (!result) continue; // unparseable — treated as non-agreement below
+    if (!result) continue; // denominator remains the complete gold set below
     goldComparisons.push(compareToGold(g.id, g.goldTotal, result));
   }
-  const gate = evaluateGoldGate(goldComparisons);
+  const gate = evaluateGoldGate(goldComparisons, goldSet.length);
 
   if (!gate.passed) {
     await logPipelineRun({
@@ -202,7 +202,13 @@ export async function POST(req: NextRequest) {
   const since = new Date(Date.now() - SAMPLE_WINDOW_DAYS * 86_400_000)
     .toISOString()
     .slice(0, 10);
-  const sample = await getUnjudgedScoresSince(since);
+  let sample: Awaited<ReturnType<typeof getUnjudgedScoresSince>>;
+  try {
+    sample = await getUnjudgedScoresSince(since);
+  } catch {
+    return NextResponse.json({ ok: false, published: false,
+      error: "judge sample unavailable; no scores published" }, { status: 503 });
+  }
 
   let graded = 0;
   const totals: number[] = [];
@@ -221,15 +227,15 @@ export async function POST(req: NextRequest) {
       skipped.push(`${item.pickId}:${item.horizon} (no parseable verdict)`);
       continue;
     }
-    // Re-ground the brief for the judge from the same live source the author
-    // used — the judge sees the brief and the verdict, nothing outcome-shaped.
+    // Judge against exactly what the author saw, never today's generic brief.
+    // Old rows without a frozen brief cannot be reconstructed honestly here.
+    const brief = frozenCouncilBrief(item.councilJson, item);
+    if (brief === null) {
+      skipped.push(`${item.pickId}:${item.horizon} (original selection-day brief missing or mismatched)`);
+      continue;
+    }
     let result: JudgeResult | null = null;
     try {
-      const brief = await buildGroundedBrief(
-        `Directional outlook grading context.`,
-        null,
-        JUDGE_SEAT,
-      );
       result = await judgeVerdict(verdict, brief, call);
     } catch {
       result = null;
