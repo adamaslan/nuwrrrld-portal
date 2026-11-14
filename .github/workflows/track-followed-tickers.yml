@@ -207,6 +207,16 @@ jobs:
           # provider outage today; both land here as missedObservations, which
           # matches pre-gate behavior (no alert) for that ambiguity.
           set -euo pipefail
+          # Recognized transitional state: the select job has not published any
+          # live picks, so the route answers ok=true, empty readings and a
+          # note-only meta. Validate that exact shape (nothing more, nothing
+          # less), surface a truthful visible warning, and do NOT fail or
+          # phone. Any deviation falls through to the counter validation below
+          # and fails closed.
+          if jq -e '.ok == true and (.readings | type == "array" and length == 0) and ((.meta | keys | sort) == ["note", "runLogged"]) and (.meta.note | type == "string" and contains("no live cohort")) and (.meta.runLogged | type == "boolean")' /tmp/track.json > /dev/null; then
+            echo "::warning::followed-tickers cohort is empty (no live picks published by the select job); nothing observed or enriched; transitional state, not phoned"
+            exit 0
+          fi
           for f in observationFailed horizonRetryFailed observationDeferred horizonRetryDeferred missedObservations enrichmentFailed deferred degraded mandatoryComplete status; do
             jq -e ".meta | has(\"$f\")" /tmp/track.json > /dev/null || { echo "::error::track response missing meta.$f - failing closed"; exit 1; }
           done
