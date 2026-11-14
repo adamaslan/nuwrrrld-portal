@@ -210,7 +210,7 @@ jobs:
           for f in observationFailed horizonRetryFailed observationDeferred horizonRetryDeferred missedObservations enrichmentFailed deferred degraded mandatoryComplete status; do
             jq -e ".meta | has(\"$f\")" /tmp/track.json > /dev/null || { echo "::error::track response missing meta.$f - failing closed"; exit 1; }
           done
-          jq -e '. as $m | ([$m.meta.observationFailed, $m.meta.horizonRetryFailed, $m.meta.observationDeferred, $m.meta.horizonRetryDeferred, $m.meta.missedObservations, $m.meta.enrichmentFailed, $m.meta.deferred, $m.meta.degraded] | all(type == "number")) and ($m.meta.mandatoryComplete | type == "boolean") and ($m.meta.status | type == "string")' /tmp/track.json > /dev/null \
+          jq -e '. as $m | ([$m.meta.observationFailed, $m.meta.horizonRetryFailed, $m.meta.observationDeferred, $m.meta.horizonRetryDeferred, $m.meta.missedObservations, $m.meta.enrichmentFailed, $m.meta.deferred, $m.meta.degraded] | all(type == "number" and . >= 0 and . == floor and . < infinite)) and ($m.meta.mandatoryComplete | type == "boolean") and ($m.meta.status | type == "string")' /tmp/track.json > /dev/null \
             || { echo "::error::track response meta has unexpected types - failing closed"; exit 1; }
           FAILED=$(jq -r '[.meta.observationFailed, .meta.horizonRetryFailed, .meta.observationDeferred, .meta.horizonRetryDeferred] | add' /tmp/track.json)
           MISSED=$(jq -r '.meta.missedObservations' /tmp/track.json)
@@ -220,7 +220,11 @@ jobs:
             echo "::error::followed-tickers mandatory observation/horizon work failed or deferred in $FAILED case(s); inspect artifact"
             exit 1
           fi
-          if [[ "$COMPLETE" != "true" && "$MISSED" == "0" ]]; then
+          if [[ "$COMPLETE" == "true" && ( "$FAILED" != "0" || "$MISSED" != "0" ) ]]; then
+            echo "::error::mandatoryComplete is true with failed/deferred/missed counters nonzero - inconsistent response, failing closed"
+            exit 1
+          fi
+          if [[ "$COMPLETE" != "true" && "$FAILED" == "0" && "$MISSED" == "0" ]]; then
             echo "::error::mandatoryComplete is false with zero failed/deferred/missed counters - inconsistent response, failing closed"
             exit 1
           fi
