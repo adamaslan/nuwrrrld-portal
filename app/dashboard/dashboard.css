@@ -360,3 +360,49 @@
     min-height: 44px;
   }
 }
+
+/* Clerk's default account control is circular and can contain a color photo.
+   Stable public element classes keep its display within NWF's square,
+   monochrome system. This is presentation only; the saved image is unchanged.
+   Clerk injects its own radius later, so only the radius needs !important. */
+.nwf-dash .cl-userButtonTrigger,
+.nwf-dash .cl-userButtonAvatarBox {
+  border-radius: 0 !important;
+}
+
+.nwf-dash .cl-userButtonAvatarImage {
+  filter: grayscale(1);
+}
+
+/* Clerk account popup restyle. */
+.cl-userButtonPopoverRootBox {
+  filter: grayscale(1);
+}
+.cl-userButtonPopoverRootBox,
+.cl-userButtonPopoverRootBox *:not([class*="cl-providerIcon"]),
+.cl-userButtonPopoverRootBox *:not([class*="cl-providerIcon"])::before,
+.cl-userButtonPopoverRootBox *:not([class*="cl-providerIcon"])::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+.cl-userButtonPopoverRootBox .cl-userButtonPopoverCard {
+  border: var(--bw-standard) solid var(--border);
+  background: var(--bg);
+}
+
+/* Clerk account profile modal restyle. */
+.cl-userProfile-root {
+  filter: grayscale(1);
+  background: var(--bg);
+  border: var(--bw-standard) solid var(--border);
+}
+.cl-userProfile-root,
+.cl-userProfile-root *:not([class*="cl-providerIcon"]),
+.cl-userProfile-root *:not([class*="cl-providerIcon"])::before,
+.cl-userProfile-root *:not([class*="cl-providerIcon"])::after,
+.cl-modalContent:has(.cl-userProfile-root) .cl-modalCloseButton {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
