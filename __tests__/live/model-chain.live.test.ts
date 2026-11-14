@@ -15,6 +15,7 @@ import { expect, it } from "vitest";
 import {
   DEBATE_SEATS,
   FREE_MODEL_CHAIN,
+  SEAT_MODELS,
   fetchWithModelFallback,
   runSeat,
   type CouncilSeat,
@@ -76,10 +77,37 @@ describeLive("LIVE: every council seat can actually answer", () => {
         { role: "user", content: "Name one risk of holding a single concentrated equity position." },
       ],
       LIVE_KEY,
-      64,
+      // Mirror the production seat contract from app/api/council/route.ts
+      // (initial + retry): callCouncilSeat(..., 1200, { answerOnly: true }),
+      // which is runSeat at maxTokens 1200, temperature 0.4, no override,
+      // answerOnly on. The previous 64-token test budget could starve a
+      // reasoning primary into an empty completion, which advances to the
+      // chain — the T2/RISK primary-serving assertion below would then report
+      // "repoint not live" for a primary that is actually healthy. answerOnly
+      // matches production's reasoning-disabled request for optional-reasoning
+      // models. (Deliberate paths keep their own budgets; this test covers
+      // primary serving, not deliberation.)
+      1200,
+      0.4,
+      undefined,
+      { answerOnly: true },
     );
     console.info(`[seat] ${seat} served by ${result.model} in ${result.latencyMs}ms`);
     expect(result.answer.trim().length, `seat ${seat} returned an empty answer`).toBeGreaterThan(0);
+    // 2026-11-02: T2/RISK primaries were repointed off retired poolside/laguna
+    // ids. A green seat test alone never proved those repoints — this suite
+    // stayed green while laguna 404'd because the chain covers the seat. For
+    // the repointed seats, assert the PRIMARY actually served; anything else
+    // is the invisible-degradation failure mode this fix exists to close.
+    // Deliberately NOT extended to every seat: a future provider retirement
+    // should surface via the refresh script's audit cadence, not block CI.
+    if (seat === "T2" || seat === "RISK") {
+      expect(
+        result.model,
+        `seat ${seat} was served by ${result.model} instead of its repointed primary ` +
+          `${SEAT_MODELS[seat]} — the repoint is not live (fallback is masking it)`,
+      ).toBe(SEAT_MODELS[seat]);
+    }
     expect(result.seat).toBe(seat);
     expect(result.latencyMs).toBeLessThan(SEAT_LATENCY_BUDGET_MS);
   });
