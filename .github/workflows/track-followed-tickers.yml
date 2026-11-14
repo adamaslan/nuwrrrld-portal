@@ -195,14 +195,40 @@ jobs:
       - name: Require mandatory observation completion
         if: steps.track.outputs.status == '200'
         run: |
-          # Required-price/horizon failures retain the existing failure alert.
-          # Optional degradation is visible as a warning, not a new issue policy.
-          if [[ "$(jq -r '.meta.mandatoryComplete // false' /tmp/track.json)" != "true" ]]; then
-            echo "::error::followed-tickers mandatory observation/horizon phase incomplete; inspect artifact"
+          # Fail closed: a missing, malformed or wrongly-typed counter is an
+          # error, never a silent pass. Genuine mandatory-work failures or
+          # deferrals keep the existing failure alert. Closes that are simply
+          # unavailable from price sources (no bar after a confirmed close)
+          # warn WITHOUT the failure path - no new phone notifications for a
+          # routine unavailable-bar day. The gap stays fully visible: the
+          # route still reports mandatoryComplete=false / status=partial in
+          # the response, the run log, the step summary and the tracker UI.
+          # Note: the route cannot distinguish "no bar exists" from a price
+          # provider outage today; both land here as missedObservations, which
+          # matches pre-gate behavior (no alert) for that ambiguity.
+          set -euo pipefail
+          for f in observationFailed horizonRetryFailed observationDeferred horizonRetryDeferred missedObservations enrichmentFailed deferred degraded mandatoryComplete status; do
+            jq -e ".meta | has(\"$f\")" /tmp/track.json > /dev/null || { echo "::error::track response missing meta.$f - failing closed"; exit 1; }
+          done
+          jq -e '. as $m | ([$m.meta.observationFailed, $m.meta.horizonRetryFailed, $m.meta.observationDeferred, $m.meta.horizonRetryDeferred, $m.meta.missedObservations, $m.meta.enrichmentFailed, $m.meta.deferred, $m.meta.degraded] | all(type == "number")) and ($m.meta.mandatoryComplete | type == "boolean") and ($m.meta.status | type == "string")' /tmp/track.json > /dev/null \
+            || { echo "::error::track response meta has unexpected types - failing closed"; exit 1; }
+          FAILED=$(jq -r '[.meta.observationFailed, .meta.horizonRetryFailed, .meta.observationDeferred, .meta.horizonRetryDeferred] | add' /tmp/track.json)
+          MISSED=$(jq -r '.meta.missedObservations' /tmp/track.json)
+          OPTIONAL=$(jq -r '[.meta.enrichmentFailed, .meta.deferred, .meta.degraded] | add' /tmp/track.json)
+          COMPLETE=$(jq -r '.meta.mandatoryComplete' /tmp/track.json)
+          if [[ "$FAILED" != "0" ]]; then
+            echo "::error::followed-tickers mandatory observation/horizon work failed or deferred in $FAILED case(s); inspect artifact"
             exit 1
           fi
-          if [[ "$(jq -r '.meta.status // "unavailable"' /tmp/track.json)" != "ok" ]]; then
-            echo "::warning::followed-tickers optional enrichment incomplete; required observations completed"
+          if [[ "$COMPLETE" != "true" && "$MISSED" == "0" ]]; then
+            echo "::error::mandatoryComplete is false with zero failed/deferred/missed counters - inconsistent response, failing closed"
+            exit 1
+          fi
+          if [[ "$MISSED" != "0" ]]; then
+            echo "::warning::$MISSED close(s) unavailable from price sources after confirmed session close; gap remains visible in response meta, run log and tracker UI; not phoned"
+          fi
+          if [[ "$OPTIONAL" != "0" ]]; then
+            echo "::warning::followed-tickers optional enrichment incomplete ($OPTIONAL case(s)); required observations completed"
           fi
 
       - name: Upload tracking artifact
