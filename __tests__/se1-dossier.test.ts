@@ -17,16 +17,20 @@ describe("dossier logic", () => {
   it("B7 diffs added, removed and flipped rows", () => {
     const d = diffDossiers(dossier([row(GC, false), row(EX, true), row("se1.vol.breakout_volume_confirm", true)]),
       dossier([row(GC, true), row(EX, true), row("se1.trend.ma_distance_atr", true)]));
-    expect(d).toEqual({ added: ["se1.trend.ma_distance_atr"], removed: ["se1.vol.breakout_volume_confirm"], flipped: [GC], unchanged: 1 });
+    expect(d).toEqual({ ok: true, added: ["se1.trend.ma_distance_atr"], removed: ["se1.vol.breakout_volume_confirm"],
+      flipped: [GC], unchanged: 1, versionChanged: [], evidenceChanged: [], newlyMissing: [], resolvedMissing: [] });
   });
 
   it("C4 lists missing scans, or says none are missing", () => {
-    expect(missingEvidenceSection(dossier([]))).toEqual(["No scans are missing from this dossier."]);
+    expect(missingEvidenceSection(dossier([]))).toEqual(["No scans were run for this dossier. There is no evidence to show."]);
+    expect(missingEvidenceSection(dossier([row(GC, true)]))).toEqual(["No scans are missing from this dossier."]);
     expect(missingEvidenceSection(dossier([], [{ scan_id: "se1.news.x", reason: "feed not built" }]))).toEqual(["Missing se1.news.x: feed not built"]);
   });
 
   it("B9 export marks rows without provenance as unsourced", () => {
-    const md = dossierToMarkdown(dossier([row(GC, true), row(EX, false, "E0", { source: "x" })]));
+    const r = dossierToMarkdown(dossier([row(GC, true), row(EX, false, "E0", { source: "x" })]));
+    expect(r.ok).toBe(true);
+    const md = r.ok ? r.markdown : "";
     expect(md).toContain(`- ${GC}: flagged [E1] (Source se1 test`);
     expect(md).toContain(`- ${EX}: not flagged [E0] (unsourced: missing provenance)`);
     expect(md).toContain("## Missing evidence");
@@ -34,9 +38,9 @@ describe("dossier logic", () => {
 
   it("D6 needs both scans flagged at E3+ and a declared contradiction", () => {
     const strong = dossier([row(GC, true, "E3"), row(EX, true, "E4")]);
-    expect(detectContradictions(strong, SEED_CARDS)).toEqual([{ a: EX, b: GC }]);
-    expect(detectContradictions(dossier([row(GC, true, "E3"), row(EX, true, "E2")]), SEED_CARDS)).toEqual([]);
-    expect(detectContradictions(dossier([row(GC, true, "E3"), row(EX, false, "E4")]), SEED_CARDS)).toEqual([]);
+    expect(detectContradictions(strong, SEED_CARDS, 7).pairs).toEqual([{ a: EX, b: GC }]);
+    expect(detectContradictions(dossier([row(GC, true, "E3"), row(EX, true, "E2")]), SEED_CARDS, 7).pairs).toEqual([]);
+    expect(detectContradictions(dossier([row(GC, true, "E3"), row(EX, false, "E4")]), SEED_CARDS, 7).pairs).toEqual([]);
   });
 
   it("D9 respects quiet hours (including wrap past midnight) and the per-ticker cap", () => {
@@ -69,9 +73,10 @@ describe("dossier logic", () => {
   });
 
   it("J2 flags figures without citations and citations without rows", () => {
-    const r = checkFaithfulness(`The cross was ${GC} 4 days ago. Price rose 12%. See se1.vol.breakout_volume_confirm for volume. It looks fine.`, [{ scan_id: GC }]);
-    expect(r.grounded).toEqual([`The cross was ${GC} 4 days ago.`, "It looks fine."]);
-    expect(r.ungrounded.map((u) => u.why)).toEqual(["states a figure without a scan citation", "cites a scan with no row"]);
+    const r = checkFaithfulness(`The cross was ${GC} 4 days ago. Price rose 12%. See se1.vol.breakout_volume_confirm for volume. It looks fine.`, [{ scan_id: GC, flag: true }]);
+    expect(r.grounded).toEqual(["It looks fine."]);
+    expect(r.ungrounded.map((u) => u.why)).toEqual(["figure not in cited row", "cites a scan with no row"]);
+    expect(r.unverifiable).toEqual(["Price rose 12%."]);
   });
 
   it("J5 finds highly correlated series and skips flat or short ones", () => {
