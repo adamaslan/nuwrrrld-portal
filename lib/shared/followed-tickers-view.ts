@@ -1,3 +1,4 @@
+import { JUDGE_VERSION } from "@/lib/eval-judge";
 /**
  * followed-tickers-view — the pure view-model for the followed-tickers
  * dashboard surface (docs/tickers-followed.md follow-up item 9).
@@ -73,6 +74,8 @@ export interface FollowedTickersViewVM {
   bears: CohortCardVM[];
   scoreboard: ScoreboardRowVM[];
   judge: JudgePeriodVM | null;
+  judgeVersion: string;
+  excludedJudgeGrades: number;
   /** Diagnostic quadrant counts (outcome × judge≥7). */
   quadrant: {
     hitHighJudge: number;
@@ -112,6 +115,7 @@ export interface RawScore {
   directional: number | null;
   returnPct: number | null;
   judgeScore: number | null;
+  judgeVersion?: string | null;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -251,9 +255,13 @@ export function buildFollowedTickersView(input: {
   observationsByPick: Readonly<Record<string, readonly RawObservation[]>>;
   scores: readonly RawScore[];
   now?: Date;
+  judgeVersion?: string;
 }): FollowedTickersViewVM {
   const { picks, observationsByPick, scores } = input;
   const now = input.now ?? new Date();
+  const judgeVersion = input.judgeVersion ?? JUDGE_VERSION;
+  const judgeScores = scores.filter(s => s.judgeVersion === judgeVersion);
+  const excludedJudgeGrades = scores.filter(s => s.judgeScore != null && s.judgeVersion !== judgeVersion).length;
 
   if (picks.length === 0) {
     return {
@@ -263,6 +271,8 @@ export function buildFollowedTickersView(input: {
       bears: [],
       scoreboard: buildScoreboard([]),
       judge: null,
+      judgeVersion,
+      excludedJudgeGrades,
       quadrant: { hitHighJudge: 0, missHighJudge: 0, hitLowJudge: 0, missLowJudge: 0 },
       minResolvedForRate: MIN_RESOLVED_FOR_RATE,
       generatedAt: now.toISOString(),
@@ -270,7 +280,7 @@ export function buildFollowedTickersView(input: {
   }
 
   const latestJudgeByPick = new Map<string, number>();
-  for (const s of scores) {
+  for (const s of judgeScores) {
     if (s.judgeScore != null) latestJudgeByPick.set(s.pickId, s.judgeScore);
   }
 
@@ -289,8 +299,10 @@ export function buildFollowedTickersView(input: {
     bulls: cards.filter((c) => c.direction === "bull"),
     bears: cards.filter((c) => c.direction === "bear"),
     scoreboard: buildScoreboard(scores),
-    judge: buildJudge(scores),
-    quadrant: buildQuadrant(scores),
+    judge: buildJudge(judgeScores),
+    judgeVersion,
+    excludedJudgeGrades,
+    quadrant: buildQuadrant(judgeScores),
     minResolvedForRate: MIN_RESOLVED_FOR_RATE,
     generatedAt: now.toISOString(),
   };
