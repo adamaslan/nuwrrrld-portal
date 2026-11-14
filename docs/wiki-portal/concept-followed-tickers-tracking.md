@@ -236,3 +236,11 @@ cohorts accumulate. See [[incident-2026-10-09-followed-tickers-empty-scorecard-a
 The scoreboard now has a second reader: an unauthenticated, counts-only summary on `/track-record` (see [[decision-public-track-record-counts-only]]). It reuses the same `aggregate()` rule and the same 30-call minimum, so the public page can never show a rate the dashboard would withhold. Tickers, prices and cohort membership stay behind the Pro dashboard.
 
 > ❓ Open question: the entry prices behind each score come from different sources per pick (`live_prices`, Alpaca, daily bars). The public counts do not say which. If the November 12 audit's return-basis finding turns out to affect stored entry prices, these counts inherit it.
+
+## Stage evidence for signal/backtest persistence (2026-11-14)
+
+The daily tracker now records its own evidence for the optional enrichment stage instead of swallowing it: per-run counts of enrichment attempted, written, skipped for no price, and signal/backtest missing; ticker-and-reason logging for any observation or enrichment failure; and read-only before/after row counts of how many of the day's observations carry a signal, backtest or council value. These ride in the run-log summary, the response `meta.stageEvidence`, and a `STAGE_EVIDENCE` console line. Behavior is unchanged.
+
+A read-only check of the stored observations for the eight trading days through 2026-11-13 found no row with a signal direction or backtest rate on any day, and council context on only a handful of rows per day, with 23 of 40 live picks observed daily. That predates the observe-first gating, so the first scheduled run after it is the first real exercise. The enrichment stage also only visits picks with no observation yet that day, so a pick already closed by an earlier same-day run is never enriched; whether that explains the gap is unconfirmed until the next scheduled run reports its own counts.
+
+> ❓ Open question: does the live app read the same database the read-only check used? That route was not verified against the deployed app.
