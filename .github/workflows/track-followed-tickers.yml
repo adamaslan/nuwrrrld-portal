@@ -186,11 +186,24 @@ jobs:
             if [[ -f /tmp/track.json ]]; then
               echo ""
               echo '```json'
-              jq '{scored: (.readings // [] | length), degraded: .meta.degraded, backtest_engine: .meta.backtest_available}' \
+              jq '{status: .meta.status, observed_readings: (.readings // [] | length), enriched: .meta.enriched, observation_deferred: .meta.observationDeferred, observation_failed: .meta.observationFailed, enrichment_deferred: .meta.deferred, enrichment_failed: .meta.enrichmentFailed, horizon_retry_failed: .meta.horizonRetryFailed, degraded: .meta.degraded, backtest_engine: .meta.backtest_available}' \
                 /tmp/track.json 2>/dev/null || true
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require mandatory observation completion
+        if: steps.track.outputs.status == '200'
+        run: |
+          # Required-price/horizon failures retain the existing failure alert.
+          # Optional degradation is visible as a warning, not a new issue policy.
+          if [[ "$(jq -r '.meta.mandatoryComplete // false' /tmp/track.json)" != "true" ]]; then
+            echo "::error::followed-tickers mandatory observation/horizon phase incomplete; inspect artifact"
+            exit 1
+          fi
+          if [[ "$(jq -r '.meta.status // "unavailable"' /tmp/track.json)" != "ok" ]]; then
+            echo "::warning::followed-tickers optional enrichment incomplete; required observations completed"
+          fi
 
       - name: Upload tracking artifact
         if: always()
@@ -226,5 +239,5 @@ jobs:
 
           **Track:** ${{ needs.track.outputs.track_status || 'skipped' }}
 
-          Expected while \`/api/pipeline/followed-tickers\` is unbuilt — see docs/tickers-followed.md."
+          Transport failure or incomplete observation/enrichment/horizon coverage. Inspect the run summary and retained artifact; HTTP 200 alone is not completion."
           bash scripts/upsert-workflow-failure-issue.sh
