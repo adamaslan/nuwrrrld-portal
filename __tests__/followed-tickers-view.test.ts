@@ -1,3 +1,4 @@
+import { JUDGE_VERSION } from "@/lib/eval-judge";
 /**
  * followed-tickers-view — unit tests for the dashboard view-model builder.
  * Pure: no DB, no React. Both the portal page and a future mobile screen
@@ -92,7 +93,7 @@ describe("cohort cards", () => {
     const v = buildFollowedTickersView({
       picks: [pick()],
       observationsByPick: { p1: [obs()] },
-      scores: [{ pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8 }],
+      scores: [{ pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8, judgeVersion: JUDGE_VERSION }],
     });
     const c = v.bulls[0];
     expect(c.backtestRatePct).toBeCloseTo(71);
@@ -167,8 +168,8 @@ describe("judge + quadrant", () => {
       picks: [pick()],
       observationsByPick: {},
       scores: [
-        { pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8 },
-        { pickId: "p2", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 6 },
+        { pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8, judgeVersion: JUDGE_VERSION },
+        { pickId: "p2", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 6, judgeVersion: JUDGE_VERSION },
       ],
     });
     expect(v.judge!.verdictsGraded).toBe(2);
@@ -180,11 +181,11 @@ describe("judge + quadrant", () => {
       picks: [pick()],
       observationsByPick: {},
       scores: [
-        { pickId: "a", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 9 },
-        { pickId: "b", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 3 },
-        { pickId: "c", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 8 },
-        { pickId: "d", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 2 },
-        { pickId: "e", horizon: "w1", outcome: "flat", directional: 0, returnPct: 0, judgeScore: 5 },
+        { pickId: "a", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 9, judgeVersion: JUDGE_VERSION },
+        { pickId: "b", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 3, judgeVersion: JUDGE_VERSION },
+        { pickId: "c", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 8, judgeVersion: JUDGE_VERSION },
+        { pickId: "d", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 2, judgeVersion: JUDGE_VERSION },
+        { pickId: "e", horizon: "w1", outcome: "flat", directional: 0, returnPct: 0, judgeScore: 5, judgeVersion: JUDGE_VERSION },
       ],
     });
     expect(v.quadrant).toEqual({
@@ -201,5 +202,24 @@ describe("HORIZON_LABEL", () => {
     for (const k of ["d1", "w1", "m1", "m3", "m6", "ytd", "y1"] as const) {
       expect(HORIZON_LABEL[k]).toBeTruthy();
     }
+  });
+});
+
+
+describe("Judge series isolation", () => {
+  it("never blends old/unknown grades into current mean, cards or quadrants, but keeps outcome totals", () => {
+    const scores: RawScore[] = [
+      { pickId: "p1", horizon: "d1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 9, judgeVersion: JUDGE_VERSION },
+      { pickId: "p1", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 1, judgeVersion: "v1" },
+      { pickId: "p1", horizon: "m1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 2 },
+    ];
+    const view = buildFollowedTickersView({ picks: [pick()], observationsByPick: {}, scores });
+    expect(view.judgeVersion).toBe(JUDGE_VERSION); expect(view.excludedJudgeGrades).toBe(2);
+    expect(view.judge).toMatchObject({ verdictsGraded: 1, meanScore: 9 });
+    expect(view.bulls[0].judgeScore).toBe(9);
+    expect(view.quadrant).toEqual({ hitHighJudge: 1, missHighJudge: 0, hitLowJudge: 0, missLowJudge: 0 });
+    expect(view.scoreboard.reduce((n, row) => n + row.n, 0)).toBe(3);
+    const legacy = buildFollowedTickersView({ picks: [pick()], observationsByPick: {}, scores, judgeVersion: "v1" });
+    expect(legacy.judge).toMatchObject({ verdictsGraded: 1, meanScore: 1 });
   });
 });
