@@ -94,8 +94,8 @@ describe("dossier logic", () => {
   });
 
   it("registry: logic features are unique, C0, and listed in ALL_FEATURES", () => {
-    expect(LOGIC_FEATURES).toHaveLength(10);
-    expect(new Set(ALL_FEATURES.map((f) => f.id)).size).toBe(20);
+    expect(LOGIC_FEATURES).toHaveLength(12);
+    expect(new Set(ALL_FEATURES.map((f) => f.id)).size).toBe(23);
     expect(LOGIC_FEATURES.every((f) => f.cost === "C0")).toBe(true);
   });
 });

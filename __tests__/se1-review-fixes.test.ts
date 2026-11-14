@@ -15,7 +15,7 @@ describe("provenance on unrun scan cards (review finding F1)", () => {
 });
 
 describe("registry honesty for features with no caller (review finding F2)", () => {
-  const unwired = ["A3", "B7", "B9", "C4", "D6", "D9", "F2", "J2", "J5"];
+  const unwired = ["B7", "B9", "C4", "D6", "D9", "F2", "J2", "J5"];
   it("features with no route or caller are logic_only, not web_only", () => {
     const all = [...WAVE0_FEATURES, ...LOGIC_FEATURES];
     for (const id of unwired) {

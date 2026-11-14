@@ -210,6 +210,7 @@ export interface ConfidenceLabel { level: EvidenceLevel; text: string }
 /**
  * F2: Hold/Fold confidence is the strongest evidence level among the scans that back the call,
  * never a made-up percentage. No backing scans means E0.
+ * @deprecated One strong scan lifts the label (audit R7). Use holdFoldEvidence in ./se1/holdfold.ts.
  */
 export function holdFoldConfidence(backing: readonly Pick<ScanRow, "flag" | "evidence_level">[]): ConfidenceLabel {
   const flagged = backing.filter((r) => r.flag);
@@ -374,7 +375,8 @@ function pearson(a: readonly number[], b: readonly number[]): number | null {
   return num / Math.sqrt(da * db);
 }
 
-/** J5: pairs of scans whose output series correlate above `threshold` (plan §3.2: 0.9). Skips short or flat series. */
+/** J5: pairs of scans whose output series correlate above `threshold` (plan §3.2: 0.9). Skips short or flat series.
+ *  @deprecated Drops unassessable pairs silently (audit R8). Use assessDuplicates in ./se1/ops.ts. */
 export function nearDuplicates(series: Record<string, readonly number[]>, threshold = 0.9): { a: string; b: string; r: number }[] {
   const ids = Object.keys(series).sort();
   const out: { a: string; b: string; r: number }[] = [];
