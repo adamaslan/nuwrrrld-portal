@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALL_FEATURES } from "@/lib/shared/ai-features";
@@ -39,10 +39,22 @@ describe("se1 ledger: the 80 capabilities that are not live", () => {
       if (f.id === "REG" || LIVE_WEB_IDS.includes(f.id)) continue;
       const row = ledgerRow(f.id);
       expect(row, `${f.id} is in the registry but not the ledger`).toBeDefined();
-      expect(row?.group, f.id).not.toBe("not_started");
+      expect(row?.web, `${f.id} is registered but the ledger still says planned`).not.toBe("planned");
     }
-    for (const r of LEDGER.filter((x) => x.group === "logic_no_caller")) {
+    for (const r of LEDGER.filter((x) => x.group === "logic_no_caller" && x.web === "logic_only")) {
       expect(ALL_FEATURES.find((f) => f.id === r.id)?.status, r.id).toBe("logic_only");
+    }
+  });
+
+  it("a row integrated on web is imported by a page or component, and the registry says it is on web (R15)", () => {
+    const callerFiles = ["app", "components"]
+      .flatMap((dir) => (readdirSync(path.join(ROOT, dir), { recursive: true }) as string[]).map((f) => path.join(dir, f)))
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f));
+    const sources = callerFiles.map(read);
+    for (const r of LEDGER.filter((x) => AT_LEAST_LOGIC.has(x.web) && x.web !== "logic_only")) {
+      const spec = `@/${logicPaths(r).module.replace(/\.ts$/, "")}"`;
+      expect(sources.some((s) => s.includes(spec)), `${r.id} is ${r.web} but nothing in app/ or components/ imports ${spec}`).toBe(true);
+      expect(ALL_FEATURES.find((f) => f.id === r.id)?.status, `${r.id} registry status`).toBe("web_only");
     }
   });
 

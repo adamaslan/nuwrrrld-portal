@@ -22,3 +22,10 @@ body:has(.ev-page)::before, body:has(.ev-page)::after { display: none; }
 .ev-table { width: 100%; border-collapse: collapse; font-size: 13.5px; display: block; overflow-x: auto; }
 .ev-table th, .ev-table td { border: 1px solid #555; padding: 8px 10px; text-align: left; vertical-align: top; }
 .ev-cite code { font-size: 12.5px; }
+.ev-cite-unknown { opacity: .75; }
+.ev-cite-unknown code { font-size: 12.5px; text-decoration: line-through; }
+.ev-ask { border: 1px solid #555; padding: 12px; margin: 12px 0; }
+.ev-ask input { width: 100%; max-width: 480px; }
+.ev-kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; }
+.ev-kv dt { font-weight: 600; }
+.ev-kv dd { margin: 0; overflow-wrap: anywhere; }

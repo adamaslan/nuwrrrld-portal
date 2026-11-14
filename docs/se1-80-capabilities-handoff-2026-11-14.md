@@ -75,7 +75,14 @@ Only 12 rows are blocked by nothing beyond wiring or the results store: A3, B2, 
 Each task stays inside T1/T2 limits (about 5 files and 200 lines, no auth, billing, schema, CI or dependency change).
 Work in your own worktree. Stage by explicit path.
 
-### Task S1: wire A3 citations into the scan card (small, T2)
+> **Done on this branch (second commit):** A3, A2, B2 and G3 are wired on web (`integrated` in the ledger).
+> A3 renders citations on `/scans/[id]`; A2 adds an "ask which scan" box to `/scans`; B2 and G3 are the
+> `/scans/dossier/[ticker]` page, built from stored Alpaca SIP daily bars. Verified locally against production data,
+> read-only: AAPL and NVDA return 260 bars as of 2026-11-13; an unknown ticker shows "Not enough data".
+> Known weakness: A2's word-overlap matcher can pick a related card instead of the best one (the question
+> "is the 50 day above the 200 day" matched the close-under-200 card). Task S1 below is kept as the record of what was done.
+
+### Task S1: wire A3 citations into the scan card (small, T2) — done
 
 Outcome: scan IDs in a card's prose and caveats open the right card; an unknown ID shows as plain text marked
 "unknown scan" and is never a link. This moves A3 from `logic_only` to `integrated` on web.

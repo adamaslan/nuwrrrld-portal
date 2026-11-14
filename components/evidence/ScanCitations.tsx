@@ -1,17 +1,25 @@
 import Link from "next/link";
-import { splitCitations } from "@/lib/shared/se1-catalog";
+import { SEED_CARDS, type ScanCard } from "@/lib/shared/se1-catalog";
+import { resolveCitations } from "@/lib/shared/se1/ask";
 
-/** A3: scan IDs inside text become links to the card; everything else stays plain text. */
-export function ScanCitations({ text }: { text: string }) {
+/** A3: a scan ID that names a written card becomes a link to it; a well-formed ID with no card is shown as
+ *  plain text marked "unknown scan", never a link to a missing page (audit R10). */
+export function ScanCitations({ text, cards = SEED_CARDS }: { text: string; cards?: readonly Pick<ScanCard, "id" | "version">[] }) {
   return (
     <>
-      {splitCitations(text).map((part, i) =>
-        part.type === "scan" ? (
-          <Link key={i} href={`/scans/${part.id}`} className="ev-cite"><code>{part.id}</code></Link>
-        ) : (
-          <span key={i}>{part.text}</span>
-        ),
-      )}
+      {resolveCitations(text, cards).map((part, i) => {
+        if (part.type === "scan") {
+          return (
+            <Link key={i} href={`/scans/${part.id}`} className="ev-cite" title={`Scan card v${part.version}`}>
+              <code>{part.id}</code>
+            </Link>
+          );
+        }
+        if (part.type === "unknown_scan") {
+          return <span key={i} className="ev-cite-unknown"><code>{part.id}</code> (unknown scan)</span>;
+        }
+        return <span key={i}>{part.text}</span>;
+      })}
     </>
   );
 }

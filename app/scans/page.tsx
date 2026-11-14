@@ -5,6 +5,7 @@ import {
   EVIDENCE_LEVELS, FAMILIES, SEED_CARDS, filterCards, totalPlanned,
   type CardRole, type EvidenceLevel, type FamilyCode,
 } from "@/lib/shared/se1-catalog";
+import { matchScanQuestion } from "@/lib/shared/se1/ask";
 import "./scans.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,26 @@ export const metadata: Metadata = {
 
 const ROLES: CardRole[] = ["screen", "explain", "confirm", "risk", "value", "context"];
 
-type Params = { family?: string; role?: string; min?: string; q?: string };
+type Params = { family?: string; role?: string; min?: string; q?: string; ask?: string };
+
+/** A2: which written card answers a plain-language question. Deterministic word overlap, no model call.
+ *  A tie asks the reader to choose; nothing is run. */
+function AskResult({ question }: { question: string }) {
+  const r = matchScanQuestion(question, SEED_CARDS);
+  if (r.kind === "match") {
+    const card = SEED_CARDS.find((c) => c.id === r.card);
+    return <p>Closest scan: <Link href={`/scans/${r.card}`}>{card?.title ?? r.card}</Link>. It is a spec, so it has no result yet.</p>;
+  }
+  if (r.kind === "clarify") {
+    return (
+      <div>
+        <p>More than one scan fits equally well. Pick the one you meant:</p>
+        <ul>{r.candidates.map((id) => <li key={id}><Link href={`/scans/${id}`}>{SEED_CARDS.find((c) => c.id === id)?.title ?? id}</Link></li>)}</ul>
+      </div>
+    );
+  }
+  return <p>No written scan answers that yet. <Link href="/scans/gaps">See what we can&apos;t answer</Link>.</p>;
+}
 
 /** G7 browser plus A7 evidence-level filter. Unknown filter values are ignored, never trusted. */
 export default async function ScansPage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -23,6 +43,7 @@ export default async function ScansPage({ searchParams }: { searchParams: Promis
   const role = ROLES.find((r) => r === p.role);
   const minEvidence = EVIDENCE_LEVELS.find((l) => l === p.min) as EvidenceLevel | undefined;
   const cards = filterCards(SEED_CARDS, { family, role, minEvidence, query: p.q?.slice(0, 80) });
+  const ask = (p.ask ?? "").slice(0, 120).trim();
 
   return (
     <main className="ev-page">
@@ -31,6 +52,12 @@ export default async function ScansPage({ searchParams }: { searchParams: Promis
         {SEED_CARDS.length} of {totalPlanned()} planned scan cards are written so far. Every card is a spec until
         the evidence harness runs it. <Link href="/scans/gaps">See what we can&apos;t answer yet</Link>.
       </p>
+      <form className="ev-ask" method="get" aria-label="Ask which scan answers a question">
+        <label htmlFor="ev-ask-q">Ask which scan answers your question</label>
+        <input id="ev-ask-q" name="ask" defaultValue={ask} placeholder="e.g. is the 50 day above the 200 day" maxLength={120} />
+        <button type="submit">Ask</button>
+        {ask && <AskResult question={ask} />}
+      </form>
       <form className="ev-filters" method="get" aria-label="Filter scan cards">
         <input name="q" defaultValue={p.q ?? ""} placeholder="Search" aria-label="Search" maxLength={80} />
         <select name="family" defaultValue={family ?? ""} aria-label="Family">
