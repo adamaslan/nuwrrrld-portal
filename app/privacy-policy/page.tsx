@@ -80,28 +80,28 @@ export default function PrivacyPolicy() {
         <p><strong>Service providers we use:</strong></p>
         <ul>
           <li>
-            <strong>Clerk</strong> - authentication, user management, and session management.
+            <strong>Clerk</strong>{" "}- authentication, user management, and session management.
             Clerk privacy policy governs how they use your authentication data.
           </li>
           <li>
-            <strong>Google</strong> - OAuth sign-in. Google privacy policy governs OAuth data.
+            <strong>Google</strong>{" "}- OAuth sign-in. Google privacy policy governs OAuth data.
           </li>
           <li>
-            <strong>Stripe</strong> - payment processing and subscription management. Stripe
+            <strong>Stripe</strong>{" "}- payment processing and subscription management. Stripe
             does not retain full payment card details; we never see raw card numbers.
           </li>
           <li>
-            <strong>Vercel</strong> - hosting and CDN. Vercel may process limited data to
+            <strong>Vercel</strong>{" "}- hosting and CDN. Vercel may process limited data to
             serve the Service and manage logs.
           </li>
           <li>
-            <strong>AI/LLM providers</strong> (e.g., OpenRouter, Anthropic) - When you use
+            <strong>AI/LLM providers</strong>{" "}(e.g., OpenRouter, Anthropic) - When you use
             the AI Council or related features, your prompts and relevant context may be
             transmitted to third-party model providers to generate responses. Your data
             is processed according to each provider&apos;s privacy policies.
           </li>
           <li>
-            <strong>Analytics (if enabled)</strong> - We may use analytics tools to measure
+            <strong>Analytics (if enabled)</strong>{" "}- We may use analytics tools to measure
             Service performance and user behavior.
           </li>
         </ul>
@@ -140,30 +140,30 @@ export default function PrivacyPolicy() {
         <p><strong>Depending on your location, you may have the following rights:</strong></p>
         <ul>
           <li>
-            <strong>Right to access:</strong> You may request a copy of the personal data
+            <strong>Right to access:</strong>{" "}You may request a copy of the personal data
             we hold about you.
           </li>
           <li>
-            <strong>Right to correct:</strong> You may request that we correct inaccurate data.
+            <strong>Right to correct:</strong>{" "}You may request that we correct inaccurate data.
           </li>
           <li>
-            <strong>Right to delete:</strong> You may request deletion of your data (the &quot;right
+            <strong>Right to delete:</strong>{" "}You may request deletion of your data (the &quot;right
             to be forgotten&quot;).
           </li>
           <li>
-            <strong>Right to restrict processing:</strong> You may request that we limit how
+            <strong>Right to restrict processing:</strong>{" "}You may request that we limit how
             we use your data.
           </li>
           <li>
-            <strong>Right to data portability:</strong> You may request your data in a
+            <strong>Right to data portability:</strong>{" "}You may request your data in a
             structured, machine-readable format.
           </li>
           <li>
-            <strong>Right to opt out of marketing:</strong> You may opt out of promotional
+            <strong>Right to opt out of marketing:</strong>{" "}You may opt out of promotional
             communications at any time.
           </li>
           <li>
-            <strong>GDPR and CCPA rights:</strong> If you are in the EU or California, you have
+            <strong>GDPR and CCPA rights:</strong>{" "}If you are in the EU or California, you have
             additional rights under GDPR and CCPA/CPRA. Contact us to exercise these rights.
           </li>
         </ul>
