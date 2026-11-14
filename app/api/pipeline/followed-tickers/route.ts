@@ -33,6 +33,7 @@ import {
   getPickIdsObservedOn,
   getResolvedHorizons,
   upsertObservation,
+  insertObservationClose,
   type Pick,
 } from "@/lib/followed-tickers-db";
 
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
   // The observer is keyed by NY trading day. A UTC date would run a day ahead
   // after the 19:00 ET track run and stamp observations onto the next day.
   const today = nyDateOf(now);
-  const observedToday = await getPickIdsObservedOn(today);
+  const observedToday = await getPickIdsObservedOn(today, { strict: true });
   const readings: Reading[] = [];
   const runItems: RunItem[] = [];
   let missedObservations = 0;
@@ -155,18 +156,23 @@ export async function POST(req: NextRequest) {
     const price = await resolveFollowedPrice(pick.ticker, { freshSince: today, closedOn: today });
     if (price == null) missedObservations++;
     if (price != null && !dryRun) {
-      await upsertObservation({ pickId: pick.id, observedOn: today,
-        closePrice: price.price, priceSource: price.source,
-        signalDir: null, backtestRate: null, councilJson: null });
+      // Non-destructive on conflict: never erase existing signal/backtest/
+      // council context if this same-day row already carries it.
+      await insertObservationClose({ pickId: pick.id, observedOn: today,
+        closePrice: price.price, priceSource: price.source });
     }
-    let resolved: Horizon[] = [];
-    if (!dryRun) {
-      resolved = await resolveDueHorizons(pick, await getObservations(pick.id), alreadyResolved, now);
-    }
-    captured.set(pick.id, { price, resolved, readingIndex: readings.length });
+    // Record the saved close before horizon resolution: a horizon failure
+    // keeps the mandatory-failure status but must not drop the close from
+    // the response or from enrichment.
+    const entry = { price, resolved: [] as Horizon[], readingIndex: readings.length };
+    captured.set(pick.id, entry);
     readings.push({ ticker: pick.ticker, direction: pick.direction,
       close: price?.price ?? null, signalDir: null, backtestRate: null,
-      council: null, thesisHolding: null, resolved });
+      council: null, thesisHolding: null, resolved: entry.resolved });
+    if (!dryRun) {
+      entry.resolved = await resolveDueHorizons(pick, await getObservations(pick.id, { strict: true }), alreadyResolved, now);
+      readings[entry.readingIndex].resolved = entry.resolved;
+    }
   };
 
   const processPick = async (pick: Pick): Promise<void> => {
@@ -300,7 +306,7 @@ export async function POST(req: NextRequest) {
   for (const pick of picks.filter(p => !dryRun && observedToday.has(p.id))) {
     if (Date.now() - startedAt > PICK_START_BUDGET_MS) { horizonRetryDeferred++; continue; }
     try {
-      const resolved = await resolveDueHorizons(pick, await getObservations(pick.id), alreadyResolved, now);
+      const resolved = await resolveDueHorizons(pick, await getObservations(pick.id, { strict: true }), alreadyResolved, now);
       horizonsRetried++;
       retriedHorizonsResolved += resolved.length;
     } catch { horizonRetryFailed++; }
