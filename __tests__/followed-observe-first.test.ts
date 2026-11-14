@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ picks: vi.fn(), observed: vi.fn(), resolved: vi.fn(), observations: vi.fn(), upsert: vi.fn(), price: vi.fn(), council: vi.fn(), horizons: vi.fn(), ticker: vi.fn(), backtest: vi.fn(), log: vi.fn(), close: vi.fn() }));
+const m = vi.hoisted(() => ({ picks: vi.fn(), observed: vi.fn(), resolved: vi.fn(), observations: vi.fn(), upsert: vi.fn(), price: vi.fn(), council: vi.fn(), horizons: vi.fn(), ticker: vi.fn(), backtest: vi.fn(), log: vi.fn(), close: vi.fn(), enrich: vi.fn() }));
 vi.mock("@/lib/db", () => ({ default: () => { throw new Error("No live DB permitted"); } }));
-vi.mock("@/lib/followed-tickers-db", () => ({ getLivePicks: m.picks, getPickIdsObservedOn: m.observed, getResolvedHorizons: m.resolved, getObservations: m.observations, upsertObservation: m.upsert, insertObservationClose: m.close }));
+vi.mock("@/lib/followed-tickers-db", () => ({ getLivePicks: m.picks, getPickIdsObservedOn: m.observed, getResolvedHorizons: m.resolved, getObservations: m.observations, upsertObservationEnrichment: m.enrich, insertObservationClose: m.close }));
 vi.mock("@/lib/followed-tickers-price", () => ({ resolveFollowedPrice: m.price, nyDateOf: () => "2026-11-13" }));
 vi.mock("@/lib/followed-tickers-run", () => ({ councilVerdictFor: m.council, resolveDueHorizons: m.horizons }));
 vi.mock("@/lib/shared/signal-lookup", () => ({ fetchTickerEntry: m.ticker }));
@@ -21,7 +21,7 @@ describe("mandatory observation phase before optional enrichment", () => {
     m.observations.mockResolvedValue([]); m.horizons.mockResolvedValue([]); m.log.mockResolvedValue(true);
     m.price.mockImplementation(async () => ({ price: 100, source: "daily_bars", asOf: "2026-11-13" }));
     m.close.mockImplementation(async (row) => { events.push(`write:${row.pickId}`); });
-    m.upsert.mockResolvedValue(undefined);
+    m.enrich.mockResolvedValue(undefined);
     m.ticker.mockImplementation(async () => { events.push("optional"); return null; });
     m.backtest.mockResolvedValue(null);
     m.council.mockImplementation(async () => { events.push("council"); return { ok: false, empty: true, model: "injected" }; });
@@ -51,7 +51,7 @@ describe("mandatory observation phase before optional enrichment", () => {
   it("dry-run computes observations but never writes prices, verdicts or horizon scores", async () => {
     const body = await (await POST(request(true))).json();
     expect(body.dryRun).toBe(true); expect(m.price).toHaveBeenCalledTimes(40);
-    expect(m.upsert).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.horizons).not.toHaveBeenCalled();
+    expect(m.enrich).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.horizons).not.toHaveBeenCalled();
   });
   it("enrichment failure preserves all saved closes and remaining optional work continues", async () => {
     m.ticker.mockRejectedValueOnce(new Error("optional unavailable"));
@@ -68,7 +68,7 @@ describe("mandatory observation phase before optional enrichment", () => {
     const body = await (await POST(request())).json();
     expect(m.observations).toHaveBeenCalledTimes(40); expect(m.horizons).toHaveBeenCalledTimes(40);
     expect(body.meta.horizonsRetried).toBe(40); expect(body.meta.horizonsResolved).toBe(1);
-    expect(m.price).not.toHaveBeenCalled(); expect(m.upsert).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.council).not.toHaveBeenCalled();
+    expect(m.price).not.toHaveBeenCalled(); expect(m.enrich).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.council).not.toHaveBeenCalled();
   });
   it("same-day horizon retry failure is partial and cannot trigger a false recovery", async () => {
     m.observed.mockResolvedValue(new Set(picks.map(p => p.id)));
@@ -101,8 +101,27 @@ describe("mandatory observation phase before optional enrichment", () => {
     m.observed.mockResolvedValue(new Set(picks.map(p => p.id)));
     const body = await (await POST(request(true))).json();
     expect(body.dryRun).toBe(true); expect(m.horizons).not.toHaveBeenCalled();
-    expect(m.upsert).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.observations).not.toHaveBeenCalled();
+    expect(m.enrich).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.observations).not.toHaveBeenCalled();
     expect(m.council).not.toHaveBeenCalled(); expect(body.meta.horizonsRetried).toBe(0);
+  });
+  it("a quiet priced pick still saves its signal and backtest without a council verdict", async () => {
+    m.ticker.mockResolvedValue({ ai_action: "Strong Buy" });
+    m.backtest.mockResolvedValue({ by_category: [{ key: "momentum", hit_rate: 0.61 }] });
+    const body = await (await POST(request())).json();
+    expect(body.meta.mandatoryComplete).toBe(true); expect(body.meta.enriched).toBe(40);
+    expect(m.enrich).toHaveBeenCalledTimes(40);
+    for (const call of m.enrich.mock.calls) {
+      expect(call[0].signalDir).toBe("bull"); expect(call[0].backtestRate).toBe(0.61);
+      expect(call[0].councilJson).toBeNull(); // preserving upsert keeps any existing verdict
+      expect(call[0].closePrice).toBe(100);
+    }
+  });
+  it("a failed enrichment keeps every saved close durable", async () => {
+    m.ticker.mockRejectedValueOnce(new Error("fixture enrichment failure"));
+    const body = await (await POST(request())).json();
+    expect(body.meta.enrichmentFailed).toBe(1); expect(body.meta.mandatoryComplete).toBe(true);
+    expect(m.close).toHaveBeenCalledTimes(40); expect(m.enrich).toHaveBeenCalledTimes(39);
+    expect(body.readings).toHaveLength(40);
   });
 
 });
