@@ -43,6 +43,7 @@ export async function councilVerdictFor(
   try {
     const question = `Directional outlook for ${ticker} over the next 1-5 trading days.`;
     const brief = await buildGroundedBrief(question, ticker, "T1");
+    const capturedAt = new Date().toISOString();
     // No maxTokens override: runSeat's default (1200) is the documented floor
     // below which the reasoning models in FREE_MODEL_CHAIN spend the whole
     // budget on hidden chain-of-thought and return a 0-character answer, which
@@ -68,7 +69,8 @@ export async function councilVerdictFor(
       verdict: {
         direction: directionFromOutlook(verdict.outlook),
         invalidation: verdict.invalidation,
-        raw: { ...verdict, validatorFlags: flags.map((f) => f.message) },
+        raw: { ...verdict, validatorFlags: flags.map((f) => f.message),
+          gradingContext: { version: "council-author-context-v1", ticker, brief, capturedAt } },
         model,
         latencyMs,
         fallback,
@@ -164,4 +166,3 @@ async function writeScore(
     outcome: scored.outcome,
   });
 }
-
