@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ picks: vi.fn(), observed: vi.fn(), resolved: vi.fn(), observations: vi.fn(), upsert: vi.fn(), price: vi.fn(), council: vi.fn(), horizons: vi.fn(), ticker: vi.fn(), backtest: vi.fn(), log: vi.fn() }));
+const m = vi.hoisted(() => ({ picks: vi.fn(), observed: vi.fn(), resolved: vi.fn(), observations: vi.fn(), upsert: vi.fn(), price: vi.fn(), council: vi.fn(), horizons: vi.fn(), ticker: vi.fn(), backtest: vi.fn(), log: vi.fn(), close: vi.fn() }));
 vi.mock("@/lib/db", () => ({ default: () => { throw new Error("No live DB permitted"); } }));
-vi.mock("@/lib/followed-tickers-db", () => ({ getLivePicks: m.picks, getPickIdsObservedOn: m.observed, getResolvedHorizons: m.resolved, getObservations: m.observations, upsertObservation: m.upsert }));
+vi.mock("@/lib/followed-tickers-db", () => ({ getLivePicks: m.picks, getPickIdsObservedOn: m.observed, getResolvedHorizons: m.resolved, getObservations: m.observations, upsertObservation: m.upsert, insertObservationClose: m.close }));
 vi.mock("@/lib/followed-tickers-price", () => ({ resolveFollowedPrice: m.price, nyDateOf: () => "2026-11-13" }));
 vi.mock("@/lib/followed-tickers-run", () => ({ councilVerdictFor: m.council, resolveDueHorizons: m.horizons }));
 vi.mock("@/lib/shared/signal-lookup", () => ({ fetchTickerEntry: m.ticker }));
@@ -20,7 +20,8 @@ describe("mandatory observation phase before optional enrichment", () => {
     m.picks.mockResolvedValue(picks); m.observed.mockResolvedValue(new Set()); m.resolved.mockResolvedValue(new Set());
     m.observations.mockResolvedValue([]); m.horizons.mockResolvedValue([]); m.log.mockResolvedValue(true);
     m.price.mockImplementation(async () => ({ price: 100, source: "daily_bars", asOf: "2026-11-13" }));
-    m.upsert.mockImplementation(async (row) => { events.push(`write:${row.pickId}`); });
+    m.close.mockImplementation(async (row) => { events.push(`write:${row.pickId}`); });
+    m.upsert.mockResolvedValue(undefined);
     m.ticker.mockImplementation(async () => { events.push("optional"); return null; });
     m.backtest.mockResolvedValue(null);
     m.council.mockImplementation(async () => { events.push("council"); return { ok: false, empty: true, model: "injected" }; });
@@ -36,7 +37,7 @@ describe("mandatory observation phase before optional enrichment", () => {
     expect(m.horizons).toHaveBeenCalledTimes(40);
   });
   it("reports a failed mandatory write without abandoning the other39 picks or claiming full coverage", async () => {
-    m.upsert.mockImplementation(async row => { if (row.pickId === "pick-0") throw new Error("fixture write failed"); events.push(`write:${row.pickId}`); });
+    m.close.mockImplementation(async row => { if (row.pickId === "pick-0") throw new Error("fixture write failed"); events.push(`write:${row.pickId}`); });
     const body = await (await POST(request())).json();
     expect(m.price).toHaveBeenCalledTimes(40); expect(body.meta.observationFailed).toBe(1);
     expect(body.readings).toHaveLength(39); expect(body.meta.status).toBe("partial");
@@ -50,7 +51,7 @@ describe("mandatory observation phase before optional enrichment", () => {
   it("dry-run computes observations but never writes prices, verdicts or horizon scores", async () => {
     const body = await (await POST(request(true))).json();
     expect(body.dryRun).toBe(true); expect(m.price).toHaveBeenCalledTimes(40);
-    expect(m.upsert).not.toHaveBeenCalled(); expect(m.horizons).not.toHaveBeenCalled();
+    expect(m.upsert).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.horizons).not.toHaveBeenCalled();
   });
   it("enrichment failure preserves all saved closes and remaining optional work continues", async () => {
     m.ticker.mockRejectedValueOnce(new Error("optional unavailable"));
@@ -67,7 +68,7 @@ describe("mandatory observation phase before optional enrichment", () => {
     const body = await (await POST(request())).json();
     expect(m.observations).toHaveBeenCalledTimes(40); expect(m.horizons).toHaveBeenCalledTimes(40);
     expect(body.meta.horizonsRetried).toBe(40); expect(body.meta.horizonsResolved).toBe(1);
-    expect(m.price).not.toHaveBeenCalled(); expect(m.upsert).not.toHaveBeenCalled(); expect(m.council).not.toHaveBeenCalled();
+    expect(m.price).not.toHaveBeenCalled(); expect(m.upsert).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.council).not.toHaveBeenCalled();
   });
   it("same-day horizon retry failure is partial and cannot trigger a false recovery", async () => {
     m.observed.mockResolvedValue(new Set(picks.map(p => p.id)));
@@ -78,11 +79,29 @@ describe("mandatory observation phase before optional enrichment", () => {
     expect(m.council).not.toHaveBeenCalled();
   });
 
+  it("a failed dedup read fails the run loudly instead of re-observing over same-day context", async () => {
+    m.observed.mockRejectedValueOnce(new Error("fixture dedup read failed"));
+    await expect(POST(request())).rejects.toThrow("fixture dedup read failed");
+    expect(m.price).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled();
+  });
+  it("a failed observation read counts as failed horizon retry, not as silent no-work success", async () => {
+    m.observed.mockResolvedValue(new Set(picks.map(p => p.id)));
+    m.observations.mockRejectedValueOnce(new Error("fixture read failed"));
+    const body = await (await POST(request())).json();
+    expect(body.meta.horizonRetryFailed).toBe(1); expect(body.meta.mandatoryComplete).toBe(false);
+    expect(body.meta.status).toBe("partial"); expect(body.meta.horizonsRetried).toBe(39);
+  });
+  it("a horizon failure keeps the saved close in the response while staying mandatory-incomplete", async () => {
+    m.horizons.mockRejectedValueOnce(new Error("fixture horizon failure"));
+    const body = await (await POST(request())).json();
+    expect(body.meta.observationFailed).toBe(1); expect(body.meta.mandatoryComplete).toBe(false);
+    expect(body.readings).toHaveLength(40); expect(m.close).toHaveBeenCalledTimes(40);
+  });
   it("dry-run with already-observed picks cannot retry horizons or write score rows", async () => {
     m.observed.mockResolvedValue(new Set(picks.map(p => p.id)));
     const body = await (await POST(request(true))).json();
     expect(body.dryRun).toBe(true); expect(m.horizons).not.toHaveBeenCalled();
-    expect(m.upsert).not.toHaveBeenCalled(); expect(m.observations).not.toHaveBeenCalled();
+    expect(m.upsert).not.toHaveBeenCalled(); expect(m.close).not.toHaveBeenCalled(); expect(m.observations).not.toHaveBeenCalled();
     expect(m.council).not.toHaveBeenCalled(); expect(body.meta.horizonsRetried).toBe(0);
   });
 
