@@ -764,13 +764,13 @@ def due_jobs(now: datetime) -> list[str]:
     due: list[str] = []
 
     in_ingest_window = on_weekday and 7 <= hour < 20
-    if (in_ingest_window and minute % 2 == 0) or (not in_ingest_window and minute % 30 == 0):
+    if (in_ingest_window and minute % 5 == 0) or (not in_ingest_window and minute % 30 == 0):
         due.append(JOB_INGEST)
 
     in_market = on_weekday and (9, 30) <= clock <= (16, 0)
     if in_market and minute in (0, 30):
         due.append(JOB_CORROBORATE)
-    if in_market:
+    if in_market and minute % 5 == 0:
         due.append(JOB_POLLER)
     if on_weekday and clock == (9, 20):
         due.append(JOB_AGGREGATE_PREVIEW)
