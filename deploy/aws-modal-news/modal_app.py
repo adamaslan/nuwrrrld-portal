@@ -17,7 +17,7 @@ Jobs (all functions of the `nwf4` app):
 
 **One cron, not seven.** Modal's Starter plan caps cron schedules per account,
 and this app needs eight. `tick` is the only scheduled function: it runs every
-five minutes, asks news_core.due_jobs() which jobs §5.1 schedules for that minute (in
+five minutes, asks news_core.due_jobs(profile="shadow-batch") which jobs §5.1 schedules for that minute (in
 America/New_York, DST-correct), and spawns them. Each job is idempotent, so the
 retry slots in due_jobs() are safe.
 
@@ -802,7 +802,7 @@ async def _poll() -> dict:
 
 @app.function(image=image, schedule=modal.Cron("*/5 * * * *"), timeout=60)
 def tick() -> list[str]:
-    """Every five minutes: spawn the jobs news_core.due_jobs() says are scheduled for this minute (ET)."""
+    """Five-minute dispatcher; shadow news batches, no duplicate live-price poller."""
     import news_core as nc
 
     launchers = {
@@ -815,7 +815,7 @@ def tick() -> list[str]:
         nc.JOB_POLLER: lambda: alpaca_live_poller.spawn(),
         nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None),  # separate from news_ingest's targeted scoring
     }
-    due = nc.due_jobs(_utcnow())
+    due = nc.due_jobs(_utcnow(), profile="shadow-batch")
     for job in due:
         launchers[job]()
     return due
