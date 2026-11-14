@@ -236,3 +236,15 @@ cohorts accumulate. See [[incident-2026-10-09-followed-tickers-empty-scorecard-a
 The scoreboard now has a second reader: an unauthenticated, counts-only summary on `/track-record` (see [[decision-public-track-record-counts-only]]). It reuses the same `aggregate()` rule and the same 30-call minimum, so the public page can never show a rate the dashboard would withhold. Tickers, prices and cohort membership stay behind the Pro dashboard.
 
 > ❓ Open question: the entry prices behind each score come from different sources per pick (`live_prices`, Alpaca, daily bars). The public counts do not say which. If the November 12 audit's return-basis finding turns out to affect stored entry prices, these counts inherit it.
+
+## Deterministic Judge simulation (2026-11-14)
+
+`lib/judge-sim.ts` adds a pure rubric approximation for offline reasoning-quality
+exploration. It returns `SIMULATED` results under `judge_sim_v1`, separate from
+the actual LLM Judge's `v1` series and from outcome-based backtests. Its proxies
+inspect only the brief and structured verdict: exact cited-rule quotes,
+testable invalidation triggers, trade-level ordering, verdict specificity, and
+declared confidence against cited-rule strength. `StructuredVerdict` currently
+has no confidence field, so absent confidence is scored as unavailable rather
+than inferred. The simulator is not wired to storage or UI; gold-set fidelity
+measurement remains a separate follow-up before anyone interprets its grades.
