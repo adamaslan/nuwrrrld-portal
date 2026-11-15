@@ -17,27 +17,47 @@ Ordering: **select** (monthly, 1st) → **track** (every trading day) → **judg
 select froze; T-143 covers verifying select runs before tracking each trading
 day.
 
-## Warning: the track cron does not mean what its comments say
+## Warning: the track cron's timing is delay-dependent, not timezone-aware
 
 GitHub Actions cron is UTC-only; the `timezone:` key on a schedule entry is
 not a GitHub Actions feature and is ignored (the repo itself notes this in
 `hydrate-universe.yml`: "GitHub cron is UTC-only with no timezone support").
 
-So the track workflow's single cron `30 16 * * 1-5` fires at 16:30 UTC —
-11:30 ET in winter, 12:30 ET in summer. The header comment says "4:30 PM New
-York time — post-close backup" and the route header says "GitHub's cron fires
-about 7:00 PM ET". Both assume a New York interpretation that does not exist.
+Declared: `30 16 * * 1-5` = 16:30 UTC. The workflow comment says "4:30 PM New
+York time" and the route header says "GitHub's cron fires about 7:00 PM ET" -
+neither matches the declared cron, but the route header matches OBSERVED
+behavior.
 
-Consequence: at 16:30 UTC the market-hours gate compares New York wall time
-(11:30/12:30) against the confirmed session close (~16:00 ET) and **skips
-every scheduled run**. Daily observations therefore only happen via
-`workflow_dispatch` (after close, or with `skip_market_check`). Runtime
-confirmation of actual fire behavior is the T-028/T-029 lane.
+Observed (Actions run history, checked 2026-11-14): the last 12 scheduled
+runs started between 23:5x and 03:4x UTC (18:30-22:30 ET), hours after the
+declared 16:30 UTC cron, and ALL passed the market-hours gate and completed
+the scoring job. The workflow at an actual run's commit (470bda6) is
+identical to current main on the schedule and the gate literal, so the fires
+came from this same configuration. Daily observations ARE landing every
+trading day.
 
-Fix options (separate change, not this doc): move the cron to a genuinely
-post-close UTC hour (e.g. `30 21 * * 1-5` covers both DST halves) or drop the
-gate's session-close check if an intraday run is actually desired. The gate
-itself is working as designed.
+The mechanism of the hours-long gap between declared and actual start is NOT
+proved: GitHub documents that scheduled deliveries can be delayed under load,
+and the observed late evening starts are consistent with that, but this map
+does not establish the cause. No cron guarantees a deterministic actual fire
+time even with the intended hour corrected; the gate, not the cron, is the
+correctness mechanism for pre-close fires.
+
+Direct run evidence (all `schedule` events, scoring job `success`):
+- 2026-11-14T01:35Z — https://github.com/adamaslan/nuwrrrld-portal/actions/runs/43541498880
+- 2026-11-13T02:01Z — https://github.com/adamaslan/nuwrrrld-portal/actions/runs/43349161958
+- 2026-11-12T02:23Z — https://github.com/adamaslan/nuwrrrld-portal/actions/runs/43141078652
+- 2026-11-11T01:22Z — https://github.com/adamaslan/nuwrrrld-portal/actions/runs/42938463858
+- 2026-11-10T03:42Z — https://github.com/adamaslan/nuwrrrld-portal/actions/runs/42751190057
+- 2026-11-07T01:03Z — https://github.com/adamaslan/nuwrrrld-portal/actions/runs/42321891929
+
+Full list: https://github.com/adamaslan/nuwrrrld-portal/actions/workflows/track-followed-tickers.yml
+
+Fix (separate change): restore a genuinely post-close UTC cron, e.g.
+`30 21 * * 1-5` = 16:30 EST / 17:30 EDT - post-close in both DST halves, and
+delivery delays only push later into the evening, never before the close. The
+gate's `FIRED_CRON` case literal must be updated in the same change, or it
+will reject the new cron as "Unexpected cron entry".
 
 ## Related workflows (context, not tracker-owned)
 
