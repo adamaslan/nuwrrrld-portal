@@ -28,6 +28,8 @@ export interface CohortCardVM {
   entryPrice: number;
   /** Latest close from the observation series, null if none yet. */
   lastPrice: number | null;
+  /** Trading day of that latest close (freshness label for lastPrice). */
+  lastPriceOn: string | null;
   /** Directional return so far, in percent, null until there's a price. */
   directionalReturnPct: number | null;
   /** Today's live signal direction, null when unknown. */
@@ -51,10 +53,14 @@ export interface ScoreboardRowVM {
   meanReturnPct: number | null;
   /** Horizon not yet reachable for any pick (no scores at all + young cohort). */
   notYetAvailable: boolean;
+  /** Latest resolved_on backing this row's numbers; null when no scores yet. */
+  asOf: string | null;
 }
 
 export interface JudgePeriodVM {
   verdictsGraded: number;
+  /** Latest resolved_on among the graded verdicts; null when ungraded. */
+  asOf: string | null;
   meanScore: number | null;
   criteria: {
     grounding: number | null;
@@ -112,6 +118,8 @@ export interface RawScore {
   directional: number | null;
   returnPct: number | null;
   judgeScore: number | null;
+  /** Trading day the horizon resolved (followed_ticker_scores.resolved_on). */
+  resolvedOn: string;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -162,6 +170,7 @@ function buildCard(pick: RawPick, obs: readonly RawObservation[]): CohortCardVM 
     addedOn: pick.cohortMonth,
     entryPrice: pick.entryPrice,
     lastPrice,
+    lastPriceOn: latest?.observedOn ?? null,
     directionalReturnPct,
     latestSignal,
     backtestRatePct: latest?.backtestRate != null ? round1(latest.backtestRate * 100) : null,
@@ -198,6 +207,10 @@ function buildScoreboard(scores: readonly RawScore[]): ScoreboardRowVM[] {
       hitRatePct: agg.hitRatePct == null ? null : round1(agg.hitRatePct),
       meanReturnPct: agg.meanDirectionalPct == null ? null : round2(agg.meanDirectionalPct),
       notYetAvailable: rows.length === 0,
+      asOf:
+        rows.length === 0
+          ? null
+          : rows.map((r) => r.resolvedOn).sort()[rows.length - 1],
     };
   });
 }
@@ -210,6 +223,7 @@ function buildJudge(scores: readonly RawScore[]): JudgePeriodVM | null {
   // the route can enrich this if/when the criterion breakdown is surfaced.
   return {
     verdictsGraded: graded.length,
+    asOf: graded.map((s) => s.resolvedOn).sort()[graded.length - 1],
     meanScore: round1(mean),
     criteria: {
       grounding: null,
