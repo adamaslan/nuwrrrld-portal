@@ -42,20 +42,32 @@ export type ScanMatch =
 
 const STOP = new Set(["a", "an", "the", "is", "it", "of", "to", "in", "on", "for", "and", "or", "what", "does", "do", "my", "this", "that", "has", "have", "with", "be", "are"]);
 
-function tokens(text: string): Set<string> {
-  return new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t)));
+function tokenSeq(text: string): string[] {
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t));
+}
+
+/** Ordered token pairs: "50 day above" distinguishes the 50-day-above-200 relation from a bare "200 day" overlap. */
+function bigrams(seq: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i + 1 < seq.length; i++) out.add(seq[i] + " " + seq[i + 1]);
+  return out;
 }
 
 /** A2: match a plain-language question to one card. A tie at the top asks the user to choose. */
 export function matchScanQuestion(question: string, cards: readonly ScanCard[], minScore = 2): ScanMatch {
-  const q = tokens(question);
-  if (q.size === 0) return { kind: "none", reason: "question has no searchable words" };
+  const qSeq = tokenSeq(question);
+  if (qSeq.length === 0) return { kind: "none", reason: "question has no searchable words" };
+  const q = new Set(qSeq);
+  const qPairs = bigrams(qSeq);
   const scored = cards
     .filter((c) => c.status !== "retired")
     .map((c) => {
-      const words = tokens(`${c.title} ${c.question} ${c.id.replace(/[._]/g, " ")}`);
+      const cSeq = tokenSeq(`${c.title} ${c.question} ${c.id.replace(/[._]/g, " ")}`);
+      const words = new Set(cSeq);
+      const pairs = bigrams(cSeq);
       let score = 0;
       for (const t of q) if (words.has(t)) score++;
+      for (const p of qPairs) if (pairs.has(p)) score += 2;
       return { id: c.id, score };
     })
     .filter((s) => s.score >= minScore)
