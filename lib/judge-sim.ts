@@ -9,7 +9,6 @@
  */
 import type { StructuredVerdict } from "@/lib/council-verdict";
 import { directionFromOutlook } from "@/lib/council-verdict";
-import { tradeLogicSanity } from "@/lib/council-validate";
 import type { Criterion, CriterionScore, JudgeResult } from "@/lib/eval-judge";
 
 export const JUDGE_SIM_VERSION = "judge_sim_v1";
@@ -30,12 +29,22 @@ interface RuleEvidence {
 const EVIDENCE_ID_RE = /\[C\d+\]/gi;
 const RULES_HEADER_RE = /^\s*RULES(?:\s*\([^\n]*\))?\s*:?\s*$/im;
 const SECTION_HEADER_RE = /^\s*(?:={2,}[^\n]+={2,}|[A-Z][A-Z /_-]{2,}:)\s*$/m;
-const PRICE_LEVEL_RE = /(?:\$\s*\d{1,5}(?:,\d{3})*(?:\.\d{1,4})?|\b(?:below|above|over|under|entry|stop|target|level|price|EMA|SMA|VWAP)\s+(?:at\s+)?\$?\d{2,5}(?:\.\d{1,4})?\b)/i;
-const TRIGGERED_PRICE_RE = /\b(?:below|under|beneath|above|over|exceed(?:s|ed)?|close[sd]?\s+(?:below|under|above|over)|break(?:s|out)?\s+(?:below|above))\s+\$?\d{2,5}(?:\.\d{1,4})?\b/i;
+const PRICE_NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?`;
+const PRICE_LEVEL_RE = new RegExp(
+  String.raw`(?:\$\s*${PRICE_NUMBER}|\b(?:below|above|over|under|entry|stop|target|level|price|EMA|SMA|VWAP)\s+(?:at\s+)?\$?${PRICE_NUMBER}\b)`,
+  "i",
+);
+const TRIGGERED_PRICE_RE = new RegExp(
+  String.raw`\b(?:below|under|beneath|above|over|exceed(?:s|ed)?|close[sd]?\s+(?:below|under|above|over)|break(?:s|out)?\s+(?:below|above))\s+\$?${PRICE_NUMBER}\b`,
+  "i",
+);
 const TIMEFRAME_RE = /\b(?:\d+\s*[-–]\s*\d+\s*(?:trading\s+)?(?:days?|d|weeks?|w|months?|m|years?|y)|\d+\s*(?:minute|hour|day|week|month|year)s?|\b(?:daily|weekly|monthly|quarterly|intraday)\b)\b/i;
 const NAMED_OBSERVABLE_RE = /\b(?:close|closing|price|RSI|MACD|EMA|SMA|VWAP|volume|ATR|ADX|spread|yield|rate|gap|high|low)\b/i;
-const EXPLICIT_CONDITION_RE = /\b(?:above|below|over|under|cross(?:es|ed)?|break(?:s|out)?|reclaim(?:s|ed)?|lose(?:s|t)?|hold(?:s)?|expand(?:s|ed)?|contract(?:s|ed)?|rise(?:s|n)?|fall(?:s|en)?|close[sd]?\s+(?:above|below|over|under)|(?:>|<|at least|at most))\b/i;
-const EXECUTION_LEVELS_RE = /entry\s*\$?(-?[\d,.]+).*?stop\s*\$?(-?[\d,.]+).*?target\s*\$?(-?[\d,.]+)/i;
+const EXPLICIT_CONDITION_RE = /\b(?:above|below|over|under|cross(?:es|ed)?|break(?:s|out)?|reclaim(?:s|ed)?|lose(?:s|t)?|hold(?:s)?|expand(?:s|ed)?|contract(?:s|ed)?|close[sd]?\s+(?:above|below|over|under)|at least|at most)\b|(?:>|<)\s*\d/i;
+const EXECUTION_LEVELS_RE = new RegExp(
+  String.raw`entry\s*\$?(${PRICE_NUMBER}).*?stop\s*\$?(${PRICE_NUMBER}).*?target\s*\$?(${PRICE_NUMBER})`,
+  "i",
+);
 
 function parseRules(brief: string): RuleEvidence[] {
   const header = RULES_HEADER_RE.exec(brief);
@@ -102,13 +111,12 @@ function scoreConsistency(verdict: StructuredVerdict): [CriterionScore, string] 
   if (direction === "neutral" || !levels) {
     return [1, "Direction or ordered entry/stop/target levels are unavailable to this proxy."];
   }
-  if (tradeLogicSanity(verdict).length > 0) {
-    return [0, `EXECUTION level ordering conflicts with the ${direction} OUTLOOK.`];
-  }
   const [entry, stop, target] = levels.slice(1).map((value) => Number(value.replaceAll(",", "")));
-  if (![entry, stop, target].every(Number.isFinite)) {
+  if (![entry, stop, target].every((value) => Number.isFinite(value) && value > 0)) {
     return [1, "EXECUTION levels could not be parsed reliably."];
   }
+  const ordered = direction === "bullish" ? stop < entry && entry < target : target < entry && entry < stop;
+  if (!ordered) return [0, `EXECUTION level ordering conflicts with the ${direction} OUTLOOK.`];
   return [2, `EXECUTION levels are ordered consistently with the ${direction} OUTLOOK.`];
 }
 
@@ -169,12 +177,20 @@ export function simulateJudge(
     specificity: scoreSpecificity(verdict),
     calibration: scoreCalibration(verdict, brief, confidence),
   };
-  const scores = Object.fromEntries(
-    Object.entries(criteria).map(([key, [score]]) => [key, score]),
-  ) as JudgeResult["scores"];
-  const justifications = Object.fromEntries(
-    Object.entries(criteria).map(([key, [, justification]]) => [key, justification]),
-  ) as JudgeResult["justifications"];
+  const scores: JudgeResult["scores"] = {
+    grounding: criteria.grounding[0],
+    falsifiability: criteria.falsifiability[0],
+    consistency: criteria.consistency[0],
+    specificity: criteria.specificity[0],
+    calibration: criteria.calibration[0],
+  };
+  const justifications: JudgeResult["justifications"] = {
+    grounding: criteria.grounding[1],
+    falsifiability: criteria.falsifiability[1],
+    consistency: criteria.consistency[1],
+    specificity: criteria.specificity[1],
+    calibration: criteria.calibration[1],
+  };
   const total = Object.values(scores).reduce((sum, score) => sum + score, 0);
 
   return {
