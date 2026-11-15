@@ -33,6 +33,8 @@ export interface CatalogEntry {
   /** Set when the run writes a pipeline_run_log row. */
   pipeline?: PipelineName;
   subFeatures: CatalogSubFeature[];
+  /** Source inventory is not proof that an app is currently deployed. */
+  deployment?: "unverified";
 }
 
 const GITHUB_WORKFLOWS: CatalogEntry[] = [
@@ -113,7 +115,7 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "hydrate-universe.yml",
     label: "Nightly universe hydration",
     source: ".github/workflows/hydrate-universe.yml",
-    trigger: "Cron 22:30 UTC, Mon–Fri · manual",
+    trigger: "Cron 15:00 and 22:30 UTC, Mon–Fri · manual",
     manual: true,
     subFeatures: [
       { label: "hydrate", detail: "Refreshes end-of-day indicators for the ticker universe." },
@@ -262,11 +264,30 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
 
 const MODAL_APPS: CatalogEntry[] = [
   {
+    id: "nwf4", label: "News pipeline (shadow)", source: "deploy/aws-modal-news/modal_app.py",
+    trigger: "Source cron every minute UTC; dispatcher uses America/New_York slots",
+    manual: true, deployment: "unverified",
+    subFeatures: [
+      { label: "tick", detail: "Dispatches ingest, scoring, aggregation, labels, evaluation and price work when due." },
+      { label: "shadow", detail: "News weight remains zero; configured jobs do not prove fresh output." },
+    ],
+  },
+  {
+    id: "nuwrrrld", label: "General backend", source: "deploy/modal-backend/modal_app.py",
+    trigger: "Source has multiple Eastern-time schedules and optional consolidated evening chain",
+    manual: true, deployment: "unverified",
+    subFeatures: [
+      { label: "api", detail: "API and jobs for market data, council, signals, paper and billing." },
+      { label: "jobs", detail: "Configured functions are not evidence of active deployment or permission to run." },
+    ],
+  },
+  {
     id: "free-model-refresh",
     label: "Free model refresh",
     source: "deploy/free-model-refresh/modal_app.py",
-    trigger: "Cron Mon 09:00 UTC · manual (modal run)",
+    trigger: "Cron Wed 09:00 UTC · manual (modal run)",
     manual: true,
+    deployment: "unverified",
     subFeatures: [
       { label: "weekly_refresh", detail: "Scheduled refresh of the free model chain." },
       { label: "main", detail: "Local entrypoint to run the refresh on demand." },
@@ -278,6 +299,7 @@ const MODAL_APPS: CatalogEntry[] = [
     source: "deploy/precompute-ai/modal_app.py",
     trigger: "No schedule — GitHub Actions owns the 00:10 UTC run · manual (modal run)",
     manual: true,
+    deployment: "unverified",
     pipeline: "precompute-ai",
     subFeatures: [
       { label: "precompute_ai", detail: "Same pipeline as the GHA job, runnable on Modal." },
@@ -290,6 +312,7 @@ const MODAL_APPS: CatalogEntry[] = [
     source: "deploy/universe-hydration/modal_app.py",
     trigger: "Cron 00:05 UTC daily · manual (modal run, optional symbols)",
     manual: true,
+    deployment: "unverified",
     subFeatures: [
       { label: "hydrate_universe_eod", detail: "Computes end-of-day indicators and confluence for the universe." },
       { label: "main", detail: "Local entrypoint; accepts a symbols list." },
