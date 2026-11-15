@@ -139,6 +139,17 @@ Ordered by value per unit of effort, grounded in the gaps below:
    the daily quota is spent and stops being read. The suite encodes this with
    a `dailyQuotaExhausted()` guard that distinguishes the two before asserting.
 
+## Evidence receipt checks
+
+`scripts/validate-evidence-receipt.mjs` is an offline structural checker for
+cross-field contradictions in submitted evidence: exact head shape, preview
+head, skipped checks, mocked versus real DB claims, reviewer attestations,
+source links, timestamps, task IDs, file ownership, provider mode, connection
+mode, and secret flags. Its contract cases live in
+`__tests__/nwf-next1000-receipt.test.ts`. A structurally valid receipt does not
+authenticate its signer or prove that an observation is true; reviewers still
+inspect the source evidence.
+
 ## Contradictions / tensions
 
 > ⚠️ Contradiction: `.github/workflows/integration-tests.yml:13` states "The
