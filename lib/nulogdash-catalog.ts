@@ -115,7 +115,7 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "hydrate-universe.yml",
     label: "Nightly universe hydration",
     source: ".github/workflows/hydrate-universe.yml",
-    trigger: "Cron 15:00 and 22:30 UTC, Mon–Fri · manual",
+    trigger: "GitHub Actions source cron 15:00 and 22:30 UTC, Mon–Fri · manual",
     manual: true,
     subFeatures: [
       { label: "hydrate", detail: "Refreshes end-of-day indicators for the ticker universe." },
@@ -310,7 +310,7 @@ const MODAL_APPS: CatalogEntry[] = [
     id: "nuwrrrld-universe-hydration",
     label: "Universe hydration",
     source: "deploy/universe-hydration/modal_app.py",
-    trigger: "Cron 00:05 UTC daily · manual (modal run, optional symbols)",
+    trigger: "Modal source cron 00:05 UTC daily · manual (modal run, optional symbols)",
     manual: true,
     deployment: "unverified",
     subFeatures: [
