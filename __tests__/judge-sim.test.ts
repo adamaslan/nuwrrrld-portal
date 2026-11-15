@@ -82,6 +82,8 @@ describe("simulateJudge", () => {
     for (const execution of [
       "entry 1e4 / stop 0.5 / target 2",
       "entry 1,234.5x / stop 0.5 / target 2",
+      "entry 1 / stop 0.5 / target 2%",
+      "entry -1 / stop 0.5 / target 2",
     ]) {
       expect(
         simulateJudge({ ...VERDICT, execution }, `DATA\nEntry 1; stop 0.5; target 2.\n\nRULES\n[C1] momentum: "RSI is 72.0"`)
@@ -128,5 +130,32 @@ describe("simulateJudge", () => {
 
     expect(opposed.scores.consistency).toBe(0);
     expect(quotedCounter.scores.consistency).toBe(2);
+  });
+
+  it("does not let mixed BECAUSE directions hide invalid EXECUTION levels", () => {
+    const mixedBecause = '[C1] says "RSI is 72.0"; bullish case has momentum; bearish case has downside risk';
+    const invalidOrder = simulateJudge(
+      { ...VERDICT, because: mixedBecause, execution: "entry 100 / stop 110 / target 90" },
+      `DATA\nEntry 100; stop 110; target 90.\n\nRULES\n[C1] momentum: "RSI is 72.0"`,
+    );
+    const validOrder = simulateJudge(
+      {
+        ...VERDICT,
+        because: mixedBecause,
+        execution: "entry 100 / stop 90 / target 110",
+      },
+      `DATA\nEntry 100; stop 90; target 110.\n\nRULES\n[C1] momentum: "RSI is 72.0"`,
+    );
+
+    expect(invalidOrder.scores.consistency).toBe(0);
+    expect(validOrder.scores.consistency).toBe(1);
+  });
+
+  it("does not give full credit to an untestable hold condition", () => {
+    expect(simulateJudge({ ...VERDICT, invalidation: "price holds forever" }, BRIEF).scores.falsifiability).toBe(1);
+    expect(
+      simulateJudge({ ...VERDICT, invalidation: "price holds below the 50-day moving average" }, BRIEF)
+        .scores.falsifiability,
+    ).toBe(2);
   });
 });

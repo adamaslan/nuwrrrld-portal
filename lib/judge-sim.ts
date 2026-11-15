@@ -30,7 +30,7 @@ interface RuleEvidence {
 const EVIDENCE_ID_RE = /\[C\d+\]/gi;
 const RULES_HEADER_RE = /^\s*RULES(?:\s*\([^\n]*\))?\s*:?\s*$/im;
 const SECTION_HEADER_RE = /^\s*(?:={2,}[^\n]+={2,}|[A-Z][A-Z /_-]{2,}:)\s*$/m;
-const PRICE_NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\w,]|\.[^\s])`;
+const PRICE_NUMBER = String.raw`(?<![\w.+-])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\w,%]|\.[^\s])`;
 const PRICE_LEVEL_RE = new RegExp(
   String.raw`(?:\$\s*${PRICE_NUMBER}|\b(?:below|above|over|under|entry|stop|target|level|price|EMA|SMA|VWAP)\s+(?:at\s+)?\$?${PRICE_NUMBER}\b)`,
   "i",
@@ -43,7 +43,10 @@ const TIMEFRAME_RE = /\b(?:\d+\s*[-–]\s*\d+\s*(?:trading\s+)?(?:days?|d|weeks?
 const NAMED_OBSERVABLE_RE = /\b(?:close|closing|price|RSI|MACD|EMA|SMA|VWAP|volume|ATR|ADX|spread|yield|rate|gap|high|low)\b/i;
 const REFERENCE_LEVEL_RE = /\b(?:(?:\d+\s*)?(?:DMA|EMA|SMA)|VWAP|moving\s+average|support|resistance|prior\s+(?:high|low)|(?:day|week)\s+(?:high|low))\b/i;
 const RELATIONAL_CONDITION_RE = /\b(?:above|below|over|under)\b/i;
-const EXPLICIT_CONDITION_RE = /\b(?:cross(?:es|ed)?|break(?:s|out)?|reclaim(?:s|ed)?|lose(?:s|t)?|hold(?:s)?|expand(?:s|ed)?|contract(?:s|ed)?)\s+(?:above|below|over|under|through|the\s+)?[a-z0-9]|(?:>|<)\s*\d|\b(?:at least|at most)\s*\d/i;
+const EXPLICIT_CONDITION_RE = new RegExp(
+  String.raw`\b(?:cross(?:es|ed)?|break(?:s|out)?|reclaim(?:s|ed)?|lose(?:s|t)?|hold(?:s|ing)?|expand(?:s|ed)?|contract(?:s|ed)?)\s+(?:(?:above|below|over|under|through|at|the)\s+)*(?:\$?${PRICE_NUMBER}|(?:close|closing|price|RSI|MACD|EMA|SMA|VWAP|volume|ATR|ADX|spread|yield|rate|gap|high|low|support|resistance|moving\s+average))|(?:>|<)\s*\d|\b(?:at least|at most)\s*\d`,
+  "i",
+);
 const EXPLICIT_DIRECTION_RE = /\b(bullish|bearish|bull|bear)\s+(?:case|thesis|view|outlook|call)\b/gi;
 const EXECUTION_LEVELS_RE = new RegExp(
   String.raw`entry\s+\$?(${PRICE_NUMBER}).*?stop\s+\$?(${PRICE_NUMBER}).*?target\s+\$?(${PRICE_NUMBER})`,
@@ -143,14 +146,6 @@ function scoreFalsifiability(invalidation: string): [CriterionScore, string] {
 
 function scoreConsistency(verdict: StructuredVerdict, brief: string): [CriterionScore, string] {
   const direction = directionFromOutlook(verdict.outlook);
-  const reasonDirections = explicitBecauseDirections(verdict.because);
-  if (reasonDirections.size > 1) {
-    return [1, "BECAUSE explicitly states both bullish and bearish cases, so alignment is only partial."];
-  }
-  const reasonDirection = [...reasonDirections][0];
-  if (direction !== "neutral" && reasonDirection && reasonDirection !== direction) {
-    return [0, `BECAUSE explicitly states the opposite direction from the ${direction} OUTLOOK.`];
-  }
   const levels = verdict.execution.match(EXECUTION_LEVELS_RE);
   if (direction === "neutral" || !levels) {
     return [1, "Direction or ordered entry/stop/target levels are unavailable to this proxy."];
@@ -170,6 +165,14 @@ function scoreConsistency(verdict: StructuredVerdict, brief: string): [Criterion
   }
   const ordered = direction === "bullish" ? stop < entry && entry < target : target < entry && entry < stop;
   if (!ordered) return [0, `EXECUTION level ordering conflicts with the ${direction} OUTLOOK.`];
+  const reasonDirections = explicitBecauseDirections(verdict.because);
+  if (reasonDirections.size > 1) {
+    return [1, "BECAUSE explicitly states both bullish and bearish cases, so alignment is only partial."];
+  }
+  const reasonDirection = [...reasonDirections][0];
+  if (reasonDirection && reasonDirection !== direction) {
+    return [0, `BECAUSE explicitly states the opposite direction from the ${direction} OUTLOOK.`];
+  }
   return [2, `EXECUTION levels are ordered consistently with the ${direction} OUTLOOK.`];
 }
 
