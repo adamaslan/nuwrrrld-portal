@@ -477,6 +477,7 @@ export interface ViewData {
     directional: number | null;
     returnPct: number | null;
     judgeScore: number | null;
+    resolvedOn: string;
   }>;
 }
 
@@ -509,7 +510,7 @@ export async function getViewData(): Promise<ViewData> {
         ORDER BY observed_on ASC
       `,
       sql`
-        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score
+        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score, resolved_on
         FROM followed_ticker_scores
         WHERE pick_id = ANY(${ids}::uuid[])
       `,
@@ -547,6 +548,7 @@ export async function getViewData(): Promise<ViewData> {
         directional: r.directional == null ? null : Number(r.directional),
         returnPct: r.return_pct == null ? null : Number(r.return_pct),
         judgeScore: r.judge_score == null ? null : Number(r.judge_score),
+        resolvedOn: new Date(r.resolved_on as string).toISOString().slice(0, 10),
       })),
     };
   } catch {
