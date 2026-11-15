@@ -30,7 +30,7 @@ interface RuleEvidence {
 const EVIDENCE_ID_RE = /\[C\d+\]/gi;
 const RULES_HEADER_RE = /^\s*RULES(?:\s*\([^\n]*\))?\s*:?\s*$/im;
 const SECTION_HEADER_RE = /^\s*(?:={2,}[^\n]+={2,}|[A-Z][A-Z /_-]{2,}:)\s*$/m;
-const PRICE_NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\d,]|\.\d)`;
+const PRICE_NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\w,]|\.[^\s])`;
 const PRICE_LEVEL_RE = new RegExp(
   String.raw`(?:\$\s*${PRICE_NUMBER}|\b(?:below|above|over|under|entry|stop|target|level|price|EMA|SMA|VWAP)\s+(?:at\s+)?\$?${PRICE_NUMBER}\b)`,
   "i",
@@ -41,9 +41,12 @@ const TRIGGERED_PRICE_RE = new RegExp(
 );
 const TIMEFRAME_RE = /\b(?:\d+\s*[-–]\s*\d+\s*(?:trading\s+)?(?:days?|d|weeks?|w|months?|m|years?|y)|\d+\s*(?:minute|hour|day|week|month|year)s?|\b(?:daily|weekly|monthly|quarterly|intraday)\b)\b/i;
 const NAMED_OBSERVABLE_RE = /\b(?:close|closing|price|RSI|MACD|EMA|SMA|VWAP|volume|ATR|ADX|spread|yield|rate|gap|high|low)\b/i;
-const EXPLICIT_CONDITION_RE = /\b(?:above|below|over|under|cross(?:es|ed)?|break(?:s|out)?|reclaim(?:s|ed)?|lose(?:s|t)?|hold(?:s)?|expand(?:s|ed)?|contract(?:s|ed)?|close[sd]?\s+(?:above|below|over|under)|at least|at most)\b|(?:>|<)\s*\d/i;
+const REFERENCE_LEVEL_RE = /\b(?:(?:\d+\s*)?(?:DMA|EMA|SMA)|VWAP|moving\s+average|support|resistance|prior\s+(?:high|low)|(?:day|week)\s+(?:high|low))\b/i;
+const RELATIONAL_CONDITION_RE = /\b(?:above|below|over|under)\b/i;
+const EXPLICIT_CONDITION_RE = /\b(?:cross(?:es|ed)?|break(?:s|out)?|reclaim(?:s|ed)?|lose(?:s|t)?|hold(?:s)?|expand(?:s|ed)?|contract(?:s|ed)?)\s+(?:above|below|over|under|through|the\s+)?[a-z0-9]|(?:>|<)\s*\d|\b(?:at least|at most)\s*\d/i;
+const EXPLICIT_DIRECTION_RE = /\b(bullish|bearish|bull|bear)\s+(?:case|thesis|view|outlook|call)\b/gi;
 const EXECUTION_LEVELS_RE = new RegExp(
-  String.raw`entry\s*\$?(${PRICE_NUMBER}).*?stop\s*\$?(${PRICE_NUMBER}).*?target\s*\$?(${PRICE_NUMBER})`,
+  String.raw`entry\s+\$?(${PRICE_NUMBER}).*?stop\s+\$?(${PRICE_NUMBER}).*?target\s+\$?(${PRICE_NUMBER})`,
   "i",
 );
 
@@ -70,6 +73,29 @@ function parseRules(brief: string): RuleEvidence[] {
   return rules;
 }
 
+function parseCitedQuotes(because: string): Array<{ id: string; text: string }> {
+  return because
+    .split(/(?=\[C\d+\])/i)
+    .flatMap((segment) => {
+      const id = /^\s*\[(C\d+)\]/i.exec(segment)?.[1]?.toUpperCase();
+      if (!id) return [];
+      const quoted = segment.match(/"([^"]+)"|“([^”]+)”/);
+      const text = quoted?.[1] ?? quoted?.[2];
+      return text ? [{ id, text }] : [];
+    });
+}
+
+function explicitBecauseDirections(because: string): Set<"bullish" | "bearish"> {
+  const prose = because.replace(/"[^"]+"|“[^”]+”/g, " ");
+  const directions = new Set<"bullish" | "bearish">();
+  for (const match of prose.matchAll(EXPLICIT_DIRECTION_RE)) {
+    const before = prose.slice(Math.max(0, (match.index ?? 0) - 24), match.index ?? 0);
+    if (/\b(?:not|never|no)\s+(?:the\s+)?$/i.test(before)) continue;
+    directions.add(match[1].toLowerCase().startsWith("bull") ? "bullish" : "bearish");
+  }
+  return directions;
+}
+
 function scoreGrounding(verdict: StructuredVerdict, brief: string): [CriterionScore, string] {
   const rules = parseRules(brief);
   const citedIds = [...verdict.because.matchAll(EVIDENCE_ID_RE)].map((match) => match[0].toUpperCase());
@@ -79,25 +105,34 @@ function scoreGrounding(verdict: StructuredVerdict, brief: string): [CriterionSc
 
   const citedRules = rules.filter((rule) => citedIds.includes(`[${rule.id}]`));
   if (citedRules.length === 0) return [0, "BECAUSE cites no id present in the brief's RULES section."];
+  if (citedRules.length !== new Set(citedIds).size) {
+    return [0, "BECAUSE includes an evidence id that is absent from the brief's RULES section."];
+  }
 
-  const quotes = [...verdict.because.matchAll(/\"([^\"]+)\"|“([^”]+)”/g)].map(
-    (match) => match[1] ?? match[2] ?? "",
-  );
-  if (quotes.length === 0) {
-    return [1, `${citedRules.map((rule) => rule.id).join(", ")} is valid, but BECAUSE contains no quoted evidence text.`];
+  const pairs = parseCitedQuotes(verdict.because);
+  if (pairs.length === 0) {
+    return [1, `${citedRules.map((rule) => rule.id).join(", ")} is valid, but BECAUSE contains no id-associated quote.`];
   }
-  if (citedRules.some((rule) => quotes.includes(rule.text))) {
-    return [2, "A cited RULES id is present and its quoted text matches exactly."];
+  const pairResults = pairs.map(({ id, text }) => {
+    const rule = rules.find((candidate) => candidate.id === id);
+    if (!rule) return "invalid";
+    if (text === rule.text) return "exact";
+    if (rule.text.includes(text) || text.includes(rule.text)) return "partial";
+    return "wrong";
+  });
+  if (pairs.length === citedIds.length && pairResults.every((result) => result === "exact")) {
+    return [2, "Every cited RULES id is paired with its exact quoted text."];
   }
-  if (citedRules.some((rule) => quotes.some((quote) => rule.text.includes(quote) || quote.includes(rule.text)))) {
-    return [1, "A cited RULES id is valid, but its quoted text is only a partial match."];
+  if (pairResults.some((result) => result === "exact" || result === "partial")) {
+    return [1, "A cited RULES id is valid, but its associated quote is partial or incomplete."];
   }
-  return [0, "The cited RULES id is valid, but the quoted text does not match it."];
+  return [0, "The quoted text does not match the RULES entry associated with its id."];
 }
 
 function scoreFalsifiability(invalidation: string): [CriterionScore, string] {
   if (TRIGGERED_PRICE_RE.test(invalidation)) return [2, "INVALIDATION ties a concrete numeric level to a trigger."];
-  if (NAMED_OBSERVABLE_RE.test(invalidation) && EXPLICIT_CONDITION_RE.test(invalidation)) {
+  const hasNamedReference = RELATIONAL_CONDITION_RE.test(invalidation) && REFERENCE_LEVEL_RE.test(invalidation);
+  if (NAMED_OBSERVABLE_RE.test(invalidation) && (EXPLICIT_CONDITION_RE.test(invalidation) || hasNamedReference)) {
     return [2, "INVALIDATION names an observable condition with an explicit trigger."];
   }
   if (NAMED_OBSERVABLE_RE.test(invalidation)) {
@@ -108,6 +143,14 @@ function scoreFalsifiability(invalidation: string): [CriterionScore, string] {
 
 function scoreConsistency(verdict: StructuredVerdict, brief: string): [CriterionScore, string] {
   const direction = directionFromOutlook(verdict.outlook);
+  const reasonDirections = explicitBecauseDirections(verdict.because);
+  if (reasonDirections.size > 1) {
+    return [1, "BECAUSE explicitly states both bullish and bearish cases, so alignment is only partial."];
+  }
+  const reasonDirection = [...reasonDirections][0];
+  if (direction !== "neutral" && reasonDirection && reasonDirection !== direction) {
+    return [0, `BECAUSE explicitly states the opposite direction from the ${direction} OUTLOOK.`];
+  }
   const levels = verdict.execution.match(EXECUTION_LEVELS_RE);
   if (direction === "neutral" || !levels) {
     return [1, "Direction or ordered entry/stop/target levels are unavailable to this proxy."];

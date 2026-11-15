@@ -17,6 +17,15 @@ RULES
 [C1] Recent momentum remains elevated: "RSI is 72.0" — fixture
 `;
 
+const TWO_RULE_BRIEF = `DATA
+RSI: 72.0
+MACD: positive
+
+RULES
+[C1] Recent momentum remains elevated: "RSI is 72.0" — fixture
+[C2] Trend confirmation is positive: "MACD is positive" — fixture
+`;
+
 const VERDICT: StructuredVerdict = {
   outlook: "bullish",
   because: '[C1] says "RSI is 72.0" — fixture',
@@ -67,5 +76,57 @@ describe("simulateJudge", () => {
     ]) {
       expect(simulateJudge({ ...VERDICT, execution }, LEVEL_BRIEF).scores.consistency, execution).toBe(1);
     }
+  });
+
+  it("rejects exponent and suffixed numeric prefixes in execution levels", () => {
+    for (const execution of [
+      "entry 1e4 / stop 0.5 / target 2",
+      "entry 1,234.5x / stop 0.5 / target 2",
+    ]) {
+      expect(
+        simulateJudge({ ...VERDICT, execution }, `DATA\nEntry 1; stop 0.5; target 2.\n\nRULES\n[C1] momentum: "RSI is 72.0"`)
+          .scores.consistency,
+        execution,
+      ).toBe(1);
+    }
+  });
+
+  it("keeps each evidence quote attached to its cited rule id", () => {
+    const swapped = simulateJudge(
+      { ...VERDICT, because: '[C1] says "MACD is positive" [C2] says "RSI is 72.0"' },
+      TWO_RULE_BRIEF,
+    );
+    const exact = simulateJudge(
+      { ...VERDICT, because: '[C1] says "RSI is 72.0" [C2] says "MACD is positive"' },
+      TWO_RULE_BRIEF,
+    );
+
+    expect(swapped.scores.grounding).toBe(0);
+    expect(exact.scores.grounding).toBe(2);
+  });
+
+  it("requires a concrete condition for nonnumeric invalidation references", () => {
+    expect(simulateJudge({ ...VERDICT, invalidation: "price below" }, BRIEF).scores.falsifiability).toBe(1);
+    expect(
+      simulateJudge({ ...VERDICT, invalidation: "price below the moving average" }, BRIEF).scores.falsifiability,
+    ).toBe(2);
+  });
+
+  it("checks explicit BECAUSE direction without treating quoted evidence as the verdict", () => {
+    const opposed = simulateJudge(
+      { ...VERDICT, because: '[C1] says "RSI is 72.0"; bearish case because momentum is weakening' },
+      BRIEF,
+    );
+    const quotedCounter = simulateJudge(
+      {
+        ...VERDICT,
+        because: '[C1] says "bearish case" and RSI is 72.0',
+        execution: "entry 1,234 / stop 1,200 / target 1,300",
+      },
+      LEVEL_BRIEF,
+    );
+
+    expect(opposed.scores.consistency).toBe(0);
+    expect(quotedCounter.scores.consistency).toBe(2);
   });
 });
