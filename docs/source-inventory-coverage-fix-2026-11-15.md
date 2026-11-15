@@ -4,7 +4,7 @@ November15,2026. Source-only candidate against aedf972. Not merged, deployed or 
 
 ## D12 source inventory
 
-Catalog covers all5 tracked deploy/*/modal_app.py definitions, including nwf4 and general backend. Every Modal entry says deployment and live schedule unverified. Source schedules are not deployment evidence. Free-model-refresh source is Wednesday09:00UTC, not catalog's Monday. Hydration source has15:00and22:30UTC. GitHub descriptions allow workflow-declared timezones. This does not change schedules or claim to fix delivery delays.
+Catalog covers all5 tracked deploy/*/modal_app.py definitions, including nwf4 and general backend. Every Modal entry says deployment and live schedule unverified. Source schedules are not deployment evidence. Free-model-refresh source is Wednesday09:00UTC, not catalog's Monday. GitHub Actions hydration workflow source has15:00and22:30UTC; separate Modal hydration app source has00:05UTCdaily. These are different owning schedulers, not two versions of one verified runtime schedule. GitHub descriptions allow workflow-declared timezones. This does not change schedules or claim to fix delivery delays.
 
 Actual ScheduledWorkSection rendered with synthetic/no-live-run data. Desktop and390px mobile screenshots inspected: all5cards readable, explicit unverified labels, no horizontal overflow. This is a component fixture, not an authenticated production page.
 
