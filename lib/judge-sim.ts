@@ -9,6 +9,7 @@
  */
 import type { StructuredVerdict } from "@/lib/council-verdict";
 import { directionFromOutlook } from "@/lib/council-verdict";
+import { numericCrossCheck } from "@/lib/council-validate";
 import type { Criterion, CriterionScore, JudgeResult } from "@/lib/eval-judge";
 
 export const JUDGE_SIM_VERSION = "judge_sim_v1";
@@ -29,7 +30,7 @@ interface RuleEvidence {
 const EVIDENCE_ID_RE = /\[C\d+\]/gi;
 const RULES_HEADER_RE = /^\s*RULES(?:\s*\([^\n]*\))?\s*:?\s*$/im;
 const SECTION_HEADER_RE = /^\s*(?:={2,}[^\n]+={2,}|[A-Z][A-Z /_-]{2,}:)\s*$/m;
-const PRICE_NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?`;
+const PRICE_NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\d,]|\.\d)`;
 const PRICE_LEVEL_RE = new RegExp(
   String.raw`(?:\$\s*${PRICE_NUMBER}|\b(?:below|above|over|under|entry|stop|target|level|price|EMA|SMA|VWAP)\s+(?:at\s+)?\$?${PRICE_NUMBER}\b)`,
   "i",
@@ -105,7 +106,7 @@ function scoreFalsifiability(invalidation: string): [CriterionScore, string] {
   return [0, "INVALIDATION has no concrete price level or named observable condition."];
 }
 
-function scoreConsistency(verdict: StructuredVerdict): [CriterionScore, string] {
+function scoreConsistency(verdict: StructuredVerdict, brief: string): [CriterionScore, string] {
   const direction = directionFromOutlook(verdict.outlook);
   const levels = verdict.execution.match(EXECUTION_LEVELS_RE);
   if (direction === "neutral" || !levels) {
@@ -114,6 +115,15 @@ function scoreConsistency(verdict: StructuredVerdict): [CriterionScore, string] 
   const [entry, stop, target] = levels.slice(1).map((value) => Number(value.replaceAll(",", "")));
   if (![entry, stop, target].every((value) => Number.isFinite(value) && value > 0)) {
     return [1, "EXECUTION levels could not be parsed reliably."];
+  }
+  const levelOnlyVerdict: StructuredVerdict = {
+    ...verdict,
+    because: "",
+    invalidation: "",
+    execution: `entry ${levels[1]} stop ${levels[2]} target ${levels[3]}`,
+  };
+  if (numericCrossCheck(levelOnlyVerdict, brief).some((flag) => flag.field === "EXECUTION")) {
+    return [0, "EXECUTION entry/stop/target levels are not grounded in the supplied brief."];
   }
   const ordered = direction === "bullish" ? stop < entry && entry < target : target < entry && entry < stop;
   if (!ordered) return [0, `EXECUTION level ordering conflicts with the ${direction} OUTLOOK.`];
@@ -173,7 +183,7 @@ export function simulateJudge(
   const criteria: Record<Criterion, [CriterionScore, string]> = {
     grounding: scoreGrounding(verdict, brief),
     falsifiability: scoreFalsifiability(verdict.invalidation),
-    consistency: scoreConsistency(verdict),
+    consistency: scoreConsistency(verdict, brief),
     specificity: scoreSpecificity(verdict),
     calibration: scoreCalibration(verdict, brief, confidence),
   };
