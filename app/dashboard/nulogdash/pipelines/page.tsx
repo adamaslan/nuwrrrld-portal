@@ -141,7 +141,7 @@ export default async function PipelineRunsPage({
         <ScheduledWorkSection
           id="github-actions-heading"
           title="GitHub Actions"
-          description={`${GITHUB_WORKFLOW_CATALOG.length} workflows in .github/workflows. Schedules are UTC; manual runs use workflow_dispatch.`}
+          description={`${GITHUB_WORKFLOW_CATALOG.length} workflows in .github/workflows. Schedules use UTC unless the workflow declares a timezone; manual runs use workflow_dispatch.`}
           entries={GITHUB_WORKFLOW_CATALOG}
           latestRunFor={latestRunFor}
         />
@@ -151,7 +151,7 @@ export default async function PipelineRunsPage({
         <ScheduledWorkSection
           id="modal-heading"
           title="Modal"
-          description={`${MODAL_APP_CATALOG.length} apps under deploy/. Modal has no run log of its own; a recorded run appears only where the app writes pipeline_run_log.`}
+          description={`${MODAL_APP_CATALOG.length} source definitions under deploy/, not a verified deployment inventory. Configured schedules may be inactive or differ from deployed revisions. Recorded pipeline rows alone do not identify the current deployed app.`}
           entries={MODAL_APP_CATALOG}
           latestRunFor={latestRunFor}
         />
