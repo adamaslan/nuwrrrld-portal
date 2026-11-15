@@ -43,7 +43,12 @@ export type ScanMatch =
 const STOP = new Set(["a", "an", "the", "is", "it", "of", "to", "in", "on", "for", "and", "or", "what", "does", "do", "my", "this", "that", "has", "have", "with", "be", "are"]);
 
 function tokenSeq(text: string): string[] {
-  return text.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t));
+  return text
+    .toLowerCase()
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2")
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 1 && !STOP.has(t));
 }
 
 /** Ordered token pairs: "50 day above" distinguishes the 50-day-above-200 relation from a bare "200 day" overlap. */
@@ -53,21 +58,48 @@ function bigrams(seq: readonly string[]): Set<string> {
   return out;
 }
 
+/**
+ * Number+unit compounds ("50DMA", "200-day average") and direction words are matched as
+ * canonical subjects, not raw words: a card about the close price must not win a question
+ * about the 50/200 average pair on unit-word overlap (the bf613ac misroute).
+ */
+const MA_UNITS = new Set(["dma", "ma", "sma", "ema", "day", "days"]);
+const DIRECTION = new Set(["above", "below", "over", "under", "cross", "crossed", "crosses", "crossing", "rising", "falling", "up", "down"]);
+const PRICE_WORDS = new Set(["close", "closed", "closing", "price"]);
+
+function subjects(seq: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < seq.length; i++) {
+    const t = seq[i];
+    if (/^\d+$/.test(t) && i + 1 < seq.length && MA_UNITS.has(seq[i + 1])) out.add(`ma${t}`);
+    if (PRICE_WORDS.has(t)) out.add("price");
+  }
+  return out;
+}
+
+/** Words scored directly: numbers, MA units and direction words only count through `subjects`. */
+function scoreWords(seq: readonly string[]): Set<string> {
+  return new Set(seq.filter((t) => !/^\d+$/.test(t) && !MA_UNITS.has(t) && !DIRECTION.has(t)));
+}
+
 /** A2: match a plain-language question to one card. A tie at the top asks the user to choose. */
 export function matchScanQuestion(question: string, cards: readonly ScanCard[], minScore = 2): ScanMatch {
   const qSeq = tokenSeq(question);
   if (qSeq.length === 0) return { kind: "none", reason: "question has no searchable words" };
-  const q = new Set(qSeq);
+  const qWords = scoreWords(qSeq);
   const qPairs = bigrams(qSeq);
+  const qSub = subjects(qSeq);
   const scored = cards
     .filter((c) => c.status !== "retired")
     .map((c) => {
       const cSeq = tokenSeq(`${c.title} ${c.question} ${c.id.replace(/[._]/g, " ")}`);
-      const words = new Set(cSeq);
+      const words = scoreWords(cSeq);
       const pairs = bigrams(cSeq);
+      const cSub = subjects(cSeq);
       let score = 0;
-      for (const t of q) if (words.has(t)) score++;
+      for (const t of qWords) if (words.has(t)) score++;
       for (const p of qPairs) if (pairs.has(p)) score += 2;
+      for (const sub of qSub) if (cSub.has(sub)) score += 5;
       return { id: c.id, score };
     })
     .filter((s) => s.score >= minScore)
