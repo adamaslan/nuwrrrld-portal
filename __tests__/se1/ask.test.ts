@@ -39,6 +39,10 @@ describe("A2: ambiguous matches ask for clarification; unsupported parameters ne
   it("no match says so", () => {
     expect(matchScanQuestion("weather tomorrow", cards).kind).toBe("none");
   });
+  it("the 50-over-200 question picks the golden cross card, not a weaker word overlap (PR body known weakness)", () => {
+    expect(matchScanQuestion("is the 50 day above the 200 day", cards)).toMatchObject({ kind: "match", card: "se1.trend.golden_cross_recency" });
+    expect(matchScanQuestion("is the 50 day below the 200 day", cards)).toMatchObject({ kind: "match", card: "se1.trend.death_cross_recency" });
+  });
   it("unknown or malformed parameters are rejected", () => {
     expect(validateScanParams(cards[2], { ticker: "AAPL", lookback_bars: 30 })).toEqual({ ok: true });
     const r = validateScanParams(cards[2], { ticker: "aapl; drop", window: 9, lookback_bars: 3 });
