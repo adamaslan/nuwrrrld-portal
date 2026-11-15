@@ -310,6 +310,7 @@
 .ft-sb-row:not(.ft-sb-row--head) span[role="cell"]:not(.ft-sb-horizon) {
   display: flex;
   justify-content: space-between;
+  gap: 1rem;
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
   color: var(--text);
