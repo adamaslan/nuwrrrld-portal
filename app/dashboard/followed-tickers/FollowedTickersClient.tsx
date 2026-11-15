@@ -182,7 +182,12 @@ function CohortCard({ card }: { card: CohortCardVM }) {
         </div>
         <div>
           <dt>Last</dt>
-          <dd>{card.lastPrice == null ? "—" : card.lastPrice.toFixed(2)}</dd>
+          <dd>
+            {card.lastPrice == null ? "—" : card.lastPrice.toFixed(2)}
+            {card.lastPrice != null && card.lastPriceOn != null && (
+              <span className="ft-asof"> {card.lastPriceOn}</span>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Signal</dt>
@@ -257,6 +262,7 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
             <div className="ft-sb-row" role="row" key={r.horizon}>
               <span role="cell" data-label="Horizon" className="ft-sb-horizon">
                 {HORIZON_LABEL[r.horizon]}
+                {r.asOf != null && <span className="ft-asof">through {r.asOf}</span>}
               </span>
               <span role="cell" data-label="n">{r.notYetAvailable ? "\u2014" : r.n}</span>
               <span role="cell" data-label="Hit" className="ft-sb-hit">
@@ -313,6 +319,7 @@ function JudgeView({ view }: { view: FollowedTickersViewVM }) {
           </div>
           <p className="ft-judge-count">
             {j.verdictsGraded} verdict{j.verdictsGraded === 1 ? "" : "s"} graded
+            {j.asOf != null && <span className="ft-asof"> through {j.asOf}</span>}
           </p>
         </div>
       )}
