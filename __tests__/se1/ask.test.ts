@@ -3,6 +3,7 @@ import {
   clearUserContext, compareOnRecipe, compileScreen, contextCacheKey, counterEvidence, matchScanQuestion,
   newsBeforeCutoff, resolveCitations, validateScanParams,
 } from "@/lib/shared/se1/ask";
+import { SEED_CARDS } from "@/lib/shared/se1-catalog";
 import { card, dossier, EX, GC, row } from "./fixtures";
 
 describe("A1: news after the cutoff is excluded and never presented as the cause", () => {
@@ -39,9 +40,21 @@ describe("A2: ambiguous matches ask for clarification; unsupported parameters ne
   it("no match says so", () => {
     expect(matchScanQuestion("weather tomorrow", cards).kind).toBe("none");
   });
-  it("the 50-over-200 question picks the golden cross card, not a weaker word overlap (PR body known weakness)", () => {
-    expect(matchScanQuestion("is the 50 day above the 200 day", cards)).toMatchObject({ kind: "match", card: "se1.trend.golden_cross_recency" });
-    expect(matchScanQuestion("is the 50 day below the 200 day", cards)).toMatchObject({ kind: "match", card: "se1.trend.death_cross_recency" });
+  it("50/200-average questions route by subject to the golden-cross card in the REAL seed catalog (bf613ac misroute regression)", () => {
+    const asks = [
+      "is the 50 day above the 200 day",
+      "is the 50 day below the 200 day",
+      "is the 200 day above the 50 day",
+      "is the 50DMA above its 200DMA",
+      "did the 50-day average cross above the 200-day average",
+      "is the 50 day not above the 200 day",
+    ];
+    for (const q of asks) {
+      expect(matchScanQuestion(q, SEED_CARDS), q).toMatchObject({ kind: "match", card: "se1.trend.golden_cross_recency" });
+    }
+  });
+  it("price-vs-average questions route to the exit card in the REAL seed catalog", () => {
+    expect(matchScanQuestion("has the ticker closed below its 200 day average", SEED_CARDS)).toMatchObject({ kind: "match", card: "se1.trend.exit_close_under_200" });
   });
   it("unknown or malformed parameters are rejected", () => {
     expect(validateScanParams(cards[2], { ticker: "AAPL", lookback_bars: 30 })).toEqual({ ok: true });
