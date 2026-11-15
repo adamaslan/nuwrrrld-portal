@@ -235,7 +235,7 @@ function fillHoldingsFloor(
       const room = policy.sectorCapPct - (state.sectorWeight.get(sector) ?? 0);
       notional = Math.min(notional, room * nav);
     }
-    notional = Math.min(notional, state.cash - cashFloorAmount);
+    notional = Math.min(notional, buyNotionalWithinCash(state.cash - cashFloorAmount));
     if (notional < minNotional) continue; // sector full or out of cash — try the next name
 
     const quantity = notional / price;
@@ -411,7 +411,7 @@ export function planRun(input: RunPlanInput): RunPlan {
 
     const cashRoom = cash - cashFloorAmount;
     if (cashRoom <= 0) continue;
-    notional = Math.min(notional, cashRoom);
+    notional = Math.min(notional, buyNotionalWithinCash(cashRoom));
 
     const minNotional = policy.minPositionWeight * nav;
     if (notional < minNotional) continue; // too small to be worth opening/topping up
@@ -434,6 +434,15 @@ export function planRun(input: RunPlanInput): RunPlan {
   }
 
   return { orders, turnoverUsed: turnoverUsed / nav };
+}
+
+/** Worst-case buy slippage in bps (fillOrders uses 5 for mega/large caps, 15
+ *  otherwise). Buys are planned at refPrice but fill at refPrice*(1+bps), so
+ *  cash room is divided by the worst case to keep filled cash >= the floor
+ *  (audit D11: T2 cash went to -$0.19). */
+export const MAX_BUY_SLIPPAGE_BPS = 15;
+function buyNotionalWithinCash(cashRoom: number): number {
+  return cashRoom / (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
 }
 
 /**
@@ -762,7 +771,7 @@ export function planChairConsensus(
 
     const cashRoom = cashLeft - cashFloorAmount;
     if (cashRoom <= 0) continue;
-    notional = Math.min(notional, cashRoom);
+    notional = Math.min(notional, buyNotionalWithinCash(cashRoom));
 
     const minNotional = policy.minPositionWeight * nav;
     if (notional < minNotional) continue;
@@ -786,3 +795,4 @@ export function planChairConsensus(
 
   return { orders, turnoverUsed: turnoverUsed / nav };
 }
+
