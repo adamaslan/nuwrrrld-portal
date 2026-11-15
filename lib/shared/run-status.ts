@@ -103,3 +103,13 @@ export function computeBatchCoverage(
   }
   return { expected: expected.size, filled };
 }
+
+/** Finalization is checked against independently read active-universe coverage.
+ * This is ticker coverage at a bar date, not proof of every horizon or run ownership. */
+export function finalizedHydrationStatus(batchStatus: RunStatus, coverage: { expected: number; filled: number; queryFailed: boolean }): RunStatus {
+  if (coverage.queryFailed || coverage.expected <= 0 || !Number.isFinite(coverage.expected) || !Number.isFinite(coverage.filled)) return "fail";
+  const universeStatus = computeRunStatus(coverage);
+  if (batchStatus === "fail" || universeStatus === "fail") return "fail";
+  if (batchStatus === "partial" || universeStatus === "partial") return "partial";
+  return batchStatus;
+}
