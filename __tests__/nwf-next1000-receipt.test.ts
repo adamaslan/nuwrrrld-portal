@@ -19,6 +19,7 @@ type TestReceipt = {
   provider?: { claimedFreeOnly?: boolean; mode?: string };
   connection?: { claimedOffline?: boolean; mode?: string };
   containsSecret?: boolean;
+  secret?: string;
 };
 
 const good = (): TestReceipt => ({
@@ -49,7 +50,7 @@ describe("evidence receipt validator", () => {
     ["overlapping file writers", r => { r.fileClaims = [{ writer: "a", files: ["lib/x.ts"] }, { writer: "b", files: ["lib/x.ts"] }]; }, "files.multiple-writers"],
     ["paid provider called free-only", r => { r.provider = { claimedFreeOnly: true, mode: "paid" }; }, "provider.paid-under-free-only"],
     ["live DB under offline claim", r => { r.connection = { claimedOffline: true, mode: "live" }; }, "connection.live-under-offline"],
-    ["secret in receipt", r => { r.containsSecret = true; }, "receipt.contains-secret"],
+    ["secret value in receipt", r => { r.secret = "not-a-real-secret-for-test"; }, "receipt.contains-secret"],
     ["unfinished task checked", r => { r.tasks[0] = { id: "N-0181", checked: true }; }, "task.checked-without-evidence"],
   ];
   it.each(rejects)("rejects %s", (_label, mutate, error) => {

@@ -17,5 +17,6 @@ export interface EvidenceReceipt {
   provider?: { claimedFreeOnly?: boolean; mode?: string };
   connection?: { claimedOffline?: boolean; mode?: string };
   containsSecret?: boolean;
+  secret?: string;
 }
 export function validateEvidenceReceipt(receipt: EvidenceReceipt | null | undefined): { valid: boolean; errors: string[] };

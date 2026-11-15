@@ -36,9 +36,19 @@ export function validateEvidenceReceipt(receipt) {
   }
   if (receipt.provider?.claimedFreeOnly && receipt.provider?.mode === "paid") reject("provider.paid-under-free-only");
   if (receipt.connection?.claimedOffline && receipt.connection?.mode === "live") reject("connection.live-under-offline");
-  if (receipt.containsSecret === true) reject("receipt.contains-secret");
+  if (receipt.containsSecret === true || containsSecretLikeValue(receipt)) reject("receipt.contains-secret");
   if ((receipt.tasks ?? []).some((task) => task.checked && !task.evidence)) reject("task.checked-without-evidence");
   return { valid: errors.length === 0, errors };
+}
+
+function containsSecretLikeValue(value, key = "") {
+  if (typeof value === "string") {
+    if (/(secret|password|api[_-]?key|access[_-]?token)/i.test(key) && value.trim() && !/^(redacted|placeholder|example|test)$/i.test(value.trim())) return true;
+    return /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----|\bAKIA[A-Z0-9]{16}\b|\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}\b|\bsk-[A-Za-z0-9_-]{20,}\b|\bBearer\s+[A-Za-z0-9._~+/-]{24,}|\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*[^\s<>{},]{8,}/i.test(value);
+  }
+  if (Array.isArray(value)) return value.some((item) => containsSecretLikeValue(item));
+  if (value && typeof value === "object") return Object.entries(value).some(([childKey, child]) => containsSecretLikeValue(child, childKey));
+  return false;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
