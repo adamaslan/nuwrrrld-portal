@@ -556,3 +556,22 @@ describe("decidedByForArbitration", () => {
   it("is model when parsed is undefined (legacy results)", () => expect(decidedByForArbitration(base)).toBe("model"));
   it("is rule when there is no decision", () => expect(decidedByForArbitration(undefined)).toBe("rule"));
 });
+
+
+describe("buy sizing reserves slippage (audit D11)", () => {
+  it("a cash-limited buy never fills past available cash", () => {
+    // Small-cap-style name (15 bps worst case), account holds only $100 cash.
+    const input = baseInput({
+      cash: 100,
+      nav: 10_000,
+      candidates: [{ ticker: "AAPL", score: 90 }],
+      policy: { ...QUANT, maxPositionWeight: 1, minPositionWeight: 0, maxTurnoverPerRun: 1 },
+    });
+    const plan = planRun(input);
+    const filled = fillOrders(plan.orders, new Map());
+    const spent = filled.filter((o) => o.side === "buy").reduce((n, o) => n + o.notional, 0);
+    expect(plan.orders.length).toBeGreaterThan(0);
+    expect(spent).toBeLessThanOrEqual(100 + 1e-9);
+    expect(100 - spent).toBeGreaterThanOrEqual(0);
+  });
+});
