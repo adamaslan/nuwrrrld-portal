@@ -79,8 +79,10 @@ Work in your own worktree. Stage by explicit path.
 > A3 renders citations on `/scans/[id]`; A2 adds an "ask which scan" box to `/scans`; B2 and G3 are the
 > `/scans/dossier/[ticker]` page, built from stored Alpaca SIP daily bars. Verified locally against production data,
 > read-only: AAPL and NVDA return 260 bars as of 2026-11-13; an unknown ticker shows "Not enough data".
-> Known weakness: A2's word-overlap matcher can pick a related card instead of the best one (the question
-> "is the 50 day above the 200 day" matched the close-under-200 card). Task S1 below is kept as the record of what was done.
+> A2 matcher: the pure word-overlap scorer could pick a related card instead of the best one (the question
+> "is the 50 day above the 200 day" matched the close-under-200 card). Fixed on this branch: matchScanQuestion
+> now adds ordered-bigram matches at double weight, so the 50-day-above-200 relation outranks a bare "200 day"
+> overlap; regression cases live in the A2 describe block of __tests__/se1/ask.test.ts. Task S1 below is kept as the record of what was done.
 
 ### Task S1: wire A3 citations into the scan card (small, T2) — done
 
