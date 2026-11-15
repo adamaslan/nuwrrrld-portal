@@ -336,6 +336,11 @@
 .ft-sb-hit { color: var(--neon-blue); }
 .ft-sb-miss { color: var(--neon-red); }
 .ft-sb-void { color: var(--text-dim); }
+.ft-sb-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin: 0.5rem 0 0;
+}
 .ft-sb-rate { font-weight: 700; }
 .ft-sb-rate--good { color: var(--neon-blue); }
 .ft-sb-rate--bad { color: var(--neon-red); }
