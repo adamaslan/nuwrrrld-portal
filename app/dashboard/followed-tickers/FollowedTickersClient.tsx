@@ -283,8 +283,9 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
       </div>
       {rows.some((r) => r.notYetAvailable) && (
         <p className="ft-sb-note">
-          — means there is no score data for that horizon: it may not be due yet,
-          or tracking may not have produced scores.
+          A row of — means there is no score data for that horizon: it may not
+          be due yet, or tracking may not have produced scores. A lone — in
+          Mean ret means no hits or misses to average yet.
         </p>
       )}
     </div>
