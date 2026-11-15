@@ -79,10 +79,15 @@ Work in your own worktree. Stage by explicit path.
 > A3 renders citations on `/scans/[id]`; A2 adds an "ask which scan" box to `/scans`; B2 and G3 are the
 > `/scans/dossier/[ticker]` page, built from stored Alpaca SIP daily bars. Verified locally against production data,
 > read-only: AAPL and NVDA return 260 bars as of 2026-11-13; an unknown ticker shows "Not enough data".
-> A2 matcher: the pure word-overlap scorer could pick a related card instead of the best one (the question
-> "is the 50 day above the 200 day" matched the close-under-200 card). Fixed on this branch: matchScanQuestion
-> now adds ordered-bigram matches at double weight, so the 50-day-above-200 relation outranks a bare "200 day"
-> overlap; regression cases live in the A2 describe block of __tests__/se1/ask.test.ts. Task S1 below is kept as the record of what was done.
+> A2 matcher: the pure word-overlap scorer picked a related card instead of the best one (the question
+> "is the 50 day above the 200 day" matched the close-under-200 card). A first bigram-weighting attempt still
+> misrouted against the real SEED_CARDS catalog (caught in independent review): real cards say "50DMA"/"200DMA",
+> which never tokenizes into the question's "50 day" words. Fixed properly on this branch: matchScanQuestion now
+> matches CANONICAL SUBJECTS - number+unit compounds ("50DMA", "200-day average" -> ma50/ma200) and price
+> (close/closed/price) - at 5x weight, with numbers, MA units and direction words excluded from raw word scoring,
+> so a card about the close price cannot win a question about the 50/200 average pair (and vice versa).
+> Regression cases run against SEED_CARDS itself (above/below/reverse/DMA-spelling/negation variants, plus the
+> exit-card price question) in the A2 describe block of __tests__/se1/ask.test.ts. Task S1 below is kept as the record of what was done.
 
 ### Task S1: wire A3 citations into the scan card (small, T2) — done
 
