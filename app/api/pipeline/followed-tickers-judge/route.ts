@@ -205,7 +205,15 @@ export async function POST(req: NextRequest) {
   const since = new Date(Date.now() - SAMPLE_WINDOW_DAYS * 86_400_000)
     .toISOString()
     .slice(0, 10);
-  const sample = await getUnjudgedScoresSince(since);
+  let sample: Awaited<ReturnType<typeof getUnjudgedScoresSince>>;
+  try {
+    sample = await getUnjudgedScoresSince(since, { throwOnError: true });
+  } catch {
+    await logPipelineRun({ pipeline: "followed-tickers-judge", dryRun, session,
+      status: "fail", itemsTotal: goldSet.length, items: judgeItems,
+      summary: { published: false, reason: "sample-read-failed", goldAgreement: gate.agreementRate } });
+    return NextResponse.json({ ok: false, published: false, reason: "sample-read-failed" }, { status: 503 });
+  }
 
   let graded = 0;
   const totals: number[] = [];
