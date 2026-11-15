@@ -11,7 +11,7 @@ November15,2026. Base portal aedf972. Code-only candidate, not merged, deployed 
 
 ## Tests
 
-36 targeted tests pass across eval-judge, outcome-leak, observation-first, frozen-context and mocked production route. They cover gold denominator wiring, original brief reuse, historical fail-closed behavior and same actual-model rejection. Full TypeScript check and changed-file ESLint pass. Tests mock model, DB and run logging. They do not prove production freshness, independence of underlying model families or provider delivery. No UI changed.
+37 targeted tests pass across eval-judge, outcome-leak, observation-first, frozen-context and mocked production route. They cover gold denominator wiring, original brief reuse, historical fail-closed behavior and same actual-model rejection. Full TypeScript check and changed-file ESLint pass. Tests mock model, DB and run logging. They do not prove production freshness, independence of underlying model families or provider delivery. No UI changed.
 
 ## Unresolved, not silently repaired
 
@@ -19,5 +19,5 @@ November15,2026. Base portal aedf972. Code-only candidate, not merged, deployed 
 - D5 query still limits resolved scores to7days and joins latest observation. Frozen inputs prevent time-travel evidence inside a selected verdict, but do not prove that verdict belongs to the original pick/horizon. Historical score-to-verdict binding and bounded catch-up need an explicit provenance contract. Old grades are not rewritten.
 - Provider model aliases/families can be equivalent even when ID strings differ. Equality rejection is a fail-closed improvement, not proof of independent model families.
 - Gold calls can be served by different fallback models; gate quality is not yet stratified by actual model. Judge rubric version remains v1; publish only after a reviewer decides whether new-series versioning/storage is needed.
-- Current query catches DB errors and returns an empty sample. Operational missing evidence must not be called success.
+- Followup makes production sample reads throw on DB failure, logs status fail and returns503instead of empty success. Historical binding and7dayselection remain unchanged.
 - Runtime has not been invoked. Release needs independent qualified review, verified source/deploy parity and authorized observation of real next-run outputs. No provider/DB backfill authority follows from offline tests.
