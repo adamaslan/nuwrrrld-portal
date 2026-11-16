@@ -39,7 +39,9 @@ function langSmithClient(): Client | null {
       hideInputs: () => ({}),
       hideOutputs: summarizeAttempt,
       hideMetadata: safeMetadata,
-      anonymizer: () => ({}),
+      // The SDK retains the original error unless the anonymizer returns a
+      // string-valued error. Returning {} does not redact exceptions.
+      anonymizer: () => ({ error: "[redacted]" }),
       omitTracedRuntimeInfo: true,
       blockOnRootRunFinalization: false,
     });
@@ -49,13 +51,15 @@ function langSmithClient(): Client | null {
   return cachedClient;
 }
 
-function safeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+function safeMetadata(metadata: Record<string, unknown> = {}): Record<string, unknown> {
+  const values = metadata ?? {};
   return {
-    ...(typeof metadata.seat === "string" ? { seat: metadata.seat } : {}),
-    ...(typeof metadata.model === "string" ? { model: metadata.model } : {}),
-    ...(Number.isInteger(metadata.attempt) ? { attempt: metadata.attempt } : {}),
-    ...(typeof metadata.primary === "boolean" ? { primary: metadata.primary } : {}),
-    ...(typeof metadata.answerOnly === "boolean" ? { answer_only: metadata.answerOnly } : {}),
+    ...(typeof values.seat === "string" ? { seat: values.seat } : {}),
+    ...(typeof values.model === "string" ? { model: values.model } : {}),
+    ...(Number.isInteger(values.attempt) ? { attempt: values.attempt } : {}),
+    ...(typeof values.primary === "boolean" ? { primary: values.primary } : {}),
+    ...(typeof (values.answerOnly ?? values.answer_only) === "boolean"
+      ? { answer_only: values.answerOnly ?? values.answer_only } : {}),
   };
 }
 
@@ -98,7 +102,8 @@ function summarizeAttempt(value: Record<string, unknown>): Record<string, unknow
     ...(typeof safeStatus === "number"
       ? { http_status: safeStatus }
       : {}),
-    ...(typeof safeFinishReason === "string" ? { finish_reason: safeFinishReason.slice(0, 32) } : {}),
+    ...(typeof safeFinishReason === "string" && ["stop", "length", "tool_calls", "content_filter", "function_call", "error"].includes(safeFinishReason)
+      ? { finish_reason: safeFinishReason } : {}),
     ...(typeof safeReasoningTokens === "number" && Number.isFinite(safeReasoningTokens)
       ? { reasoning_tokens: safeReasoningTokens }
       : {}),
@@ -143,7 +148,7 @@ export async function traceCouncilAttempt<T extends AttemptResult>(
       client,
       tracingEnabled: true,
       tags: ["council", "model-attempt"],
-      metadata: context,
+      metadata: safeMetadata(context),
       processInputs: () => ({}),
       processOutputs: summarizeAttempt,
     },
