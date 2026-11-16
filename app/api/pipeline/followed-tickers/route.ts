@@ -52,6 +52,10 @@ const PICK_START_BUDGET_MS = 210_000;
  *  the council is skipped (or abandoned) so in-flight picks cannot hold
  *  Promise.all past maxDuration; the observation is already written by then. */
 const COUNCIL_DEADLINE_MS = 270_000;
+/** Diagnostic reads cannot consume the enrichment start or response reserve.
+ * A timeout limits our wait only; it does not cancel the underlying DB query. */
+const CONTEXT_WAIT_MS = 1_000;
+const RESPONSE_RESERVE_MS = 10_000;
 
 interface Reading {
   ticker: string;
@@ -155,6 +159,7 @@ export async function POST(req: NextRequest) {
   let signalMissing = 0;
   let backtestMissing = 0;
   let enrichmentWritten = 0;
+  let enrichmentAttempted = 0;
   let enrichmentSkippedNoPrice = 0;
   const stageErrors: { stage: "observation" | "enrichment"; ticker: string; message: string }[] = [];
   const recordStageError = (stage: "observation" | "enrichment", ticker: string, err: unknown): void => {
@@ -200,7 +205,6 @@ export async function POST(req: NextRequest) {
     const liveSignalDir = liveEntry?.ai_action ? String(liveEntry.ai_action) : null;
 
     const backtestRate = await backtestRateFor(pick.ticker, pick.signalCategory);
-    if (liveSignalDir == null) signalMissing++;
     if (backtestRate == null) backtestMissing++;
 
     // Enrich the already-saved required observation with optional fields.
@@ -252,6 +256,7 @@ export async function POST(req: NextRequest) {
             ? "bear"
             : null
         : null;
+    if (normLive == null) signalMissing++;
     const thesisHolding = normLive == null ? null : normLive === pick.direction;
 
     // Persist the day's signal/backtest (and any council verdict) for EVERY
@@ -316,14 +321,23 @@ export async function POST(req: NextRequest) {
     } catch { horizonRetryFailed++; }
   }
   const enrichmentPending = pending.filter((p) => captured.has(p.id));
-  const readContext = async () => {
-    if (dryRun) return null;
-    try { return await countObservationContext(today); } catch (err) {
+  const readContext = async (deadlineMs: number) => {
+    const waitMs = Math.min(CONTEXT_WAIT_MS, deadlineMs - (Date.now() - startedAt));
+    if (dryRun || waitMs <= 0) return null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        countObservationContext(today),
+        new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), waitMs); }),
+      ]);
+    } catch (err) {
       console.error(`[followed-track] CONTEXT_COUNT_FAILED err=${(err instanceof Error ? err.message : String(err)).slice(0, 200)}`);
       return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
   };
-  const contextBefore = await readContext();
+  const contextBefore = await readContext(PICK_START_BUDGET_MS);
   let nextIndex = 0;
   const worker = async (): Promise<void> => {
     while (nextIndex < enrichmentPending.length) {
@@ -333,14 +347,15 @@ export async function POST(req: NextRequest) {
         return;
       }
       const pick = enrichmentPending[nextIndex++];
+      enrichmentAttempted++;
       try { await processPick(pick); } catch (err) { enrichmentFailed++; recordStageError("enrichment", pick.ticker, err); }
     }
   };
   await Promise.all(Array.from({ length: Math.min(PICK_CONCURRENCY, enrichmentPending.length) }, worker));
 
-  const contextAfter = await readContext();
+  const contextAfter = await readContext(maxDuration * 1_000 - RESPONSE_RESERVE_MS);
   const stageEvidence = {
-    enrichmentAttempted: enrichmentPending.length,
+    enrichmentAttempted,
     enrichmentWritten,
     enrichmentSkippedNoPrice,
     signalMissing,
