@@ -21,9 +21,9 @@ function rankSourced(rows: readonly ScanRow[], onlyFlagged: boolean, limit: numb
   const skipped: RankedRows["skipped"] = [];
   for (const r of rows) {
     if (seen.has(r.scan_id)) { skipped.push({ scan_id: r.scan_id, why: "duplicate row" }); continue; }
-    seen.add(r.scan_id);
     if (onlyFlagged && !r.flag) continue;
     if (!isSourced(r)) { skipped.push({ scan_id: r.scan_id, why: "missing provenance" }); continue; }
+    seen.add(r.scan_id);
     usable.push(r);
   }
   return { rows: usable.sort(byStrength).slice(0, limit), skipped };
@@ -80,23 +80,29 @@ export function weakestLinks(holdings: readonly Holding[]): WeakestLink {
 }
 
 export interface PortfolioRisk {
-  /** Weight-averaged risk over covered holdings, or null when none are covered. */
+  /** Weight-averaged risk over covered holdings, or null when none are covered or any weight is invalid. */
   risk: number | null;
   /** Covered weight / total weight, 0 to 1. */
   coverage: number;
   complete: boolean;
+  /** Missing risk scores or invalid weights. Invalid weights make coverage unavailable (0). */
   missing: string[];
 }
 
 /** E1: portfolio risk. Holdings with no risk score are listed as missing and never counted as zero risk. */
 export function portfolioRisk(holdings: readonly Holding[]): PortfolioRisk {
-  const valid = holdings.filter((h) => Number.isFinite(h.weight) && h.weight > 0);
-  const total = valid.reduce((s, h) => s + h.weight, 0);
-  const covered = valid.filter((h) => isScore(h.risk));
-  const missing = valid.filter((h) => !isScore(h.risk)).map((h) => h.ticker).sort();
-  const cw = covered.reduce((s, h) => s + h.weight, 0);
+  const invalid = holdings.filter((h) => !Number.isFinite(h.weight) || h.weight <= 0);
+  const missing = holdings.filter((h) => !isScore(h.risk) || invalid.includes(h)).map((h) => h.ticker).sort();
+  // Unknown or invalid weight makes both the denominator and coverage unknowable.
+  if (invalid.length > 0) return { risk: null, coverage: 0, complete: false, missing };
+  // Scale first: finite weights can otherwise overflow both sums and products.
+  let scale = 0;
+  for (const h of holdings) scale = Math.max(scale, h.weight);
+  const covered = holdings.filter((h) => isScore(h.risk));
+  const total = holdings.reduce((sum, h) => sum + h.weight / scale, 0);
+  const cw = covered.reduce((sum, h) => sum + h.weight / scale, 0);
   return {
-    risk: cw > 0 ? covered.reduce((s, h) => s + h.weight * (h.risk as number), 0) / cw : null,
+    risk: cw > 0 ? covered.reduce((sum, h) => sum + (h.weight / scale) * (h.risk as number), 0) / cw : null,
     coverage: total > 0 ? cw / total : 0,
     complete: total > 0 && missing.length === 0,
     missing,
