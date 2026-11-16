@@ -94,7 +94,7 @@ jobs:
             echo "### Engine nightly"
             for f in bars.log run.log; do
               if [ -f "$f" ]; then
-                echo ""; echo "\`$f\`"; echo '```'; grep -E '^\[(done|start)\]' "$f" || echo "(no summary line — did not finish)"; echo '```'
+                echo ""; echo "\`$f\`"; echo '```'; grep -E '^\[(done|start|label)\]' "$f" || echo "(no summary line — did not finish)"; echo '```'
               fi
             done
           } >> "$GITHUB_STEP_SUMMARY"

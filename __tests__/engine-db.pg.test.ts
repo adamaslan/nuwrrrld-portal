@@ -137,6 +137,41 @@ describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, 
     expect(await db.barsAfter("ZZTWO", "iex", pending[0].barDate, 21)).toHaveLength(21);
   });
 
+  it("labelDiagnostics buckets every unlabeled hit by cause", async () => {
+    const before = await db.labelDiagnostics(21);
+    const bars = (ticker: string, n: number, from: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        ticker,
+        barDate: new Date(Date.UTC(2026, 8, from + i)).toISOString().slice(0, 10),
+        open: 15, high: 16, low: 14.5, close: 15.5, volume: 1000,
+      }));
+    // ZZDIAG1: entry bar plus only 5 later iex bars — not yet labelable.
+    await db.upsertBars(bars("ZZDIAG1", 6, 25), { feed: "iex", adjustment: "split", source: "test" });
+    const hit = { barDate: "2026-09-25", detector: "fibonacci", category: "FIBONACCI", description: "d", experimental: true, features: {} };
+    await db.writeHits([
+      { ...hit, ticker: "ZZDIAG1", signal: "FIB 0.786 BREAK", strength: "BEARISH" },
+      // ZZDIAG3: a run row exists but no entry bar is stored for the hit date.
+      { ...hit, ticker: "ZZDIAG3", signal: "FIB 0.786 BREAK", strength: "STRONG BEARISH" },
+      // ZZDIAG4: SIGNIFICANT states no direction — never a label candidate.
+      { ...hit, ticker: "ZZDIAG4", signal: "FIB 1.618 TARGET", strength: "SIGNIFICANT" },
+    ], { codeVersion: "test@0", runId: "zz-run" });
+    // ZZDIAG2: run_id names no engine_runs row, so the pendingHits join drops it.
+    await db.writeHits([{ ...hit, ticker: "ZZDIAG2", signal: "FIB 0.786 BREAK", strength: "BULLISH" }], { codeVersion: "test@0", runId: "zz-missing" });
+
+    const after = await db.labelDiagnostics(21);
+    expect(after.unlabeledDirectional - before.unlabeledDirectional).toBe(3);
+    expect(after.awaitingBars - before.awaitingBars).toBe(1);
+    expect(after.missingEntryBar - before.missingEntryBar).toBe(1);
+    expect(after.noRunRow - before.noRunRow).toBe(1);
+    expect(after.ready - before.ready).toBe(0);
+    expect(after.unlabeledNonDirectional - before.unlabeledNonDirectional).toBe(1);
+    expect((after.byFeed["iex"] ?? 0) - (before.byFeed["iex"] ?? 0)).toBe(2);
+    expect((after.byFeed["(no run)"] ?? 0) - (before.byFeed["(no run)"] ?? 0)).toBe(1);
+    // The buckets agree with pendingHits: none of the four is a label candidate.
+    const pending = await db.pendingHits(21, 500);
+    expect(pending.filter((h) => h.ticker.startsWith("ZZDIAG"))).toHaveLength(0);
+  });
+
   it("pages the active universe by offset and limit", async () => {
     run("INSERT INTO ticker_universe (ticker, universe, active) VALUES ('ZZA','stock',true),('ZZB','stock',true),('ZZC','stock',false) ON CONFLICT DO NOTHING");
     const before = await db.countEngineTickers();

@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
+import { createResendProvider } from "@/lib/notify/email";
 
 const PH_URL = "https://www.producthunt.com/posts/nuwrrrld-financial";
 const SITE_URL = "https://financial.nuwrrrld.com";
@@ -37,20 +38,15 @@ export async function POST(req: NextRequest) {
   let sent = 0;
   let failed = 0;
   for (const address of recipients) {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      signal: AbortSignal.timeout(10_000),
-      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
-        to: [address],
-        subject: "We launched today — upvote us on Product Hunt?",
-        html,
-      }),
-    });
+    const res = await createResendProvider(resendKey).send({
+      from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
+      to: [address],
+      subject: "We launched today — upvote us on Product Hunt?",
+      html,
+    }, { timeoutMs: 10_000 });
     if (res.ok) { sent++; } else {
       failed++;
-      console.error("Resend error for", address, await res.text());
+      console.error("Resend error for", address, await res.errorText());
     }
   }
 

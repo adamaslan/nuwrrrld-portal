@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DEAD_BAND_PCT, HORIZONS } from "@/lib/eval-scoring";
 import {
   HORIZON_LABEL,
   type CohortCardVM,
@@ -231,6 +232,12 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
         Outcome accuracy by horizon. <code>n</code> is resolved picks (hits + misses;
         flats and voids counted separately). A rate under <code>n={minN}</code> is not
         published.
+      </p>
+      <p className="ft-scoreboard-method">
+        Method: a call is a hit when the directional move exceeds the horizon&apos;s
+        dead band ({HORIZONS.map((h) => `${HORIZON_LABEL[h]} ±${DEAD_BAND_PCT[h]}%`).join(", ")});
+        inside the band it is flat. A pick with missing or impossible prices is
+        void: excluded from the rate, never scored as a hit or a miss.
       </p>
 
       {/* Table on wide screens, stacked cards on narrow */}

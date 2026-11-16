@@ -50,6 +50,7 @@ import {
   countOrders,
   controlOrdersCount,
   controlPreviousClose,
+  previousSettleNav,
   type Slot,
   type RunStatus,
   type OrderRow,
@@ -121,6 +122,13 @@ export interface RunAccountSlotOptions {
    *  route has maxDuration 300s and each call may walk several models). Set by
    *  the route; absent = no deadline. */
   deadlineMs?: number;
+}
+
+/** Seat day return against the previous settle NAV (audit D8), not the
+ *  intra-slot pre-trade NAV, which makes the settle-slot figure a constant 0. */
+async function seatDayReturn(account: PaperAccount, tradeDate: string, finalNav: number): Promise<number | null> {
+  const prev = await previousSettleNav(account, tradeDate);
+  return prev != null && prev > 0 ? finalNav / prev - 1 : null;
 }
 
 export interface RunResult {
@@ -516,7 +524,7 @@ export async function runAccountSlot(
     ? await controlPreviousClose(account, tradeDate) : null;
   const dayReturn = account === "equal" || account === "spy"
     ? previousControlNav != null && previousControlNav > 0 ? finalNav / previousControlNav - 1 : null
-    : nav > 0 ? finalNav / nav - 1 : null;
+    : await seatDayReturn(account, tradeDate, finalNav);
   const totalReturn = dbAccount.startingCash > 0 ? finalNav / dbAccount.startingCash - 1 : null;
 
   // Ids assigned here (not left to filled.map(() => sql`...randomUUID()...`))
@@ -840,3 +848,4 @@ async function persistSkippedRun(
 export function todayEasternDate(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(now);
 }
+

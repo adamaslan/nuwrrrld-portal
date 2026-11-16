@@ -267,6 +267,11 @@ jobs:
             echo "::error::paper-portfolios returned HTTP $STATUS for slot=$SLOT"
             exit 1
           fi
+          # The route answers HTTP 200 with ok:false when any account errored.
+          if [[ "$(jq -r '.ok' /tmp/paper-run.json 2>/dev/null)" != "true" ]]; then
+            echo "::error::paper-portfolios reported account errors (ok != true) for slot=$SLOT"
+            exit 1
+          fi
 
       - name: Sanity check — zero orders across all accounts
         if: steps.run.outputs.status == '200' && needs.gate.outputs.slot != 'settle'
@@ -276,7 +281,7 @@ jobs:
           # all 8 accounts is unusual enough to flag, not to fail on (a quiet
           # market, or every account already at target, is a real outcome).
           ORDERS=$(jq -r '.meta.ordersTotal // 0' /tmp/paper-run.json 2>/dev/null || echo 0)
-          SKIPPED=$(jq -r '[.results[]? | select(.status == "skipped")] | length' /tmp/paper-run.json 2>/dev/null || echo 0)
+          SKIPPED=$(jq -r '[.results[]? | select(.status == "skipped" and .account != "equal" and .account != "spy")] | length' /tmp/paper-run.json 2>/dev/null || echo 0)
           echo "orders=$ORDERS skipped_accounts=$SKIPPED"
           if [[ "$ORDERS" == "0" && "$SKIPPED" == "0" ]]; then
             echo "::warning::Zero orders written across all 8 accounts for slot=${{ needs.gate.outputs.slot }}, and none were skipped — worth a look."
@@ -350,3 +355,4 @@ jobs:
           set as a GitHub Actions secret, or \`paper_accounts\` still empty in the
           target DB — see docs/paper-portfolios-remaining-todo.md Phase 4."
           bash scripts/upsert-workflow-failure-issue.sh
+
