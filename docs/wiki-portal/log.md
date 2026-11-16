@@ -1,5 +1,7 @@
 # Wiki Log — nuwrrrld-portal
 
+## [2026-11-14] ingest | PR #378 feat(judge-sim): deterministic rubric proxies (T-013–T-018) | pages touched: 3
+
 Append-only chronological record. Format: `## [{date}] {ingest|query|lint|friction} | {summary} | pages touched: N`
 
 ## [2026-10-18] ingest | PR #296 feat: add slot 2 hydration worker | pages touched: 8

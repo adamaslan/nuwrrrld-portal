@@ -29,6 +29,19 @@ The human-readable face is `docs/tickers-followed.md`. This page is the *why*.
 > [[decision-exact-offset-and-fresh-price-for-followed-tickers]]. The first
 > cohort freeze is still a human-run, one-way step.
 
+## Deterministic Judge simulation (2026-11-14)
+
+`lib/judge-sim.ts` adds a pure rubric approximation for offline reasoning-quality
+exploration. It returns `SIMULATED` results under `judge_sim_v1`, separate from
+the actual LLM Judge's `v1` series and from outcome-based backtests. Its proxies
+inspect only the brief and structured verdict: exact cited-rule quotes,
+testable invalidation triggers, trade-level ordering, verdict specificity, and
+declared confidence against cited-rule strength. `StructuredVerdict` currently
+has no confidence field, so absent confidence is scored as unavailable rather
+than inferred. The simulator is not wired to storage or UI; gold-set fidelity
+measurement remains a separate follow-up before anyone interprets its grades.
+
+
 ## The pattern
 
 **Freeze the app's loudest calls, then check them against reality.**
