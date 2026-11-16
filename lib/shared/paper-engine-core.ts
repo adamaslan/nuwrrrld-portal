@@ -240,7 +240,7 @@ function fillHoldingsFloor(
 
     const quantity = notional / price;
     state.orders.push({ ticker: c.ticker, side: "buy", quantity, refPrice: price, reason: "core_fill" });
-    state.cash -= notional;
+    state.cash -= notional * (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
     spent += notional;
     if (sector) state.sectorWeight.set(sector, (state.sectorWeight.get(sector) ?? 0) + notional / nav);
     state.positionsByTicker.set(c.ticker, { ticker: c.ticker, quantity, avgCost: price, runsHeld: 0, highWater: price });
@@ -351,7 +351,7 @@ export function planRun(input: RunPlanInput): RunPlan {
 
     orders.push({ ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason });
     turnoverUsed += notional;
-    cash += notional;
+    cash += notional * (1 - MAX_BUY_SLIPPAGE_BPS / 10_000); // only net sale proceeds fund later buys
     positionsByTicker.delete(p.ticker);
     soldThisRun.add(p.ticker);
     const sector = sectorFor(p.ticker);
@@ -421,7 +421,7 @@ export function planRun(input: RunPlanInput): RunPlan {
 
     orders.push({ ticker: c.ticker, side: "buy", quantity, refPrice: price, reason: "score_entry" });
     turnoverUsed += notional;
-    cash -= notional;
+    cash -= notional * (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
     if (sector) sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + notional / nav);
 
     const existing = positionsByTicker.get(c.ticker);
@@ -711,7 +711,7 @@ export function planChairConsensus(
 
     orders.push({ ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason });
     turnoverUsed += notional;
-    cashLeft += notional;
+    cashLeft += notional * (1 - MAX_BUY_SLIPPAGE_BPS / 10_000); // only net sale proceeds fund later buys
     positionsByTicker.delete(p.ticker);
     soldThisRun.add(p.ticker);
     const sector = sectorFor(p.ticker);
@@ -781,7 +781,7 @@ export function planChairConsensus(
 
     orders.push({ ticker: v.ticker, side: "buy", quantity, refPrice: price, reason: "score_entry" });
     turnoverUsed += notional;
-    cashLeft -= notional;
+    cashLeft -= notional * (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
     if (sector) sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + notional / nav);
 
     const existing = positionsByTicker.get(v.ticker);
@@ -795,4 +795,3 @@ export function planChairConsensus(
 
   return { orders, turnoverUsed: turnoverUsed / nav };
 }
-
