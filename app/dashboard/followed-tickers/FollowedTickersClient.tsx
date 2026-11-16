@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DEAD_BAND_PCT, HORIZONS } from "@/lib/eval-scoring";
 import {
   HORIZON_LABEL,
   type CohortCardVM,
@@ -182,7 +183,12 @@ function CohortCard({ card }: { card: CohortCardVM }) {
         </div>
         <div>
           <dt>Last</dt>
-          <dd>{card.lastPrice == null ? "—" : card.lastPrice.toFixed(2)}</dd>
+          <dd>
+            {card.lastPrice == null ? "—" : card.lastPrice.toFixed(2)}
+            {card.lastPrice != null && card.lastPriceOn != null && (
+              <span className="ft-asof"> {card.lastPriceOn}</span>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Signal</dt>
@@ -227,6 +233,12 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
         flats and voids counted separately). A rate under <code>n={minN}</code> is not
         published.
       </p>
+      <p className="ft-scoreboard-method">
+        Method: a call is a hit when the directional move exceeds the horizon&apos;s
+        dead band ({HORIZONS.map((h) => `${HORIZON_LABEL[h]} ±${DEAD_BAND_PCT[h]}%`).join(", ")});
+        inside the band it is flat. A pick with missing or impossible prices is
+        void: excluded from the rate, never scored as a hit or a miss.
+      </p>
 
       {/* Table on wide screens, stacked cards on narrow */}
       <div className="ft-sb-table" role="table">
@@ -236,6 +248,7 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
           <span role="columnheader">Hit</span>
           <span role="columnheader">Miss</span>
           <span role="columnheader">Flat</span>
+          <span role="columnheader">Void</span>
           <span role="columnheader">Hit-rate</span>
           <span role="columnheader">Mean ret</span>
         </div>
@@ -256,11 +269,19 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
             <div className="ft-sb-row" role="row" key={r.horizon}>
               <span role="cell" data-label="Horizon" className="ft-sb-horizon">
                 {HORIZON_LABEL[r.horizon]}
+                {r.asOf != null && <span className="ft-asof">through {r.asOf}</span>}
               </span>
-              <span role="cell" data-label="n">{r.n}</span>
-              <span role="cell" data-label="Hit" className="ft-sb-hit">{r.hits}</span>
-              <span role="cell" data-label="Miss" className="ft-sb-miss">{r.misses}</span>
-              <span role="cell" data-label="Flat">{r.flats}</span>
+              <span role="cell" data-label="n">{r.notYetAvailable ? "\u2014" : r.n}</span>
+              <span role="cell" data-label="Hit" className="ft-sb-hit">
+                {r.notYetAvailable ? "\u2014" : r.hits}
+              </span>
+              <span role="cell" data-label="Miss" className="ft-sb-miss">
+                {r.notYetAvailable ? "\u2014" : r.misses}
+              </span>
+              <span role="cell" data-label="Flat">{r.notYetAvailable ? "\u2014" : r.flats}</span>
+              <span role="cell" data-label="Void" className="ft-sb-void">
+                {r.notYetAvailable ? "\u2014" : r.voids}
+              </span>
               <span role="cell" data-label="Hit-rate" className={`ft-sb-rate ${rateClass}`}>
                 {rate}
               </span>
@@ -273,6 +294,13 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
           );
         })}
       </div>
+      {rows.some((r) => r.notYetAvailable) && (
+        <p className="ft-sb-note">
+          A row of — means there is no score data for that horizon: it may not
+          be due yet, or tracking may not have produced scores. A lone — in
+          Mean ret means no hits or misses to average yet.
+        </p>
+      )}
     </div>
   );
 }
@@ -298,6 +326,7 @@ function JudgeView({ view }: { view: FollowedTickersViewVM }) {
           </div>
           <p className="ft-judge-count">
             {j.verdictsGraded} verdict{j.verdictsGraded === 1 ? "" : "s"} graded
+            {j.asOf != null && <span className="ft-asof"> through {j.asOf}</span>}
           </p>
         </div>
       )}

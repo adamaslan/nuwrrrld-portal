@@ -235,12 +235,12 @@ function fillHoldingsFloor(
       const room = policy.sectorCapPct - (state.sectorWeight.get(sector) ?? 0);
       notional = Math.min(notional, room * nav);
     }
-    notional = Math.min(notional, state.cash - cashFloorAmount);
+    notional = Math.min(notional, buyNotionalWithinCash(state.cash - cashFloorAmount));
     if (notional < minNotional) continue; // sector full or out of cash — try the next name
 
     const quantity = notional / price;
     state.orders.push({ ticker: c.ticker, side: "buy", quantity, refPrice: price, reason: "core_fill" });
-    state.cash -= notional;
+    state.cash -= notional * (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
     spent += notional;
     if (sector) state.sectorWeight.set(sector, (state.sectorWeight.get(sector) ?? 0) + notional / nav);
     state.positionsByTicker.set(c.ticker, { ticker: c.ticker, quantity, avgCost: price, runsHeld: 0, highWater: price });
@@ -351,7 +351,7 @@ export function planRun(input: RunPlanInput): RunPlan {
 
     orders.push({ ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason });
     turnoverUsed += notional;
-    cash += notional;
+    cash += notional * (1 - MAX_BUY_SLIPPAGE_BPS / 10_000); // only net sale proceeds fund later buys
     positionsByTicker.delete(p.ticker);
     soldThisRun.add(p.ticker);
     const sector = sectorFor(p.ticker);
@@ -411,7 +411,7 @@ export function planRun(input: RunPlanInput): RunPlan {
 
     const cashRoom = cash - cashFloorAmount;
     if (cashRoom <= 0) continue;
-    notional = Math.min(notional, cashRoom);
+    notional = Math.min(notional, buyNotionalWithinCash(cashRoom));
 
     const minNotional = policy.minPositionWeight * nav;
     if (notional < minNotional) continue; // too small to be worth opening/topping up
@@ -421,7 +421,7 @@ export function planRun(input: RunPlanInput): RunPlan {
 
     orders.push({ ticker: c.ticker, side: "buy", quantity, refPrice: price, reason: "score_entry" });
     turnoverUsed += notional;
-    cash -= notional;
+    cash -= notional * (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
     if (sector) sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + notional / nav);
 
     const existing = positionsByTicker.get(c.ticker);
@@ -434,6 +434,15 @@ export function planRun(input: RunPlanInput): RunPlan {
   }
 
   return { orders, turnoverUsed: turnoverUsed / nav };
+}
+
+/** Worst-case buy slippage in bps (fillOrders uses 5 for mega/large caps, 15
+ *  otherwise). Buys are planned at refPrice but fill at refPrice*(1+bps), so
+ *  cash room is divided by the worst case to keep filled cash >= the floor
+ *  (audit D11: T2 cash went to -$0.19). */
+export const MAX_BUY_SLIPPAGE_BPS = 15;
+function buyNotionalWithinCash(cashRoom: number): number {
+  return cashRoom / (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
 }
 
 /**
@@ -702,7 +711,7 @@ export function planChairConsensus(
 
     orders.push({ ticker: p.ticker, side: "sell", quantity: p.quantity, refPrice: price, reason });
     turnoverUsed += notional;
-    cashLeft += notional;
+    cashLeft += notional * (1 - MAX_BUY_SLIPPAGE_BPS / 10_000); // only net sale proceeds fund later buys
     positionsByTicker.delete(p.ticker);
     soldThisRun.add(p.ticker);
     const sector = sectorFor(p.ticker);
@@ -762,7 +771,7 @@ export function planChairConsensus(
 
     const cashRoom = cashLeft - cashFloorAmount;
     if (cashRoom <= 0) continue;
-    notional = Math.min(notional, cashRoom);
+    notional = Math.min(notional, buyNotionalWithinCash(cashRoom));
 
     const minNotional = policy.minPositionWeight * nav;
     if (notional < minNotional) continue;
@@ -772,7 +781,7 @@ export function planChairConsensus(
 
     orders.push({ ticker: v.ticker, side: "buy", quantity, refPrice: price, reason: "score_entry" });
     turnoverUsed += notional;
-    cashLeft -= notional;
+    cashLeft -= notional * (1 + MAX_BUY_SLIPPAGE_BPS / 10_000);
     if (sector) sectorWeight.set(sector, (sectorWeight.get(sector) ?? 0) + notional / nav);
 
     const existing = positionsByTicker.get(v.ticker);

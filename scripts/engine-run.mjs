@@ -69,12 +69,21 @@ async function main() {
   }
 
   let labeled = 0;
+  let labelDiag = null;
   for (let round = 0; round < MAX_LABEL_ROUNDS; round++) {
     const out = await call("/api/pipeline/engine-label", {});
     labeled += out.written;
+    if (out.diagnostics) labelDiag = out.diagnostics;
     if (!out.remaining) break;
   }
   console.log(`[done] runId=${runId} mode=${MODE} written=${total.written} skipped=${total.skipped} failed=${total.failed} degraded=${total.degraded} hits=${total.hits} labeled=${labeled}`);
+  if (labeled === 0 && labelDiag) {
+    console.log(
+      `[label] labeled=0 — unlabeled directional hits=${labelDiag.unlabeledDirectional} ` +
+        `(ready=${labelDiag.ready} awaiting_bars=${labelDiag.awaitingBars} missing_entry_bar=${labelDiag.missingEntryBar} no_run_row=${labelDiag.noRunRow}) ` +
+        `non_directional=${labelDiag.unlabeledNonDirectional} by_feed=${JSON.stringify(labelDiag.byFeed)}`,
+    );
+  }
   if (total.written === 0) fail("wrote no structure rows — are daily_bars populated for this feed?");
 }
 

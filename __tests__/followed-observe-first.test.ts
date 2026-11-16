@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ picks: vi.fn(), observed: vi.fn(), resolved: vi.fn(), observations: vi.fn(), upsert: vi.fn(), price: vi.fn(), council: vi.fn(), horizons: vi.fn(), ticker: vi.fn(), backtest: vi.fn(), log: vi.fn(), close: vi.fn(), enrich: vi.fn() }));
+const m = vi.hoisted(() => ({ picks: vi.fn(), observed: vi.fn(), resolved: vi.fn(), observations: vi.fn(), upsert: vi.fn(), price: vi.fn(), council: vi.fn(), horizons: vi.fn(), ticker: vi.fn(), backtest: vi.fn(), log: vi.fn(), close: vi.fn(), enrich: vi.fn(), count: vi.fn() }));
 vi.mock("@/lib/db", () => ({ default: () => { throw new Error("No live DB permitted"); } }));
-vi.mock("@/lib/followed-tickers-db", () => ({ getLivePicks: m.picks, getPickIdsObservedOn: m.observed, getResolvedHorizons: m.resolved, getObservations: m.observations, upsertObservationEnrichment: m.enrich, insertObservationClose: m.close }));
+vi.mock("@/lib/followed-tickers-db", () => ({ getLivePicks: m.picks, getPickIdsObservedOn: m.observed, getResolvedHorizons: m.resolved, getObservations: m.observations, upsertObservationEnrichment: m.enrich, insertObservationClose: m.close, countObservationContext: m.count }));
 vi.mock("@/lib/followed-tickers-price", () => ({ resolveFollowedPrice: m.price, nyDateOf: () => "2026-11-13" }));
 vi.mock("@/lib/followed-tickers-run", () => ({ councilVerdictFor: m.council, resolveDueHorizons: m.horizons }));
 vi.mock("@/lib/shared/signal-lookup", () => ({ fetchTickerEntry: m.ticker }));
@@ -22,6 +22,7 @@ describe("mandatory observation phase before optional enrichment", () => {
     m.price.mockImplementation(async () => ({ price: 100, source: "daily_bars", asOf: "2026-11-13" }));
     m.close.mockImplementation(async (row) => { events.push(`write:${row.pickId}`); });
     m.enrich.mockResolvedValue(undefined);
+    m.count.mockResolvedValue({ observations: 0, withSignal: 0, withBacktest: 0, withCouncil: 0 });
     m.ticker.mockImplementation(async () => { events.push("optional"); return null; });
     m.backtest.mockResolvedValue(null);
     m.council.mockImplementation(async () => { events.push("council"); return { ok: false, empty: true, model: "injected" }; });
@@ -35,6 +36,7 @@ describe("mandatory observation phase before optional enrichment", () => {
     expect(body.meta.observationDeferred).toBe(0); expect(body.meta.observationFailed).toBe(0);
     expect(body.meta.mandatoryComplete).toBe(true); expect(body.meta.deferred).toBeGreaterThan(0); expect(body.meta.status).toBe("partial");
     expect(m.horizons).toHaveBeenCalledTimes(40);
+    expect(body.meta.stageEvidence.enrichmentAttempted).toBe(m.ticker.mock.calls.length);
   });
   it("reports a failed mandatory write without abandoning the other39 picks or claiming full coverage", async () => {
     m.close.mockImplementation(async row => { if (row.pickId === "pick-0") throw new Error("fixture write failed"); events.push(`write:${row.pickId}`); });
@@ -122,6 +124,73 @@ describe("mandatory observation phase before optional enrichment", () => {
     expect(body.meta.enrichmentFailed).toBe(1); expect(body.meta.mandatoryComplete).toBe(true);
     expect(m.close).toHaveBeenCalledTimes(40); expect(m.enrich).toHaveBeenCalledTimes(39);
     expect(body.readings).toHaveLength(40);
+  });
+
+});
+
+describe("stage evidence for signal/backtest persistence (T-001/T-002)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(now);
+    process.env.CRON_SECRET = "test-only"; delete process.env.OPENROUTER_API_KEY;
+    m.picks.mockResolvedValue(picks.slice(0, 4)); m.observed.mockResolvedValue(new Set()); m.resolved.mockResolvedValue(new Set());
+    m.observations.mockResolvedValue([]); m.horizons.mockResolvedValue([]); m.log.mockResolvedValue(true);
+    m.price.mockResolvedValue({ price: 100, source: "daily_bars", asOf: "2026-11-13" });
+    m.close.mockResolvedValue(undefined); m.enrich.mockResolvedValue(undefined);
+    m.ticker.mockResolvedValue(null); m.backtest.mockResolvedValue(null);
+    m.count.mockResolvedValueOnce({ observations: 4, withSignal: 0, withBacktest: 0, withCouncil: 0 })
+      .mockResolvedValueOnce({ observations: 4, withSignal: 3, withBacktest: 0, withCouncil: 0 });
+  });
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  it("reports written vs missing signal/backtest and the before/after context counts", async () => {
+    const body = await (await POST(request())).json();
+    const ev = body.meta.stageEvidence;
+    expect(ev.enrichmentAttempted).toBe(4); expect(ev.enrichmentWritten).toBe(4);
+    expect(ev.signalMissing).toBe(4); expect(ev.backtestMissing).toBe(4);
+    expect(ev.contextBefore.withSignal).toBe(0); expect(ev.contextAfter.withSignal).toBe(3);
+    expect(m.log.mock.calls[0][0].summary.stageEvidence).toEqual(ev);
+  });
+  it("logs the ticker and reason when an enrichment write fails, instead of swallowing it", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    m.enrich.mockImplementation(async (row) => { if (row.pickId === "pick-1") throw new Error("fixture upsert failed"); });
+    const body = await (await POST(request())).json();
+    expect(body.meta.enrichmentFailed).toBe(1); expect(body.meta.stageEvidence.enrichmentWritten).toBe(3);
+    expect(body.meta.stageEvidence.errors).toEqual([{ stage: "enrichment", ticker: "TEST1", message: "fixture upsert failed" }]);
+    expect(err.mock.calls.some(c => String(c[0]).includes("stage=enrichment ticker=TEST1 err=fixture upsert failed"))).toBe(true);
+  });
+  it("a failed context count never fails the run, and dry-run does no counting", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.count.mockReset(); m.count.mockRejectedValue(new Error("count down"));
+    const body = await (await POST(request())).json();
+    expect(body.ok).toBe(true); expect(body.meta.stageEvidence.contextBefore).toBeNull();
+    m.count.mockClear();
+    await POST(request(true)); expect(m.count).not.toHaveBeenCalled();
+  });
+  it("counts the final council-fallback signal rather than absent upstream lookup", async () => {
+    process.env.OPENROUTER_API_KEY = "injected-test-only";
+    m.council.mockResolvedValue({ ok: true, verdict: { direction: "bullish", raw: "fixture", model: "fixture", latencyMs: 0, fallback: false } });
+    const body = await (await POST(request())).json();
+    expect(m.enrich.mock.calls.every(c => c[0].signalDir === "bull")).toBe(true);
+    expect(body.meta.stageEvidence.signalMissing).toBe(0);
+  });
+  it("bounds never-settling diagnostic reads without stopping enrichment or leaking timers", async () => {
+    m.count.mockReset(); m.count.mockImplementation(() => new Promise(() => {}));
+    const result = POST(request());
+    await vi.advanceTimersByTimeAsync(2_100);
+    const body = await (await result).json();
+    expect(body.meta.stageEvidence.contextBefore).toBeNull();
+    expect(body.meta.stageEvidence.contextAfter).toBeNull();
+    expect(body.meta.stageEvidence.enrichmentAttempted).toBe(4);
+    expect(m.enrich).toHaveBeenCalledTimes(4);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("skips diagnostics once their stage/response budget is exhausted", async () => {
+    m.close.mockImplementation(async () => { vi.setSystemTime(new Date(now.getTime() + 291_000)); });
+    const body = await (await POST(request())).json();
+    expect(m.count).not.toHaveBeenCalled();
+    expect(body.meta.stageEvidence.contextBefore).toBeNull();
+    expect(body.meta.stageEvidence.contextAfter).toBeNull();
+    expect(body.meta.stageEvidence.enrichmentAttempted).toBe(0);
+    expect(body.meta.deferred).toBe(4);
   });
 
 });

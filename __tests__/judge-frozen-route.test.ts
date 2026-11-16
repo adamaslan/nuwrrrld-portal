@@ -1,0 +1,21 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+const m = vi.hoisted(() => ({ read: vi.fn(), sample: vi.fn(), save: vi.fn(), log: vi.fn(), run: vi.fn() }));
+vi.mock('node:fs/promises',()=>({ readFile:m.read }));
+vi.mock('@/lib/db',()=>({default:()=>{throw new Error('No live DB allowed')}}));
+vi.mock('@/lib/followed-tickers-db',()=>({getUnjudgedScoresSince:m.sample,saveJudgeScore:m.save}));
+vi.mock('@/lib/pipeline-run-log-db',()=>({logPipelineRun:m.log}));
+vi.mock('@/lib/openrouter',()=>({runSeat:m.run,seatPrimaryModel:()=> 'judge-model',seatSystemPrompt:()=> 'test'}));
+const { POST }=await import('@/app/api/pipeline/followed-tickers-judge/route');
+const verdict={outlook:'bullish',because:'frozen C1',invalidation:'below100',execution:'hold'};
+const response='GROUNDING: 2\nFALSIFIABILITY: 2\nCONSISTENCY: 2\nSPECIFICITY: 2\nCALIBRATION: 2';
+const req=()=>new NextRequest('https://test.invalid/api/pipeline/followed-tickers-judge',{method:'POST',headers:{authorization:'Bearer test-only','content-type':'application/json'},body:'{}'});
+describe('production Judge frozen input and denominator wiring',()=>{
+ beforeEach(()=>{vi.clearAllMocks();vi.stubEnv('CRON_SECRET','test-only');vi.stubEnv('OPENROUTER_API_KEY','mock-only');m.read.mockResolvedValue(JSON.stringify({entries:[1,2,3].map(id=>({id:String(id),goldTotal:10,brief:'gold',verdict}))}));m.log.mockResolvedValue(true);m.sample.mockResolvedValue([{pickId:'p',horizon:'d1',councilJson:{...verdict,validatorFlags:[],judgeContext:{version:1,brief:'ORIGINAL-ONLY-CONTEXT',authorModel:'author-model'}}}]);m.run.mockResolvedValue({answer:response,model:'judge-model',latencyMs:1});m.save.mockResolvedValue(undefined);});
+ afterEach(()=>vi.unstubAllEnvs());
+ it('counts two missing gold answers as failures and never fetches or writes sample',async()=>{m.run.mockResolvedValueOnce({answer:response,model:'judge-model'}).mockResolvedValue({answer:'',model:'judge-model'});const body=await(await POST(req())).json();expect(body.published).toBe(false);expect(body.goldAgreement).toBe(1/3);expect(m.sample).not.toHaveBeenCalled();expect(m.save).not.toHaveBeenCalled();});
+ it('grades using only saved author brief, not a fresh market lookup',async()=>{await POST(req());expect(m.run).toHaveBeenCalledTimes(4);const prompt=m.run.mock.calls[3][1][1].content;expect(prompt).toContain('ORIGINAL-ONLY-CONTEXT');expect(m.save).toHaveBeenCalledTimes(1);});
+ it('skips old or validator-rejected context, with no sample model call or save',async()=>{m.sample.mockResolvedValue([{pickId:'p',horizon:'d1',councilJson:verdict}]);await POST(req());expect(m.run).toHaveBeenCalledTimes(3);expect(m.save).not.toHaveBeenCalled();});
+ it('reports sample read failure as503and failed run, not empty success',async()=>{m.sample.mockRejectedValue(new Error('mock DB unavailable'));const res=await POST(req());expect(res.status).toBe(503);expect(await res.json()).toMatchObject({ok:false,published:false,reason:'sample-read-failed'});expect(m.save).not.toHaveBeenCalled();expect(m.log).toHaveBeenCalledWith(expect.objectContaining({status:'fail'}));expect(m.sample).toHaveBeenCalledWith(expect.any(String),{throwOnError:true});});
+ it('refuses score when fallback actually served same model as author',async()=>{m.run.mockResolvedValue({answer:response,model:'author-model'});await POST(req());expect(m.run).toHaveBeenCalledTimes(4);expect(m.save).not.toHaveBeenCalled();});
+});

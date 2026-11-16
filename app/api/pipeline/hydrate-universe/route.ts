@@ -43,7 +43,7 @@ import {
 import type { Horizon, SignalStateInput, VerdictDirection } from "@/lib/grounding/taxonomy";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import { isUnservableRow, settleUnservable, unservableWithinCeiling } from "@/lib/shared/hydrate-rows";
-import { computeBatchCoverage, computeRunStatus, deriveRunStatus } from "@/lib/shared/run-status";
+import { computeBatchCoverage, computeRunStatus, deriveRunStatus, finalizedHydrationStatus } from "@/lib/shared/run-status";
 
 /** Which compute host actually ran the batch. Optional: an older caller that
  *  omits it logs `host: null` rather than failing the request — this is
@@ -264,14 +264,19 @@ export async function POST(req: NextRequest) {
     }
     const unservableCount = Number(body.summary?.unservable ?? 0);
     const total = Number(body.summary?.total ?? body.items.length);
-    const status = unservableWithinCeiling(unservableCount, total)
+    const batchStatus = unservableWithinCeiling(unservableCount, total)
       ? deriveRunStatus(body.items) : "fail";
+    const { queryFailed, ...universeCoverage } = await coverageForUniverseAndDate(universe, barDate);
+    const status = finalizedHydrationStatus(batchStatus, { ...universeCoverage, queryFailed });
+    const batchCoverage = { expected: body.items.filter(item => item.outcome !== "skip").length,
+      filled: body.items.filter(item => item.outcome === "ok").length };
     const logged = await logPipelineRun({ pipeline: "hydrate-universe", dryRun: false,
       session: body.runId, upsertSession: true, itemsTotal: body.items.length,
       items: body.items, status, host: body.host ?? null,
-      coverage: { expected: body.items.filter((item) => item.outcome !== "skip").length,
-        filled: body.items.filter((item) => item.outcome === "ok").length },
-      summary: { ...body.summary, source, barDate, complete: true } });
+      coverage: universeCoverage,
+      summary: { ...body.summary, source, barDate, complete: true, batchStatus, batchCoverage,
+        coverageQueryFailed: queryFailed, universe,
+        coverageScope: "current-active-tickers-any-horizon-at-bar-date" } });
     return NextResponse.json({ ok: logged, logged, status, runId: body.runId });
   }
   if (rows.length === 0) {

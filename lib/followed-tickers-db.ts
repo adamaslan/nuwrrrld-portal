@@ -267,6 +267,35 @@ export async function getPickIdsObservedOn(
   }
 }
 
+/** Read-only evidence: how many of `observedOn`'s observation rows carry each
+ *  optional context field. The tracker run calls it before and after the
+ *  enrichment phase so a run's own log shows whether signal/backtest/council
+ *  values actually landed (T-001/T-002). Throws on a real DB failure; callers
+ *  treat it as best-effort evidence, never as a gate. */
+export async function countObservationContext(observedOn: string): Promise<{
+  observations: number;
+  withSignal: number;
+  withBacktest: number;
+  withCouncil: number;
+}> {
+  const rows = await sql`
+    SELECT
+      COUNT(*)::int AS observations,
+      COUNT(signal_dir)::int AS with_signal,
+      COUNT(backtest_rate)::int AS with_backtest,
+      COUNT(council_json)::int AS with_council
+    FROM followed_ticker_observations
+    WHERE observed_on = ${observedOn}
+  `;
+  const r = rows[0] ?? {};
+  return {
+    observations: Number(r.observations ?? 0),
+    withSignal: Number(r.with_signal ?? 0),
+    withBacktest: Number(r.with_backtest ?? 0),
+    withCouncil: Number(r.with_council ?? 0),
+  };
+}
+
 /** All observations for a pick, oldest first — the price series outcome
  *  scoring reads to find a horizon's close and to compute days_held. */
 export async function getObservations(
@@ -406,7 +435,7 @@ export async function getAllScores(options: { throwOnError?: boolean } = {}): Pr
 
 /** Recently-resolved scores that still need a judge grade — the weekly judge
  *  run's sample. Only verdicts with a stored council_json can be graded. */
-export async function getUnjudgedScoresSince(sinceIso: string): Promise<
+export async function getUnjudgedScoresSince(sinceIso: string, options: { throwOnError?: boolean } = {}): Promise<
   Array<{ pickId: string; horizon: Horizon; councilJson: unknown }>
 > {
   try {
@@ -427,7 +456,8 @@ export async function getUnjudgedScoresSince(sinceIso: string): Promise<
       horizon: r.horizon as Horizon,
       councilJson: r.council_json,
     }));
-  } catch {
+  } catch (error) {
+    if (options.throwOnError) throw error;
     return [];
   }
 }
@@ -477,6 +507,7 @@ export interface ViewData {
     directional: number | null;
     returnPct: number | null;
     judgeScore: number | null;
+    resolvedOn: string;
   }>;
 }
 
@@ -509,7 +540,7 @@ export async function getViewData(): Promise<ViewData> {
         ORDER BY observed_on ASC
       `,
       sql`
-        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score
+        SELECT pick_id, horizon, outcome, directional, return_pct, judge_score, resolved_on
         FROM followed_ticker_scores
         WHERE pick_id = ANY(${ids}::uuid[])
       `,
@@ -547,6 +578,7 @@ export async function getViewData(): Promise<ViewData> {
         directional: r.directional == null ? null : Number(r.directional),
         returnPct: r.return_pct == null ? null : Number(r.return_pct),
         judgeScore: r.judge_score == null ? null : Number(r.judge_score),
+        resolvedOn: new Date(r.resolved_on as string).toISOString().slice(0, 10),
       })),
     };
   } catch {

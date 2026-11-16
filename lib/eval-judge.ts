@@ -143,7 +143,7 @@ export interface GoldEntry {
 export interface GoldComparison {
   id: string;
   goldTotal: number;
-  judgeTotal: number;
+  judgeTotal: number | null;
   /** Agreement is "within 1 point of the human total" per criterion-sum. */
   agrees: boolean;
 }

@@ -22,7 +22,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
-import { buildGroundedBrief } from "@/lib/council-grounding";
+import { readFrozenJudgeContext } from "@/lib/judge-frozen-context";
 import { runSeat, seatSystemPrompt, seatPrimaryModel } from "@/lib/openrouter";
 import { logPipelineRun, type RunItem } from "@/lib/pipeline-run-log-db";
 import type { StructuredVerdict } from "@/lib/council-verdict";
@@ -71,7 +71,7 @@ async function loadGoldSet(): Promise<GoldEntry[]> {
  * run log (docs/model-usage/) sees which model served each grade. `phase`
  * labels the call's subject (gold-gate re-grade vs this week's sample).
  */
-function makeJudgeCall(apiKey: string, sink: RunItem[], phase: () => string) {
+function makeJudgeCall(apiKey: string, sink: RunItem[], phase: () => string, authorModel: () => string | null) {
   return async (prompt: string): Promise<string> => {
     // No maxTokens override: runSeat's default (1200) is the documented floor —
     // below it the reasoning models in FREE_MODEL_CHAIN burn the budget on
@@ -96,7 +96,8 @@ function makeJudgeCall(apiKey: string, sink: RunItem[], phase: () => string) {
         latencyMs,
         fallback: model !== seatPrimaryModel(JUDGE_SEAT),
       });
-      return answer;
+      // Different seat labels do not ensure different fallback models. Never publish a self-grade.
+      return model === authorModel() ? "" : answer;
     } catch (err) {
       // runSeat's terminal-empty error is distinct from a transport/HTTP
       // failure — record "empty" for the former so the run log can tell a
@@ -158,15 +159,17 @@ export async function POST(req: NextRequest) {
   const session = typeof body.session === "string" ? body.session : null;
   const judgeItems: RunItem[] = [];
   let phase = "gold-gate";
-  const call = makeJudgeCall(apiKey, judgeItems, () => phase);
+  let authorModel: string | null = null;
+  const call = makeJudgeCall(apiKey, judgeItems, () => phase, () => authorModel);
 
   // ── Gold-set gate first ───────────────────────────────────────────────────
   const goldSet = await loadGoldSet();
   const goldComparisons = [];
   for (const g of goldSet) {
     const result = await judgeVerdict(g.verdict, g.brief, call);
-    if (!result) continue; // unparseable — treated as non-agreement below
-    goldComparisons.push(compareToGold(g.id, g.goldTotal, result));
+    goldComparisons.push(result ? compareToGold(g.id, g.goldTotal, result) : {
+      id: g.id, goldTotal: g.goldTotal, judgeTotal: null, agrees: false,
+    }); // Missing/unparseable grades remain in the denominator.
   }
   const gate = evaluateGoldGate(goldComparisons);
 
@@ -202,7 +205,15 @@ export async function POST(req: NextRequest) {
   const since = new Date(Date.now() - SAMPLE_WINDOW_DAYS * 86_400_000)
     .toISOString()
     .slice(0, 10);
-  const sample = await getUnjudgedScoresSince(since);
+  let sample: Awaited<ReturnType<typeof getUnjudgedScoresSince>>;
+  try {
+    sample = await getUnjudgedScoresSince(since, { throwOnError: true });
+  } catch {
+    await logPipelineRun({ pipeline: "followed-tickers-judge", dryRun, session,
+      status: "fail", itemsTotal: goldSet.length, items: judgeItems,
+      summary: { published: false, reason: "sample-read-failed", goldAgreement: gate.agreementRate } });
+    return NextResponse.json({ ok: false, published: false, reason: "sample-read-failed" }, { status: 503 });
+  }
 
   let graded = 0;
   const totals: number[] = [];
@@ -221,19 +232,19 @@ export async function POST(req: NextRequest) {
       skipped.push(`${item.pickId}:${item.horizon} (no parseable verdict)`);
       continue;
     }
-    // Re-ground the brief for the judge from the same live source the author
-    // used — the judge sees the brief and the verdict, nothing outcome-shaped.
+    const context = readFrozenJudgeContext(item.councilJson);
+    if (!context) {
+      skipped.push(`${item.pickId}:${item.horizon} (no validated frozen author context)`);
+      continue;
+    }
+    // Historical rows without the original context remain ungraded. Never fetch current data.
     let result: JudgeResult | null = null;
+    authorModel = context.authorModel;
     try {
-      const brief = await buildGroundedBrief(
-        `Directional outlook grading context.`,
-        null,
-        JUDGE_SEAT,
-      );
-      result = await judgeVerdict(verdict, brief, call);
+      result = await judgeVerdict(verdict, context.brief, call);
     } catch {
       result = null;
-    }
+    } finally { authorModel = null; }
     if (!result) {
       skipped.push(`${item.pickId}:${item.horizon} (judge unparseable)`);
       continue;

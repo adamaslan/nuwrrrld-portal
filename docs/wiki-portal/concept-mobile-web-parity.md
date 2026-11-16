@@ -7,6 +7,15 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal PR #378 Judge-simulation assessment - November 14, 2026
+
+The deterministic Judge simulator is a portal-only library addition with no
+API, stored result, or UI integration. It changes neither the mobile client nor
+a shared module or cross-surface contract. No parity-matrix row changed; the
+historical headline remains unchanged and is not presented as a fresh audit.
+See [[concept-followed-tickers-tracking]] for its separate `SIMULATED` label,
+version, and confidence-input limitation.
+
 ## Holdings alert engine assessment - November 13, 2026
 
 Adds a pure signal-change detector for watchlist tickers in portal `lib/`, gated on the existing Pro feature `watchlist_alerts`. It has no storage, endpoint or delivery path yet. It is a candidate for `lib/shared/` once a mobile push consumer exists, but nothing is shared today and no mobile counterpart was compared. No parity-matrix row changed; the historical headline remains. Scoped assessment, not a fresh parity audit. Not deployed when written.

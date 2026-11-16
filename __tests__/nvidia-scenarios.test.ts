@@ -10,8 +10,8 @@ describe("dated static NVIDIA research",()=>{
  it("retains frozen scan provenance and unavailable coverage",()=>{
   const text=article.method.join(" ");expect(text).toContain("3,129 occurrences");expect(text).toContain("252 evaluation bars");expect(text).toContain("100 additional");expect(text).toContain("were not executed");expect(text).toContain("not a live November 13 quote");
  });
- it("features a signed-out route without depending on the separate blog PR",()=>{
-  const home=read("app/page.tsx");expect(home).toContain('id="nvidia-research"');expect(home).toContain('href="/research/nvidia-forward-scenarios"');expect(home).toContain("not predictions, probabilities");expect(home).not.toContain("LandingBlogArticles");
+ it("features a signed-out route coexisting with the merged blog section",()=>{
+  const home=read("app/page.tsx");expect(home).toContain('id="nvidia-research"');expect(home).toContain('href="/research/nvidia-forward-scenarios"');expect(home).toContain("not predictions, probabilities");expect(home).toContain("LandingBlogArticles");
  });
  it("keeps the route static and metadata explicitly dated",()=>{
   const page=read("app/research/nvidia-forward-scenarios/page.tsx");expect(page).toContain("Research dated November 13, 2026");expect(page).toContain("PreLoginNav");expect(page).toContain("PreLoginFooter");expect(page).not.toMatch(/await auth|redirect\(|getStoredSignals|fetch\(|DATABASE_URL/);
