@@ -74,9 +74,13 @@ const entry: CatalogEntry = {
 describe("ScheduledWorkCard", () => {
   it("says there is no run log for an entry that writes none", () => {
     render(<ScheduledWorkCard entry={entry} latestRun={null} />);
-    expect(screen.getByText(/No run log row/)).toBeInTheDocument();
+    expect(screen.getByText(/No linked run log row/)).toBeInTheDocument();
   });
 
+  it("labels source configuration separately from current deployment", () => {
+    render(<ScheduledWorkCard entry={{ ...entry, deployment: "unverified" }} latestRun={null} />);
+    expect(screen.getByText("Source-configured only. Current deployment and schedule unverified.")).toBeInTheDocument();
+  });
   it("lists sub-features under a disclosure", () => {
     render(<ScheduledWorkCard entry={entry} latestRun={null} />);
     expect(screen.getByText("1 sub-features")).toBeInTheDocument();

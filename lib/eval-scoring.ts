@@ -95,6 +95,18 @@ export function scorePick(pick: ResolvedPick): ScoredPick {
   if (pick.void) {
     return { outcome: "void", returnPct: 0, directional: 0 };
   }
+  // Fail closed: a missing or impossible price is a data-availability verdict,
+  // never a score. Without this guard a NaN exit passed both band comparisons
+  // and classified "flat", and a 0 exit scored every bear call a ~100% hit —
+  // missing data turned into a flattering number (T-024).
+  if (
+    !Number.isFinite(pick.entryPrice) ||
+    pick.entryPrice <= 0 ||
+    !Number.isFinite(pick.exitPrice) ||
+    pick.exitPrice <= 0
+  ) {
+    return { outcome: "void", returnPct: 0, directional: 0 };
+  }
   const raw = returnPct(pick.entryPrice, pick.exitPrice);
   const directional = pick.direction === "bull" ? raw : -raw;
   return {
@@ -183,7 +195,9 @@ export interface Baselines {
   alwaysLongPct: number | null;
   /** SPY over the same dates — did ticker selection add anything? */
   buyHoldSpyPct: number | null;
-  /** Mean of the per-pick backtest priors — is the live signal like its history? */
+  /** Mean of the per-pick backtest priors — is the live signal like its history?
+   *  null when fewer than MIN_RESOLVED_FOR_RATE priors are present: a baseline
+   *  averaged over a handful of priors is the same lie as a small-n hit-rate. */
   backtestPriorPct: number | null;
 }
 
@@ -216,7 +230,7 @@ export function computeBaselines(rows: readonly BaselineInput[]): Baselines {
     alwaysLongPct: alwaysLong.hitRatePct,
     buyHoldSpyPct: spy.hitRatePct,
     backtestPriorPct:
-      priors.length > 0
+      priors.length >= MIN_RESOLVED_FOR_RATE
         ? (priors.reduce((a, b) => a + b, 0) / priors.length) * 100
         : null,
   };

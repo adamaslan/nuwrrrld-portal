@@ -8,6 +8,7 @@
 import { ImageResponse } from "next/og";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { recentVerdicts } from "@/lib/council-db";
+import { recordedDateLabel } from "@/lib/verdict-seo";
 
 // Monochrome OG card (style guide): direction is stated in the verdict text
 // itself; the accent only distinguishes emphasis, never meaning by color.
@@ -72,6 +73,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
                   {`Invalidation: ${latest.invalidation}`}
                 </div>
               )}
+              {/* A share card must not read as a live call: always marked as a
+                  stored record, with the record date only when it parses. */}
+              <div style={{ display: "flex", color: "#555555", fontSize: 24, fontWeight: 700 }}>
+                {recordedDateLabel(latest?.createdAt)
+                  ? `Record created ${recordedDateLabel(latest?.createdAt)} UTC - not current advice`
+                  : "Stored call, not current advice"}
+              </div>
             </div>
           ) : (
             <div style={{ color: "#555555", fontSize: 32, fontWeight: 700 }}>

@@ -41,7 +41,8 @@ export const WAVE0_FEATURES: readonly AiFeature[] = [
   { id: "G6", title: "Gap list: what we can't answer yet", track: "Explainability", se1: "P0", surface: "both", cost: "C0", status: "web_only", route: "/scans/gaps" },
   { id: "G7", title: "Scan encyclopedia browser", track: "Explainability", se1: "P0", surface: "web", cost: "C0", status: "web_only", route: "/scans" },
   { id: "G9", title: "Provenance footer", track: "Explainability", se1: "P0", surface: "both", cost: "C0", status: "web_only" },
-  { id: "A3", title: "Scan-ID citations that open the card", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "A3", title: "Scan-ID citations that open the card", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "web_only", route: "/scans/[id]" },
+  { id: "A2", title: "Ask which scan answers a question", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "web_only", route: "/scans?ask=" },
   { id: "A9", title: "Explain this scan from the card's prose", track: "Ask", se1: "P0", surface: "both", cost: "C0", status: "web_only", route: "/scans/[id]" },
   { id: "I1", title: "Public llms.txt for se1", track: "External", se1: "P0", surface: "web", cost: "C0", status: "web_only", route: "/llms.txt" },
   { id: "A7", title: "Evidence-level filter", track: "Ask", se1: "P0", surface: "web", cost: "C0", status: "web_only", route: "/scans?min=E1" },
@@ -50,6 +51,8 @@ export const WAVE0_FEATURES: readonly AiFeature[] = [
 /** Pure-logic features built on dossier rows (lib/shared/se1-dossier.ts). Logic only; no live data feeds them yet. */
 export const LOGIC_FEATURES: readonly AiFeature[] = [
   { id: "B7", title: "Dossier diff: what changed since last time", track: "Dossiers", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "B2", title: "Momentum-entry dossier from stored daily bars", track: "Dossiers", se1: "P1", surface: "both", cost: "C0", status: "web_only", route: "/scans/dossier/[ticker]" },
+  { id: "G3", title: "\"How do we know?\" drawer", track: "Explainability", se1: "P1", surface: "both", cost: "C0", status: "web_only", route: "/scans/dossier/[ticker]" },
   { id: "B9", title: "Dossier export to markdown", track: "Dossiers", se1: "P1", surface: "web", cost: "C0", status: "logic_only" },
   { id: "C4", title: "Council missing-evidence section", track: "Council", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
   { id: "D6", title: "Contradiction alert (two E3+ scans disagree)", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
@@ -59,6 +62,11 @@ export const LOGIC_FEATURES: readonly AiFeature[] = [
   { id: "J2", title: "Narration faithfulness check", track: "Operations", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
   { id: "J5", title: "Near-duplicate scan detector", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "logic_only" },
   { id: "J9", title: "Coverage report (built vs spec vs blocked)", track: "Operations", se1: "P1", surface: "web", cost: "C0", status: "web_only", route: "/scans/gaps" },
+  { id: "F1", title: "Hold/Fold: the scans behind the call (max 5)", track: "Hold/Fold", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "C9", title: "Quick-ask returns the top 3 scans behind the answer", track: "Council", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "E3", title: "Weakest-link holding by trend + risk", track: "Portfolio", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "E1", title: "Portfolio-wide risk with coverage", track: "Portfolio", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
+  { id: "D4", title: "Debounced regime-change banner", track: "Monitoring", se1: "P1", surface: "both", cost: "C0", status: "logic_only" },
 ];
 
 export const ALL_FEATURES: readonly AiFeature[] = [...WAVE0_FEATURES, ...LOGIC_FEATURES];

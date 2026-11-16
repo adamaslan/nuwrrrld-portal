@@ -59,7 +59,7 @@ describe("ai-features registry", () => {
   it("has unique IDs, all P0, and is C0-only for Wave 0", () => {
     const ids = WAVE0_FEATURES.map((f) => f.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(WAVE0_FEATURES).toHaveLength(10);
+    expect(WAVE0_FEATURES).toHaveLength(11);
     expect(WAVE0_FEATURES.every((f) => f.se1 === "P0" && f.cost === "C0")).toBe(true);
     expect(c0Share()).toBe(1);
   });

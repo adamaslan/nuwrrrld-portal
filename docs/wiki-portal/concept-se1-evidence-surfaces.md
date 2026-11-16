@@ -32,8 +32,14 @@ Features are built as recipes over scan cards, not as new prompts. The shared re
 
 > ❓ Open question: the mobile copy of `lib/shared/se1-*.ts` and `ai-features.ts` is not yet in `scripts/check-shared-drift.mjs`, so drift between web and mobile is not gated for these files.
 
+## Roadmap 2: five more pure features
+
+`lib/shared/se1-roadmap2.ts` adds F1 (up to five sourced reasons behind a Hold/Fold call), C9 (up to three scans behind a quick-ask answer), E3 (weakest holding), E1 (portfolio risk with coverage) and D4 (debounced regime banner). All are `logic_only`. The shared rule: a missing input is reported as missing (excluded, unresolved, or null), never filled with a neutral value or counted as zero risk. Like the other logic features, they run on synthetic rows only and nothing calls them yet.
+
 ## See also
 
 - [[decision-se1-pure-logic-before-results-store]] — why these features ship before the results store exists
 - [[concept-mobile-web-parity]] — parity headline, not recomputed in this PR (see the PR body)
 - [[START-HERE]] · [[index]]
+
+**PR #375 (2026-11-14), scoped assessment.** Adds the 80-row capability ledger (`lib/shared/se1-ledger.ts`) and fixture-backed pure logic for the unstarted rows in `lib/shared/se1/`. Wires four rows on web: A3 citations on `/scans/[id]`, A2 "ask which scan" on `/scans`, and B2 + G3 at `/scans/dossier/[ticker]`, which reads stored Alpaca SIP daily bars. All four are labelled E0 and are not measured. No mobile file, shared-drift pair, or parity-matrix row changed, so the historical headline is not recomputed. Mobile impact: none. The mobile client has none of these surfaces.

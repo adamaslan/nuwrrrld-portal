@@ -7,6 +7,25 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal PR #378 Judge-simulation assessment - November 14, 2026
+
+The deterministic Judge simulator is a portal-only library addition with no
+API, stored result, or UI integration. It changes neither the mobile client nor
+a shared module or cross-surface contract. No parity-matrix row changed; the
+historical headline remains unchanged and is not presented as a fresh audit.
+See [[concept-followed-tickers-tracking]] for its separate `SIMULATED` label,
+version, and confidence-input limitation.
+
+## Holdings alert engine assessment - November 13, 2026
+
+Adds a pure signal-change detector for watchlist tickers in portal `lib/`, gated on the existing Pro feature `watchlist_alerts`. It has no storage, endpoint or delivery path yet. It is a candidate for `lib/shared/` once a mobile push consumer exists, but nothing is shared today and no mobile counterpart was compared. No parity-matrix row changed; the historical headline remains. Scoped assessment, not a fresh parity audit. Not deployed when written.
+## Indexable verdict pages assessment - November 13, 2026
+
+Adds sitemap entries and per-page metadata for the public `/verdict/[ticker]` pages. Web-only SEO surface: the mobile app has no crawlable equivalent. No shared module, API contract or parity-matrix row changed. The historical headline and matrix remain unchanged; this is a scoped assessment, not a fresh parity audit. Not deployed when written.
+## Public track-record view and tab fix assessment - November 13, 2026
+
+Adds an aggregate, counts-only recorded-outcomes section to the public `/track-record` page and fixes a hover-contrast rule on the Followed Tickers dashboard tabs. Both are web-only presentation: the mobile app has no equivalent public marketing page and the dashboard CSS is not shared. No shared module, API contract or parity-matrix row changed. The historical headline and matrix remain unchanged; this is a scoped assessment, not a fresh parity audit. Not deployed when written.
+
 ## PR #346 se1 evidence surfaces assessment - November 9, 2026
 
 Portal #346 adds public scan specification pages and shared pure TypeScript catalog/dossier/feature-registry modules. The pages are web-only and E0/spec-only; no real scan results are wired. A mobile client port and byte-level shared-module comparison have not been verified. Do not count the new pages or logic-only features as mobile parity, and do not recalculate the historical headline from this scoped assessment. The existing domain matrix is retained as historical evidence, not a fresh all-surface audit. See [[concept-se1-evidence-surfaces]] and [[concept-sync-requirements]].
@@ -503,3 +522,5 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - [[entity-openrouter-client]] — PR #46's account-wide free-tier quota finding, relevant to any future council-based mobile brief work
 - `gcp3-mobile/docs/wiki-mobile/overview.md` — open-issue #6 (adapter divergence)
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`
+
+**PR #375 (2026-11-14), scoped assessment.** Four se1 rows are now web-only: A2, A3, B2 and G3. The shared logic they call (`lib/shared/se1/ask.ts`, `dossiers.ts`, `explain.ts`) is not copied to `gcp3-mobile` and is not in the shared-drift gate. The historical headline and domain matrix are unchanged. This is not a fresh parity audit. Mobile port of these rows is still open, and the ledger lists it as `planned`.
