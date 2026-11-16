@@ -82,7 +82,8 @@ export function weakestLinks(holdings: readonly Holding[]): WeakestLink {
 export interface PortfolioRisk {
   /** Weight-averaged risk over covered holdings, or null when none are covered or any weight is invalid. */
   risk: number | null;
-  /** Covered weight / total weight, 0 to 1. */
+  /** Approximate floating-point covered / total weight, 0 to 1; may round to 1.
+   * Use complete and missing for strict completeness, never coverage === 1. */
   coverage: number;
   complete: boolean;
   /** Missing risk scores or invalid weights. Invalid weights make coverage unavailable (0). */
