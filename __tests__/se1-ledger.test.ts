@@ -28,10 +28,24 @@ describe("se1 ledger: the 80 capabilities that are not live", () => {
     expect([...ids, ...LIVE_WEB_IDS].sort()).toEqual([...ALL_90].sort());
   });
 
-  it("groups match the audit: 9 logic with no caller, 5 in an open PR, 66 not started", () => {
+  it("groups preserve the historical audit: 9 logic with no caller, 5 then in a PR, 66 not started", () => {
     const count = (g: LedgerRow["group"]) => LEDGER.filter((r) => r.group === g).length;
     expect([count("logic_no_caller"), count("in_open_pr"), count("not_started")]).toEqual([9, 5, 66]);
     for (const r of LEDGER) expect(r.group === "in_open_pr", r.id).toBe(r.pr !== undefined);
+  });
+
+  it("binds merged352 rows to their real unwired module and acceptance tests", () => {
+    for (const id of ["C9", "D4", "E1", "E3", "F1"]) {
+      const row = ledgerRow(id)!;
+      expect(row.web, id).toBe("logic_only");
+      expect(row.mobile, id).toBe("planned");
+      expect(row.pr, id).toBe(352);
+      expect(logicPaths(row), id).toEqual({
+        module: "lib/shared/se1-roadmap2.ts", test: "__tests__/se1-roadmap2.test.ts",
+      });
+      expect(hasAcceptance(row), id).toBe(true);
+      expect(row.blockers, id).toContain("caller_wiring");
+    }
   });
 
   it("agrees with the feature registry", () => {
@@ -114,6 +128,9 @@ describe("se1 ledger: the 80 capabilities that are not live", () => {
  * test run is the count of rows whose logic is still unbuilt or unasserted.
  */
 describe("se1 ledger: open acceptance slots (Q11 at the logic level)", () => {
+  it("discovers logic-level acceptance for all80 rows after352 integration", () => {
+    expect(LEDGER.filter((r) => !hasAcceptance(r)).map((r) => r.id)).toEqual([]);
+  });
   for (const r of LEDGER) {
     if (hasAcceptance(r)) continue;
     it.todo(`${r.id} [${r.lane}, ${r.stage}] ${r.acceptance}`);
