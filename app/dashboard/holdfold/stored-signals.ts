@@ -3,7 +3,7 @@ import { bipolarCards, getCard, type StoredCard } from "@/lib/ticker-cards-db";
 import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
 import { mapSignalsToHoldFold, type HoldFoldPayload, type HoldFoldVerdict } from "@/lib/shared/holdfold-map";
-import { latestComputedAt, tokenStrength } from "@/lib/shared/stored-card-honesty";
+import { latestComputedAt, tokenStrength, type OutlookSource } from "@/lib/shared/stored-card-honesty";
 
 export const SIGNALS_PER_SIDE = 24;
 
@@ -41,11 +41,12 @@ function finite(value: unknown): number | null {
 }
 
 /** Keep unavailable raw measurements unavailable instead of decoding token buckets. */
-export function mapAvailableVerdict(ticker: string, entry: Record<string, unknown>): HoldFoldVerdict {
+export function mapAvailableVerdict(ticker: string, entry: Record<string, unknown>, outlookSource: OutlookSource = "upstream-signal"): HoldFoldVerdict {
   const verdict = mapSignalsToHoldFold({ symbols: { [ticker]: entry }, updated: entry.updated ?? "" })!.verdicts[0];
   const indicators = entry.indicators && typeof entry.indicators === "object" ? entry.indicators as Record<string, unknown> : {};
   return {
     ...verdict,
+    outlookSource,
     confidence: finite(entry.confidence) ?? Number.NaN,
     rsi: finite(indicators.rsi), macd: finite(indicators.macd), adx: finite(indicators.adx),
     price: finite(entry.price) ?? Number.NaN,
@@ -58,7 +59,7 @@ export function mapAvailableVerdict(ticker: string, entry: Record<string, unknow
 
 export async function getStoredHoldFold(): Promise<HoldFoldPayload> {
   const raw = await getStoredSignals();
-  const verdicts = Object.entries(raw.symbols).map(([ticker, entry]) => mapAvailableVerdict(ticker, entry));
+  const verdicts = Object.entries(raw.symbols).map(([ticker, entry]) => mapAvailableVerdict(ticker, entry, "stored-card"));
   return { verdicts, total: verdicts.length, holdCount: verdicts.filter(v => v.verdict === "HOLD EM").length,
     foldCount: verdicts.filter(v => v.verdict === "FOLD EM").length,
     neutralCount: verdicts.filter(v => v.verdict === "NEUTRAL").length, updatedAt: raw.updated };
@@ -83,5 +84,5 @@ export async function getTickerVerdict(ticker: string): Promise<HoldFoldVerdict 
   // data plane — a card can exist without a fresh signal_cache entry. Fall
   // back to that stored card so index links never 404.
   const card = await getCard(symbol, "t1");
-  return card && isIndexEligible(card) ? mapAvailableVerdict(symbol, cardToEntry(card)) : null;
+  return card && isIndexEligible(card) ? mapAvailableVerdict(symbol, cardToEntry(card), "stored-card") : null;
 }
