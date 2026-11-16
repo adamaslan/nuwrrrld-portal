@@ -11,6 +11,7 @@
  */
 
 import { STRUCTURED_VERDICT_INSTRUCTIONS } from './council-verdict';
+import { traceCouncilAttempt, traceCouncilRun } from './langsmith-council-trace';
 
 export type CouncilSeat = 'T1' | 'T2' | 'RISK' | 'MACRO' | 'QUANT' | 'CHAIR';
 
@@ -583,7 +584,7 @@ export class CouncilUnavailableError extends Error {
   }
 }
 
-export async function runSeat(
+async function runSeatWithFallback(
   seat: CouncilSeat,
   messages: CouncilMessage[],
   apiKey: string,
@@ -609,25 +610,41 @@ export async function runSeat(
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), MODEL_ATTEMPT_TIMEOUT_MS);
     try {
-      const res = await fetch(`${OR_BASE}/chat/completions`, {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://financial.nuwrrrld.com',
-          'X-Title': 'NuWrrrld Financial AI Council',
+      const attemptResult = await traceCouncilAttempt(
+        {
+          seat,
+          model,
+          attempt: index + 1,
+          primary: isPrimary,
+          answerOnly: options.answerOnly === true,
         },
-        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature,
-          ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
-        }),
-      });
-      lastStatus = res.status;
-      if (res.ok) {
-        const data = await res.json();
+        async () => {
+          const res = await fetch(`${OR_BASE}/chat/completions`, {
+            method: 'POST',
+            signal: ctrl.signal,
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://financial.nuwrrrld.com',
+              'X-Title': 'NuWrrrld Financial AI Council',
+            },
+            body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature,
+              ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
+            }),
+          });
+          if (!res.ok) {
+            await res.body?.cancel().catch(() => {});
+            return { status: res.status };
+          }
+          return { status: res.status, data: await res.json() };
+        },
+      );
+      lastStatus = attemptResult.status;
+      const data = attemptResult.data as any;
+      if (lastStatus >= 200 && lastStatus < 300) {
         const choice = data.choices?.[0];
         const reasoningTokens = data.usage?.completion_tokens_details?.reasoning_tokens;
-        attempts.push({ model, status: res.status,
+        attempts.push({ model, status: lastStatus,
           ...(typeof choice?.finish_reason === "string" ? { finishReason: choice.finish_reason.slice(0, 32) } : {}),
           ...(typeof reasoningTokens === "number" && Number.isFinite(reasoningTokens) ? { reasoningTokens } : {}),
         });
@@ -645,15 +662,14 @@ export async function runSeat(
         anyEmptyModel = true;
         continue;
       }
-      attempts.push({ model, status: res.status });
-      await res.body?.cancel().catch(() => {});
-      if (!isRetryableStatus(res.status, isPrimary)) break;
-      if (isPrimary && isRetiredModelStatus(res.status)) {
+      attempts.push({ model, status: lastStatus });
+      if (!isRetryableStatus(lastStatus, isPrimary)) break;
+      if (isPrimary && isRetiredModelStatus(lastStatus)) {
         // Loud, because nothing else surfaces it: the seat still answers via
         // the chain, so a rotted SEAT_MODELS entry is otherwise invisible
         // until someone audits the catalog by hand.
         console.warn(
-          `[openrouter] seat=${seat} primary model ${model} returned ${res.status} — ` +
+          `[openrouter] seat=${seat} primary model ${model} returned ${lastStatus} — ` +
           `likely retired from the catalog. Falling through to FREE_MODEL_CHAIN. ` +
           `Update SEAT_MODELS (see scripts/refresh-free-models.mjs).`,
         );
@@ -669,6 +685,20 @@ export async function runSeat(
   // anyEmptyModel is not proof every provider was empty: a chain can mix
   // empty200, retired404, rate429 and timeouts. Never claim more than observed.
   throw new CouncilUnavailableError(anyEmptyModel ? "council_no_content" : "council_provider_unavailable", seat, lastStatus, attempts);
+}
+
+export async function runSeat(
+  seat: CouncilSeat,
+  messages: CouncilMessage[],
+  apiKey: string,
+  maxTokens = 1200,
+  temperature = 0.4,
+  modelOverride?: string,
+  options: { answerOnly?: boolean } = {},
+): Promise<CouncilResponse> {
+  return traceCouncilRun(seat, () =>
+    runSeatWithFallback(seat, messages, apiKey, maxTokens, temperature, modelOverride, options),
+  );
 }
 
 /** System prompt for a seat — exported so the deliberation route can compose rounds. */

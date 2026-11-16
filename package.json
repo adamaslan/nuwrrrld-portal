@@ -41,6 +41,7 @@
     "@vercel/functions": "^3.7.6",
     "firebase-admin": "^13.0.0",
     "framer-motion": "^12.42.2",
+    "langsmith": "0.10.5",
     "lenis": "^1.3.25",
     "lucide-react": "^1.26.0",
     "next": "16.2.9",
