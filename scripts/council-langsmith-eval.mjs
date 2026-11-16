@@ -12,10 +12,12 @@ const args = new Set(process.argv.slice(2));
 function evaluateAttempts(attempts) {
   const safeAttempts = Array.isArray(attempts) ? attempts : [];
   const emptyCompletionCount = safeAttempts.filter(
-    (attempt) => attempt?.http_status >= 200 && attempt?.http_status < 300 && attempt?.has_content === false,
+    (attempt) => attempt?.http_status >= 200 && attempt?.http_status < 300 &&
+      (attempt?.has_content === false || attempt?.content_length === 0),
   ).length;
   const hasUsableAnswer = safeAttempts.some(
-    (attempt) => attempt?.http_status >= 200 && attempt?.http_status < 300 && attempt?.has_content === true,
+    (attempt) => attempt?.http_status >= 200 && attempt?.http_status < 300 &&
+      attempt?.has_content === true && Number.isFinite(attempt?.content_length) && attempt.content_length > 0,
   );
   return {
     has_usable_answer: hasUsableAnswer,
@@ -68,6 +70,14 @@ function evaluateLocally() {
     console.info(`${result.passed ? "PASS" : "FAIL"} ${result.key}`);
   }
   if (failed.length) process.exitCode = 1;
+}
+
+function assertFixtureMatches() {
+  for (const example of fixture.examples) {
+    if (!matchesReference(evaluateAttempts(example.inputs.attempts), example.outputs)) {
+      throw new Error(`Fixture reference does not match deterministic evaluator: ${example.fixtureKey}`);
+    }
+  }
 }
 
 function createClient() {
@@ -149,6 +159,8 @@ async function runExperiment() {
   );
   console.info(`Completed synthetic LangSmith experiment for ${fixture.datasetName}.`);
 }
+
+assertFixtureMatches();
 
 if (args.has("--upload") && args.has("--experiment")) {
   throw new Error("Run --upload and --experiment as separate explicit commands.");
