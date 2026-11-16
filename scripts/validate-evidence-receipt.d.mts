@@ -19,4 +19,4 @@ export interface EvidenceReceipt {
   containsSecret?: boolean;
   secret?: string;
 }
-export function validateEvidenceReceipt(receipt: EvidenceReceipt | null | undefined): { valid: boolean; errors: string[] };
+export function validateEvidenceReceipt(receipt: unknown): { valid: boolean; errors: string[] };
