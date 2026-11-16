@@ -130,3 +130,17 @@ describe("review: coverage and eligible duplicate boundaries", () => {
     expect(result.skipped).toEqual([{ scan_id: "a", why: "missing provenance" }, { scan_id: "a", why: "duplicate row" }]);
   });
 });
+
+
+describe("review: floating coverage contract", () => {
+  it("keeps strict completeness false when an extreme ratio rounds coverage to one", () => {
+    const result = portfolioRisk([
+      { ticker: "COVERED", weight: Number.MAX_VALUE, risk: 20 },
+      { ticker: "MISSING", weight: Number.MIN_VALUE },
+    ]);
+    expect(result.coverage).toBe(1); // Approximate double precision, not a completeness flag.
+    expect(result.risk).toBe(20);
+    expect(result.complete).toBe(false);
+    expect(result.missing).toEqual(["MISSING"]);
+  });
+});
