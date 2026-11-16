@@ -1,6 +1,6 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-11-02 (PR #309 slot 2 Terraform review; parity unchanged)_
+_Last updated: 2026-11-16 (LangSmith Council tracing; no endpoint ingestion)_
 
 **PR #304 scope:** live grounding extraction failures now fail the scheduled
 workflow, including partial failures, so issue recovery cannot infer a clean
@@ -88,6 +88,7 @@ One page per named component. These are the hubs — everything links to entitie
 
 Cross-cutting patterns and design choices.
 
+- [[concept-ai-run-privacy]] — content-free metadata boundary for external model-call traces
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
 - [[concept-unvalidated-recommendation-surface]] — the app emits BUY/HOLD/SELL from four booleans with no backtest, no fundamentals, and no risk model; the vocabulary of rigor exists where the capability does not
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
@@ -116,6 +117,7 @@ Cross-cutting patterns and design choices.
 Recorded design decisions — the *why* behind the architecture.
 
 - [[decision-paper-arena-settle-metrics]] — reuse validated settle metrics and batch fallback reads for the arena; keep per-account failure isolation
+- [[decision-langsmith-council-tracing]] — content-free traces require explicit opt-in and endpoint selection
 - [[decision-paper-slots-run-until-next-slot]] — a paper trading slot runs from its nominal start until the next slot begins, so late cron queues still trade; the 30-minute cap was not a price-freshness constraint because prices refresh in the same job before the POST
 - [[decision-four-field-verdict-scaffold]] — 4 verdict fields, not 6 (small models drop later directives)
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
