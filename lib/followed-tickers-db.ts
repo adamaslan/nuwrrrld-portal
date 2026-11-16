@@ -267,6 +267,35 @@ export async function getPickIdsObservedOn(
   }
 }
 
+/** Read-only evidence: how many of `observedOn`'s observation rows carry each
+ *  optional context field. The tracker run calls it before and after the
+ *  enrichment phase so a run's own log shows whether signal/backtest/council
+ *  values actually landed (T-001/T-002). Throws on a real DB failure; callers
+ *  treat it as best-effort evidence, never as a gate. */
+export async function countObservationContext(observedOn: string): Promise<{
+  observations: number;
+  withSignal: number;
+  withBacktest: number;
+  withCouncil: number;
+}> {
+  const rows = await sql`
+    SELECT
+      COUNT(*)::int AS observations,
+      COUNT(signal_dir)::int AS with_signal,
+      COUNT(backtest_rate)::int AS with_backtest,
+      COUNT(council_json)::int AS with_council
+    FROM followed_ticker_observations
+    WHERE observed_on = ${observedOn}
+  `;
+  const r = rows[0] ?? {};
+  return {
+    observations: Number(r.observations ?? 0),
+    withSignal: Number(r.with_signal ?? 0),
+    withBacktest: Number(r.with_backtest ?? 0),
+    withCouncil: Number(r.with_council ?? 0),
+  };
+}
+
 /** All observations for a pick, oldest first — the price series outcome
  *  scoring reads to find a horizon's close and to compute days_held. */
 export async function getObservations(
