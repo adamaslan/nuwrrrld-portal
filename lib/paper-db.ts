@@ -800,10 +800,9 @@ export async function controlPreviousClose(account: "equal" | "spy", tradeDate: 
  */
 export async function previousSettleNav(account: string, tradeDate: string): Promise<number | null> {
   const rows = await sql`SELECT nav FROM paper_nav WHERE account = ${account}
-    AND slot = 'settle' AND trade_date < ${tradeDate} AND nav > 0
+    AND slot = 'settle' AND trade_date < ${tradeDate}
     ORDER BY trade_date DESC LIMIT 1`;
   if (!rows.length) return null;
   const nav = Number(rows[0].nav);
   return Number.isFinite(nav) && nav > 0 ? nav : null;
 }
-
