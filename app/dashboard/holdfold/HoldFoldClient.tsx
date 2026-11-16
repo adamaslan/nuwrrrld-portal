@@ -1,5 +1,7 @@
 "use client";
 
+import { formatComputedAt } from "@/lib/shared/stored-card-honesty";
+
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { HoldFoldPayload, HoldFoldVerdict } from "@/app/api/holdfold/route";
@@ -154,7 +156,7 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
         </div>
         <p className="hf-detail-industry">{v.industry}</p>
         <p className="hf-detail-dates">
-          Market bar {v.barDate ?? "unknown"} · Calculated {Number.isNaN(Date.parse(v.updatedAt)) ? "unknown" : new Date(v.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}
+          Market bar {v.barDate ?? "unknown"} · Calculated {formatComputedAt(v.updatedAt)}
         </p>
       </div>
 
