@@ -61,16 +61,23 @@ describe("evidence receipt validator", () => {
     expect(validateEvidenceReceipt({ headSha: "a".repeat(40), sourceUrl: "https://example.invalid/" }).valid).toBe(true);
   });
   it.each([
-    [], { ...good(), checks: "wrong" }, { ...good(), checks: [null] },
-    { ...good(), tasks: {} }, { ...good(), tasks: [null] },
-    { ...good(), fileClaims: [{ writer: "a", files: "x" }] },
-    { ...good(), reviewer: { claimedIndependent: "false" } },
-    { ...good(), preview: "wrong" }, { ...good(), sourceUrl: "https://" },
-    { ...good(), sourceUrl: "https://user:pass@example.invalid/" },
-    { ...good(), schedule: { sourceUrl: "https://" } },
-    { ...good(), checks: [{ name: "unit", status: 1 }] },
-  ])("rejects malformed provided fields %# without throwing", (receipt) => {
-    expect(validateEvidenceReceipt(receipt).valid).toBe(false);
+    { value: [], error: "receipt.invalid" },
+    { value: { ...good(), checks: "wrong" }, error: "schema.checks" },
+    { value: { ...good(), checks: [null] }, error: "schema.checks.0" },
+    { value: { ...good(), tasks: {} }, error: "schema.tasks" },
+    { value: { ...good(), tasks: [null] }, error: "schema.tasks.0" },
+    { value: { ...good(), fileClaims: [{ writer: "a", files: "x" }] }, error: "schema.fileClaims.0.files" },
+    { value: { ...good(), reviewer: { claimedIndependent: "false" } }, error: "schema.reviewer.claimedIndependent" },
+    { value: { ...good(), preview: "wrong" }, error: "schema.preview" },
+    { value: { ...good(), sourceUrl: "https://" }, error: "source.url-missing" },
+    { value: { ...good(), sourceUrl: "https://user:pass@example.invalid/" }, error: "source.url-missing" },
+    { value: { ...good(), schedule: { sourceUrl: "https://" } }, error: "schedule.url-invalid" },
+    { value: { ...good(), checks: [{ name: "unit", status: 1 }] }, error: "schema.checks.0.status" },
+  ])("rejects malformed provided fields %# with structured errors", ({ value, error }) => {
+    const result = validateEvidenceReceipt(value);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain(error);
+    expect(result.errors.every(code => typeof code === "string")).toBe(true);
   });
   it.each(["failed", "error", "cancelled", "timed_out", "pending", "running", "skipped"])("rejects %s claimed passed", status => {
     expect(validateEvidenceReceipt({ ...good(), checks: [{ name: "unit", status, claimed: "passed" }] }).valid).toBe(false);
