@@ -92,7 +92,7 @@ describe("cohort cards", () => {
     const v = buildFollowedTickersView({
       picks: [pick()],
       observationsByPick: { p1: [obs()] },
-      scores: [{ pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8 }],
+      scores: [{ pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8, resolvedOn: "2026-09-09" }],
     });
     const c = v.bulls[0];
     expect(c.backtestRatePct).toBeCloseTo(71);
@@ -120,6 +120,7 @@ describe("scoreboard", () => {
       directional: outcome === "hit" ? 4 : -4,
       returnPct: outcome === "hit" ? 4 : -4,
       judgeScore: null,
+      resolvedOn: "2026-09-09",
     }));
 
   it("suppresses the rate below n=30 but keeps counts + notYetAvailable=false", () => {
@@ -157,7 +158,7 @@ describe("judge + quadrant", () => {
     const v = buildFollowedTickersView({
       picks: [pick()],
       observationsByPick: {},
-      scores: [{ pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: null }],
+      scores: [{ pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: null, resolvedOn: "2026-09-09" }],
     });
     expect(v.judge).toBeNull();
   });
@@ -167,8 +168,8 @@ describe("judge + quadrant", () => {
       picks: [pick()],
       observationsByPick: {},
       scores: [
-        { pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8 },
-        { pickId: "p2", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 6 },
+        { pickId: "p1", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 8, resolvedOn: "2026-09-09" },
+        { pickId: "p2", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 6, resolvedOn: "2026-09-09" },
       ],
     });
     expect(v.judge!.verdictsGraded).toBe(2);
@@ -180,11 +181,11 @@ describe("judge + quadrant", () => {
       picks: [pick()],
       observationsByPick: {},
       scores: [
-        { pickId: "a", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 9 },
-        { pickId: "b", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 3 },
-        { pickId: "c", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 8 },
-        { pickId: "d", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 2 },
-        { pickId: "e", horizon: "w1", outcome: "flat", directional: 0, returnPct: 0, judgeScore: 5 },
+        { pickId: "a", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 9, resolvedOn: "2026-09-09" },
+        { pickId: "b", horizon: "w1", outcome: "hit", directional: 5, returnPct: 5, judgeScore: 3, resolvedOn: "2026-09-09" },
+        { pickId: "c", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 8, resolvedOn: "2026-09-09" },
+        { pickId: "d", horizon: "w1", outcome: "miss", directional: -5, returnPct: -5, judgeScore: 2, resolvedOn: "2026-09-09" },
+        { pickId: "e", horizon: "w1", outcome: "flat", directional: 0, returnPct: 0, judgeScore: 5, resolvedOn: "2026-09-09" },
       ],
     });
     expect(v.quadrant).toEqual({
@@ -201,5 +202,68 @@ describe("HORIZON_LABEL", () => {
     for (const k of ["d1", "w1", "m1", "m3", "m6", "ytd", "y1"] as const) {
       expect(HORIZON_LABEL[k]).toBeTruthy();
     }
+  });
+});
+
+describe("T-140 freshness labels (as-of dates)", () => {
+  const scored = (resolvedOn: string, over: Partial<RawScore> = {}): RawScore => ({
+    pickId: "p1",
+    horizon: "d1",
+    outcome: "hit",
+    directional: 3,
+    returnPct: 3,
+    judgeScore: null,
+    resolvedOn,
+    ...over,
+  });
+
+  it("scoreboard row asOf is the latest resolved_on behind its numbers", () => {
+    const v = buildFollowedTickersView({
+      picks: [pick()],
+      observationsByPick: {},
+      scores: [scored("2026-09-08"), scored("2026-09-10", { pickId: "p2" })],
+    });
+    const d1 = v.scoreboard.find((r) => r.horizon === "d1")!;
+    expect(d1.asOf).toBe("2026-09-10");
+    // a horizon with no scores has no as-of date
+    const y1 = v.scoreboard.find((r) => r.horizon === "y1")!;
+    expect(y1.asOf).toBeNull();
+    expect(y1.notYetAvailable).toBe(true);
+  });
+
+  it("judge asOf tracks the latest graded verdict", () => {
+    const v = buildFollowedTickersView({
+      picks: [pick()],
+      observationsByPick: {},
+      scores: [
+        scored("2026-09-08", { judgeScore: 7 }),
+        scored("2026-09-11", { pickId: "p2", judgeScore: 8 }),
+      ],
+    });
+    expect(v.judge!.asOf).toBe("2026-09-11");
+    expect(v.judge!.verdictsGraded).toBe(2);
+  });
+
+  it("cohort card lastPriceOn is the observation day behind lastPrice", () => {
+    const v = buildFollowedTickersView({
+      picks: [pick()],
+      observationsByPick: {
+        p1: [obs({ observedOn: "2026-09-03", closePrice: 110 }), obs()],
+      },
+      scores: [],
+    });
+    const card = v.bulls[0];
+    expect(card.lastPrice).toBe(110);
+    expect(card.lastPriceOn).toBe("2026-09-03");
+  });
+
+  it("no observations: lastPrice and lastPriceOn are both null", () => {
+    const v = buildFollowedTickersView({
+      picks: [pick()],
+      observationsByPick: {},
+      scores: [],
+    });
+    expect(v.bulls[0].lastPrice).toBeNull();
+    expect(v.bulls[0].lastPriceOn).toBeNull();
   });
 });
