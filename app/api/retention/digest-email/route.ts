@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { adaptLiveSignals } from "@/lib/digest";
+import { createResendProvider } from "@/lib/notify/email";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
 const MCP_URL = process.env.MCP_BACKEND_URL;
@@ -76,15 +77,11 @@ ${signalHtml}
   `.trim();
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
-        to: [verifiedEmail],
-        subject: "Your weekly signal digest",
-        html,
-      }),
+    const res = await createResendProvider(resendKey).send({
+      from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
+      to: [verifiedEmail],
+      subject: "Your weekly signal digest",
+      html,
     });
     if (!res.ok) return NextResponse.json({ error: "email failed" }, { status: 502 });
   } catch {

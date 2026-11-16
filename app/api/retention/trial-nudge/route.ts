@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import type { RetentionPreferences } from "@/lib/retention";
+import { createResendProvider } from "@/lib/notify/email";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
 const MAX_NUDGES = 3;
@@ -50,17 +51,12 @@ export async function POST(req: NextRequest) {
   `.trim();
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      signal: AbortSignal.timeout(10_000),
-      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
-        to: [verifiedEmail],
-        subject: "Your free trial ends in 48 hours",
-        html,
-      }),
-    });
+    const res = await createResendProvider(resendKey).send({
+      from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
+      to: [verifiedEmail],
+      subject: "Your free trial ends in 48 hours",
+      html,
+    }, { timeoutMs: 10_000 });
     if (!res.ok) return NextResponse.json({ error: "email failed" }, { status: 502 });
   } catch {
     return NextResponse.json({ error: "network error sending email" }, { status: 502 });
