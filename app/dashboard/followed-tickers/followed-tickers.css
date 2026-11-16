@@ -68,7 +68,10 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 .ft-tab:hover { color: var(--text); }
-.ft-tab--active {
+/* The hover rule above out-ranks a bare .ft-tab--active, so hovering the tab
+   that was just clicked painted --text (#111) over the #111 active fill. */
+.ft-tab--active,
+.ft-tab--active:hover {
   background: var(--neon-blue);
   color: var(--bg);
 }
@@ -280,6 +283,14 @@
   margin: 0 0 1.25rem;
   max-width: 60ch;
 }
+.ft-scoreboard-method {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: -0.75rem 0 1.25rem;
+  max-width: 72ch;
+}
+
 .ft-scoreboard-lead code,
 .ft-disclaimer code {
   background: var(--surface-2);
@@ -307,6 +318,7 @@
 .ft-sb-row:not(.ft-sb-row--head) span[role="cell"]:not(.ft-sb-horizon) {
   display: flex;
   justify-content: space-between;
+  gap: 1rem;
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -331,6 +343,12 @@
 }
 .ft-sb-hit { color: var(--neon-blue); }
 .ft-sb-miss { color: var(--neon-red); }
+.ft-sb-void { color: var(--text-dim); }
+.ft-sb-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin: 0.5rem 0 0;
+}
 .ft-sb-rate { font-weight: 700; }
 .ft-sb-rate--good { color: var(--neon-blue); }
 .ft-sb-rate--bad { color: var(--neon-red); }
@@ -339,7 +357,7 @@
 @media (min-width: 720px) {
   .ft-sb-table { gap: 0; border: 1px solid var(--border); border-radius: 0; overflow: hidden; }
   .ft-sb-row {
-    grid-template-columns: 1.4fr 0.6fr 0.6fr 0.7fr 0.6fr 1fr 1fr;
+    grid-template-columns: 1.4fr 0.6fr 0.6fr 0.7fr 0.6fr 0.6fr 1fr 1fr;
     gap: 0;
     border: 0;
     border-bottom: 1px solid var(--border);
@@ -462,4 +480,18 @@
 @media (prefers-reduced-motion: reduce) {
   .ft-tab,
   .ft-refresh { transition: none; }
+}
+
+/* T-140 freshness labels: every published number carries its as-of date. */
+.ft-asof {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.ft-judge-count .ft-asof {
+  display: inline;
+  margin-left: 0.25rem;
 }

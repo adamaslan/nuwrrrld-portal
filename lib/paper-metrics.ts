@@ -62,13 +62,16 @@ export async function loadArenaMetrics(
     getArenaNav(missing, ROLLING_TURNOVER_WINDOW),
     getArenaOrders(missing, 5000, false),
   ]);
-  const spyReturn = latestNav.find((nav) => nav.account === "spy")?.totalReturn ?? null;
-  const equalReturn = latestNav.find((nav) => nav.account === "equal")?.totalReturn ?? null;
+  const spyReturn = latestNav.find((nav) => nav.account === "spy" && nav.positionsN > 0)?.totalReturn ?? null;
+  const equalReturn = latestNav.find((nav) => nav.account === "equal" && nav.positionsN > 0)?.totalReturn ?? null;
   for (const account of missing) {
     try {
       const latest = latestNav.find((nav) => nav.account === account);
+      if ((account === "equal" || account === "spy") && (!latest || latest.positionsN === 0)) {
+        metrics.set(account, null); continue;
+      }
       metrics.set(account, computeAccountMetrics(
-        settleNav.filter((nav) => nav.account === account),
+        settleNav.filter((nav) => nav.account === account && (!(account === "equal" || account === "spy") || nav.positionsN > 0)),
         recentRuns.filter((nav) => nav.account === account).map((nav) => nav.turnover),
         orders.filter((order) => order.account === account),
         latest?.totalReturn ?? null, latest?.dayReturn ?? null,
@@ -85,7 +88,7 @@ export async function loadArenaMetrics(
 
 async function latestTotalReturn(account: PaperAccount): Promise<number | null> {
   const [latest] = await getNavSeries(account, 1);
-  return latest?.totalReturn ?? null;
+  return latest && (!(account === "equal" || account === "spy") || latest.positionsN > 0) ? latest.totalReturn : null;
 }
 
 export async function computeMetricsForAccount(account: PaperAccount): Promise<AccountMetrics> {
@@ -98,7 +101,7 @@ export async function computeMetricsForAccount(account: PaperAccount): Promise<A
     account === "equal" ? Promise.resolve(null) : latestTotalReturn("equal"),
   ]);
 
-  const settleNav: MetricsNavPoint[] = settleNavRows.map((n) => ({ tradeDate: n.tradeDate, nav: n.nav }));
+  const settleNav: MetricsNavPoint[] = settleNavRows.filter((n) => !(account === "equal" || account === "spy") || n.positionsN > 0).map((n) => ({ tradeDate: n.tradeDate, nav: n.nav }));
   const orders: MetricsOrder[] = orderRows.map((o) => ({
     ticker: o.ticker,
     side: o.side,

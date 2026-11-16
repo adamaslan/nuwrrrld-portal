@@ -72,6 +72,7 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - `app/dashboard/signals/SignalsClient.tsx` — calls `/api/council`, renders only the raw answer prose
 - `app/page.tsx` — calls `/api/council/sample` server-side for the public `#council` landing section (see "The landing sample" above)
 - `/api` routes gate `council`/`deliberate` on the `nu_ai` entitlement + a daily quota (`checkAndBumpQuota`); `sample` is an unauthenticated stored read, while `public` has its own quota/caching
+- `lib/eval-judge.ts` grades followed-ticker reasoning against a frozen brief. Its prompt is constructed from the four accepted verdict fields and the exact brief text; `__tests__/nwf-next1000-receipt.test.ts` pins Unicode/exact brief preservation and excludes outcome-only extra fields. This is offline prompt-contract evidence, not a real model run or calibration result.
 
 ## The verdict format
 
@@ -122,3 +123,5 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - `gcp3-mobile/docs/wiki-mobile/entity-council-composer.md` — the mobile council this was ported from
 - `../moo-council-simulation-todo.md` — the MOO ETF simulation build-out this PR shipped step 1 of
 - [[entity-openrouter-client]] failures #8, #9 — the two production defects this PR's simulation run found and fixed
+
+- [[decision-verdict-pages-indexable-when-recorded]] — recorded verdicts are now discoverable through the sitemap and indexable per page

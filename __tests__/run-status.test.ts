@@ -106,3 +106,17 @@ describe("deriveRunStatus", () => {
     }
   });
 });
+
+import { finalizedHydrationStatus } from "@/lib/shared/run-status";
+describe("final hydration is not its own denominator", () => {
+  it("cannot report ok when its supplied batch is clean but active universe is incomplete", () => {
+    expect(finalizedHydrationStatus("ok", { expected: 100, filled: 99, queryFailed: false })).toBe("partial");
+    expect(finalizedHydrationStatus("ok", { expected: 100, filled: 50, queryFailed: false })).toBe("fail");
+  });
+  it("fails closed on unknown or empty universe and preserves batch failure", () => {
+    expect(finalizedHydrationStatus("ok", { expected: 0, filled: 0, queryFailed: true })).toBe("fail");
+    expect(finalizedHydrationStatus("ok", { expected: 0, filled: 0, queryFailed: false })).toBe("fail");
+    expect(finalizedHydrationStatus("fail", { expected: 100, filled: 100, queryFailed: false })).toBe("fail");
+    expect(finalizedHydrationStatus("ok", { expected: 100, filled: 100, queryFailed: false })).toBe("ok");
+  });
+});

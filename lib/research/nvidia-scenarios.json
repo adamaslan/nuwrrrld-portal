@@ -1,0 +1,1135 @@
+{
+  "intro": "NVIDIA faces two different tests: an immediate earnings and leadership shock, and a longer test of demand, delivery and cash generation. Six forward-looking checkpoints separate a rebound from a lasting recovery.",
+  "opening": [
+    "The historical technical picture is weak, but weakness is not a forecast. The frozen November 12 daily close was $166.19. Recomputed simple moving averages were $186.92 over 10 sessions, $201.25 over 20 and $215.96 over 50. That bearish ordering puts the burden of proof on a recovery. It does not rule out a sharp bounce.",
+    "The next event is unusually important. NVIDIA announced on November 12 that Jensen Huang had resigned and Colette Kress would serve as interim CEO while remaining CFO. The SEC filing places the board action on November 11. The company says operations, customer commitments and the product roadmap should continue without interruption. That is management's expectation, not an independently established outcome. [1,2]",
+    "The company schedules fiscal Q3 2027 results for Tuesday, November 17, at about 1:20 p.m. Pacific, with the call at 2 p.m. Pacific. That event falls inside the first scenario window. The issuer release gives no reason for Huang's resignation; this article does not speculate about one. [1]"
+  ],
+  "scenarios": [
+    {
+      "horizon": "1 week",
+      "date": "November 20, 2026",
+      "focus": "The earnings test",
+      "up": "Revenue, guidance and management's answers support continuity, while the stock begins repairing its short-term trend. A relief rally is possible without a full technical recovery.",
+      "middle": "The report answers some questions, but leadership and delivery uncertainty remain. Large moves in both directions can leave the longer downtrend intact.",
+      "down": "Guidance, margins or management's answers weaken confidence. A gap lower can bypass technical levels; an oversold label is no protection.",
+      "check": "Re-read the actual release and call. Compare the post-report close with freshly recomputed moving averages, not these frozen levels. A bounce without sustained trend repair weakens the recovery case."
+    },
+    {
+      "horizon": "1 month",
+      "date": "December 13, 2026",
+      "focus": "From reaction to follow-through",
+      "up": "A sequence of better closes accompanies clearer customer and succession communication. Strength persists after the first earnings reaction rather than fading immediately.",
+      "middle": "Operating expectations stabilize, but the stock trades unevenly while investors wait for a permanent leadership plan.",
+      "down": "Repeated failed rallies coincide with weaker delivery, policy or customer-financing news. The market begins treating uncertainty as a business issue rather than a brief headline.",
+      "check": "Look for several weeks of evidence, not one high-volume day. Strong price action without better business evidence, or reassuring commentary without trend repair, leaves this path incomplete."
+    },
+    {
+      "horizon": "3 months",
+      "date": "February 13, 2027",
+      "focus": "A quarter of execution",
+      "up": "Shipment and customer-deployment evidence supports the roadmap, margins hold up and leadership responsibilities become clearer. Better execution starts replacing continuity promises.",
+      "middle": "Demand remains substantial, but supply constraints or transition costs limit how quickly it becomes profitable revenue.",
+      "down": "Product, installation or financing delays accumulate, or guidance resets. A discounted share price can still fall if earnings expectations decline.",
+      "check": "Test reported revenue, margins and cash conversion against the expectations established after November 17. Do not assume that a future earnings date is scheduled until NVIDIA announces it."
+    },
+    {
+      "horizon": "6 months",
+      "date": "May 13, 2027",
+      "focus": "Growth that turns into cash",
+      "up": "Successive reports show deliveries converting into cash and the product transition proceeding without a lasting margin sacrifice. Customers can fund and use what they order.",
+      "middle": "Revenue grows, but working capital, supply commitments or customer support consume more cash. The business advances while the stock's valuation stays constrained.",
+      "down": "Cash conversion deteriorates as commitments rise, or customers defer capacity. Growth increasingly depends on financing support rather than demonstrated end demand.",
+      "check": "Read cash flow, receivables, inventory, commitments and customer concentration together. A revenue beat alone does not establish high-quality growth."
+    },
+    {
+      "horizon": "9 months",
+      "date": "August 13, 2027",
+      "focus": "Customers must earn a return too",
+      "up": "Customers' deployed capacity produces useful workloads and repeat orders, supporting NVIDIA's platform position beyond the initial buildout.",
+      "middle": "AI spending continues, but buyers diversify or optimize costs. A larger market does not automatically mean stable NVIDIA pricing or share.",
+      "down": "Weak customer economics, power or construction bottlenecks, or competing accelerators reduce incremental orders or pricing power.",
+      "check": "Separate announced capital spending from functioning installations and paid usage. Seek customer reports and supplier results, not only NVIDIA's order commentary. These are research tests, not scan outputs."
+    },
+    {
+      "horizon": "12 months",
+      "date": "November 13, 2027",
+      "focus": "The business and the price are different",
+      "up": "Durable earnings and cash growth support renewed confidence in leadership and the roadmap. Returns still depend on what investors pay for that growth.",
+      "middle": "NVIDIA grows, but a lower valuation multiple offsets part or all of that growth. Good business performance need not produce a positive stock return.",
+      "down": "Slower earnings, weaker cash conversion or competitive pressure combine with valuation compression. A cheap-looking prior multiple offers little protection if its earnings denominator changes.",
+      "check": "Rebuild the valuation from then-current diluted earnings, cash generation, share count and price. No present scan count supplies a defensible 12-month target or probability."
+    }
+  ],
+  "method": [
+    "The \"18 million\" name describes the original broad scan's projected 18,417,198-scenario ceiling across 954 tickers. It does not mean that 18 million independent NVIDIA signals were executed or that a probability model was fitted.",
+    "For this research, the original scan family's source-extracted bar functions were executed offline on NVIDIA: 19 default detector classes, seven experimental classes and the extra bar families produced 3,129 occurrences across 252 evaluation bars. The input contains 532 daily bars from October 1, 2024, through November 12, 2026, including 280 warm-up bars. Those occurrences overlap; they are not 3,129 independent trades, correct predictions or profitable outcomes.",
+    "The 100 additional market, news, options and fundamental feeds were not executed. Missing coverage is unavailable, not a finding of zero events. A separate 19-class single-stock runner was also checked, but its differently defined counts are not added to the original-family result. No calibrated forward-return backtest, transaction-cost analysis or forecast distribution was produced. [6]",
+    "The historical input combines recent public Yahoo history with an older public archive's YahooChartAPI partition. On 84 overlapping dates, OHLC differences were less than one cent; recent Yahoo rows replaced overlap. No invented fills or manual split changes were added. The input's split-adjusted OHLC basis is declared, not independently certified point-in-time data, and it is not dividend-reinvested total return. [4,5]",
+    "CSV SHA-256: f7ce8c08172efaa81fe474e9036e752e4fbd21a8398fd084cc2d30d899111fbf. The frozen November 12 prices are historical context, not a live November 13 quote. This draft does not silently update when markets move."
+  ],
+  "closing": [
+    "The useful disagreement is about timing. IDC argues that near-term demand and supply are largely committed and puts more leadership risk in the next two to four quarters. Benzinga's earnings preview concentrates on supply, memory costs, the product ramp, customer financing and cash generation. These are attributed analytical views and questions, not additional scan detections. Their numerical supply-commitment descriptions differ, so this draft does not use a combined figure. [3,7]",
+    "The practical conclusion is conditional: the first week tests communication and expectations; the following months test execution and economics. The scan gives historical technical context. The business evidence decides whether that context deserves to change. No price targets, buy/sell recommendation or scenario probabilities are claimed."
+  ],
+  "sources": [
+    [
+      "1",
+      "NVIDIA, November 12 CEO-transition release",
+      "https://nvidianews.nvidia.com/news/nvidia-announces-ceo-transition",
+      "Primary issuer statement; leadership, continuity expectation and November 17 reporting schedule."
+    ],
+    [
+      "2",
+      "SEC Form 8-K, November 11 board action",
+      "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000082/nvda-20261111.htm",
+      "Primary filing, signed November 12; distinguishes event date from announcement date."
+    ],
+    [
+      "3",
+      "IDC, November 13 infrastructure-buyer analysis",
+      "https://www.idc.com/resource-center/blog/nvidia-ceo-resignation-ai-infrastructure-buyers/",
+      "Industry research opinion; near-term commitments versus medium-term leadership risk. It dates the resignation to November 12; the filing's November 11 event date governs here."
+    ],
+    [
+      "4",
+      "Yahoo Finance, NVIDIA historical prices",
+      "https://finance.yahoo.com/quote/NVDA/history/",
+      "Public market-data source for the recent portion of the frozen November 12 input. Not a live quote in this article."
+    ],
+    [
+      "5",
+      "Public NVIDIA dataset archive",
+      "https://github.com/rahulpgdse/NVIDIA-Financial-Stock-DataSet-1999-2026-/tree/main",
+      "Third-party archive; only its YahooChartAPI partition supplied older bars, subject to the stated basis and point-in-time limits."
+    ],
+    [
+      "6",
+      "Single-stock runner implementation, PR 53",
+      "https://github.com/adamaslan/signals-app/pull/53",
+      "Implementation provenance for the separately checked runner, not independent validation of forecasts or a public release claim. Original-family lineage recovered from HOMEBASE PR 75."
+    ],
+    [
+      "7",
+      "Benzinga, November 13 earnings preview",
+      "https://www.benzinga.com/trading-ideas/previews/26/11/63239519/colette-kress-nvidia-earnings",
+      "Independent financial reporting; attributed questions, not verified future outcomes."
+    ],
+    [
+      "8",
+      "Original broad-scan implementation, HOMEBASE PR 75",
+      "https://github.com/adamaslan/homebase/pull/75",
+      "Original-family research provenance. Offline output was inspected privately; PR presence is not a production deployment."
+    ]
+  ],
+  "chart": [
+    {
+      "date": "2026-05-15",
+      "close": 225.32,
+      "tenkan": 216.285,
+      "kijun": 210.42,
+      "spanA": 175.67,
+      "spanB": 180.95
+    },
+    {
+      "date": "2026-05-18",
+      "close": 222.32,
+      "tenkan": 217.575,
+      "kijun": 211.14,
+      "spanA": 177.135,
+      "spanB": 180.95
+    },
+    {
+      "date": "2026-05-19",
+      "close": 220.61,
+      "tenkan": 221.52,
+      "kijun": 213.655,
+      "spanA": 177.808,
+      "spanB": 180.95
+    },
+    {
+      "date": "2026-05-20",
+      "close": 223.47,
+      "tenkan": 224.715,
+      "kijun": 215.64,
+      "spanA": 182.165,
+      "spanB": 180.95
+    },
+    {
+      "date": "2026-05-21",
+      "close": 219.51,
+      "tenkan": 225.215,
+      "kijun": 215.64,
+      "spanA": 184.11,
+      "spanB": 182.335
+    },
+    {
+      "date": "2026-05-22",
+      "close": 215.33,
+      "tenkan": 225.67,
+      "kijun": 215.64,
+      "spanA": 184.683,
+      "spanB": 182.335
+    },
+    {
+      "date": "2026-05-26",
+      "close": 214.86,
+      "tenkan": 224.27,
+      "kijun": 215.64,
+      "spanA": 185.333,
+      "spanB": 182.985
+    },
+    {
+      "date": "2026-05-27",
+      "close": 212.6,
+      "tenkan": 222.66,
+      "kijun": 215.64,
+      "spanA": 187.228,
+      "spanB": 183.22
+    },
+    {
+      "date": "2026-05-28",
+      "close": 214.25,
+      "tenkan": 220.14,
+      "kijun": 215.64,
+      "spanA": 187.597,
+      "spanB": 183.51
+    },
+    {
+      "date": "2026-05-29",
+      "close": 211.14,
+      "tenkan": 219.39,
+      "kijun": 215.64,
+      "spanA": 188.517,
+      "spanB": 183.51
+    },
+    {
+      "date": "2026-06-01",
+      "close": 224.36,
+      "tenkan": 218.09,
+      "kijun": 215.64,
+      "spanA": 189.418,
+      "spanB": 184.05
+    },
+    {
+      "date": "2026-06-02",
+      "close": 222.82,
+      "tenkan": 220.53,
+      "kijun": 215.64,
+      "spanA": 194.235,
+      "spanB": 187.61
+    },
+    {
+      "date": "2026-06-03",
+      "close": 214.75,
+      "tenkan": 220.53,
+      "kijun": 215.64,
+      "spanA": 198.418,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-04",
+      "close": 218.66,
+      "tenkan": 220.53,
+      "kijun": 215.64,
+      "spanA": 198.435,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-05",
+      "close": 205.1,
+      "tenkan": 218.305,
+      "kijun": 215.64,
+      "spanA": 198.788,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-08",
+      "close": 208.64,
+      "tenkan": 218.305,
+      "kijun": 215.64,
+      "spanA": 198.788,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-09",
+      "close": 208.19,
+      "tenkan": 215.81,
+      "kijun": 215.64,
+      "spanA": 198.763,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-10",
+      "close": 200.42,
+      "tenkan": 215.81,
+      "kijun": 216.285,
+      "spanA": 198.168,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-11",
+      "close": 204.87,
+      "tenkan": 215.81,
+      "kijun": 217.575,
+      "spanA": 198.168,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-12",
+      "close": 205.19,
+      "tenkan": 215.81,
+      "kijun": 217.94,
+      "spanA": 198.84,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-15",
+      "close": 212.45,
+      "tenkan": 211.08,
+      "kijun": 217.94,
+      "spanA": 199.943,
+      "spanB": 190.55
+    },
+    {
+      "date": "2026-06-16",
+      "close": 207.41,
+      "tenkan": 210.47,
+      "kijun": 217.94,
+      "spanA": 200.428,
+      "spanB": 191.035
+    },
+    {
+      "date": "2026-06-17",
+      "close": 204.65,
+      "tenkan": 207.105,
+      "kijun": 217.94,
+      "spanA": 203.25,
+      "spanB": 193.285
+    },
+    {
+      "date": "2026-06-18",
+      "close": 210.69,
+      "tenkan": 206.025,
+      "kijun": 217.94,
+      "spanA": 203.975,
+      "spanB": 194.01
+    },
+    {
+      "date": "2026-06-22",
+      "close": 208.65,
+      "tenkan": 206.665,
+      "kijun": 217.94,
+      "spanA": 207.68,
+      "spanB": 196.055
+    },
+    {
+      "date": "2026-06-23",
+      "close": 200.04,
+      "tenkan": 206.765,
+      "kijun": 215.81,
+      "spanA": 212.11,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-06-24",
+      "close": 199.0,
+      "tenkan": 205.285,
+      "kijun": 214.43,
+      "spanA": 213.353,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-06-25",
+      "close": 195.74,
+      "tenkan": 203.06,
+      "kijun": 212.205,
+      "spanA": 214.357,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-06-26",
+      "close": 192.53,
+      "tenkan": 202.605,
+      "kijun": 211.75,
+      "spanA": 217.587,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-06-29",
+      "close": 194.97,
+      "tenkan": 201.895,
+      "kijun": 211.04,
+      "spanA": 220.177,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-06-30",
+      "close": 200.09,
+      "tenkan": 201.895,
+      "kijun": 211.04,
+      "spanA": 220.427,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-01",
+      "close": 197.58,
+      "tenkan": 201.895,
+      "kijun": 211.04,
+      "spanA": 220.655,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-02",
+      "close": 194.83,
+      "tenkan": 201.895,
+      "kijun": 211.04,
+      "spanA": 219.955,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-06",
+      "close": 195.55,
+      "tenkan": 196.785,
+      "kijun": 211.04,
+      "spanA": 219.15,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-07",
+      "close": 196.93,
+      "tenkan": 195.735,
+      "kijun": 211.04,
+      "spanA": 217.89,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-08",
+      "close": 204.12,
+      "tenkan": 197.48,
+      "kijun": 211.04,
+      "spanA": 217.515,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-09",
+      "close": 202.78,
+      "tenkan": 197.48,
+      "kijun": 211.04,
+      "spanA": 216.865,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-10",
+      "close": 210.96,
+      "tenkan": 200.4,
+      "kijun": 206.31,
+      "spanA": 218.085,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-13",
+      "close": 203.53,
+      "tenkan": 201.07,
+      "kijun": 205.7,
+      "spanA": 218.085,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-14",
+      "close": 211.8,
+      "tenkan": 201.845,
+      "kijun": 202.335,
+      "spanA": 218.085,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-15",
+      "close": 212.5,
+      "tenkan": 202.475,
+      "kijun": 201.895,
+      "spanA": 216.972,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-16",
+      "close": 207.4,
+      "tenkan": 202.475,
+      "kijun": 201.895,
+      "spanA": 216.972,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-17",
+      "close": 202.81,
+      "tenkan": 202.475,
+      "kijun": 201.895,
+      "spanA": 215.725,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-20",
+      "close": 203.28,
+      "tenkan": 204.435,
+      "kijun": 201.895,
+      "spanA": 216.048,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-21",
+      "close": 207.29,
+      "tenkan": 205.89,
+      "kijun": 201.895,
+      "spanA": 216.692,
+      "spanB": 200.405
+    },
+    {
+      "date": "2026-07-22",
+      "close": 212.06,
+      "tenkan": 206.18,
+      "kijun": 202.095,
+      "spanA": 216.875,
+      "spanB": 201.75
+    },
+    {
+      "date": "2026-07-23",
+      "close": 208.76,
+      "tenkan": 206.18,
+      "kijun": 202.095,
+      "spanA": 214.51,
+      "spanB": 203.955
+    },
+    {
+      "date": "2026-07-24",
+      "close": 206.84,
+      "tenkan": 206.18,
+      "kijun": 202.095,
+      "spanA": 214.205,
+      "spanB": 203.955
+    },
+    {
+      "date": "2026-07-27",
+      "close": 196.51,
+      "tenkan": 204.915,
+      "kijun": 202.095,
+      "spanA": 212.523,
+      "spanB": 205.1
+    },
+    {
+      "date": "2026-07-28",
+      "close": 197.01,
+      "tenkan": 203.565,
+      "kijun": 202.095,
+      "spanA": 211.983,
+      "spanB": 205.1
+    },
+    {
+      "date": "2026-07-29",
+      "close": 190.01,
+      "tenkan": 202.2,
+      "kijun": 202.095,
+      "spanA": 212.303,
+      "spanB": 208.42
+    },
+    {
+      "date": "2026-07-30",
+      "close": 195.04,
+      "tenkan": 202.2,
+      "kijun": 202.095,
+      "spanA": 211.287,
+      "spanB": 208.58
+    },
+    {
+      "date": "2026-07-31",
+      "close": 200.75,
+      "tenkan": 202.2,
+      "kijun": 202.095,
+      "spanA": 209.858,
+      "spanB": 210.42
+    },
+    {
+      "date": "2026-08-03",
+      "close": 206.64,
+      "tenkan": 202.2,
+      "kijun": 202.095,
+      "spanA": 207.632,
+      "spanB": 211.14
+    },
+    {
+      "date": "2026-08-04",
+      "close": 211.94,
+      "tenkan": 201.535,
+      "kijun": 202.095,
+      "spanA": 207.178,
+      "spanB": 213.655
+    },
+    {
+      "date": "2026-08-05",
+      "close": 219.22,
+      "tenkan": 206.115,
+      "kijun": 206.115,
+      "spanA": 206.468,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-06",
+      "close": 218.99,
+      "tenkan": 206.82,
+      "kijun": 206.82,
+      "spanA": 206.468,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-07",
+      "close": 223.96,
+      "tenkan": 207.385,
+      "kijun": 207.385,
+      "spanA": 206.468,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-10",
+      "close": 217.55,
+      "tenkan": 207.385,
+      "kijun": 207.385,
+      "spanA": 206.468,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-11",
+      "close": 217.5,
+      "tenkan": 208.14,
+      "kijun": 207.385,
+      "spanA": 203.913,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-12",
+      "close": 224.09,
+      "tenkan": 210.025,
+      "kijun": 207.555,
+      "spanA": 203.388,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-13",
+      "close": 225.3,
+      "tenkan": 212.04,
+      "kijun": 208.62,
+      "spanA": 204.26,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-14",
+      "close": 225.16,
+      "tenkan": 218.27,
+      "kijun": 208.75,
+      "spanA": 204.26,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-17",
+      "close": 225.01,
+      "tenkan": 222.06,
+      "kijun": 208.965,
+      "spanA": 203.355,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-18",
+      "close": 219.74,
+      "tenkan": 222.06,
+      "kijun": 208.965,
+      "spanA": 203.385,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-19",
+      "close": 217.56,
+      "tenkan": 222.06,
+      "kijun": 208.965,
+      "spanA": 202.09,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-20",
+      "close": 216.85,
+      "tenkan": 221.79,
+      "kijun": 208.965,
+      "spanA": 202.185,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-21",
+      "close": 214.72,
+      "tenkan": 221.21,
+      "kijun": 208.965,
+      "spanA": 202.185,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-24",
+      "close": 208.48,
+      "tenkan": 217.585,
+      "kijun": 208.965,
+      "spanA": 202.185,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-25",
+      "close": 213.05,
+      "tenkan": 217.585,
+      "kijun": 208.965,
+      "spanA": 203.165,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-26",
+      "close": 209.66,
+      "tenkan": 217.585,
+      "kijun": 208.965,
+      "spanA": 203.892,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-27",
+      "close": 227.98,
+      "tenkan": 218.86,
+      "kijun": 210.24,
+      "spanA": 204.137,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-28",
+      "close": 217.55,
+      "tenkan": 218.86,
+      "kijun": 210.24,
+      "spanA": 204.137,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-08-31",
+      "close": 220.78,
+      "tenkan": 218.86,
+      "kijun": 210.24,
+      "spanA": 204.137,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-09-01",
+      "close": 217.44,
+      "tenkan": 218.86,
+      "kijun": 210.24,
+      "spanA": 203.505,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-09-02",
+      "close": 224.41,
+      "tenkan": 218.86,
+      "kijun": 210.24,
+      "spanA": 202.83,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-09-03",
+      "close": 228.45,
+      "tenkan": 218.86,
+      "kijun": 210.995,
+      "spanA": 202.147,
+      "spanB": 213.17
+    },
+    {
+      "date": "2026-09-04",
+      "close": 230.36,
+      "tenkan": 221.995,
+      "kijun": 214.855,
+      "spanA": 202.147,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-08",
+      "close": 225.73,
+      "tenkan": 221.995,
+      "kijun": 215.805,
+      "spanA": 202.147,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-09",
+      "close": 223.67,
+      "tenkan": 224.93,
+      "kijun": 221.005,
+      "spanA": 202.147,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-10",
+      "close": 218.36,
+      "tenkan": 224.93,
+      "kijun": 221.005,
+      "spanA": 201.815,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-11",
+      "close": 218.29,
+      "tenkan": 224.93,
+      "kijun": 221.005,
+      "spanA": 206.115,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-14",
+      "close": 210.96,
+      "tenkan": 221.845,
+      "kijun": 221.005,
+      "spanA": 206.82,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-15",
+      "close": 212.17,
+      "tenkan": 221.845,
+      "kijun": 221.005,
+      "spanA": 207.385,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-16",
+      "close": 213.9,
+      "tenkan": 221.845,
+      "kijun": 221.005,
+      "spanA": 207.385,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-17",
+      "close": 219.34,
+      "tenkan": 221.845,
+      "kijun": 221.005,
+      "spanA": 207.762,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-18",
+      "close": 222.27,
+      "tenkan": 221.32,
+      "kijun": 221.005,
+      "spanA": 208.79,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-21",
+      "close": 227.38,
+      "tenkan": 218.715,
+      "kijun": 221.005,
+      "spanA": 210.33,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-22",
+      "close": 228.87,
+      "tenkan": 219.455,
+      "kijun": 221.005,
+      "spanA": 213.51,
+      "spanB": 211.04
+    },
+    {
+      "date": "2026-09-23",
+      "close": 225.51,
+      "tenkan": 219.455,
+      "kijun": 221.005,
+      "spanA": 215.512,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-09-24",
+      "close": 224.58,
+      "tenkan": 219.455,
+      "kijun": 221.005,
+      "spanA": 215.512,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-09-25",
+      "close": 225.07,
+      "tenkan": 220.57,
+      "kijun": 221.005,
+      "spanA": 215.512,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-09-28",
+      "close": 228.86,
+      "tenkan": 222.855,
+      "kijun": 221.005,
+      "spanA": 215.377,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-09-29",
+      "close": 227.21,
+      "tenkan": 225.18,
+      "kijun": 221.005,
+      "spanA": 215.087,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-09-30",
+      "close": 228.38,
+      "tenkan": 225.62,
+      "kijun": 221.845,
+      "spanA": 213.275,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-10-01",
+      "close": 230.86,
+      "tenkan": 227.15,
+      "kijun": 221.845,
+      "spanA": 213.275,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-10-02",
+      "close": 233.95,
+      "tenkan": 229.485,
+      "kijun": 223.405,
+      "spanA": 213.275,
+      "spanB": 208.86
+    },
+    {
+      "date": "2026-10-05",
+      "close": 238.9,
+      "tenkan": 230.595,
+      "kijun": 224.515,
+      "spanA": 214.55,
+      "spanB": 210.135
+    },
+    {
+      "date": "2026-10-06",
+      "close": 239.24,
+      "tenkan": 232.23,
+      "kijun": 226.15,
+      "spanA": 214.55,
+      "spanB": 210.135
+    },
+    {
+      "date": "2026-10-07",
+      "close": 237.47,
+      "tenkan": 233.25,
+      "kijun": 226.15,
+      "spanA": 214.55,
+      "spanB": 210.135
+    },
+    {
+      "date": "2026-10-08",
+      "close": 230.48,
+      "tenkan": 235.2,
+      "kijun": 226.15,
+      "spanA": 214.55,
+      "spanB": 210.135
+    },
+    {
+      "date": "2026-10-09",
+      "close": 229.28,
+      "tenkan": 235.2,
+      "kijun": 226.15,
+      "spanA": 214.55,
+      "spanB": 210.135
+    },
+    {
+      "date": "2026-10-12",
+      "close": 226.32,
+      "tenkan": 234.135,
+      "kijun": 226.15,
+      "spanA": 214.928,
+      "spanB": 210.135
+    },
+    {
+      "date": "2026-10-13",
+      "close": 228.52,
+      "tenkan": 233.215,
+      "kijun": 226.15,
+      "spanA": 218.425,
+      "spanB": 212.28
+    },
+    {
+      "date": "2026-10-14",
+      "close": 221.3,
+      "tenkan": 231.505,
+      "kijun": 226.15,
+      "spanA": 218.9,
+      "spanB": 212.28
+    },
+    {
+      "date": "2026-10-15",
+      "close": 217.23,
+      "tenkan": 228.11,
+      "kijun": 226.15,
+      "spanA": 222.968,
+      "spanB": 212.28
+    },
+    {
+      "date": "2026-10-16",
+      "close": 214.13,
+      "tenkan": 228.11,
+      "kijun": 226.15,
+      "spanA": 222.968,
+      "spanB": 212.28
+    },
+    {
+      "date": "2026-10-19",
+      "close": 217.09,
+      "tenkan": 225.965,
+      "kijun": 226.15,
+      "spanA": 222.968,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-20",
+      "close": 216.47,
+      "tenkan": 224.92,
+      "kijun": 227.265,
+      "spanA": 221.425,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-21",
+      "close": 221.97,
+      "tenkan": 223.345,
+      "kijun": 227.935,
+      "spanA": 221.425,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-22",
+      "close": 212.21,
+      "tenkan": 220.06,
+      "kijun": 227.315,
+      "spanA": 221.425,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-23",
+      "close": 210.96,
+      "tenkan": 219.41,
+      "kijun": 226.775,
+      "spanA": 221.425,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-26",
+      "close": 216.0,
+      "tenkan": 218.09,
+      "kijun": 226.775,
+      "spanA": 221.162,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-27",
+      "close": 217.94,
+      "tenkan": 216.185,
+      "kijun": 226.775,
+      "spanA": 219.86,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-28",
+      "close": 215.38,
+      "tenkan": 216.185,
+      "kijun": 226.775,
+      "spanA": 220.23,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-29",
+      "close": 213.66,
+      "tenkan": 216.185,
+      "kijun": 226.775,
+      "spanA": 220.23,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-10-30",
+      "close": 204.64,
+      "tenkan": 211.555,
+      "kijun": 222.145,
+      "spanA": 220.23,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-11-02",
+      "close": 202.06,
+      "tenkan": 211.555,
+      "kijun": 222.145,
+      "spanA": 220.787,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-11-03",
+      "close": 206.69,
+      "tenkan": 210.455,
+      "kijun": 222.145,
+      "spanA": 221.93,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-11-04",
+      "close": 200.13,
+      "tenkan": 209.835,
+      "kijun": 221.525,
+      "spanA": 223.093,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-11-05",
+      "close": 181.6,
+      "tenkan": 200.725,
+      "kijun": 212.415,
+      "spanA": 223.733,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-11-06",
+      "close": 186.64,
+      "tenkan": 200.725,
+      "kijun": 212.415,
+      "spanA": 224.498,
+      "spanB": 212.385
+    },
+    {
+      "date": "2026-11-09",
+      "close": 178.67,
+      "tenkan": 195.115,
+      "kijun": 206.805,
+      "spanA": 226.445,
+      "spanB": 213.945
+    },
+    {
+      "date": "2026-11-10",
+      "close": 168.89,
+      "tenkan": 190.61,
+      "kijun": 204.63,
+      "spanA": 227.555,
+      "spanB": 215.055
+    },
+    {
+      "date": "2026-11-11",
+      "close": 173.73,
+      "tenkan": 187.935,
+      "kijun": 202.485,
+      "spanA": 229.19,
+      "spanB": 216.69
+    },
+    {
+      "date": "2026-11-12",
+      "close": 166.19,
+      "tenkan": 179.39,
+      "kijun": 192.935,
+      "spanA": 229.7,
+      "spanB": 216.69
+    }
+  ]
+}

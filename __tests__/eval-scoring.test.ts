@@ -70,6 +70,24 @@ describe("scorePick", () => {
     expect(s.returnPct).toBeCloseTo(-6);
     expect(s.directional).toBeCloseTo(6);
   });
+  it("a zero exit price is void, not a ~100% bear hit (T-024)", () => {
+    // Before the fail-closed guard this scored a bear call +100%.
+    const s = scorePick({ direction: "bear", entryPrice: 100, exitPrice: 0, horizon: "w1" });
+    expect(s).toEqual({ outcome: "void", returnPct: 0, directional: 0 });
+  });
+  it("a NaN exit price is void, not flat (T-024)", () => {
+    // Before the guard both band comparisons were false and this classified "flat".
+    const s = scorePick({ direction: "bull", entryPrice: 100, exitPrice: Number.NaN, horizon: "w1" });
+    expect(s).toEqual({ outcome: "void", returnPct: 0, directional: 0 });
+  });
+  it("a zero entry price is void, not flat (T-024)", () => {
+    const s = scorePick({ direction: "bull", entryPrice: 0, exitPrice: 100, horizon: "w1" });
+    expect(s).toEqual({ outcome: "void", returnPct: 0, directional: 0 });
+  });
+  it("a legitimate 0.0% move with valid prices is still flat", () => {
+    const s = scorePick({ direction: "bull", entryPrice: 100, exitPrice: 100, horizon: "w1" });
+    expect(s.outcome).toBe("flat");
+  });
 });
 
 describe("aggregate", () => {
@@ -159,6 +177,12 @@ describe("computeBaselines", () => {
   it("no priors present → backtestPriorPct is null", () => {
     const noPriors = rows.map((r) => ({ ...r, backtestPrior: null }));
     expect(computeBaselines(noPriors).backtestPriorPct).toBeNull();
+  });
+  it("fewer than MIN_RESOLVED_FOR_RATE priors → baseline suppressed like a small-n rate (T-024)", () => {
+    // 10 priors at 0.9 would otherwise print a 90% "prior" baseline from a
+    // handful of rows — the same small-n lie MIN_RESOLVED_FOR_RATE exists to prevent.
+    const fewPriors = rows.slice(0, 10).map((r) => ({ ...r, backtestPrior: 0.9 }));
+    expect(computeBaselines(fewPriors).backtestPriorPct).toBeNull();
   });
 });
 

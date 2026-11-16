@@ -16,6 +16,7 @@ import type { AccountMetrics } from "@/lib/shared/paper-view";
 
 /** Plain-English gloss for every `paper_orders.reason` the engine writes. */
 export const REASON_LABELS: Record<string, string> = {
+  control_seed: "Bought: initialized fixed buy-and-hold benchmark book",
   score_entry: "Bought: card score cleared the buy threshold",
   score_exit: "Sold: card score fell below the sell threshold",
   stop: "Sold: stop-loss / trailing stop hit",
@@ -54,6 +55,7 @@ export interface ArenaRowVM {
   seat: string | null;
   label: string;
   isBaseline: boolean;
+  baselineStatus: "awaiting_inception" | "invested" | null;
   nav: number;
   cash: number;
   cashPct: number | null;
@@ -152,10 +154,11 @@ export function rankValues(values: (number | null)[], better: "higher" | "lower"
 }
 
 function buildRow(input: ArenaAccountInput): ArenaRowVM {
-  const m = input.metrics;
+  const awaitingInception = BASELINES.has(input.account) && (input.latestNav?.positionsN ?? input.positions.length) === 0 && input.positions.length === 0;
+  const m = awaitingInception ? null : input.metrics;
   const latest = input.latestNav;
   const nav = latest?.nav ?? input.cash;
-  const totalReturn = latest?.totalReturn ?? m?.totalReturn ?? null;
+  const totalReturn = awaitingInception ? null : latest?.totalReturn ?? m?.totalReturn ?? null;
   const avgWin = m?.avgWin ?? null;
   const avgLoss = m?.avgLoss ?? null;
   return {
@@ -163,12 +166,13 @@ function buildRow(input: ArenaAccountInput): ArenaRowVM {
     seat: input.seat,
     label: input.label,
     isBaseline: BASELINES.has(input.account),
+    baselineStatus: BASELINES.has(input.account) ? awaitingInception ? "awaiting_inception" : "invested" : null,
     nav,
     cash: input.cash,
     cashPct: nav > 0 ? (input.cash / nav) * 100 : null,
     positionsN: latest?.positionsN ?? input.positions.length,
     totalReturnPct: pct(totalReturn),
-    dayReturnPct: pct(latest?.dayReturn),
+    dayReturnPct: awaitingInception ? null : pct(latest?.dayReturn),
     sharpeRf0: m?.sharpeRf0 ?? null,
     annualizedVolPct: pct(m?.annualizedVol),
     maxDrawdownPct: pct(m?.maxDrawdown),
@@ -248,6 +252,12 @@ function buildReasonStats(orders: OrderRow[]): ReasonStatVM[] {
 
 export function buildArenaView(inputs: ArenaAccountInput[], now: Date = new Date()): ArenaVM {
   const rows = inputs.map(buildRow);
+  const invalidSpy = !rows.some((r) => r.account === "spy" && r.baselineStatus === "invested");
+  const invalidEqual = !rows.some((r) => r.account === "equal" && r.baselineStatus === "invested");
+  for (const row of rows) {
+    if (invalidSpy) row.activeReturnVsSpyPct = null;
+    if (invalidEqual) row.activeReturnVsEqualPct = null;
+  }
   applyJudging(rows);
   // Contestants by judge rank first, unranked after, baselines last.
   rows.sort((a, b) => {
@@ -261,7 +271,7 @@ export function buildArenaView(inputs: ArenaAccountInput[], now: Date = new Date
   const reasonBreakdown: ArenaVM["reasonBreakdown"] = {};
   const allTrades: TradeVM[] = [];
   for (const input of inputs) {
-    curves[input.account] = buildCurve(input.nav);
+    curves[input.account] = buildCurve(BASELINES.has(input.account) ? input.nav.filter((n) => n.positionsN > 0) : input.nav);
     reasonBreakdown[input.account] = buildReasonStats(input.orders);
     allTrades.push(...buildTrades(input));
   }
