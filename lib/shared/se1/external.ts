@@ -72,8 +72,10 @@ export function validateRecipe(recipe: Recipe, knownScans: ReadonlySet<string>, 
   const byId = new Map(savedRecipes.map((r) => [r.id, r]));
   byId.set(recipe.id, recipe);
   const all = new Set<string>();
+  const completed = new Set<string>();
   const visit = (r: Recipe, path: string[]): void => {
     if (path.includes(r.id)) { errors.push(`cycle: ${[...path, r.id].join(" → ")}`); return; }
+    if (completed.has(r.id)) return;
     for (const s of r.scans) {
       if (!isScanId(s) || !knownScans.has(s)) errors.push(`unknown scan ${JSON.stringify(s)}`); else all.add(s);
     }
@@ -81,6 +83,7 @@ export function validateRecipe(recipe: Recipe, knownScans: ReadonlySet<string>, 
       const child = byId.get(inc);
       if (!child) errors.push(`unknown included recipe ${JSON.stringify(inc)}`); else visit(child, [...path, r.id]);
     }
+    completed.add(r.id);
   };
   visit(recipe, []);
   if (all.size > maxScans) errors.push(`uses ${all.size} scans, the budget is ${maxScans}`);
@@ -114,11 +117,23 @@ export function addressBlocked(ip: string): boolean {
   const v = ip.trim().toLowerCase().replace(/^\[|\]$/g, "");
   if (v.includes(".") && !v.includes(":")) return ipv4Blocked(v);
   if (!v.includes(":")) return true;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v);
-  if (mapped) return ipv4Blocked(mapped[1]);
-  if (v === "::" || v === "::1") return true;
-  const first = parseInt(v.split(":")[0] || "0", 16);
-  if (!Number.isFinite(first)) return true;
+  // The URL parser validates and canonicalizes all equivalent IPv6 spellings.
+  // This is parsing only: constructing a URL performs no DNS or network request.
+  let canonical: string;
+  try { canonical = new URL(`https://[${v}]/`).hostname.slice(1, -1); }
+  catch { return true; }
+  const [left, right] = canonical.split("::");
+  const prefix = left ? left.split(":") : [];
+  const suffix = right ? right.split(":") : [];
+  const groups = right === undefined ? prefix : [...prefix, ...Array(8 - prefix.length - suffix.length).fill("0"), ...suffix];
+  const words = groups.map((part) => parseInt(part, 16));
+  if (words.length !== 8 || words.some((word) => !Number.isInteger(word))) return true;
+  if (words.slice(0, 5).every((word) => word === 0) && words[5] === 0xffff) {
+    return ipv4Blocked(`${words[6] >>> 8}.${words[6] & 255}.${words[7] >>> 8}.${words[7] & 255}`);
+  }
+  // Includes unspecified, loopback and deprecated IPv4-compatible forms.
+  if (words.slice(0, 6).every((word) => word === 0)) return true;
+  const first = words[0];
   return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00;
 }
 
