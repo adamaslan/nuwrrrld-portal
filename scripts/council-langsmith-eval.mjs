@@ -1,5 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
+const isoDate = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import { Client } from "langsmith";
 import { evaluate } from "langsmith/evaluation";
 
@@ -9,7 +12,7 @@ const FIXTURE_PATH = fileURLToPath(
 const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
 const args = new Set(process.argv.slice(2));
 
-function evaluateAttempts(attempts) {
+export function evaluateAttempts(attempts) {
   const safeAttempts = Array.isArray(attempts) ? attempts : [];
   const emptyCompletionCount = safeAttempts.filter(
     (attempt) => attempt?.http_status >= 200 && attempt?.http_status < 300 &&
@@ -81,7 +84,7 @@ function assertFixtureMatches() {
   }
 }
 
-function createClient() {
+export function createClient() {
   const apiKey = process.env.LANGSMITH_API_KEY?.trim();
   const apiUrl = process.env.LANGSMITH_API_URL?.trim();
   if (!apiKey || !apiUrl) {
@@ -96,73 +99,100 @@ function createClient() {
       ...((metadata ?? {}).synthetic_fixture === true ? { synthetic_fixture: true } : {}),
       ...((metadata ?? {}).fixture_version === 1 ? { fixture_version: 1 } : {}),
     }),
-    anonymizer: () => ({}),
+    anonymizer: () => ({ error: "[redacted]" }),
     omitTracedRuntimeInfo: true,
     blockOnRootRunFinalization: false,
   });
 }
 
-async function findDataset(client) {
+export async function findDataset(client) {
+  let found = null;
   for await (const dataset of client.listDatasets({ datasetName: fixture.datasetName, limit: 10 })) {
-    if (dataset.name === fixture.datasetName) return dataset;
+    if (dataset.name !== fixture.datasetName) continue;
+    if (found || !uuid.test(dataset.id) || dataset.metadata?.synthetic_fixture !== true || dataset.metadata?.fixture_version !== 1) {
+      throw new Error("Dataset identity/provenance mismatch; refusing remote operation.");
+    }
+    found = dataset;
   }
-  return null;
+  return found;
 }
 
-async function uploadFixture() {
-  const client = createClient();
+// Validate every remote example before any experiment. The evaluator receives a
+// fresh allowlisted local snapshot, never a dataset-name lookup or remote prose.
+export async function verifiedExamples(client, dataset, allowMissing = false) {
+  const expected = new Map(fixture.examples.map(example => [example.fixtureKey, example]));
+  const seen = new Set();
+  const snapshot = [];
+  for await (const example of client.listExamples({ datasetId: dataset.id })) {
+    const key = example.metadata?.fixture_key;
+    const reference = expected.get(key);
+    if (!reference || seen.has(key) || example.dataset_id !== dataset.id ||
+        typeof example.id !== "string" || !uuid.test(example.id) ||
+        typeof example.created_at !== "string" || !isoDate.test(example.created_at) ||
+        typeof example.modified_at !== "string" || !isoDate.test(example.modified_at) ||
+        !Number.isFinite(Date.parse(example.created_at)) || !Number.isFinite(Date.parse(example.modified_at)) ||
+        example.metadata?.synthetic_fixture !== true ||
+        !isDeepStrictEqual(example.inputs, reference.inputs) ||
+        !isDeepStrictEqual(example.outputs, reference.outputs) ||
+        (example.attachments && Object.keys(example.attachments).length)) {
+      throw new Error("Dataset example mismatch; refusing remote operation.");
+    }
+    seen.add(key);
+    snapshot.push({
+      id: example.id, dataset_id: dataset.id,
+      inputs: structuredClone(reference.inputs), outputs: structuredClone(reference.outputs),
+      metadata: { fixture_key: key, synthetic_fixture: true },
+      created_at: example.created_at, modified_at: example.modified_at,
+    });
+  }
+  if (!allowMissing && seen.size !== expected.size) {
+    throw new Error("Dataset example set incomplete; refusing experiment.");
+  }
+  return { snapshot, missing: fixture.examples.filter(example => !seen.has(example.fixtureKey)) };
+}
+
+export async function uploadFixture(client = createClient()) {
   let dataset = await findDataset(client);
   if (!dataset) {
     dataset = await client.createDataset(fixture.datasetName, {
-      description: fixture.description,
-      dataType: "kv",
+      description: fixture.description, dataType: "kv",
       metadata: { synthetic_fixture: true, fixture_version: 1 },
     });
   }
-
-  const existingKeys = new Set();
-  for await (const example of client.listExamples({ datasetId: dataset.id, limit: 100 })) {
-    if (typeof example.metadata?.fixture_key === "string") {
-      existingKeys.add(example.metadata.fixture_key);
-    }
-  }
-  const missing = fixture.examples.filter((example) => !existingKeys.has(example.fixtureKey));
+  const { missing } = await verifiedExamples(client, dataset, true);
   if (missing.length) {
-    await client.createExamples(missing.map((example) => ({
-      dataset_id: dataset.id,
-      inputs: example.inputs,
-      outputs: example.outputs,
+    await client.createExamples(missing.map(example => ({
+      dataset_id: dataset.id, inputs: example.inputs, outputs: example.outputs,
       metadata: { fixture_key: example.fixtureKey, synthetic_fixture: true },
     })));
   }
-  console.info(`Uploaded ${missing.length} synthetic examples to ${fixture.datasetName}.`);
+  await verifiedExamples(client, dataset);
+  console.info(`Verified ${fixture.examples.length} synthetic examples; uploaded ${missing.length}.`);
 }
 
-async function runExperiment() {
-  const client = createClient();
-  await evaluate(
-    (input) => evaluateAttempts(input.attempts),
+export async function runExperiment(client = createClient(), evaluator = evaluate) {
+  const dataset = await findDataset(client);
+  if (!dataset) throw new Error("Verified synthetic dataset missing; run explicit upload separately.");
+  const { snapshot } = await verifiedExamples(client, dataset);
+  await evaluator(
+    input => evaluateAttempts(input.attempts),
     {
-      data: fixture.datasetName,
-      client,
+      data: snapshot, client,
       experimentPrefix: "council-fallback-contract",
       metadata: { synthetic_fixture: true, fixture_version: 1 },
       evaluators: [({ outputs, referenceOutputs }) => {
         const passed = matchesReference(outputs, referenceOutputs ?? {});
-        return {
-          key: "fallback_contract",
-          score: passed,
-          value: passed ? "pass" : "fail",
-          comment: "Deterministic status/content-count comparison; no model judge.",
-        };
+        return { key: "fallback_contract", score: passed, value: passed ? "pass" : "fail",
+          comment: "Deterministic status/content-count comparison; no model judge." };
       }],
     },
   );
-  console.info(`Completed synthetic LangSmith experiment for ${fixture.datasetName}.`);
+  console.info(`Completed verified synthetic experiment for ${fixture.datasetName}.`);
 }
 
 assertFixtureMatches();
 
+if (import.meta.url === (process.argv[1] ? pathToFileURL(process.argv[1]).href : "")) {
 if (args.has("--upload") && args.has("--experiment")) {
   throw new Error("Run --upload and --experiment as separate explicit commands.");
 } else if (args.has("--upload")) {
@@ -173,4 +203,6 @@ if (args.has("--upload") && args.has("--experiment")) {
   evaluateLocally();
 } else {
   throw new Error("Usage: node scripts/council-langsmith-eval.mjs [--local|--upload|--experiment]");
+}
+
 }
