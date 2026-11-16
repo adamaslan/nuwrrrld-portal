@@ -3,6 +3,7 @@ const m=vi.hoisted(()=>({list:vi.fn()}));
 vi.mock("@clerk/nextjs/server",()=>({clerkClient:async()=>({users:{getUserList:m.list}})}));
 import { hasPendingEmailBeta, betaEmailId, BETA_EMAIL_KEY, readBetaEmails } from "@/lib/beta-email-registry";
 import { resolveTierWithPendingBeta, parseSubscriptionWithPendingBeta } from "@/lib/subscription-admin-server";
+import { canReceiveHoldingsAlerts } from "@/lib/holdings-alerts";
 const env={...process.env};
 function user(email="new@example.com",status="verified") {return {primaryEmailAddressId:"e1",emailAddresses:[{id:"e1",emailAddress:email,verification:{status}}]};}
 const grant={tier:"pro",expiresAt:null};
@@ -20,7 +21,7 @@ describe("authoritative private beta registry",()=>{
  it("revoked entries stop qualifying on next read without materialized metadata",async()=>{expect(await hasPendingEmailBeta(user())).toBe(true);m.list.mockResolvedValue({data:[{...admin(),privateMetadata:{[BETA_EMAIL_KEY]:{}}}],totalCount:1});expect(await hasPendingEmailBeta(user())).toBe(false);});
  it("expired and malformed grants fail closed",async()=>{for(const expiresAt of ["2020-01-01","invalid","2027-02-30"]){m.list.mockResolvedValue({data:[admin({tier:"pro",expiresAt})],totalCount:1});expect(await hasPendingEmailBeta(user())).toBe(false);}});
  it("rejects mismatched hash and malformed registry values",()=>{expect(readBetaEmails({[BETA_EMAIL_KEY]:{forged:{email:"new@example.com",grant}}})).toEqual({});expect(readBetaEmails({[BETA_EMAIL_KEY]:[]})).toEqual({});});
- it("server wrapper includes registry entitlement and preserves billing status",async()=>{expect(await resolveTierWithPendingBeta("free",user())).toBe("pro");expect(await parseSubscriptionWithPendingBeta({subscription_status:"free"},user())).toMatchObject({status:"free",tier:"pro"});});
+ it("server wrapper includes registry entitlement and preserves billing status",async()=>{const tier=await resolveTierWithPendingBeta("free",user());expect(tier).toBe("pro");expect(canReceiveHoldingsAlerts(tier)).toBe(true);expect(await parseSubscriptionWithPendingBeta({subscription_status:"free"},user())).toMatchObject({status:"free",tier:"pro"});});
  it("existing paid or user-metadata grants need no registry request",async()=>{expect(await resolveTierWithPendingBeta("active",user())).toBe("pro");expect(await resolveTierWithPendingBeta("free",{...user(),publicMetadata:{beta:grant}})).toBe("pro");expect(m.list).not.toHaveBeenCalled();});
  it("anonymous users cannot qualify",async()=>{expect(await hasPendingEmailBeta(null)).toBe(false);expect(m.list).not.toHaveBeenCalled();});
 });
