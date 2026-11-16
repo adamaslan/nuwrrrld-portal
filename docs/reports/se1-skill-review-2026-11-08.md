@@ -1,15 +1,24 @@
-# se1 features: skill-pass review
+# se1 features: historical skill-pass report
 
-Reviewed: PR #346 head `8b2694a` (`feat/w0-evidence-foundation`), the 20 features in `lib/shared/ai-features.ts`, and the scan pages, components, and logic modules they use.
-Method: five passes from the `optimized-prompt-suite` (codebase-build-refactor, testing-perf-cost, ai-code-debugging, feature-gating-safety, evidence-gated-delivery). Each claim below is marked PASS, FAIL, or UNVERIFIED, with its location.
+Original reported review target: PR #346 intermediate head `8b2694a` (`feat/w0-evidence-foundation`), the 20 features in `lib/shared/ai-features.ts`, and the scan pages, components, and logic modules they use.
+Reported method: five passes from the `optimized-prompt-suite` (codebase-build-refactor, testing-perf-cost, ai-code-debugging, feature-gating-safety, evidence-gated-delivery). Each claim below is marked PASS, FAIL, or UNVERIFIED, with its location.
 
-## Summary
+## Provenance and limits (corrected 2026-11-16)
+
+This is the original author's historical report, not a fresh audit of current main. PASS/FAIL labels and test counts below record that author's claims; the deleted probes, mutation runs and original command logs were not independently recovered or rerun for this correction. They are not current release clearance.
+
+- Original target: [#346](https://github.com/adamaslan/nuwrrrld-portal/pull/346), intermediate `8b2694a`; its final head is `a14d0b8c515b186b7d9a4db6e12a0111597e045c`.
+- "PR B" meant [#347](https://github.com/adamaslan/nuwrrrld-portal/pull/347), final head `463e30e42c51be3654cb5d2ccdbbc127858987b3`. Live GitHub records both PRs as merged. The exact #347 source leaves card `as_of` empty and labels unsupported feeds "(not built)"; ScanCardView passes that value to ProvenanceFooter, whose fallback renders "Unsourced: missing as_of." This is source verification, not new browser proof.
+- The intermediate target is not a pin for all later mutation/fix claims. Where a command's exact checkout was not preserved, it remains unverified. Historical caller/feature-status statements below must not be applied to current main or #375 without a fresh check.
+- This report grants no permission for runtime activation, sensitive effects or merges. Domain and owner authority remain separate from the author's feature-gating judgment.
+
+## Historical summary
 
 | # | Pass | Result | Finding IDs |
 |---|---|---|---|
 | 1 | Change impact (codebase-build-refactor) | PASS, with one **FAIL** on unwired features | F3, F4 |
 | 2 | Test quality (testing-perf-cost) | PASS after one added test; one equivalent mutant left | F9 |
-| 3 | AI-code audit (ai-code-debugging) | **FAIL** on provenance; fixed in PR B | F1, F2, F5–F8 |
+| 3 | AI-code audit (ai-code-debugging) | **FAIL** on provenance; reported fixed in #347 (`463e30e42c51be3654cb5d2ccdbbc127858987b3`) | F1, F2, F5–F8 |
 | 4 | Feature gating (feature-gating-safety) | PASS: no sensitive surface touched | — |
 | 5 | Evidence (evidence-gated-delivery) | Listed per claim below | — |
 
@@ -39,14 +48,14 @@ Ten deliberate breaks, each run against the three test files, then restored. The
 | M9 G6 gap list never blocks | caught | caught |
 | M10 G9 provenance fails open | caught | caught |
 
-**PASS**: all 9 killable mutants are caught after the M1 test; M5 is the one equivalent mutant. Test-first was **not** followed for the original code. The tests were written after it, and the evidence skill asks for failing tests first. The fixes in PR B are test-first.
+**PASS**: all 9 killable mutants are caught after the M1 test; M5 is the one equivalent mutant. Test-first was **not** followed for the original code. The tests were written after it, and the evidence skill asks for failing tests first. The author reported the #347 fixes as test-first; exact negative-control logs are not preserved here.
 
 ## 3. AI-code audit
 
 Checked for hallucinated APIs, swallowed errors, masking fallbacks, weak tests, and layer violations.
 
-- **F1 (high, FAIL, fixed in PR B):** `components/evidence/ScanCardView.tsx` passed `as_of: "not run"` to `ProvenanceFooter`. The footer only checks for a non-empty string, so an unrun scan rendered `Source … · as of not run · scan v1.0.0`. Probed with a temporary test (removed): `formatProvenance({… as_of: "not run" …})` returns that sourced-looking line. This breaks the fail-closed rule (G9). **Fix:** `cardProvenance()` in `lib/shared/se1-catalog.ts` leaves `as_of` empty for unrun cards, so the footer shows "Unsourced: missing as_of."
-- **F2 (medium, FAIL, fixed in PR B):** nine features (A3, B7, B9, C4, D6, D9, F2, J2, J5) were marked `web_only`, but no route or component renders them. Marked `logic_only` now, with a new status value and a pinning test.
+- **F1 (high, FAIL, reported fixed in #347 (`463e30e42c51be3654cb5d2ccdbbc127858987b3`)):** `components/evidence/ScanCardView.tsx` passed `as_of: "not run"` to `ProvenanceFooter`. The footer only checks for a non-empty string, so an unrun scan rendered `Source … · as of not run · scan v1.0.0`. Probed with a temporary test (removed): `formatProvenance({… as_of: "not run" …})` returns that sourced-looking line. This breaks the fail-closed rule (G9). **Fix:** `cardProvenance()` in `lib/shared/se1-catalog.ts` leaves `as_of` empty for unrun cards, so the footer shows "Unsourced: missing as_of."
+- **F2 (medium, FAIL, reported fixed in #347 (`463e30e42c51be3654cb5d2ccdbbc127858987b3`)):** nine features (A3, B7, B9, C4, D6, D9, F2, J2, J5) were marked `web_only`, but no route or component renders them. Marked `logic_only` now, with a new status value and a pinning test.
 - **F3 (medium, recorded, not fixed):** `ScanCitations` (A3) has no caller. A3 is not live. **Decision needed:** wire it into a rendered finding, or move it to `file-archive/` with an `ARCHIVED:` header. Not deleted, per the archive rule.
 - **F4 (medium, recorded):** the dossier logic (`diffDossiers`, `dossierToMarkdown`, `missingEvidenceSection`, `detectContradictions`, `decideAlert`, `holdFoldConfidence`, `checkFaithfulness`, `nearDuplicates`) has no caller outside its tests. Wiring waits for the se1 results store (plan decision D1).
 - **F5 (low, recorded):** `nearDuplicates` silently skips series of different lengths or under 5 points. It returns no result and no error, so a caller cannot tell "no duplicates" from "could not compare."
@@ -57,7 +66,7 @@ Checked for hallucinated APIs, swallowed errors, masking fallbacks, weak tests, 
 
 ## 4. Feature gating
 
-Files in the PR: `app/sitemap.ts`, `app/scans/**`, `app/llms.txt/**`, `components/evidence/**`, `lib/shared/se1-*.ts`, `lib/shared/ai-features.ts`, and tests. None touches auth, Clerk, Stripe, webhooks, rate limits, migrations, secrets, or `proxy.ts`. **PASS: no sensitive surface, so no confirmation gate applies.**
+Files in the PR: `app/sitemap.ts`, `app/scans/**`, `app/llms.txt/**`, `components/evidence/**`, `lib/shared/se1-*.ts`, `lib/shared/ai-features.ts`, and tests. None touches auth, Clerk, Stripe, webhooks, rate limits, migrations, secrets, or `proxy.ts`. **Historical author assessment: no sensitive surface identified. This is not an authority grant or a waiver of any confirmation or release gate.**
 
 Residual, **UNVERIFIED**: the new pages are public and not behind a flag. They show only spec content today. If the results store later feeds them real rows, they should go behind a flag first.
 
@@ -65,8 +74,8 @@ Residual, **UNVERIFIED**: the new pages are public and not behind a flag. They s
 
 | Claim | Status | Location |
 |---|---|---|
-| Unit suite passes after PR B | PASS (local) | `npx vitest run --project unit`: 104 files, 1235 tests passed, 9 skipped |
-| Components suite passes after PR B | PASS (local) | `npx vitest run --project components`: 22 files, 135 tests passed |
+| Unit suite passes reported after #347 | PASS (local) | `npx vitest run --project unit`: 104 files, 1235 tests passed, 9 skipped |
+| Components suite passes reported after #347 | PASS (local) | `npx vitest run --project components`: 22 files, 135 tests passed |
 | Provenance defect is real before fix | PASS (local probe, deleted after) | `formatProvenance` with `as_of: "not run"` returns a sourced line |
 | Regression tests fail before fix | PASS (local) | `__tests__/se1-review-fixes.test.ts`: 2 failed before the fix |
 | Regression tests pass after fix | PASS (local) | same file: 21 tests across 3 files pass after the fix |
