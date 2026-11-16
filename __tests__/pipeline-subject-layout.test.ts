@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 describe('pipeline subject layout', () => {
   it('preserves the full subject in a keyboard-scrollable labelled region', () => {
-    const source = read('app/dashboard/nulogdash/pipelines/[id]/page.tsx');
+    const source = read('app/dashboard/nulogdash/pipelines/ItemComponents.tsx');
     expect(source).toMatch(/<div className="nld-item-subject" tabIndex=\{0\} role="region" aria-label="Full subject">\{item.subject\}<\/div>/);
   });
   it('bounds a very long subject in both dimensions and wraps unbroken ticker lists', () => {
