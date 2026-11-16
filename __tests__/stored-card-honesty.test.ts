@@ -44,8 +44,8 @@ describe('honest labeling stays in place', () => {
     expect(client).toContain('STORED SIGNAL SUMMARY');
   });
   it('aggregate header says computed, not updated', () => {
-    expect(index).toContain('Signals computed {formatUpdated(data.updatedAt)}');
-    expect(index).not.toContain('Updated {formatUpdated(data.updatedAt)}');
+    expect(index).toContain('Signals computed {formatComputedAt(data.updatedAt)}');
+    expect(index).not.toContain('Updated {formatComputedAt(data.updatedAt)}');
   });
   it('per-card dates show market bar and calculation, marked unknown when absent', () => {
     expect(client).toContain('Market bar {v.barDate ?? "unknown"}');
