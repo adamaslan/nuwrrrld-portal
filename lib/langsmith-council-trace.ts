@@ -58,7 +58,8 @@ function safeMetadata(metadata: Record<string, unknown> = {}): Record<string, un
     ...(typeof values.model === "string" ? { model: values.model } : {}),
     ...(Number.isInteger(values.attempt) ? { attempt: values.attempt } : {}),
     ...(typeof values.primary === "boolean" ? { primary: values.primary } : {}),
-    ...(typeof values.answerOnly === "boolean" ? { answer_only: values.answerOnly } : {}),
+    ...(typeof (values.answerOnly ?? values.answer_only) === "boolean"
+      ? { answer_only: values.answerOnly ?? values.answer_only } : {}),
   };
 }
 
@@ -147,7 +148,7 @@ export async function traceCouncilAttempt<T extends AttemptResult>(
       client,
       tracingEnabled: true,
       tags: ["council", "model-attempt"],
-      metadata: context,
+      metadata: safeMetadata(context),
       processInputs: () => ({}),
       processOutputs: summarizeAttempt,
     },
