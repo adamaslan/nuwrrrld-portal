@@ -2,7 +2,7 @@
 date: 2026-10-12
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/langsmith-council-trace.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/langsmith-council-trace.ts, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285, PR#400, PR#401]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)

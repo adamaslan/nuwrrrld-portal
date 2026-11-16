@@ -2,7 +2,7 @@
 date: 2026-11-16
 type: decision
 tags: [council, langsmith, privacy, observability]
-sources: [../../lib/langsmith-council-trace.ts, ../../lib/openrouter.ts, ../../docs/langsmith-council-observability.md, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs]
+sources: [../../lib/langsmith-council-trace.ts, ../../lib/openrouter.ts, ../../docs/langsmith-council-observability.md, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs, PR#400, PR#401]
 ---
 
 # Decision: opt-in, content-free LangSmith Council traces

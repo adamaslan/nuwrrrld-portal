@@ -2,7 +2,7 @@
 date: 2026-11-16
 type: concept
 tags: [council, langsmith, privacy, observability]
-sources: [../../lib/langsmith-council-trace.ts, ../../lib/openrouter.ts, ../../docs/langsmith-council-observability.md, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs, ../../docs/langsmith-council-evaluation.md]
+sources: [../../lib/langsmith-council-trace.ts, ../../lib/openrouter.ts, ../../docs/langsmith-council-observability.md, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs, ../../docs/langsmith-council-evaluation.md, PR#400, PR#401]
 ---
 
 # Concept: AI run privacy boundary
