@@ -48,6 +48,7 @@ const EXPLICIT_CONDITION_RE = new RegExp(
   "i",
 );
 const EXPLICIT_DIRECTION_RE = /\b(bullish|bearish|bull|bear)\s+(?:case|thesis|view|outlook|call)\b/gi;
+const DECLARED_DIRECTION_RE = /\b(?:my|our|the)\s+(?:case|thesis|view|outlook|call)\s+(?:is|remains)\s+(bullish|bearish|bull|bear)\b/gi;
 const EXECUTION_LEVELS_RE = new RegExp(
   String.raw`entry\s+\$?(${PRICE_NUMBER}).*?stop\s+\$?(${PRICE_NUMBER}).*?target\s+\$?(${PRICE_NUMBER})`,
   "i",
@@ -91,7 +92,7 @@ function parseCitedQuotes(because: string): Array<{ id: string; text: string }> 
 function explicitBecauseDirections(because: string): Set<"bullish" | "bearish"> {
   const prose = because.replace(/"[^"]+"|“[^”]+”/g, " ");
   const directions = new Set<"bullish" | "bearish">();
-  for (const match of prose.matchAll(EXPLICIT_DIRECTION_RE)) {
+  for (const match of [...prose.matchAll(EXPLICIT_DIRECTION_RE), ...prose.matchAll(DECLARED_DIRECTION_RE)]) {
     const before = prose.slice(Math.max(0, (match.index ?? 0) - 24), match.index ?? 0);
     if (/\b(?:not|never|no)\s+(?:the\s+)?$/i.test(before)) continue;
     directions.add(match[1].toLowerCase().startsWith("bull") ? "bullish" : "bearish");
