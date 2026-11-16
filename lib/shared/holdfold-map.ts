@@ -1,3 +1,5 @@
+import type { OutlookSource } from "./stored-card-honesty";
+
 /**
  * holdfold-map — pure mapping from gcp3's `/signals` payload to Hold/Fold
  * verdicts. Extracted from app/api/holdfold/route.ts so the daily brief can
@@ -25,6 +27,8 @@ export interface HoldFoldVerdict {
   signals: Array<{ signal: string; strength: string; detail: string; category: string }>;
   aiSummary: string;
   aiOutlook: string;
+  /** Adapter-assigned origin; absent for legacy generic mappings. */
+  outlookSource?: OutlookSource;
   updatedAt: string;
   /** ISO market-bar date when the source supplies it; null when unknown.
    *  Never derived from the compute timestamp - different facts. */
