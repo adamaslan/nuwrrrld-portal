@@ -9,8 +9,8 @@ No workflow, cron, timezone, market gate or runtime setting changes in this PR.
 
 | Workflow | Declared schedule | Declared local time, not guaranteed start time | Gate | Calls | Intended route effect |
 | --- | --- | --- | --- | --- | --- |
-| `select-followed-tickers.yml` | `0 14 1 * *`, no timezone override | First of month, 14:00 UTC = 09:00 EST / 10:00 EDT | No separate market-hours gate in the workflow | `POST /api/pipeline/followed-tickers-select` | Selects and freezes up to 10 bulls and 10 bears; missing entry prices can underfill the cohort |
-| `track-followed-tickers.yml` | `30 16 * * 1-5`, `timezone: America/New_York` | Weekdays, 16:30 New York = 21:30 UTC in EST / 20:30 UTC in EDT | Confirmed NYSE trading day, New York weekday and wall time after confirmed session close; scheduled cron literal also checked | `POST /api/pipeline/followed-tickers` | Daily observations for existing picks and resolution of due horizons; actual field completeness depends on source/provider results |
+| `select-followed-tickers.yml` | `0 14 1 * *`, no timezone override | First of month, 14:00 UTC = 09:00 EST / 10:00 EDT | New York day-of-month must be `01` for scheduled runs; manual dispatch bypasses the date check (weekends allowed) | `POST /api/pipeline/followed-tickers-select` | Selects and freezes up to 10 bulls and 10 bears; missing entry prices can underfill the cohort |
+| `track-followed-tickers.yml` | `30 16 * * 1-5`, `timezone: America/New_York` | Weekdays, 16:30 New York = 21:30 UTC in EST / 20:30 UTC in EDT | Confirmed NYSE trading day, New York weekday and wall time after confirmed session close; scheduled cron literal also checked; manual `skip_market_check=true` bypasses the gate | `POST /api/pipeline/followed-tickers` | Daily observations for existing picks and resolution of due horizons; actual field completeness depends on source/provider results |
 | `judge-followed-tickers.yml` | `0 16 * * 6`, no timezone override | Saturday, 16:00 UTC = 11:00 EST / 12:00 EDT | No separate market-hours gate in the workflow | `POST /api/pipeline/followed-tickers-judge` | Weekly grading of eligible verdicts and gold-set checks; a green workflow alone does not prove all grades are populated |
 
 Logical dependency: monthly **select** freezes the cohort, daily **track**
@@ -71,7 +71,9 @@ queued jobs can be dropped. Those are platform caveats, not a proven diagnosis
 of the observed start times here. Separate declared due time, event creation,
 run start, individual job/step times and persisted data receipts. Do not infer
 zero queue delay from equal created/start fields or infer an ignored timezone
-from a late run. The execution gate protects the pre-close condition; it does
+from a late run. The execution gate protects the pre-close condition when its checks run. A manual
+`workflow_dispatch` with `skip_market_check=true` returns allowed before the
+weekday/session-close checks and can call the route before close. The gate does
 not guarantee that a run occurs, writes every field or covers a missing day.
 
 ## Related workflow context
