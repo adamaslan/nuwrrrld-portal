@@ -66,6 +66,10 @@ describe("entitlement gate coverage", () => {
       if (ALLOWED_BARE_TIER_FROM_STATUS.has(rel)) return false;
       const src = readFileSync(join(REPO_ROOT, rel), "utf8");
       if (!/\bhasEntitlement\s*\(/.test(src)) return false;
+      // This source-only pure engine consumes a resolved tier, not billing status.
+      // Its explicit boundary is checked below. Future app callers still must
+      // resolve pending-email beta before they can supply this tier.
+      if (rel === "lib/holdings-alerts.ts") return false;
       return !/\b(resolveTierWithPendingBeta|parseSubscriptionWithPendingBeta)\s*\(/.test(src);
     });
 
@@ -74,6 +78,14 @@ describe("entitlement gate coverage", () => {
       `These files call hasEntitlement() without resolving tier through ` +
         `lib/subscription-admin-server, so pending-email beta never applies to them.`,
     ).toEqual([]);
+  });
+
+  it("the pure holdings detector only consumes a pre-resolved tier, without account I/O", () => {
+    const src = readFileSync(join(REPO_ROOT, "lib/holdings-alerts.ts"), "utf8");
+    expect(src).toContain("canReceiveHoldingsAlerts(tier: SubscriptionTier)");
+    expect(src).toContain('hasEntitlement("watchlist_alerts", tier)');
+    expect(src).not.toMatch(/from ["'][^"']*(?:subscription-admin|clerk|beta-email-registry)/);
+    expect(src).not.toMatch(/\b(?:resolveTier|clerkClient|fetch)\s*\(/);
   });
 
   it("all application subscription callers use the async registry-aware server module", () => {
