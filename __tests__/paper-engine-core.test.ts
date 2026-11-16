@@ -575,3 +575,28 @@ describe("buy sizing reserves slippage (audit D11)", () => {
     expect(100 - spent).toBeGreaterThanOrEqual(0);
   });
 });
+
+// Cash accounting must reserve the whole run, including sale proceeds.
+it('reserves slippage across multiple cash-limited buys, not only the last order',()=>{
+ const plan=planRun({policy:{...PAPER_POLICY.quant,maxPositionWeight:.6,minPositionWeight:0,sectorCapPct:1,maxTurnoverPerRun:1},nav:100,cash:100,positions:[],candidates:[{ticker:'ZZSMALL',score:90},{ticker:'ZZOTHER',score:89}],activeWatchlist:new Set(['ZZSMALL','ZZOTHER']),prices:{ZZSMALL:10,ZZOTHER:10}});
+ expect(plan.orders).toHaveLength(2);
+ const spent=fillOrders(plan.orders,new Map()).reduce((s,o)=>s+(o.side==='buy'?o.notional:-o.notional),0);
+
+ expect(spent).toBeLessThanOrEqual(100+1e-9);
+});
+it('does not spend sell slippage on a same-slot buy',()=>{
+ const plan=planRun({policy:{...PAPER_POLICY.quant,maxPositionWeight:1,minPositionWeight:0,sectorCapPct:1,maxTurnoverPerRun:3},nav:100,cash:0,positions:[{ticker:'ZZSOLD',quantity:10,avgCost:20,runsHeld:99,highWater:20}],candidates:[{ticker:'ZZBOUGHT',score:90}],activeWatchlist:new Set(['ZZBOUGHT']),prices:{ZZSOLD:10,ZZBOUGHT:10}});
+ const filled=fillOrders(plan.orders,new Map());
+ const cash=filled.reduce((s,o)=>s+(o.side==='buy'?-o.notional:o.notional),0);
+
+ expect(cash).toBeGreaterThanOrEqual(-1e-9);
+});
+
+it('preserves cumulative reserve in holdings-floor and CHAIR paths',()=>{
+ const tickers=['ZZFIRST','ZZSECOND'];const candidates=tickers.map(ticker=>({ticker,score:90}));const prices=Object.fromEntries(tickers.map(t=>[t,10]));
+ for(const chair of [false,true])for(const floor of [false,true]){
+  const policy={...PAPER_POLICY.quant,maxPositionWeight:.6,minPositionWeight:0,sectorCapPct:1,maxTurnoverPerRun:3,minHoldings:floor?2:0,coreWeight:.6};
+  const orders=chair?planChairConsensus(policy,2000,100,[],tickers.map(ticker=>({ticker,buyVotes:5,sellVotes:0,totalSeats:5})),new Set(tickers),prices,floor?{coreBook:tickers,candidates}:undefined).orders:planRun({policy,nav:2000,cash:100,positions:[],candidates,activeWatchlist:new Set(tickers),prices,holdingsFloor:floor?{coreBook:tickers}:undefined}).orders;
+  expect(orders.length).toBeGreaterThan(0);const spent=fillOrders(orders,new Map()).reduce((s,o)=>s+o.notional,0);expect(spent).toBeLessThanOrEqual(100+1e-9);
+ }
+});
