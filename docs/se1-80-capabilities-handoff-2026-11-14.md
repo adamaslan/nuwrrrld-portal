@@ -1,6 +1,14 @@
 # se1: the 80 capabilities that are not live, and what is left to finish them
 
-Date: 2026-11-14. Branch `feat/se1-ledger-80`, cut from `origin/main` at `3db8925` (#374 merged).
+Integration update: 2026-11-16. PR #352 is now merged as `677a572db7c65e78a43f490940b2a30a8270822a`.
+C9, D4, E1, E3 and F1 now have fixture-tested logic in `lib/shared/se1-roadmap2.ts` and
+`__tests__/se1-roadmap2.test.ts`; ledger paths point there. Their web state is `logic_only`, mobile
+stays `planned`, and existing caller/results-store/auth blockers are unchanged. Audit groups and PR
+numbers below describe the original audit, not current PR lifecycle. This makes 80 logic-level acceptance
+slots discoverable, not 80 live capabilities. A2/A3/B2/G3 integration from later commits in this branch
+still needs current deployed desktop/mobile review; the original no-caller narrative below is historical.
+
+Original handoff, 2026-11-14. Branch `feat/se1-ledger-80`, cut from `origin/main` at `3db8925` (#374 merged).
 Follows the audit in homebase `docs/nwf-100-verification-and-robustness-2026-11-13.md`.
 
 This is the work list for the next agents, including the small ones (Haiku, Luna). Every step names its lane and
