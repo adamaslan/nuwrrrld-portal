@@ -30,7 +30,7 @@ interface RuleEvidence {
 const EVIDENCE_ID_RE = /\[C\d+\]/gi;
 const RULES_HEADER_RE = /^\s*RULES(?:\s*\([^\n]*\))?\s*:?\s*$/im;
 const SECTION_HEADER_RE = /^\s*(?:={2,}[^\n]+={2,}|[A-Z][A-Z /_-]{2,}:)\s*$/m;
-const PRICE_NUMBER = String.raw`(?<![\w.+-])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\w,%]|\.[^\s])`;
+const PRICE_NUMBER = String.raw`(?<![\w.+-])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,4})?(?![\w%]|,(?=\d)|\.[^\s])`;
 const PRICE_LEVEL_RE = new RegExp(
   String.raw`(?:\$\s*${PRICE_NUMBER}|\b(?:below|above|over|under|entry|stop|target|level|price|EMA|SMA|VWAP)\s+(?:at\s+)?\$?${PRICE_NUMBER}\b)`,
   "i",
@@ -94,7 +94,7 @@ function explicitBecauseDirections(because: string): Set<"bullish" | "bearish"> 
   const directions = new Set<"bullish" | "bearish">();
   for (const match of [...prose.matchAll(EXPLICIT_DIRECTION_RE), ...prose.matchAll(DECLARED_DIRECTION_RE)]) {
     const before = prose.slice(Math.max(0, (match.index ?? 0) - 24), match.index ?? 0);
-    if (/\b(?:not|never|no)\s+(?:the\s+)?$/i.test(before)) continue;
+    if (/\b(?:not|never|no)\s+(?:(?:the|a|an)\s+)?$/i.test(before)) continue;
     directions.add(match[1].toLowerCase().startsWith("bull") ? "bullish" : "bearish");
   }
   return directions;
