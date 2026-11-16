@@ -39,7 +39,9 @@ function langSmithClient(): Client | null {
       hideInputs: () => ({}),
       hideOutputs: summarizeAttempt,
       hideMetadata: safeMetadata,
-      anonymizer: () => ({}),
+      // The SDK retains the original error unless the anonymizer returns a
+      // string-valued error. Returning {} does not redact exceptions.
+      anonymizer: () => ({ error: "[redacted]" }),
       omitTracedRuntimeInfo: true,
       blockOnRootRunFinalization: false,
     });
@@ -99,7 +101,8 @@ function summarizeAttempt(value: Record<string, unknown>): Record<string, unknow
     ...(typeof safeStatus === "number"
       ? { http_status: safeStatus }
       : {}),
-    ...(typeof safeFinishReason === "string" ? { finish_reason: safeFinishReason.slice(0, 32) } : {}),
+    ...(typeof safeFinishReason === "string" && ["stop", "length", "tool_calls", "content_filter", "function_call", "error"].includes(safeFinishReason)
+      ? { finish_reason: safeFinishReason } : {}),
     ...(typeof safeReasoningTokens === "number" && Number.isFinite(safeReasoningTokens)
       ? { reasoning_tokens: safeReasoningTokens }
       : {}),
