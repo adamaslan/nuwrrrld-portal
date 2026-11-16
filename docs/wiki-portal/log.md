@@ -1,5 +1,7 @@
 # Wiki Log — nuwrrrld-portal
 
+## [2026-11-14] ingest | PR #378 feat(judge-sim): deterministic rubric proxies (T-013–T-018) | pages touched: 3
+
 Append-only chronological record. Format: `## [{date}] {ingest|query|lint|friction} | {summary} | pages touched: N`
 
 ## [2026-10-18] ingest | PR #296 feat: add slot 2 hydration worker | pages touched: 8
@@ -977,4 +979,4 @@ watchlist route.
 ## [2026-10-21] ingest | PR #304 fix: fail grounding compile on extraction errors | pages touched: 6
 ## [2026-11-02] ingest | PR #332 docs: mark SESSION-SUMMARY test_ops.py or-True items resolved | pages touched: 1
 ## [2026-11-02] ingest | PR #328 nulogdash: label pipeline run times with explicit ET timezone | pages touched: 2
-## [2026-11-14] ingest | PR #378 feat(judge-sim): deterministic rubric proxies (T-013–T-018) | pages touched: 3
+## [2026-11-15] ingest | PR #393 test: NWF N-0101..N-0200 receipt and Judge regressions | pages touched: 2
