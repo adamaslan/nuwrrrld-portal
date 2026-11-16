@@ -106,3 +106,27 @@ describe("registry", () => {
     }
   });
 });
+
+// Review controls exercise the public functions, not a patched fixture implementation.
+describe("review: coverage and eligible duplicate boundaries", () => {
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1])("fails closed for invalid holding weight %s", (weight) => {
+    const result = portfolioRisk([{ ticker: "A", weight: 1, risk: 20 }, { ticker: "B", weight, risk: 90 }]);
+    expect(result).toEqual({ risk: null, coverage: 0, complete: false, missing: ["B"] });
+  });
+  it("does not overflow finite positive weight totals", () => {
+    expect(portfolioRisk([{ ticker: "A", weight: Number.MAX_VALUE, risk: 20 }, { ticker: "B", weight: Number.MAX_VALUE, risk: 80 }]))
+      .toEqual({ risk: 50, coverage: 1, complete: true, missing: [] });
+  });
+  it("keeps a sourced citation after an unsourced duplicate", () => {
+    expect(topScansBehindAnswer(["a"], [row("a", { provenance: {} }), row("a")]))
+      .toEqual({ rows: [row("a")], unresolved: [] });
+  });
+  it("keeps a flagged sourced reason after an unflagged duplicate", () => {
+    expect(holdFoldReasons([row("a", { flag: false }), row("a")]).rows).toEqual([row("a")]);
+  });
+  it("still explains unusable and eligible duplicate reasons", () => {
+    const result = holdFoldReasons([row("a", { provenance: {} }), row("a"), row("a")]);
+    expect(result.rows).toEqual([row("a")]);
+    expect(result.skipped).toEqual([{ scan_id: "a", why: "missing provenance" }, { scan_id: "a", why: "duplicate row" }]);
+  });
+});
