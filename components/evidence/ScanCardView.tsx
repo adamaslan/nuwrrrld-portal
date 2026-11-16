@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EvidenceBadge } from "./EvidenceBadge";
 import { ProvenanceFooter } from "./ProvenanceFooter";
+import { ScanCitations } from "./ScanCitations";
 import { EVIDENCE_INFO, cardProvenance, type ScanCard } from "@/lib/shared/se1-catalog";
 
 /** G2 scan card viewer, with A9 "explain this scan" (the card's own prose, no model call). */
@@ -14,7 +15,7 @@ export function ScanCardView({ card }: { card: ScanCard }) {
         <EvidenceBadge level={card.evidence_level} />
       </header>
       <section><h2>Question</h2><p>{card.question}</p></section>
-      <section><h2>Explain this scan</h2><p>{card.prose}</p></section>
+      <section><h2>Explain this scan</h2><p><ScanCitations text={card.prose} /></p></section>
       <section>
         <h2>What a surface may say</h2>
         <p>{EVIDENCE_INFO[card.evidence_level].mayClaim}</p>
@@ -26,7 +27,7 @@ export function ScanCardView({ card }: { card: ScanCard }) {
       </section>
       <section>
         <h2>Caveats</h2>
-        <ul>{card.caveats.map((c) => <li key={c}>{c}</li>)}</ul>
+        <ul>{card.caveats.map((c) => <li key={c}><ScanCitations text={c} /></li>)}</ul>
       </section>
       <section>
         <h2>Related scans</h2>
