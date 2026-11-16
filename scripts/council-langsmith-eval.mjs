@@ -45,18 +45,19 @@ function safeAttempts(attempts) {
 }
 
 function safeEvaluationInputs(inputs) {
-  return { attempts: safeAttempts(inputs.attempts) };
+  return { attempts: safeAttempts((inputs ?? {}).attempts) };
 }
 
 function safeEvaluationOutputs(outputs) {
+  const values = outputs ?? {};
   return {
-    ...(typeof outputs.has_usable_answer === "boolean"
-      ? { has_usable_answer: outputs.has_usable_answer }
+    ...(typeof values.has_usable_answer === "boolean"
+      ? { has_usable_answer: values.has_usable_answer }
       : {}),
-    ...(Number.isInteger(outputs.empty_completion_count)
-      ? { empty_completion_count: outputs.empty_completion_count }
+    ...(Number.isInteger(values.empty_completion_count)
+      ? { empty_completion_count: values.empty_completion_count }
       : {}),
-    ...(Number.isInteger(outputs.attempt_count) ? { attempt_count: outputs.attempt_count } : {}),
+    ...(Number.isInteger(values.attempt_count) ? { attempt_count: values.attempt_count } : {}),
   };
 }
 
