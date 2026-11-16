@@ -77,7 +77,7 @@ export interface LedgerRow {
   module?: string;
   /** Override: the test file that asserts this row's Q11 at the logic level. */
   test?: string;
-  /** Open PR carrying the logic, when group is in_open_pr. */
+  /** PR carrying the logic at the audit; retained after merge as provenance. */
   pr?: number;
 }
 
@@ -193,8 +193,9 @@ export const LEDGER: readonly LedgerRow[] = [
     slice: "sectorInputsGate(required, available): returns the claims each missing or stale input blocks; a partial recipe is never reported as complete.",
     acceptance: "Unavailable macro/sector inputs block affected claims rather than silently using a partial recipe." },
   { id: "C9", title: "Quick-ask returns the top 3 scans behind the answer", track: "Council", stage: "S3", se1: "P1", surface: "both", cost: "C0",
-    group: "in_open_pr", web: "planned", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [], pr: 352,
-    slice: "topScansBehindAnswer, in PR #352 (lib/shared/se1-roadmap2.ts). Probe it against the acceptance case before merge.",
+    group: "in_open_pr", web: "logic_only", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [], pr: 352,
+    module: "lib/shared/se1-roadmap2.ts", test: "__tests__/se1-roadmap2.test.ts",
+    slice: "topScansBehindAnswer, from merged PR #352 (lib/shared/se1-roadmap2.ts); fixture-tested, no live caller.",
     acceptance: "Fewer than three supported findings remain fewer than three; no filler citations are invented." },
 
   // ── D. Proactive monitoring ───────────────────────────────────────────────
@@ -211,8 +212,9 @@ export const LEDGER: readonly LedgerRow[] = [
     slice: "filterQueuedAlerts(queue, currentHoldings): drops every queued alert whose ticker is no longer held and returns the dropped ones with the reason.",
     acceptance: "A holdings change invalidates queued alerts for positions the user no longer owns." },
   { id: "D4", title: "Regime-change banner", track: "Monitoring", stage: "S2", se1: "P1", surface: "both", cost: "C0",
-    group: "in_open_pr", web: "planned", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [], pr: 352,
-    slice: "regimeBanner, in PR #352 (lib/shared/se1-roadmap2.ts). Probe it against the acceptance case before merge.",
+    group: "in_open_pr", web: "logic_only", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [], pr: 352,
+    module: "lib/shared/se1-roadmap2.ts", test: "__tests__/se1-roadmap2.test.ts",
+    slice: "regimeBanner, from merged PR #352 (lib/shared/se1-roadmap2.ts); fixture-tested, no live caller.",
     acceptance: "A stale or noisy regime input produces unavailable/debounced state, not repeated banner flips." },
   { id: "D5", title: "Pre-earnings reminder with the dossier attached", track: "Monitoring", stage: "S6", se1: "P2", surface: "mobile", cost: "C1",
     group: "not_started", web: "n/a", mobile: "planned", lane: "intermediate", blockers: ["earnings_feed", "push_consent", "mobile_native", "model_call"], needs: ["B3"],
@@ -239,16 +241,18 @@ export const LEDGER: readonly LedgerRow[] = [
 
   // ── E. Portfolio intelligence ─────────────────────────────────────────────
   { id: "E1", title: "Portfolio-wide risk scan", track: "Portfolio", stage: "S2", se1: "P1", surface: "both", cost: "C0",
-    group: "in_open_pr", web: "planned", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring", "auth_entitlement"], needs: [], pr: 352,
-    slice: "portfolioRisk, in PR #352 (lib/shared/se1-roadmap2.ts). Probe it against the acceptance case before merge.",
+    group: "in_open_pr", web: "logic_only", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring", "auth_entitlement"], needs: [], pr: 352,
+    module: "lib/shared/se1-roadmap2.ts", test: "__tests__/se1-roadmap2.test.ts",
+    slice: "portfolioRisk, from merged PR #352 (lib/shared/se1-roadmap2.ts); fixture-tested, no live caller.",
     acceptance: "Incomplete holdings coverage is displayed; missing assets never count as zero risk." },
   { id: "E2", title: "Concentration and correlation explainer", track: "Portfolio", stage: "S3", se1: "P1", surface: "both", cost: "C1",
     group: "not_started", web: "logic_only", mobile: "planned", lane: "intermediate", blockers: ["results_store", "model_call", "auth_entitlement"], needs: [],
     slice: "alignedCorrelation(a, b, minOverlap): align two dated series on shared dates; fewer than minOverlap shared points returns insufficient_data, never 0.",
     acceptance: "Unaligned histories and too few overlapping observations return insufficient data, not zero correlation." },
   { id: "E3", title: "\"Weakest link\" holding ranked by trend + risk", track: "Portfolio", stage: "S2", se1: "P1", surface: "both", cost: "C0",
-    group: "in_open_pr", web: "planned", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring", "auth_entitlement"], needs: [], pr: 352,
-    slice: "weakestLinks, in PR #352 (lib/shared/se1-roadmap2.ts). Probe it against the acceptance case before merge.",
+    group: "in_open_pr", web: "logic_only", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring", "auth_entitlement"], needs: [], pr: 352,
+    module: "lib/shared/se1-roadmap2.ts", test: "__tests__/se1-roadmap2.test.ts",
+    slice: "weakestLinks, from merged PR #352 (lib/shared/se1-roadmap2.ts); fixture-tested, no live caller.",
     acceptance: "Missing trend/risk inputs exclude a holding from ranking and explain the exclusion." },
   { id: "E4", title: "Rebalance candidates as review items, not orders", track: "Portfolio", stage: "S3", se1: "P1", surface: "web", cost: "C1",
     group: "not_started", web: "logic_only", mobile: "n/a", lane: "small", blockers: ["results_store", "model_call", "auth_entitlement"], needs: [],
@@ -277,8 +281,9 @@ export const LEDGER: readonly LedgerRow[] = [
 
   // ── F. Hold/Fold and paper trading ────────────────────────────────────────
   { id: "F1", title: "Hold/Fold card shows the 5 scans behind the call", track: "Hold/Fold", stage: "S2", se1: "P1", surface: "both", cost: "C0",
-    group: "in_open_pr", web: "planned", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [], pr: 352,
-    slice: "holdFoldReasons, in PR #352 (lib/shared/se1-roadmap2.ts). Probe it against the acceptance case before merge.",
+    group: "in_open_pr", web: "logic_only", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [], pr: 352,
+    module: "lib/shared/se1-roadmap2.ts", test: "__tests__/se1-roadmap2.test.ts",
+    slice: "holdFoldReasons, from merged PR #352 (lib/shared/se1-roadmap2.ts); fixture-tested, no live caller.",
     acceptance: "Every displayed reason resolves to a real row; fewer than five supported reasons are allowed." },
   { id: "F2", title: "Hold/Fold confidence as an evidence level", track: "Hold/Fold", stage: "S2", se1: "P1", surface: "both", cost: "C0",
     group: "logic_no_caller", web: "logic_only", mobile: "planned", lane: "small", blockers: ["results_store", "caller_wiring"], needs: [],
@@ -448,7 +453,7 @@ export const TRACK_FILE: Readonly<Record<string, string>> = {
 /**
  * Where a row's logic and its acceptance test live. Rows built in se1-dossier.ts before this
  * ledger carry explicit paths; the rest use their track's module and test file.
- * Rows in PR #352 point at the track file but have no describe block there until that PR lands.
+ * Rows from merged PR #352 explicitly point at its roadmap module and acceptance test.
  */
 export function logicPaths(row: LedgerRow): { module: string; test: string } {
   const stem = TRACK_FILE[row.track];
