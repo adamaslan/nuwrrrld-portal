@@ -30,7 +30,7 @@ const good = (): TestReceipt => ({
 });
 
 describe("evidence receipt validator", () => {
-  it("accepts a fully evidenced receipt", () => expect(validateEvidenceReceipt(good()).valid).toBe(true));
+  it("accepts a structurally valid fixture without authenticating it", () => expect(validateEvidenceReceipt(good()).valid).toBe(true));
   const rejects: [string, (r: TestReceipt) => void, string][] = [
     ["missing head SHA", r => { r.headSha = undefined; }, "head.missing-or-ambiguous"],
     ["short ambiguous SHA", r => { r.headSha = "abc1234"; }, "head.missing-or-ambiguous"],
@@ -57,6 +57,34 @@ describe("evidence receipt validator", () => {
     const receipt = good(); mutate(receipt);
     expect(validateEvidenceReceipt(receipt).errors).toContain(error);
   });
+  it("preserves partial receipt support without implying release clearance", () => {
+    expect(validateEvidenceReceipt({ headSha: "a".repeat(40), sourceUrl: "https://example.invalid/" }).valid).toBe(true);
+  });
+  it.each([
+    [], { ...good(), checks: "wrong" }, { ...good(), checks: [null] },
+    { ...good(), tasks: {} }, { ...good(), tasks: [null] },
+    { ...good(), fileClaims: [{ writer: "a", files: "x" }] },
+    { ...good(), reviewer: { claimedIndependent: "false" } },
+    { ...good(), preview: "wrong" }, { ...good(), sourceUrl: "https://" },
+    { ...good(), sourceUrl: "https://user:pass@example.invalid/" },
+    { ...good(), schedule: { sourceUrl: "https://" } },
+    { ...good(), checks: [{ name: "unit", status: 1 }] },
+  ])("rejects malformed provided fields %# without throwing", (receipt) => {
+    expect(validateEvidenceReceipt(receipt).valid).toBe(false);
+  });
+  it.each(["failed", "error", "cancelled", "timed_out", "pending", "running", "skipped"])("rejects %s claimed passed", status => {
+    expect(validateEvidenceReceipt({ ...good(), checks: [{ name: "unit", status, claimed: "passed" }] }).valid).toBe(false);
+  });
+  it("rejects a claimed pass with no actual status", () => {
+    expect(validateEvidenceReceipt({ ...good(), checks: [{ name: "unit", claimed: "passed" }] }).valid).toBe(false);
+  });
+  it("rejects cyclic or excessively deep supplied objects as structured invalid", () => {
+    const receipt = { ...good(), extra: {} as unknown }; receipt.extra = receipt;
+    expect(validateEvidenceReceipt(receipt).valid).toBe(false);
+    let deep: unknown = "leaf"; for (let i = 0; i < 100; i++) deep = { extra: deep };
+    expect(validateEvidenceReceipt({ ...good(), extra: deep }).valid).toBe(false);
+  });
+
 });
 
 describe("Judge frozen input boundary", () => {
