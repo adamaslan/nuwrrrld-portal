@@ -343,6 +343,12 @@
 }
 .ft-sb-hit { color: var(--neon-blue); }
 .ft-sb-miss { color: var(--neon-red); }
+.ft-sb-void { color: var(--text-dim); }
+.ft-sb-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin: 0.5rem 0 0;
+}
 .ft-sb-rate { font-weight: 700; }
 .ft-sb-rate--good { color: var(--neon-blue); }
 .ft-sb-rate--bad { color: var(--neon-red); }
@@ -351,7 +357,7 @@
 @media (min-width: 720px) {
   .ft-sb-table { gap: 0; border: 1px solid var(--border); border-radius: 0; overflow: hidden; }
   .ft-sb-row {
-    grid-template-columns: 1.4fr 0.6fr 0.6fr 0.7fr 0.6fr 1fr 1fr;
+    grid-template-columns: 1.4fr 0.6fr 0.6fr 0.7fr 0.6fr 0.6fr 1fr 1fr;
     gap: 0;
     border: 0;
     border-bottom: 1px solid var(--border);

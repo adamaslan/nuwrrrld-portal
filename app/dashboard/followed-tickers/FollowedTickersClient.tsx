@@ -243,6 +243,7 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
           <span role="columnheader">Hit</span>
           <span role="columnheader">Miss</span>
           <span role="columnheader">Flat</span>
+          <span role="columnheader">Void</span>
           <span role="columnheader">Hit-rate</span>
           <span role="columnheader">Mean ret</span>
         </div>
@@ -264,10 +265,17 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
               <span role="cell" data-label="Horizon" className="ft-sb-horizon">
                 {HORIZON_LABEL[r.horizon]}
               </span>
-              <span role="cell" data-label="n">{r.n}</span>
-              <span role="cell" data-label="Hit" className="ft-sb-hit">{r.hits}</span>
-              <span role="cell" data-label="Miss" className="ft-sb-miss">{r.misses}</span>
-              <span role="cell" data-label="Flat">{r.flats}</span>
+              <span role="cell" data-label="n">{r.notYetAvailable ? "\u2014" : r.n}</span>
+              <span role="cell" data-label="Hit" className="ft-sb-hit">
+                {r.notYetAvailable ? "\u2014" : r.hits}
+              </span>
+              <span role="cell" data-label="Miss" className="ft-sb-miss">
+                {r.notYetAvailable ? "\u2014" : r.misses}
+              </span>
+              <span role="cell" data-label="Flat">{r.notYetAvailable ? "\u2014" : r.flats}</span>
+              <span role="cell" data-label="Void" className="ft-sb-void">
+                {r.notYetAvailable ? "\u2014" : r.voids}
+              </span>
               <span role="cell" data-label="Hit-rate" className={`ft-sb-rate ${rateClass}`}>
                 {rate}
               </span>
@@ -280,6 +288,13 @@ function ScoreboardView({ rows, minN }: { rows: ScoreboardRowVM[]; minN: number 
           );
         })}
       </div>
+      {rows.some((r) => r.notYetAvailable) && (
+        <p className="ft-sb-note">
+          A row of — means there is no score data for that horizon: it may not
+          be due yet, or tracking may not have produced scores. A lone — in
+          Mean ret means no hits or misses to average yet.
+        </p>
+      )}
     </div>
   );
 }
