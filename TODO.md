@@ -11,19 +11,19 @@ delegation, security-boundary, and session-budget rules apply to every item in
 this index.
 
 
-## Current delivery queue - 2026-11-16
+## Current delivery queue - 2026-11-16 (updated03:29EST)
 
 This dated update supersedes conflicting lifecycle claims in the older queue below. It does not
 re-audit every historical checkbox or declare the old production gates complete.
 
 | Work | Verified state | Remaining work |
 |---|---|---|
-| [#352](https://github.com/adamaslan/nuwrrrld-portal/pull/352) five C0 roadmap helpers | Source merged `677a572`; invalid weights, duplicate citations and overflow controls fixed; final34 focused tests and application build passed | Helpers remain unwired. Preserve strict completeness/missing flags; coverage is approximate. Reconcile #375 ledger before its release. |
+| [#352](https://github.com/adamaslan/nuwrrrld-portal/pull/352) five C0 roadmap helpers | Source merged `677a572`; invalid weights, duplicate citations and overflow controls fixed; final34 focused tests and application build passed | Helpers remain unwired. Preserve strict completeness/missing flags; coverage is approximate. Ledger reconciliation landed with #375; live caller work remains separate. |
 | [#377](https://github.com/adamaslan/nuwrrrld-portal/pull/377) observe-first diagnostics | Source merged `d216b2f`; actual fail/pass19tests and head/integration builds passed | Production hydration and result quality remain unverified. Query timeout limits waiting, not query cancellation. |
 | [#393](https://github.com/adamaslan/nuwrrrld-portal/pull/393) receipt validator | Source merged `c117be2`; malformed/failed-as-pass controls,45tests and builds passed | Structural validation does not authenticate evidence or prove task completion. |
 | [#348](https://github.com/adamaslan/nuwrrrld-portal/pull/348) historical se1 report | Source merged `bb95a95`; #346/#347 identities and merged status corrected | Historical author-reported tests are not fresh production proof. |
 | [#378](https://github.com/adamaslan/nuwrrrld-portal/pull/378) Judge simulator | Source merged `005b994`; actual negative controls,31head/76integration tests, builds and bounded review passed | Offline approximation only, no caller/storage/model/UI activation. Gold-set fidelity and real Judge calibration remain open. |
-| [#375](https://github.com/adamaslan/nuwrrrld-portal/pull/375) se1 ledger and web wiring | OPEN at `4bc4f512`; IPv6/recipe fixes and #352 integration published;243tests and exact-head application build passed | Bounded integration review, hosted current-head checks and deployed desktop/mobile whole-PR evidence before merge. No80-feature live-completion claim. |
+| [#375](https://github.com/adamaslan/nuwrrrld-portal/pull/375) se1 ledger and web wiring | Source merged `9a86632` at03:26:55EST from `4bc4f512`; IPv6/recipe fixes and #352 integration reviewed;243unit+1citation test, application build and exact-head deployed desktop/mobile checks passed | Preview data is not independently bound to production DB identity or outcome accuracy. No80-feature live/mobile completion claim; unwired helpers and effect gates remain. |
 | [#335](https://github.com/adamaslan/nuwrrrld-portal/pull/335) seat diagnostics | OPEN; source lane separate from provider changes | External stderr monitoring configuration unresolved. Do not invent no-alert assurance. |
 
 Other open PRs still require current scope/readiness review. Provider/model changes, Terraform,
@@ -33,7 +33,7 @@ merged IANA-timezone schedule fix before proceeding.
 
 ### Current ownership and next checkpoints
 
-- Instinct: #375 bounded integration/UI verification and these TODO updates. #352/#377/#393/#348/#378 source custody is closed.
+- Instinct: these TODO updates and next eligible source work. #352/#377/#393/#348/#378/#375 source custody is closed.
 - Claude: requested read-only NWF residual-backlog evidence audit through cl24; not accepted as of03:19EST. No competing #375 writer.
 - Codex: requested read-only EIC residual-backlog evidence audit through cl24; not accepted as of03:19EST. No NWF source assignment in that packet.
 - Coordination and meaningful status checkpoints: every8minutes while active, via canonical cl24. A requested assignment is not pickup, and PR merges are not a task-completion count.
