@@ -125,3 +125,32 @@ describe("I9: usage reconciles to request IDs, includes retries, and never shows
     expect(JSON.stringify(r)).not.toContain("r9");
   });
 });
+
+describe("review: equivalent IPv6 targets and bounded recipe traversal", () => {
+  it.each([
+    "0:0:0:0:0:0:0:1", "0:0:0:0:0:0:0:0", "::ffff:7f00:1", "0:0:0:0:0:ffff:7f00:1",
+    "::ffff:a00:1", "::ffff:c0a8:101", "::ffff:a9fe:a9fe", "::ffff:0:0", "::ffff:e000:1",
+    "2001:db8::g", "12345::1", "1::2::3", "::1%lo0", "::ffff:999.1.1.1",
+  ])("blocks nonpublic or malformed equivalent %s", (ip) => {
+    expect(addressBlocked(ip)).toBe(true);
+    expect(webhookTargetAllowed("https://hooks.example.com/x", [ip])).toMatchObject({ allow: false });
+  });
+  it.each(["2606:4700:4700::1111", "2606:4700:4700:0:0:0:0:1111", "::ffff:5db8:d822"])("allows public parsed address %s", (ip) => {
+    expect(addressBlocked(ip)).toBe(false);
+  });
+  it("visits shared included recipes once rather than exponentially", () => {
+    let visits = 0;
+    const saved = Array.from({ length: 12 }, (_, i) => ({
+      id: `layer${i}`,
+      get scans() { visits++; return [GC]; },
+      includes: i === 11 ? [] : [`layer${i + 1}`, `layer${i + 1}`],
+    }));
+    expect(validateRecipe({ id: "root", scans: [], includes: ["layer0"] }, new Set([GC]), saved)).toEqual({ ok: true, scanCount: 1 });
+    expect(visits).toBe(12);
+  });
+  it("retains cycle rejection with a shared completed descendant", () => {
+    expect(validateRecipe({ id: "root", scans: [GC], includes: ["leaf", "cycle"] }, new Set([GC]), [
+      { id: "leaf", scans: [GC] }, { id: "cycle", scans: [], includes: ["leaf", "root"] },
+    ])).toMatchObject({ ok: false });
+  });
+});
