@@ -2,7 +2,7 @@
 date: 2026-11-16
 type: decision
 tags: [council, langsmith, privacy, observability]
-sources: [../../lib/langsmith-council-trace.ts, ../../lib/openrouter.ts, ../../docs/langsmith-council-observability.md]
+sources: [../../lib/langsmith-council-trace.ts, ../../lib/openrouter.ts, ../../docs/langsmith-council-observability.md, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs]
 ---
 
 # Decision: opt-in, content-free LangSmith Council traces
@@ -42,6 +42,8 @@ provider recovery or replace the application's run records.
   `LANGSMITH_API_URL` are all set.
 - A separate review of the selected endpoint's retention policy and the emitted
   payload is required before real traffic is enabled.
+- The evaluation corpus is synthetic and checks only fallback status/content
+  accounting. It does not reconstruct the Nov 10 prompt or completion.
 - The trace can identify empty and failed attempts, but cannot evaluate answer
   correctness or repair the underlying data issues.
 - No LangSmith endpoint was contacted for this implementation.
