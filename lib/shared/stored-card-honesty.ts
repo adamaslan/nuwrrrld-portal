@@ -32,3 +32,19 @@ export function tokenStrength(value: string): string {
   if (v.startsWith("bearish")) return "bearish";
   return "neutral";
 }
+
+/** Explicit presentation provenance, assigned by the source adapter, not payload text. */
+export type OutlookSource = "stored-card" | "upstream-signal";
+
+export function outlookLabel(source?: OutlookSource): string {
+  return source === "stored-card" ? "STORED SIGNAL SUMMARY" : "AI OUTLOOK";
+}
+
+/** Use one timezone and unknown-date policy on server and client surfaces. */
+export function formatComputedAt(value: string): string {
+  if (!value || Number.isNaN(Date.parse(value))) return "unknown";
+  return new Date(value).toLocaleString("en-US", {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    timeZone: "UTC", timeZoneName: "short",
+  });
+}
