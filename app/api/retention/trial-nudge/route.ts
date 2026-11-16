@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import type { RetentionPreferences } from "@/lib/retention";
-import { createResendProvider } from "@/lib/notify/email";
+import type { EmailProvider } from "@/lib/notify/email";
+import { selectEmailProvider } from "@/lib/notify/select";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
 const MAX_NUDGES = 3;
@@ -17,8 +18,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY not set" }, { status: 503 });
+  let provider: EmailProvider;
+  try {
+    provider = selectEmailProvider(process.env);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "email provider not configured" }, { status: 503 });
+  }
 
   const body = await req.json().catch(() => ({})) as { userId?: string };
   const userId = typeof body.userId === "string" ? body.userId : "";
@@ -51,7 +56,7 @@ export async function POST(req: NextRequest) {
   `.trim();
 
   try {
-    const res = await createResendProvider(resendKey).send({
+    const res = await provider.send({
       from: "NuWrrrld Financial <noreply@financial.nuwrrrld.com>",
       to: [verifiedEmail],
       subject: "Your free trial ends in 48 hours",
