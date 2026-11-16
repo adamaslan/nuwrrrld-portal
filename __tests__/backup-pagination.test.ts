@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-// @ts-expect-error plain .mjs module, no type declarations
 import {
   fetchTableChunks,
   isResponseTooLargeError,
@@ -73,7 +72,7 @@ type ChunkOpts = {
 
 async function collect(query: QueryFn, opts: ChunkOpts): Promise<Row[]> {
   const out: Row[] = [];
-  for await (const chunk of fetchTableChunks(query, opts)) out.push(...chunk);
+  for await (const chunk of fetchTableChunks(query, opts)) out.push(...(chunk as Row[]));
   return out;
 }
 

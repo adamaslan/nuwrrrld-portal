@@ -1,4 +1,5 @@
 import type { CatalogEntry } from "@/lib/nulogdash-catalog";
+import { formatRunTimeET } from "@/lib/format-time";
 import type { PipelineRunRow } from "@/lib/pipeline-run-log-db";
 import { summarizeOutcomes } from "@/lib/pipeline-run-log-db";
 
@@ -7,7 +8,7 @@ import { summarizeOutcomes } from "@/lib/pipeline-run-log-db";
  * imply a missing run. */
 function EvidenceLine({ entry, latestRun }: { entry: CatalogEntry; latestRun: PipelineRunRow | null }) {
   if (!entry.pipeline) {
-    return <span className="nld-card-sub">No run log row — check the GitHub Actions run history.</span>;
+    return <span className="nld-card-sub">No linked run log row. Check the owning platform execution history.</span>;
   }
   if (!latestRun) {
     return <span className="nld-card-sub">No run recorded in pipeline_run_log yet.</span>;
@@ -15,7 +16,7 @@ function EvidenceLine({ entry, latestRun }: { entry: CatalogEntry; latestRun: Pi
   const outcomes = summarizeOutcomes(latestRun.items);
   return (
     <span className="nld-card-sub">
-      Last recorded {new Date(latestRun.runAt).toLocaleString()} ·{" "}
+      Last recorded {formatRunTimeET(latestRun.runAt)} ·{" "}
       {latestRun.dryRun ? "dry run" : "live"} · {outcomes.ok} ok · {outcomes.fail} fail
     </span>
   );
@@ -35,6 +36,7 @@ export function ScheduledWorkCard({
     <article className="nld-card nld-work" aria-label={entry.label}>
       <strong>{entry.label}</strong>
       <span className="nld-card-sub">{entry.trigger}</span>
+      {entry.deployment === "unverified" && <span className="nld-card-sub">Source-configured only. Current deployment and schedule unverified.</span>}
       <EvidenceLine entry={entry} latestRun={latestRun} />
       <details className="nld-subfeatures">
         <summary>{entry.subFeatures.length} sub-features</summary>

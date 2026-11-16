@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { DEFAULT_HORIZON_DAYS, labelHit, type HitLabel } from "@/lib/engine";
-import { barsAfter, pendingHits, writeLabels } from "@/lib/engine-db";
+import { barsAfter, labelDiagnostics, pendingHits, writeLabels } from "@/lib/engine-db";
 import { requirePushSecret } from "@/lib/pipeline-auth";
 
 export const maxDuration = 300;
@@ -30,7 +30,18 @@ export async function POST(req: NextRequest) {
       if (label) labels.push({ hitId: hit.id, label });
     }
     const written = await writeLabels(labels);
-    return NextResponse.json({ ok: true, horizonDays: horizon, examined: pending.length, written, remaining: pending.length === limit });
+    // A zero-examination batch is how labeling silently dies (feed switch,
+    // runless hits, missing entry bars); name the cause so the nightly log
+    // distinguishes "nothing to do" from "nothing can be labeled".
+    const diagnostics = pending.length === 0 ? await labelDiagnostics(horizon) : undefined;
+    return NextResponse.json({
+      ok: true,
+      horizonDays: horizon,
+      examined: pending.length,
+      written,
+      remaining: pending.length === limit,
+      ...(diagnostics ? { diagnostics } : {}),
+    });
   } catch (err) {
     console.error(`[engine-label] failed: ${err instanceof Error ? err.message : String(err)}`);
     return NextResponse.json({ error: "label run failed" }, { status: 500 });

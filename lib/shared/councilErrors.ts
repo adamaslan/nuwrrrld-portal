@@ -4,6 +4,9 @@
  * sentence everywhere instead of falling through to a bare HTTP status.
  */
 export const COUNCIL_ERROR_MESSAGES: Record<string, string> = {
+  council_no_content: "The AI providers returned no usable council answer. Existing signal data is unchanged; retrying may still fail.",
+  council_provider_unavailable: "The council's AI providers are unavailable. Existing signal data is unchanged.",
+  council_not_configured: "Council access is not configured on this environment. Retrying will not fix it.",
   council_response_invalid:
     "The council's response didn't come back in a usable format — please try again.",
   upgrade_required: "Upgrade to Pro to consult the AI council.",

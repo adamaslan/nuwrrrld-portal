@@ -75,7 +75,7 @@ The same module holds `nwf_live_prices`, `nwf_rate_budget` (190 requests/min sha
 - **Chat streaming supports OpenAI-compatible providers only** (OpenRouter). The `anthropic` branch of `LLMClient` is non-streaming.
 - **Dynamo "all the data" is a mirror, not a replacement.** At about 54 ETFs × a dozen item kinds a day it should fit the free tier. This is unmeasured, and the 25 WCU cap will throttle a large backfill.
 - **Council strategies are still the spec's `placeholder.*`.** Every real session ends "consensus: flat" and creates no orders until you register real strategies.
-- **Test status:** 241 passed (2026-10-07). Verified against local Postgres and moto only; see §4.2 for what has never touched a real service. Three assertions in `test_ops.py` still end in `or True` and cannot fail (§5.1).
+- **Test status:** 241 passed (2026-10-07). Verified against local Postgres and moto only; see §4.2 for what has never touched a real service. Three assertions in `test_ops.py` still end in `or True` and cannot fail (§5.1). *(Resolved: fixed on main by 2026-11-02 - `test_ops.py` now has zero `or True` occurrences.)*
 
 ---
 
@@ -183,7 +183,7 @@ Fix (applied in `entrypoints.py`, `ingest.py`, `paper.py`): resolve the sleep at
 def _wait_for(conn, ctx, job, run_key, sleep: Callable[[float], None] | None = None) -> bool:
     sleep = sleep or time.sleep
 ```
-Still open: tighten the three `... or True` assertions in `tests/test_ops.py:62-66`. As written they cannot fail.
+~~Still open: tighten the three `... or True` assertions in `tests/test_ops.py:62-66`. As written they cannot fail.~~ *(Resolved on main by 2026-11-02: zero `or True` remains; the watchdog dedupe assertions are now at `tests/test_ops.py:67-68`.)*
 
 ### 5.2 Test suite: general speed
 

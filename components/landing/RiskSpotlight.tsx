@@ -22,7 +22,7 @@ export function RiskSpotlight() {
             and say so, in plain terms, before anyone gets to call it a buy.
           </p>
 
-          <div className="risk-exchange" aria-label="Example council exchange">
+          <div className="risk-exchange" role="group" aria-label="Example council exchange">
             <div className="risk-line risk-line--t1">
               <span className="risk-line-tag">T1</span>
               <p>XLE is up on the day and the week together. I&apos;d take this long above 91.</p>

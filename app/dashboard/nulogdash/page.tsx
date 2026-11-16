@@ -1,9 +1,12 @@
+import { loadLatestReport } from "@/lib/nulogdash-report";
+import { ReportNotice } from "./ReportNotice";
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { formatRunTimeET } from "@/lib/format-time";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getLatestRun, isNulogdashAdmin, canPerformAdminAction, summarizeCounts, splitResults } from "@/lib/nulogdash";
-import type { FeatureResult, FeatureStatus } from "@/lib/nulogdash";
+import { isNulogdashAdmin, canPerformAdminAction, summarizeCounts, splitResults } from "@/lib/nulogdash";
+import { MfaNotice, NulogdashTabs, FeatureRow } from "./ReportComponents";
 import "./nulogdash.css";
 
 export const metadata: Metadata = {
@@ -13,83 +16,6 @@ export const metadata: Metadata = {
 // Always fresh — this page exists to be checked right after a /nulogdash
 // run, and cached results would defeat the purpose.
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<FeatureStatus, string> = {
-  pass: "Pass",
-  fail: "Fail",
-  blocked: "Blocked",
-  not_run: "Not run",
-};
-
-/** Shown to an allowlisted admin who hasn't enrolled a second factor. The
- * console stays readable; only mutating actions are withheld.
- * Exported for component tests — plain function returning JSX, no
- * `async`/server dependency, so it renders normally under jsdom. */
-export function MfaNotice() {
-  return (
-    <div className="nld-mfa-notice">
-      <strong>Two-factor authentication required for admin actions.</strong>
-      <p>
-        You can view reports, but actions that spend model quota or write rows
-        (triggering a pipeline run) stay disabled until you enrol a second
-        factor in your account security settings.
-      </p>
-    </div>
-  );
-}
-
-/** Tab strip shared with /dashboard/nulogdash/pipelines. Lives here because
- * the feature sweep is the console's root; the pipelines page imports it. */
-export function NulogdashTabs({ active }: { active: "sweep" | "pipelines" | "beta" }) {
-  return (
-    <nav className="nld-tabs" aria-label="nulogdash sections">
-      <Link
-        href="/dashboard/nulogdash"
-        className={`nld-tab${active === "sweep" ? " nld-tab--active" : ""}`}
-        aria-current={active === "sweep" ? "page" : undefined}
-      >
-        Feature sweep
-      </Link>
-      <Link
-        href="/dashboard/nulogdash/pipelines"
-        className={`nld-tab${active === "pipelines" ? " nld-tab--active" : ""}`}
-        aria-current={active === "pipelines" ? "page" : undefined}
-      >
-        Pipeline runs
-      </Link>
-      <Link
-        href="/dashboard/nulogdash/beta"
-        className={`nld-tab${active === "beta" ? " nld-tab--active" : ""}`}
-        aria-current={active === "beta" ? "page" : undefined}
-      >
-        Beta testers
-      </Link>
-    </nav>
-  );
-}
-
-export function StatusBadge({ status }: { status: FeatureStatus }) {
-  return <span className={`nld-badge nld-badge--${status}`}>{STATUS_LABEL[status]}</span>;
-}
-
-export function FeatureRow({ result }: { result: FeatureResult }) {
-  return (
-    <tr className={`nld-row nld-row--${result.status}`}>
-      <td>{result.label}</td>
-      <td><StatusBadge status={result.status} /></td>
-      <td>{result.tier ?? "—"}</td>
-      <td>{result.latencyMs !== null ? `${result.latencyMs}ms` : "—"}</td>
-      <td>
-        {result.reason ? (
-          <details className="nld-reason">
-            <summary>{result.reason.length > 60 ? `${result.reason.slice(0, 60)}…` : result.reason}</summary>
-            <p>{result.reason}</p>
-          </details>
-        ) : "—"}
-      </td>
-    </tr>
-  );
-}
 
 export default async function NulogdashPage() {
   const { userId } = await auth();
@@ -103,22 +29,21 @@ export default async function NulogdashPage() {
   // missing instead of finding out when one silently fails.
   const canMutate = canPerformAdminAction(user);
 
-  const run = getLatestRun();
+  const report = loadLatestReport();
 
-  if (!run) {
+  if (report.status !== "ready") {
     return (
       <main className="nld-page">
         <Link href="/dashboard" className="nld-back">← Dashboard</Link>
         <h1>nulogdash</h1>
         <NulogdashTabs active="sweep" />
         {!canMutate && <MfaNotice />}
-        <p className="nld-empty">
-          No run yet. From Claude Code, run <code>/nulogdash</code>, or from a
-          terminal: <code>npm run nulogdash</code>.
-        </p>
+        <ReportNotice state={report} />
       </main>
     );
   }
+
+  const run = report.run;
 
   // Playwright (scripts/nulogdash-merge-e2e.mjs) merges tier: "browser" rows
   // into the same results array nulogdash.mjs's tier: "api" rows land in —
@@ -142,7 +67,7 @@ export default async function NulogdashPage() {
       <h1>nulogdash</h1>
       <NulogdashTabs active="sweep" />
       <p className="nld-meta">
-        Last run {new Date(run.runAt).toLocaleString()} · {run.branch}@{run.gitSha} · {run.baseUrl}
+        Last run {formatRunTimeET(run.runAt)} · {run.branch}@{run.gitSha} · {run.baseUrl}
       </p>
 
       {!canMutate && <MfaNotice />}

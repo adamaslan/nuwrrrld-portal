@@ -972,3 +972,8 @@ watchlist route.
 ## [2026-10-07] ingest | PR #233 feat(modal-backend): Modal-side backend (tested locally, not deployed) | pages touched: 3
 ## [2026-10-07] ingest | PR #234 fix(digest): durable stale fallback when live backend is down | pages touched: 1
 ## [2026-10-08] ingest | PR feat(watchlist): CSV import with server-side validation, caps, and CSRF gate | pages touched: 3
+## [2026-10-20] verification | PR #271 recovery wiring merged; grounding recovery closed #203 and #193 while older date-suffixed issues including #268 remain open | pages touched: 1
+
+## [2026-10-21] ingest | PR #304 fix: fail grounding compile on extraction errors | pages touched: 6
+## [2026-11-02] ingest | PR #332 docs: mark SESSION-SUMMARY test_ops.py or-True items resolved | pages touched: 1
+## [2026-11-02] ingest | PR #328 nulogdash: label pipeline run times with explicit ET timezone | pages touched: 2

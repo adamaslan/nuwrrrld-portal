@@ -773,3 +773,36 @@ export async function getSeatOrdersForSlot(
     side: r.side as OrderSide,
   }));
 }
+
+/** Strict safety read: never let a failed history query authorize a new control book. */
+export async function controlOrdersCount(account: "equal" | "spy"): Promise<number> {
+  const rows = await sql`SELECT COUNT(*) AS total FROM paper_orders WHERE account = ${account}`;
+  const n = Number(rows[0]?.total);
+  if (!Number.isSafeInteger(n) || n < 0) throw new Error("control history unavailable");
+  return n;
+}
+
+/** Previous invested close only. Never compare an initialized control to old all-cash marks. */
+export async function controlPreviousClose(account: "equal" | "spy", tradeDate: string): Promise<number | null> {
+  const rows = await sql`SELECT nav FROM paper_nav WHERE account = ${account}
+    AND slot = 'settle' AND trade_date < ${tradeDate} AND positions_n > 0
+    ORDER BY trade_date DESC LIMIT 1`;
+  if (!rows.length) return null;
+  const nav = Number(rows[0].nav);
+  if (!Number.isFinite(nav) || nav <= 0) throw new Error("invalid previous control close");
+  return nav;
+}
+
+/**
+ * Previous session's settle NAV for any account (audit D8). Seat day_return was
+ * finalNav / pre-slot nav - 1, which is exactly 0 at settle (no trades). Returns
+ * null when there is no earlier settle row, so day_return stays null, not 0.
+ */
+export async function previousSettleNav(account: string, tradeDate: string): Promise<number | null> {
+  const rows = await sql`SELECT nav FROM paper_nav WHERE account = ${account}
+    AND slot = 'settle' AND trade_date < ${tradeDate}
+    ORDER BY trade_date DESC LIMIT 1`;
+  if (!rows.length) return null;
+  const nav = Number(rows[0].nav);
+  return Number.isFinite(nav) && nav > 0 ? nav : null;
+}

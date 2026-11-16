@@ -2,7 +2,7 @@
 date: 2026-09-07
 type: entity
 tags: [observability, models, pipelines, openrouter, cost, audit]
-sources: [../../lib/pipeline-run-log-db.ts, ../../lib/db/schema.sql, ../../scripts/model-usage-report.mjs, ../../app/api/pipeline/followed-tickers/route.ts, ../../app/api/pipeline/followed-tickers-judge/route.ts, ../../app/api/pipeline/precompute-ai/route.ts, ../../.github/workflows/model-usage-report.yml, ../../app/dashboard/nulogdash/pipelines/page.tsx, ../../lib/nulogdash-actions.ts, ../model-usage/README.md, PR#115]
+sources: [../../lib/pipeline-run-log-db.ts, ../../lib/db/schema.sql, ../../scripts/model-usage-report.mjs, ../../app/api/pipeline/followed-tickers/route.ts, ../../app/api/pipeline/followed-tickers-judge/route.ts, ../../app/api/pipeline/precompute-ai/route.ts, ../../.github/workflows/model-usage-report.yml, ../../app/dashboard/nulogdash/pipelines/page.tsx, ../../lib/nulogdash-actions.ts, ../../lib/format-time.ts, ../model-usage/README.md, PR#115, PR#328]
 ---
 
 # Entity: Model-Usage Log (`pipeline_run_log`)
@@ -27,6 +27,10 @@ Before this, model-per-call was recorded only where a table already had a `model
 
 - **`lib/pipeline-run-log-db.ts`** — write side: `logPipelineRun(run)` (one INSERT) and `rollupModels(items)` (pure fold to the `models` column), **best-effort by design** — it catches and logs its own errors and returns a boolean, so losing an audit row never fails a pipeline run. Opposite stance from [[concept-followed-tickers-tracking|followed-tickers-db]], where a dropped write is fatal.
   Read side (added since PR #115): `listPipelineRuns(limit)` / `getPipelineRun(id)` / `summarizeOutcomes(items)`, the first *request-path* readers — the `/dashboard/nulogdash/pipelines` tab. These **throw** rather than swallow: a dashboard silently showing "no runs" on a failed query is worse than one that errors. `listPipelineRuns` clamps `limit` to 1–200; `getPipelineRun` uuid-shape-guards before the Postgres cast.
+
+The dashboard keeps run timestamps as instants in the log and formats them for
+people through `lib/format-time.ts`, using `America/New_York` and an EST/EDT
+abbreviation so server timezone settings cannot change their meaning (PR #328).
 
 - **`scripts/model-usage-report.mjs`** (`npm run model-usage`) — reads the table for a `--period day|week|month` window (anchored on `--date`, default today) and writes `docs/model-usage/<start>-<period>.md`: a by-model table (calls, share, empty, chain-rescued, avg latency, `$0` for `:free` / `⚠ paid` otherwise), a by-pipeline breakdown, a chronological runs table, and a supplementary `council_messages` tally. Degrades to an explanatory stub if the table doesn't exist yet (un-migrated DB). Same `.env.local` fallback as `db-migrate`; zero extra deps.
 

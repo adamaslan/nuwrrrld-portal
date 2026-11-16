@@ -90,7 +90,7 @@ export function NuAIChat() {
     <div className="nuai-container">
       {messages.length === 0 && (
         <div className="nuai-empty">
-          <p className="nuai-empty-emoji">🤖</p>
+          <p className="nuai-empty-emoji">✦</p>
           <p className="nuai-empty-title">Nu AI</p>
           <p className="nuai-empty-sub">Ask about your portfolio, signals, or market concepts.</p>
           <div className="nuai-chips">

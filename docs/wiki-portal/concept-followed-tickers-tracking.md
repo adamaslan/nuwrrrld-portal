@@ -230,3 +230,9 @@ seat is grounded on the live gcp3 payload when it exists and on the stored
 script carry a `backfilled` flag. A cohort of 20 stays under the 30-pick minimum
 for publishing a hit rate, so the scoreboard shows counts, not rates, until
 cohorts accumulate. See [[incident-2026-10-09-followed-tickers-empty-scorecard-and-judge]].
+
+## Public aggregate view (2026-11-13)
+
+The scoreboard now has a second reader: an unauthenticated, counts-only summary on `/track-record` (see [[decision-public-track-record-counts-only]]). It reuses the same `aggregate()` rule and the same 30-call minimum, so the public page can never show a rate the dashboard would withhold. Tickers, prices and cohort membership stay behind the Pro dashboard.
+
+> ❓ Open question: the entry prices behind each score come from different sources per pick (`live_prices`, Alpaca, daily bars). The public counts do not say which. If the November 12 audit's return-basis finding turns out to affect stored entry prices, these counts inherit it.

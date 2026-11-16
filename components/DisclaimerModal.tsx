@@ -92,7 +92,7 @@ export default function DisclaimerModal({ surface, forceOpen = false, onRequestC
       <div className="disclaimer-modal">
         <div className="disclaimer-modal-header">
           <div className="disclaimer-modal-title-row">
-            <span aria-hidden="true">⚠</span>
+            <span aria-hidden="true">⚠︎</span>
             <h2 id="disclaimer-title">Important Disclaimer</h2>
           </div>
           <p className="disclaimer-modal-meta">

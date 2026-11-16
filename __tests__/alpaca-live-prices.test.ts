@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-// @ts-expect-error plain .mjs helper, no type declarations
 import { toAlpacaSymbol, chunk, tradesToLivePrices } from "../scripts/lib/alpaca-live-prices.mjs";
 
 describe("alpaca live-price helpers", () => {

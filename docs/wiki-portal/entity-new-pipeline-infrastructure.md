@@ -1,15 +1,28 @@
 ---
-date: 2026-10-15
+date: 2026-11-02
 type: entity
 tags: [pipeline, gcp, terraform, isolation]
 sources: [../../infra/slots/new-pipeline, ../../infra/README.md, ../../docs/nwf-new-slot-terraform.md, PR#292]
 ---
 
-# Entity — New pipeline infrastructure
+# Entity — New pipeline infrastructure (historical single-slot proposal)
+
+## Status
+
+The single-slot `nwf-new-*` design described here was never applied. It was
+superseded by the per-slot core and hydration implementation documented in
+[[entity-slot2-terraform]], whose foundation was applied on 2026-10-17. The
+older Terraform files are preserved in
+`file-archive/pr292-infra-2026-11-02/`.
 
 ## What it is
 
-An unapplied Terraform root for a separately named NWF pipeline slot in the existing billed project. The owner chose the shared-project placement on 2026-10-16 after the dedicated project's billing quota blocked deployment. It defines a runtime identity, a deploy identity, an image repository, empty credential containers, and repository-scoped Workload Identity Federation. The current design and operational gates are in `docs/nwf-new-slot-terraform.md`.
+This page records the earlier unapplied design for a separately named NWF
+pipeline slot in the existing billed project. The owner chose shared-project
+placement on 2026-10-16 after the dedicated project's billing quota blocked
+deployment. Its single runtime identity, deploy identity, image repository,
+credential containers, and Workload Identity Federation were replaced by the
+per-slot resource layout in [[entity-slot2-terraform]].
 
 The repository has immutable tags and a dry-run retention policy that keeps
 two recent versions per package and proposes deleting untagged versions older
@@ -18,16 +31,21 @@ deletion is active in this new-slot configuration.
 
 ## Where used
 
-`infra/slots/new-pipeline/` owns the proposed resources and pins the project to `{gcp-project-id}`. `infra/README.md` gives the setup and validation sequence. The manual credential preflight in portal PR #291 uses separate shadow resources in that same project.
+The historical code was in `infra/slots/new-pipeline/`; its replacement is
+the current root at that path. The manual credential preflight in portal PR
+#291 uses separate shadow resources in the same project.
 
-`infra/sync-shadow-secrets.mjs` now requires an explicit `shadow` or `new`
-target and checks that it matches the expected project before copying only
-missing credential versions. The new slot remains empty until its
-Terraform foundation has been reviewed and applied.
+The older secret-sync script accepted `shadow` or `new`; the current script
+supports the explicit `shadow`, `hydration`, and `core` targets documented in
+[[entity-slot2-terraform]].
 
 ## Known failures
 
-The dedicated project's billing link was rejected by the account's project quota. A versioned state bucket now exists in `{gcp-project-id}`, and the remote-backend cloud plan shows 17 creates, zero changes, and zero destroys. Terraform apply is still pending independent verification and owner approval. The manual preflight confirms two provider reads only; it does not supply ingestion, analysis, a result ledger, or alerts. Same-project placement shares administrators, API enablement, billing, and quotas with the running backend.
+The dedicated project's billing link was rejected by the account's project
+quota. The original 17-create plan was superseded; see
+[[entity-slot2-terraform]] for the applied foundation and current 10-create
+pending plan. The manual preflight confirms two provider reads only; it does
+not supply ingestion, analysis, a result ledger, or alert policies.
 
 ## Open questions
 

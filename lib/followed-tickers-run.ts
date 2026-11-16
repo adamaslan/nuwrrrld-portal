@@ -3,6 +3,7 @@
  * and the one-off backfill script: one grounded council verdict, and resolving
  * the horizons that have come due against a pick's observation series.
  */
+import { freezeJudgeContext } from "@/lib/judge-frozen-context";
 import { buildGroundedBrief } from "@/lib/council-grounding";
 import { parseStructuredVerdict, directionFromOutlook } from "@/lib/council-verdict";
 import { validateStructuredVerdict } from "@/lib/council-validate";
@@ -68,7 +69,7 @@ export async function councilVerdictFor(
       verdict: {
         direction: directionFromOutlook(verdict.outlook),
         invalidation: verdict.invalidation,
-        raw: { ...verdict, validatorFlags: flags.map((f) => f.message) },
+        raw: { ...verdict, validatorFlags: flags.map((f) => f.message), judgeContext: freezeJudgeContext(brief, model) },
         model,
         latencyMs,
         fallback,
@@ -164,4 +165,3 @@ async function writeScore(
     outcome: scored.outcome,
   });
 }
-

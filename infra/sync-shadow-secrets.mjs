@@ -7,10 +7,17 @@ import * as nodeUtil from "node:util";
 const [envPath, projectId, slot] = process.argv.slice(2);
 const slotProjects = new Map([
   ["shadow", "ttb-lang1"],
-  ["new", "ttb-lang1"],
+  ["hydration", "ttb-lang1"],
+  ["core", "ttb-lang1"],
+]);
+// Secrets each slot receives. Matches the Terraform slot map in slots/new-pipeline/main.tf.
+const slotEnvNames = new Map([
+  ["shadow", ["ALPACA_API_KEY", "ALPACA_API_SECRET", "OPENROUTER_API_KEY"]],
+  ["hydration", ["ALPACA_API_KEY", "ALPACA_API_SECRET", "OPENROUTER_API_KEY"]],
+  ["core", ["ALPACA_API_KEY", "ALPACA_API_SECRET"]],
 ]);
 if (!envPath || !projectId || slotProjects.get(slot) !== projectId) {
-  console.error("Usage: node infra/sync-shadow-secrets.mjs PATH_TO_NWF_ENV GCP_PROJECT_ID shadow|new");
+  console.error("Usage: node infra/sync-shadow-secrets.mjs PATH_TO_NWF_ENV GCP_PROJECT_ID shadow|hydration|core");
   console.error("The slot must match its expected project ID.");
   process.exit(2);
 }
@@ -21,11 +28,14 @@ if (nodeMajor < 20 || (nodeMajor === 20 && nodeMinor < 12)) {
 }
 const { parseEnv } = nodeUtil;
 
-const names = new Map([
-  ["ALPACA_API_KEY", `nwf-${slot}-alpaca-api-key`],
-  ["ALPACA_API_SECRET", `nwf-${slot}-alpaca-api-secret`],
-  ["OPENROUTER_API_KEY", `nwf-${slot}-openrouter-api-key`],
+const secretSuffixes = new Map([
+  ["ALPACA_API_KEY", "alpaca-api-key"],
+  ["ALPACA_API_SECRET", "alpaca-api-secret"],
+  ["OPENROUTER_API_KEY", "openrouter-api-key"],
 ]);
+const names = new Map(
+  slotEnvNames.get(slot).map(envName => [envName, `nwf-${slot}-${secretSuffixes.get(envName)}`]),
+);
 
 const source = readFileSync(envPath, "utf8");
 const parsed = parseEnv(source);

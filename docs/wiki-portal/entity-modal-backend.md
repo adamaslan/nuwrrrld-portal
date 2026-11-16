@@ -2,7 +2,7 @@
 date: 2026-10-07
 type: entity
 tags: [modal, backend, postgres, dynamodb, alpaca, council, paper-trading, pipeline]
-sources: [../../deploy/modal-backend/SESSION-SUMMARY.md, ../../deploy/modal-backend/modal_app.py, ../nuwrrrld-modal-architecture.md]
+sources: [../../deploy/modal-backend/SESSION-SUMMARY.md, ../../deploy/modal-backend/modal_app.py, ../../deploy/modal-backend/tests/test_ops.py, ../nuwrrrld-modal-architecture.md, PR#332]
 ---
 
 # Entity — Modal Backend (`deploy/modal-backend`)
@@ -26,6 +26,7 @@ Status at ingest: **written and tested, never deployed.** The suite passes again
 
 - **Run-key claim and skip interact badly for multi-fire crons.** A job that fires on several days under one key (the weekly council fires Thu and Fri under one ISO-week key) must decide "should I act today?" *before* claiming the key. A recorded skip counts as done, so the later run sees `not_claimed`. Found by the first real run of the ops tests; fixed by checking before the claim.
 - **Default-argument `time.sleep` is invisible to test patches.** Entry points bound the real sleep at import, so a test that patched `time.sleep` still waited minutes. Now resolved at call time. The same trap is worth checking in any new polling code here.
+- **Watchdog no-op assertions removed.** The former `or True` checks in `tests/test_ops.py` are gone; assertions now verify expected alert emission and deduplication (`tests/test_ops.py:62-68`). The session summary's stale line reference was corrected in PR #332.
 - Entrypoints that pass a date to a helper must pass their own `today`; one helper read the real clock instead.
 
 ## Open questions

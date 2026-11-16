@@ -60,7 +60,7 @@ describe("SignalShareButton", () => {
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
 
     await vi.waitFor(() => expect(share).toHaveBeenCalled());
-    expect(screen.getByRole("button")).toHaveTextContent("📤 Share");
+    expect(screen.getByRole("button")).toHaveTextContent("Share");
   });
 
   it("falls back to clipboard when navigator.share is unavailable", async () => {
@@ -100,7 +100,7 @@ describe("SignalShareButton", () => {
       (revertCallback as () => void)();
     });
 
-    expect(screen.getByRole("button")).toHaveTextContent("📤 Share");
+    expect(screen.getByRole("button")).toHaveTextContent("Share");
   });
 
   it("alerts the user when the clipboard write itself fails", async () => {
@@ -114,6 +114,6 @@ describe("SignalShareButton", () => {
     await vi.waitFor(() =>
       expect(alertSpy).toHaveBeenCalledWith("Failed to copy share link"),
     );
-    expect(screen.getByRole("button")).toHaveTextContent("📤 Share");
+    expect(screen.getByRole("button")).toHaveTextContent("Share");
   });
 });

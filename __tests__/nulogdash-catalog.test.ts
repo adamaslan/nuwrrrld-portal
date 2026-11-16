@@ -16,6 +16,13 @@ describe("nulogdash catalog", () => {
     expect(catalogued.filter((id) => !onDisk.includes(id))).toEqual([]);
   });
 
+  it("covers every Modal source directory without asserting deployment", () => {
+    const sources = readdirSync(join(ROOT, "deploy")).filter(d => existsSync(join(ROOT, "deploy", d, "modal_app.py"))).map(d => `deploy/${d}/modal_app.py`).sort();
+    expect(MODAL_APP_CATALOG.map(e => e.source).sort()).toEqual(sources);
+    expect(MODAL_APP_CATALOG.every(e => e.deployment === "unverified")).toBe(true);
+    expect(MODAL_APP_CATALOG.find(e => e.id === "free-model-refresh")?.trigger).toContain("Wed");
+    expect(GITHUB_WORKFLOW_CATALOG.find(e => e.id === "hydrate-universe.yml")?.trigger).toContain("15:00 and 22:30");
+  });
   it("points every entry at a source file that exists", () => {
     for (const entry of [...GITHUB_WORKFLOW_CATALOG, ...MODAL_APP_CATALOG]) {
       expect(existsSync(join(ROOT, entry.source)), entry.source).toBe(true);

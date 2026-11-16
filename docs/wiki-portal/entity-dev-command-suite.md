@@ -2,7 +2,7 @@
 date: 2026-08-06
 type: entity
 tags: [devops, cli-commands, automation, workflow, wiki-led]
-sources: [../../.claude/commands/pr.md, ../../.claude/commands/sync-pr.md, ../../.claude/commands/bugmerge1.md, ../../.claude/commands/postbugmergerev.md, ../../.claude/commands/friction.md, ../../.claude/commands/suggest-commands.md]
+sources: [../../.claude/commands/pr.md, ../../.claude/commands/sync-pr.md, ../../.claude/commands/bugmerge1.md, ../../.claude/commands/postbugmergerev.md, ../../.claude/commands/friction.md, ../../.claude/commands/suggest-commands.md, ../../lib/pipeline-db-guard.ts, ../r02-safe-data-backup-audit-2026-10-21.md]
 ---
 
 # Entity: Dev Command Suite
@@ -64,6 +64,12 @@ and the hub every command links back to.
   gate depended on Clerk MFA, which turned out to be paid-tier-only. See
   [[decision-self-implemented-totp-over-clerk-pro]] — same console recovered
   by the PR that produced [[incident-2026-08-06-bugmerge1-command-file-loss]].
+- The shared production-host guard is opt-in and checks exact host equality;
+  it does not reject a missing or unparsable `DATABASE_URL` on its own. The
+  R02 audit also found the current development branches are production-derived
+  and not verified as sanitized. Runtime configuration is unknown because no
+  environment values were read. Keep guard changes with the judgment tier;
+  see [R02 audit](../r02-safe-data-backup-audit-2026-10-21.md).
 
 ## Open questions
 

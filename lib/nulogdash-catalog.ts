@@ -33,6 +33,8 @@ export interface CatalogEntry {
   /** Set when the run writes a pipeline_run_log row. */
   pipeline?: PipelineName;
   subFeatures: CatalogSubFeature[];
+  /** Source inventory is not proof that an app is currently deployed. */
+  deployment?: "unverified";
 }
 
 const GITHUB_WORKFLOWS: CatalogEntry[] = [
@@ -113,7 +115,7 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "hydrate-universe.yml",
     label: "Nightly universe hydration",
     source: ".github/workflows/hydrate-universe.yml",
-    trigger: "Cron 22:30 UTC, Mon–Fri · manual",
+    trigger: "GitHub Actions source cron 15:00 and 22:30 UTC, Mon–Fri · manual",
     manual: true,
     subFeatures: [
       { label: "hydrate", detail: "Refreshes end-of-day indicators for the ticker universe." },
@@ -203,11 +205,21 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     ],
   },
   {
+    id: "credential-scan.yml",
+    label: "Credential scan",
+    source: ".github/workflows/credential-scan.yml",
+    trigger: "Push to main & pull requests",
+    manual: false,
+    subFeatures: [
+      { label: "credential-scan", detail: "Scans changed commit history with redacted findings and trusted-base rules." },
+    ],
+  },
+  {
     id: "ci.yml",
     label: "CI",
     source: ".github/workflows/ci.yml",
-    trigger: "Push to main & pull requests",
-    manual: false,
+    trigger: "Push to main & pull requests (workflow lint) · manual opt-in suites",
+    manual: true,
     subFeatures: [
       { label: "test", detail: "Unit and component tests." },
       { label: "db-schema-parity", detail: "Checks the Postgres and SQLite schemas agree." },
@@ -220,8 +232,8 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "e2e-resiliency.yml",
     label: "E2E resiliency",
     source: ".github/workflows/e2e-resiliency.yml",
-    trigger: "Push to main & pull requests",
-    manual: false,
+    trigger: "Manual only (requires scoped execution authority)",
+    manual: true,
     subFeatures: [
       { label: "auth", detail: "Signs in through the auth flow." },
       { label: "e2e", detail: "Runs the Playwright end-to-end specs." },
@@ -232,7 +244,7 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
     id: "live-smoke.yml",
     label: "Live model-chain smoke",
     source: ".github/workflows/live-smoke.yml",
-    trigger: "Cron Mon 07:35 UTC · PRs touching the chain · manual",
+    trigger: "Cron Mon 07:35 UTC · manual",
     manual: true,
     subFeatures: [
       { label: "model-chain", detail: "Live free-chain reachability, council seats and fallback path; fails if the key is missing." },
@@ -252,11 +264,30 @@ const GITHUB_WORKFLOWS: CatalogEntry[] = [
 
 const MODAL_APPS: CatalogEntry[] = [
   {
+    id: "nwf4", label: "News pipeline (shadow)", source: "deploy/aws-modal-news/modal_app.py",
+    trigger: "Source cron every minute UTC; dispatcher uses America/New_York slots",
+    manual: true, deployment: "unverified",
+    subFeatures: [
+      { label: "tick", detail: "Dispatches ingest, scoring, aggregation, labels, evaluation and price work when due." },
+      { label: "shadow", detail: "News weight remains zero; configured jobs do not prove fresh output." },
+    ],
+  },
+  {
+    id: "nuwrrrld", label: "General backend", source: "deploy/modal-backend/modal_app.py",
+    trigger: "Source has multiple Eastern-time schedules and optional consolidated evening chain",
+    manual: true, deployment: "unverified",
+    subFeatures: [
+      { label: "api", detail: "API and jobs for market data, council, signals, paper and billing." },
+      { label: "jobs", detail: "Configured functions are not evidence of active deployment or permission to run." },
+    ],
+  },
+  {
     id: "free-model-refresh",
     label: "Free model refresh",
     source: "deploy/free-model-refresh/modal_app.py",
-    trigger: "Cron Mon 09:00 UTC · manual (modal run)",
+    trigger: "Cron Wed 09:00 UTC · manual (modal run)",
     manual: true,
+    deployment: "unverified",
     subFeatures: [
       { label: "weekly_refresh", detail: "Scheduled refresh of the free model chain." },
       { label: "main", detail: "Local entrypoint to run the refresh on demand." },
@@ -268,6 +299,7 @@ const MODAL_APPS: CatalogEntry[] = [
     source: "deploy/precompute-ai/modal_app.py",
     trigger: "No schedule — GitHub Actions owns the 00:10 UTC run · manual (modal run)",
     manual: true,
+    deployment: "unverified",
     pipeline: "precompute-ai",
     subFeatures: [
       { label: "precompute_ai", detail: "Same pipeline as the GHA job, runnable on Modal." },
@@ -278,8 +310,9 @@ const MODAL_APPS: CatalogEntry[] = [
     id: "nuwrrrld-universe-hydration",
     label: "Universe hydration",
     source: "deploy/universe-hydration/modal_app.py",
-    trigger: "Cron 00:05 UTC daily · manual (modal run, optional symbols)",
+    trigger: "Modal source cron 00:05 UTC daily · manual (modal run, optional symbols)",
     manual: true,
+    deployment: "unverified",
     subFeatures: [
       { label: "hydrate_universe_eod", detail: "Computes end-of-day indicators and confluence for the universe." },
       { label: "main", detail: "Local entrypoint; accepts a symbols list." },

@@ -2,7 +2,7 @@
 date: 2026-09-11
 type: entity
 tags: [nulogdash, admin, testing, coverage, clerk, mfa, inventory, sweep]
-sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118]
+sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../lib/format-time.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118, PR#328]
 ---
 
 # Entity — nulogdash (admin console + feature sweep)
@@ -73,6 +73,9 @@ what sits behind the second gate.
   Actions** and **Modal** (both from `lib/nulogdash-catalog.ts`, which the drift
   test checks against `.github/workflows/`). Modal has no run log of its own, so
   an app shows run evidence only where it writes `pipeline_run_log`.
+  Run timestamps across the pipeline list, summary cards, and detail view use
+  `lib/format-time.ts`: they display in `America/New_York` with an EST/EDT label;
+  invalid timestamps display as unknown (PR #328).
 - `e2e/frontend/nulogdash-admin.spec.ts` — the browser-level proof that both
   gates are actually *reached* (added PR #118, see below).
 - `/nulogdash` — the Claude Code command wrapper ([[entity-dev-command-suite]]).

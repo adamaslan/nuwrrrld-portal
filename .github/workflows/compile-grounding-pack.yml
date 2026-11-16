@@ -1,6 +1,6 @@
 name: Compile grounding pack
 
-# Daily, plus on any corpus edit and manual trigger. Runs
+# Daily and manual only, not an automatic consequence of merging corpus/script edits. Runs
 # scripts/compile_grounding_pack.mjs against the Neon database. The compile
 # is incremental (unchanged chunks are skipped by content hash) and budgeted
 # (--max-calls, default 40/day), so a no-change day costs zero model calls and
@@ -8,12 +8,6 @@ name: Compile grounding pack
 on:
   schedule:
     - cron: '23 6 * * *' # daily 06:23 UTC (after the free-model refresh at 06:17)
-  push:
-    branches: [main]
-    paths:
-      - 'corpus/**'
-      - 'scripts/compile_grounding_pack.mjs'
-      - 'scripts/grounding-chunker.mjs'
   workflow_dispatch: {}
 
 # One compile at a time: overlapping runs (cron + corpus push + manual) would
@@ -76,7 +70,8 @@ jobs:
           export ISSUE_TITLE="Scheduled grounding-pack compile failed"
           export ISSUE_BODY="**Run:** ${RUN_URL}
 
-          \`scripts/compile_grounding_pack.mjs\` failed on the daily 06:23 UTC
-          schedule. The \`grounding_pack\` table was not refreshed; the corpus a
-          model reads is now whatever the last successful run left."
+          The scheduled grounding-pack compile failed or completed with extraction errors.
+          Check this run's logs for the exact outcome and counts. Failed extraction chunks
+          are skipped so their existing rows stay intact; setup or database failures may
+          prevent any table writes."
           bash scripts/upsert-workflow-failure-issue.sh

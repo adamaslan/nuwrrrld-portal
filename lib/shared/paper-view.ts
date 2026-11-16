@@ -55,6 +55,7 @@ export interface LeaderboardRowVM {
   activeReturnVsEqualPct: number | null;
   lastRunAt: string;
   lastRunStatus: string;
+  baselineStatus?: "awaiting_inception" | "invested";
 }
 
 /** The two fields of a `paper_runs` row the leaderboard needs. */
@@ -86,23 +87,29 @@ export function buildLeaderboardView(
   latestRunByAccount: ReadonlyMap<PaperAccount, LatestRunSummary | null> = new Map(),
 ): LeaderboardVM {
   const rows: LeaderboardRowVM[] = accounts.map((a) => {
-    const m = metricsByAccount.get(a.account) ?? null;
+    let m = metricsByAccount.get(a.account) ?? null;
     const latestNav = latestNavByAccount.get(a.account) ?? null;
     const latestRun = latestRunByAccount.get(a.account) ?? null;
+    const control = a.account === "equal" || a.account === "spy";
+    const awaiting = control && (latestNav?.positionsN ?? 0) === 0;
+    if (awaiting) m = null;
+    const validSpy = (latestNavByAccount.get("spy")?.positionsN ?? 0) > 0;
+    const validEqual = (latestNavByAccount.get("equal")?.positionsN ?? 0) > 0;
     return {
       account: a.account,
       seat: a.seat,
       label: a.label,
       nav: latestNav?.nav ?? a.cash, // no run yet — cash is the only real number available
       cash: a.cash,
-      totalReturnPct: (latestNav?.totalReturn ?? m?.totalReturn) != null ? (latestNav?.totalReturn ?? m!.totalReturn)! * 100 : null,
-      dayReturnPct: latestNav?.dayReturn != null ? latestNav.dayReturn * 100 : null,
+      baselineStatus: control ? awaiting ? "awaiting_inception" : "invested" : undefined,
+      totalReturnPct: awaiting ? null : (latestNav?.totalReturn ?? m?.totalReturn) != null ? (latestNav?.totalReturn ?? m!.totalReturn)! * 100 : null,
+      dayReturnPct: !awaiting && latestNav?.dayReturn != null ? latestNav.dayReturn * 100 : null,
       positionsN: latestNav?.positionsN ?? 0,
       sharpeRf0: m?.sharpeRf0 ?? null,
       maxDrawdownPct: m?.maxDrawdown != null ? m.maxDrawdown * 100 : null,
       hitRatePct: m?.hitRate != null ? m.hitRate * 100 : null,
-      activeReturnVsSpyPct: m?.activeReturnVsSpy != null ? m.activeReturnVsSpy * 100 : null,
-      activeReturnVsEqualPct: m?.activeReturnVsEqual != null ? m.activeReturnVsEqual * 100 : null,
+      activeReturnVsSpyPct: validSpy && m?.activeReturnVsSpy != null ? m.activeReturnVsSpy * 100 : null,
+      activeReturnVsEqualPct: validEqual && m?.activeReturnVsEqual != null ? m.activeReturnVsEqual * 100 : null,
       lastRunAt: latestRun?.startedAt ?? a.updatedAt,
       lastRunStatus: latestRun?.status ?? "unknown",
     };
@@ -140,6 +147,7 @@ export interface AccountDetailVM {
   recentOrders: OrderRow[];
   policyVersion: string;
   seededOn: string;
+  baselineStatus?: "awaiting_inception" | "invested";
 }
 
 /** One account's full book — positions priced with whatever reference price
@@ -152,6 +160,9 @@ export function buildAccountDetailView(
   metrics: AccountMetrics | null,
   recentOrders: OrderRow[],
 ): AccountDetailVM {
+  const control = account.account === "equal" || account.account === "spy";
+  const awaiting = control && positions.length === 0;
+  if (awaiting) metrics = null;
   const priced = positions.map((p) => {
     const price = prices.get(p.ticker) ?? null;
     const marketValue = price != null ? p.quantity * price : null;
@@ -188,6 +199,7 @@ export function buildAccountDetailView(
     recentOrders,
     policyVersion: account.policyVersion,
     seededOn: account.seededOn,
+    baselineStatus: control ? awaiting ? "awaiting_inception" : "invested" : undefined,
   };
 }
 

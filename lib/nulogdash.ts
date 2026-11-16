@@ -1,5 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { loadLatestReport } from "./nulogdash-report";
 
 export type FeatureStatus = "pass" | "fail" | "blocked" | "not_run";
 
@@ -32,7 +31,6 @@ export interface NulogdashRun {
   driftWarnings: string[];
 }
 
-const LATEST_FILE = join(process.cwd(), ".nulogdash", "latest.json");
 
 /** The subset of Clerk's User this gate needs. Declared structurally so the
  * check can be unit-tested without constructing a full Clerk User. */
@@ -132,12 +130,8 @@ export function primaryEmail(user: EmailIdentity | undefined | null): string {
  * run results" section of docs/nulogdash-dashboard-plan.md for the planned
  * migration to a Neon-backed sink with run history. */
 export function getLatestRun(): NulogdashRun | null {
-  if (!existsSync(LATEST_FILE)) return null;
-  try {
-    return JSON.parse(readFileSync(LATEST_FILE, "utf8")) as NulogdashRun;
-  } catch {
-    return null;
-  }
+  const report = loadLatestReport();
+  return report.status === "ready" ? report.run : null;
 }
 
 /** Tallies each status across a run's results. Pulled out of the page

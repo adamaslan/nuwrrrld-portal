@@ -5,11 +5,13 @@ import { SignalShareButton } from "@/components/SignalShareButton";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 import { flagLive } from "@/lib/flags";
 import { SignalAskAnything } from "@/components/SignalAskAnything";
-import { filterSignals, sortSignals, type Direction, type SortKey } from "@/lib/shared/signalFilters";
+import { filterSignals, sortSignals, normalizeSort, returnRanking, type Direction, type SortKey } from "@/lib/shared/signalFilters";
 import { buildSignalPrompt } from "@/lib/shared/prompts";
 import { getPref, setPref } from "@/lib/shared/prefs";
 import { councilErrorMessage } from "@/lib/shared/councilErrors";
 import type { StructuredVerdict } from "@/lib/council-verdict";
+
+import { RETURN_LABELS, RETURN_PERIODS } from "@/lib/shared/signalReturns";
 
 const FILTER_PREF_KEY = "signals-filter";
 
@@ -45,8 +47,8 @@ export function SignalsClient({ signals }: Props) {
       if (saved) {
         try {
           const { direction: d, sort: s } = JSON.parse(saved) as { direction: Direction; sort: SortKey };
-          if (d) setDirection(d);
-          if (s) setSort(s);
+          if (["all", "bullish", "bearish", "neutral"].includes(d)) setDirection(d);
+          setSort(normalizeSort(s));
         } catch { /* ignore */ }
       }
       setFilterReady(true);
@@ -62,6 +64,8 @@ export function SignalsClient({ signals }: Props) {
     () => sortSignals(filterSignals(signals, search, direction), sort),
     [signals, search, direction, sort],
   );
+
+  const ranking = sort.includes('-') ? returnRanking(filterSignals(signals, search, direction), sort) : null;
 
   async function handleGoDeeper(sig: SignalPayload) {
     if (goDeeper[sig.id]?.status === "loading") return;
@@ -135,15 +139,25 @@ export function SignalsClient({ signals }: Props) {
           ))}
         </div>
         <select
+          aria-label="Sort signals"
           className="signals-sort"
           value={sort}
-          onChange={e => setSort(e.target.value as SortKey)}
+          onChange={e => setSort(normalizeSort(e.target.value))}
         >
           <option value="confidence">Sort: Confidence</option>
-          <option value="ticker">Sort: Ticker A–Z</option>
+          <option value="ticker">Sort: Ticker A-Z</option>
+          {RETURN_PERIODS.flatMap(p => [
+            <option key={`${p}-gainers`} value={`${p}-gainers`}>{RETURN_LABELS[p]}: Gainers</option>,
+            <option key={`${p}-losers`} value={`${p}-losers`}>{RETURN_LABELS[p]}: Losers</option>,
+          ])}
         </select>
       </div>
 
+      {ranking && <p role="status" className="signal-meta">
+        {RETURN_LABELS[ranking.period]}: {ranking.eligible} eligible, {ranking.flat} flat, {ranking.withheld} withheld.
+        {ranking.mixed ? " Mixed intervals: ranking withheld." : ranking.interval ? ` Interval/basis: ${ranking.interval}.` : " No verified comparable return intervals yet."}
+        {" "}Unverified price basis, stale data and missing values are not ranked. Trailing periods are not MTD/YTD. Historical price change is not a prediction.
+      </p>}
       {filtered.length === 0 && (
         <p className="signals-no-results">No signals match your filters.</p>
       )}
@@ -186,11 +200,12 @@ export function SignalsClient({ signals }: Props) {
               </div>
               {sig.isStale ? (
                 <p className="signal-stale-badge">
-                  ⚠ {sig.dataQualityScore === 'unknown' ? 'Data freshness unknown' : 'Stale data'} — last updated {sig.generatedAt}
+                  ⚠︎ {sig.dataQualityScore === 'unknown' ? 'Data freshness unknown' : 'Stale data'} — last updated {sig.generatedAt}
                 </p>
               ) : (
                 <p className="signal-meta">{sig.timeframe} · {sig.confidence} confidence</p>
               )}
+              {ranking && sig.returns?.[ranking.period]?.status === 'available' && <p className="signal-meta">{RETURN_LABELS[ranking.period]}: {sig.returns[ranking.period].value!.toFixed(2)}%</p>}
               <p className="signal-title">{sig.title}</p>
 
               {isExpanded && (
@@ -209,6 +224,10 @@ export function SignalsClient({ signals }: Props) {
                       {sig.score != null && !flagLive("news_vote") && <> · News not included</>}
                     </p>
                   )}
+                  <p className="signal-meta">Confluence is a weighted balance of related observations, not a probability of profit. More observations are not independent evidence. Catalog targets are not active signals.</p>
+                  {sig.contributions && sig.contributions.length > 0 && <ul aria-label="Confluence contributions">
+                    {sig.contributions.map((c,i) => <li key={`${c.name}-${i}`}>{c.name}: {c.strength}, weight {c.weight}, family {c.family}</li>)}
+                  </ul>}
                   {sig.reasons && sig.reasons.length > 0 && (
                     <ul className="signal-reasons">
                       {sig.reasons.map((r, i) => (

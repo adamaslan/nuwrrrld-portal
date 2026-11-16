@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { MAX_CSV_FILE_BYTES, parseTickerCsv } from "@/lib/watchlist-csv";
+import { MAX_CSV_FILE_BYTES, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
@@ -189,7 +189,8 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     setCsvMessage("");
     if (!file) return;
     if (file.size > MAX_CSV_FILE_BYTES) { setCsvMessage("File too large (max 64 KB)."); return; }
-    const tickers = parseTickerCsv(await file.text());
+    const { tickers, error: csvError } = parseTickerCsvChecked(await file.text());
+    if (csvError) { setCsvMessage(csvError); return; }
     if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
     if (tickers.length > 500) { setCsvMessage("Too many rows (limit 500)."); return; }
     setCsvBusy(true);
@@ -483,7 +484,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
             <p className="port-health-label">Health Check · T2 Council</p>
             {!healthGrounded && (
               <p className="port-health-error" style={{ fontSize: ".8rem" }}>
-                ⚠ Based on general knowledge — your portfolio score was unavailable for this check.
+                ⚠︎ Based on general knowledge — your portfolio score was unavailable for this check.
               </p>
             )}
             <p className="port-health-text">{healthText}</p>

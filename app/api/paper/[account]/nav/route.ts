@@ -28,7 +28,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ account
 
   try {
     const points = await getNavSeries(account, 400);
-    const series = buildNavSeriesView(points);
+    const series = buildNavSeriesView(account === "equal" || account === "spy" ? points.filter((p) => p.positionsN > 0) : points);
     cache.set(account, { data: series, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json({ account, series });
   } catch (err) {

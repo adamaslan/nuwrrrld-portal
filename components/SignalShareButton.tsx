@@ -49,7 +49,7 @@ export function SignalShareButton({ signal }: SignalShareButtonProps) {
       className="signal-share-btn"
       title={copied ? 'Copied!' : 'Share this signal'}
     >
-      {copied ? '✓ Copied' : '📤 Share'}
+      {copied ? '✓ Copied' : 'Share'}
     </button>
   );
 }
