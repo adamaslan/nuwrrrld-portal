@@ -258,6 +258,80 @@ export async function writeLabels(labels: ReadonlyArray<{ hitId: string; label: 
   return labels.length;
 }
 
+export interface LabelDiagnostics {
+  horizon: number;
+  /** Unlabeled directional hits, each counted in exactly one bucket below. */
+  unlabeledDirectional: number;
+  /** Would be returned by pendingHits right now. */
+  ready: number;
+  /** Fewer than horizon later bars stored in the hit's own feed — too recent, or that feed stopped being stored. */
+  awaitingBars: number;
+  /** The hit's (ticker, feed, bar_date) entry bar is not stored, so the pendingHits join drops it. */
+  missingEntryBar: number;
+  /** run_id is null or names no engine_runs row, so the pendingHits join drops it. */
+  noRunRow: number;
+  /** Unlabeled hits whose strength states no direction; never label candidates. */
+  unlabeledNonDirectional: number;
+  /** Unlabeled directional hits grouped by their run's feed ('(no run)' when runless). */
+  byFeed: Record<string, number>;
+}
+
+/**
+ * Why pendingHits returns what it returns. Buckets are mutually exclusive and
+ * assigned in pendingHits' join order: a hit without a run row is counted
+ * there even if its entry bar is also missing. Read-only. The label route
+ * calls this when a batch examines zero hits so a silent labeled=0 names its
+ * cause (feed switch stranding, runless hits, missing entry bars, or simply
+ * nothing old enough) in the nightly log instead of looking like success.
+ */
+export async function labelDiagnostics(horizon: number): Promise<LabelDiagnostics> {
+  // Subqueries rather than CTEs so the statement starts with SELECT: the
+  // pg test shim in __tests__/engine-db.pg.test.ts only wraps SELECTs.
+  const rows = await sql`
+    SELECT
+      count(*) FILTER (WHERE directional)::int AS directional_total,
+      count(*) FILTER (WHERE NOT directional)::int AS non_directional,
+      count(*) FILTER (WHERE directional AND NOT has_run)::int AS no_run_row,
+      count(*) FILTER (WHERE directional AND has_run AND NOT has_entry)::int AS missing_entry_bar,
+      count(*) FILTER (WHERE directional AND has_run AND has_entry AND later_bars < ${horizon})::int AS awaiting_bars,
+      count(*) FILTER (WHERE directional AND has_run AND has_entry AND later_bars >= ${horizon})::int AS ready
+    FROM (
+      SELECT u.*,
+        (u.strength = ANY(${DIRECTIONAL_STRENGTHS as readonly string[]})) AS directional,
+        EXISTS (SELECT 1 FROM daily_bars eb
+                WHERE eb.ticker = u.ticker AND eb.feed = u.feed AND eb.bar_date = u.bar_date) AS has_entry,
+        (SELECT count(*) FROM daily_bars b
+         WHERE b.ticker = u.ticker AND b.feed = u.feed AND b.bar_date > u.bar_date) AS later_bars
+      FROM (
+        SELECT h.ticker, h.bar_date, h.strength, r.feed AS feed, (r.id IS NOT NULL) AS has_run
+        FROM engine_detector_hits h
+        LEFT JOIN engine_runs r ON r.id = h.run_id
+        LEFT JOIN engine_forward_returns f ON f.hit_id = h.id AND f.horizon_days = ${horizon}
+        WHERE f.hit_id IS NULL
+      ) u
+    ) classified
+  `;
+  const feedRows = await sql`
+    SELECT coalesce(r.feed, '(no run)') AS feed, count(*)::int AS n
+    FROM engine_detector_hits h
+    LEFT JOIN engine_runs r ON r.id = h.run_id
+    LEFT JOIN engine_forward_returns f ON f.hit_id = h.id AND f.horizon_days = ${horizon}
+    WHERE f.hit_id IS NULL AND h.strength = ANY(${DIRECTIONAL_STRENGTHS as readonly string[]})
+    GROUP BY 1 ORDER BY 2 DESC
+  `;
+  const r = rows[0] ?? {};
+  return {
+    horizon,
+    unlabeledDirectional: (r.directional_total as number) ?? 0,
+    ready: (r.ready as number) ?? 0,
+    awaitingBars: (r.awaiting_bars as number) ?? 0,
+    missingEntryBar: (r.missing_entry_bar as number) ?? 0,
+    noRunRow: (r.no_run_row as number) ?? 0,
+    unlabeledNonDirectional: (r.non_directional as number) ?? 0,
+    byFeed: Object.fromEntries(feedRows.map((f) => [f.feed as string, f.n as number])),
+  };
+}
+
 export async function latestStructure(ticker: string) {
   const rows = await sql`
     SELECT bar_date::text AS bar_date, code_version, levels, zones, nearest_support, nearest_resistance
