@@ -49,13 +49,14 @@ function langSmithClient(): Client | null {
   return cachedClient;
 }
 
-function safeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+function safeMetadata(metadata: Record<string, unknown> = {}): Record<string, unknown> {
+  const values = metadata ?? {};
   return {
-    ...(typeof metadata.seat === "string" ? { seat: metadata.seat } : {}),
-    ...(typeof metadata.model === "string" ? { model: metadata.model } : {}),
-    ...(Number.isInteger(metadata.attempt) ? { attempt: metadata.attempt } : {}),
-    ...(typeof metadata.primary === "boolean" ? { primary: metadata.primary } : {}),
-    ...(typeof metadata.answerOnly === "boolean" ? { answer_only: metadata.answerOnly } : {}),
+    ...(typeof values.seat === "string" ? { seat: values.seat } : {}),
+    ...(typeof values.model === "string" ? { model: values.model } : {}),
+    ...(Number.isInteger(values.attempt) ? { attempt: values.attempt } : {}),
+    ...(typeof values.primary === "boolean" ? { primary: values.primary } : {}),
+    ...(typeof values.answerOnly === "boolean" ? { answer_only: values.answerOnly } : {}),
   };
 }
 
