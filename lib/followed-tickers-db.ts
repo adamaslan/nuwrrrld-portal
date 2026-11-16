@@ -406,7 +406,7 @@ export async function getAllScores(options: { throwOnError?: boolean } = {}): Pr
 
 /** Recently-resolved scores that still need a judge grade — the weekly judge
  *  run's sample. Only verdicts with a stored council_json can be graded. */
-export async function getUnjudgedScoresSince(sinceIso: string): Promise<
+export async function getUnjudgedScoresSince(sinceIso: string, options: { throwOnError?: boolean } = {}): Promise<
   Array<{ pickId: string; horizon: Horizon; councilJson: unknown }>
 > {
   try {
@@ -427,7 +427,8 @@ export async function getUnjudgedScoresSince(sinceIso: string): Promise<
       horizon: r.horizon as Horizon,
       councilJson: r.council_json,
     }));
-  } catch {
+  } catch (error) {
+    if (options.throwOnError) throw error;
     return [];
   }
 }
