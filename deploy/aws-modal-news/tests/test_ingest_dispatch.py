@@ -35,6 +35,7 @@ def _no_network(monkeypatch):
     """In-process guard, active only after imports; it does not cover native/grpc sockets.
     Process-level evidence (network namespace + strace) is separate and run-specific."""
     import socket
+    monkeypatch.delenv("NEWS_BATCH_SCORING", raising=False)   # tests start in dispatch mode whatever the shell has
 
     def deny(*a, **k):
         NETWORK_ATTEMPTS.append(1)
