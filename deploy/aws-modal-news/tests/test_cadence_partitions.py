@@ -76,3 +76,22 @@ def test_coverage_no_duplicate_firing_and_per_job_parity_over_2026():
 def test_partition_count_is_four_not_a_quota_inventory():
     # Says nothing about the account's total crons; that inventory is unverified.
     assert len(PARTITION_CRONS) == 4
+
+
+BATCH_EXTRA_CRON = "5,35 7-8,17-19 * * 1-5"   # batch slots on odd minutes that the 2-minute ingest cron skips
+
+
+def test_batch_mode_needs_the_extra_cron_to_avoid_lost_jobs():
+    base = PARTITION_CRONS
+    full = base + (BATCH_EXTRA_CRON,)
+    lost_without = lost_with = 0
+    for t in _year():
+        local = t.astimezone(NY)
+        if not nc.due_jobs(t, batch_scoring=True):
+            continue
+        lost_without += not any(cron_matches(c, local) for c in base)
+        m = [c for c in full if cron_matches(c, local)]
+        assert len(m) <= 1, (t, m)
+        lost_with += not m
+    assert lost_without > 0      # the four-cron partition alone would drop batch slots
+    assert lost_with == 0        # the fifth cron covers them
