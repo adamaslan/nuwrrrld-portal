@@ -266,8 +266,9 @@ async def _ingest() -> dict:
 
         if fetched:
             store.set_cursor(NEWS_STREAM, max(io.parse_iso(a["created_at"]) for a in fetched))
-        if new_ids:
-            news_score_articles.spawn(new_ids)
+        # NEWS_BATCH_SCORING=1: scoring runs only from the half-hourly backlog slots (news_core.due_jobs batch mode).
+        if new_ids and os.environ.get("NEWS_BATCH_SCORING") != "1":
+            await news_score_articles.spawn.aio(new_ids)
 
         summary = {"pages": pages, "fetched": len(fetched), "universe_matched": len(matched),
                    "new": len(new_ids), "budget_exhausted": budget_stopped,
@@ -474,19 +475,26 @@ async def _aggregate(session_arg, preview, force) -> dict:
         window_start = cutoff - timedelta(hours=nc.AGGREGATE_WINDOW_HOURS)
         universe = await io.load_universe(conn)
 
-        rows = await conn.fetch(
-            """SELECT s.ticker, a.article_id, a.created_at, a.source, a.corroborated,
-                      s.relevance, s.novelty, s.story_id, e.polarity, e.confidence, e.event_type
-                 FROM news_articles a
-                 JOIN news_article_symbols s USING (article_id)
-                 JOIN news_article_scores e ON e.article_id = a.article_id AND e.scorer = $3
-                WHERE a.created_at > $1 AND a.created_at <= $2""",
-            window_start, cutoff, nc.SCORER_VERSION)
-        unscored = await conn.fetchval(
-            """SELECT COUNT(*) FROM news_articles a
-                WHERE a.created_at > $1 AND a.created_at <= $2
-                  AND NOT EXISTS (SELECT 1 FROM news_article_scores e WHERE e.article_id = a.article_id AND e.scorer = $3)""",
-            window_start, cutoff, nc.SCORER_VERSION)
+        # One read-only REPEATABLE READ snapshot for both reads: the unscored count and the scored rows describe the
+        # same set of articles, so a scorer commit or a late/backfilled ingest between them cannot make the final
+        # claim completeness it does not have. Articles ingested after the snapshot are not in this final.
+        async with conn.transaction(isolation="repeatable_read", readonly=True):
+            unscored = await conn.fetchval(
+                """SELECT COUNT(*) FROM news_articles a
+                    WHERE a.created_at > $1 AND a.created_at <= $2
+                      AND NOT EXISTS (SELECT 1 FROM news_article_scores e WHERE e.article_id = a.article_id AND e.scorer = $3)""",
+                window_start, cutoff, nc.SCORER_VERSION)
+            if nc.final_deferred_for_unscored(unscored, preview, force, os.environ.get("NEWS_BATCH_SCORING") == "1"):
+                return {"deferred": f"{unscored} unscored articles in window; final not written, a later slot retries"}
+
+            rows = await conn.fetch(
+                """SELECT s.ticker, a.article_id, a.created_at, a.source, a.corroborated,
+                          s.relevance, s.novelty, s.story_id, e.polarity, e.confidence, e.event_type
+                     FROM news_articles a
+                     JOIN news_article_symbols s USING (article_id)
+                     JOIN news_article_scores e ON e.article_id = a.article_id AND e.scorer = $3
+                    WHERE a.created_at > $1 AND a.created_at <= $2""",
+                window_start, cutoff, nc.SCORER_VERSION)
 
         signals = defaultdict(list)
         for r in rows:
@@ -815,7 +823,7 @@ def tick() -> list[str]:
         nc.JOB_POLLER: lambda: alpaca_live_poller.spawn(),
         nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None),  # separate from news_ingest's targeted scoring
     }
-    due = nc.due_jobs(_utcnow())
+    due = nc.due_jobs(_utcnow(), batch_scoring=os.environ.get("NEWS_BATCH_SCORING") == "1")
     for job in due:
         launchers[job]()
     return due
