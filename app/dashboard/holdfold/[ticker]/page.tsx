@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { resolveTier } from "@/lib/subscription-admin";
+import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import type { HoldFoldVerdict } from "@/app/api/holdfold/route";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 import DisclaimerModal from "@/components/DisclaimerModal";
@@ -48,7 +48,7 @@ export default async function TickerDetailPage(
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = resolveTier(status, user);
+  const tier = await resolveTierWithPendingBeta(status, user);
 
   if (!hasEntitlement("nu_ai", tier)) {
     redirect("/pricing?source=holdfold");

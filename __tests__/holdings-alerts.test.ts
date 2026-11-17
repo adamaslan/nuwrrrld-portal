@@ -1,3 +1,4 @@
+import { resolveTier } from "@/lib/subscription-admin";
 import { describe, expect, it } from "vitest";
 import {
   canReceiveHoldingsAlerts,
@@ -148,10 +149,10 @@ describe("canReceiveHoldingsAlerts", () => {
     const before = process.env.NULOGDASH_ADMIN_EMAILS;
     process.env.NULOGDASH_ADMIN_EMAILS = "chart-review@example.invalid";
     try {
-      expect(canReceiveHoldingsAlerts("free", identity)).toBe(true);
-      expect(canReceiveHoldingsAlerts("free", { ...identity, emailAddresses: [{ ...identity.emailAddresses[0], verification: { status: "unverified" } }] })).toBe(false);
-      expect(canReceiveHoldingsAlerts("free", null)).toBe(false);
-      expect(canReceiveHoldingsAlerts("canceled", null)).toBe(false);
+      expect(canReceiveHoldingsAlerts(resolveTier("free", identity))).toBe(true);
+      expect(canReceiveHoldingsAlerts(resolveTier("free", { ...identity, emailAddresses: [{ ...identity.emailAddresses[0], verification: { status: "unverified" } }] }))).toBe(false);
+      expect(canReceiveHoldingsAlerts(resolveTier("free", null))).toBe(false);
+      expect(canReceiveHoldingsAlerts(resolveTier("canceled", null))).toBe(false);
     } finally {
       if (before === undefined) delete process.env.NULOGDASH_ADMIN_EMAILS;
       else process.env.NULOGDASH_ADMIN_EMAILS = before;
@@ -159,6 +160,6 @@ describe("canReceiveHoldingsAlerts", () => {
   });
   it("is a Pro feature", () => {
     expect(canReceiveHoldingsAlerts("free")).toBe(false);
-    expect(canReceiveHoldingsAlerts("active")).toBe(true);
+    expect(canReceiveHoldingsAlerts("pro")).toBe(true);
   });
 });

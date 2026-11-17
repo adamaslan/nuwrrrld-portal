@@ -17,9 +17,8 @@
  *    parseable one;
  *  - only tickers the user holds are considered.
  */
-import { resolveTier, type TierAdminIdentity } from "@/lib/subscription-admin";
 import { normalizeTicker } from "@/lib/shared/signal-policy";
-import { hasEntitlement, type SubscriptionStatus } from "@/lib/subscription";
+import { hasEntitlement, type SubscriptionTier } from "@/lib/subscription";
 
 export type AlertDirection = "bullish" | "bearish" | "neutral";
 
@@ -50,8 +49,10 @@ export const DEFAULT_MAX_ALERTS = 20;
 
 const KIND_PRIORITY: Record<AlertKind, number> = { reversed: 0, turned: 1, faded: 2 };
 
-export function canReceiveHoldingsAlerts(status: SubscriptionStatus, identity?: TierAdminIdentity | null): boolean {
-  return hasEntitlement("watchlist_alerts", resolveTier(status, identity));
+/** The server caller must resolve effective tier (including email beta) first.
+ * Keep this signal-change engine pure: no Clerk, account lookup or status inference. */
+export function canReceiveHoldingsAlerts(tier: SubscriptionTier): boolean {
+  return hasEntitlement("watchlist_alerts", tier);
 }
 
 function classify(from: AlertDirection, to: AlertDirection): AlertKind | null {
