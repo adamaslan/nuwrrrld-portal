@@ -42,6 +42,14 @@ describe("verified-email beta enrollment", () => {
   expect(await grantBeta(input)).toMatchObject({ ok: true });
   expect(m.update).toHaveBeenCalledWith("user_new", { publicMetadata: { beta: expect.objectContaining({ tier: "pro" }) } });
  });
+ it("updates the existing email grant after signup instead of creating a second direct grant", async () => {
+  const id = betaEmailId("new@example.com");
+  m.get.mockResolvedValue({ privateMetadata: { [BETA_EMAIL_KEY]: { [id]: { email: "new@example.com", grant: buildBetaGrant({ email: "new@example.com", expiresAt: null, note: null }) } } }, publicMetadata: {}, unsafeMetadata: {} });
+  m.users.mockResolvedValue({ data: [{ id: "user_new", emailAddresses: [{ emailAddress: "new@example.com", verification: { status: "verified" } }] }] });
+  expect(await grantBeta({ ...input, expiresAt: "2099-01-01" })).toMatchObject({ ok: true });
+  expect(m.update).toHaveBeenCalledOnce();
+  expect(m.update).toHaveBeenCalledWith("user_owner", { privateMetadata: { [BETA_EMAIL_KEY]: { [id]: { email: "new@example.com", grant: expect.objectContaining({ expiresAt: "2099-01-01" }) } } } });
+ });
  it("does not promote an unverified claimant or store a pending grant", async () => {
   m.users.mockResolvedValue({ data: [{ id: "user_bad", emailAddresses: [{ emailAddress: "new@example.com", verification: { status: "unverified" } }] }] });
   expect(await grantBeta(input)).toMatchObject({ ok: false }); expect(m.update).not.toHaveBeenCalled();

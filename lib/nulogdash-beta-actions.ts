@@ -54,10 +54,12 @@ export async function grantBeta(raw: GrantInput): Promise<BetaActionResult> {
 
   const clerk = await clerkClient();
   const { data: matches } = await clerk.users.getUserList({ emailAddress: [parsed.email] });
-  if (matches.length === 0) {
-    const admin = await clerk.users.getUser(adminId);
-    const entries = readBetaEmails(admin.privateMetadata);
-    const id = betaEmailId(parsed.email);
+  const admin = await clerk.users.getUser(adminId);
+  const entries = readBetaEmails(admin.privateMetadata);
+  const id = betaEmailId(parsed.email);
+  // Keep an existing email grant in the same registry after signup. Creating
+  // a separate direct grant would leave the old expiry/revocation in force.
+  if (entries[id] || matches.length === 0) {
     if (!entries[id] && Object.keys(entries).length >= MAX_PENDING_BETA_EMAILS) {
       return { ok: false, error: "Pending-email capacity reached (10). Revoke an entry before adding another." };
     }
@@ -69,7 +71,7 @@ export async function grantBeta(raw: GrantInput): Promise<BetaActionResult> {
     revalidatePath(PANEL_PATH);
     return {
       ok: true,
-      message: "Email added. They get beta Pro after normal signup and verification of this primary email. The signup link conveys no access by itself.",
+      message: "Email grant saved. Beta Pro requires this to be their verified primary email. The signup link conveys no access by itself.",
       signupUrl: "/sign-up?redirect_url=/dashboard",
     };
   }
