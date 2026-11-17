@@ -62,7 +62,14 @@ def parse_workflow(path: Path) -> dict:
     FAILS CLOSED: a file whose `jobs:` section yields no jobs (flow style, tabs, odd structure) is marked
     parse_ok=False and reported as unpriced, never as zero cost."""
     lines = path.read_text().splitlines()
-    crons = re.findall(r"-\s*cron:\s*['\"]([^'\"]+)['\"]", "\n".join(lines))
+    live = [l for l in lines if not l.lstrip().startswith("#")]   # commented-out schedules are not active
+    crons = []
+    for l in live:
+        mc = re.match(r"\s*-?\s*cron:\s*(?:'([^']*)'|\"([^\"]*)\"|([^#'\"\s][^#]*?))\s*(?:#.*)?$", l)
+        if mc:
+            crons.append(next(g for g in mc.groups() if g is not None).strip())
+        elif re.match(r"\s*-?\s*cron:", l):
+            crons.append("<unreadable>")   # present but not understood: reported unsupported, never skipped
     jobs: dict[str, dict] = {}
     body = [(len(l) - len(l.lstrip(" ")), l) for l in lines if l.strip() and not l.lstrip().startswith("#")]
     start = next((i for i, (ind, l) in enumerate(body) if ind == 0 and l.startswith("jobs:")), None)
@@ -116,11 +123,18 @@ def monthly_report(workflows_dir: Path, start: datetime | None = None) -> list[d
         w = parse_workflow(p)
         if not w["crons"]:
             continue
-        runs = sum(cron_runs(c, start) for c in w["crons"])
+        runs, bad_cron = 0, []
+        for c in w["crons"]:
+            try:
+                runs += cron_runs(c, start)
+            except (ValueError, IndexError):   # named days/months, malformed: unsupported, not a crash
+                bad_cron.append(c)
         priced = [j["timeout_min"] for j in w["jobs"].values() if j["timeout_min"] is not None and not j["reusable"]]
         unb = [n for n, j in w["jobs"].items() if j["timeout_min"] is None or j["reusable"]]
         if not w["parse_ok"]:
             priced, unb = [], ["<UNPARSED: jobs section not understood>"]
+        if bad_cron:
+            priced, unb = [], [f"<UNSUPPORTED cron: {c}>" for c in bad_cron]
         flags = sorted({k for j in w["jobs"].values() for k in ("matrix", "retry") if j[k]})
         secs = sum(priced) * 60
         rows.append({"name": w["name"], "crons": w["crons"], "runs_30d": runs, "timeout_min": sum(priced),
