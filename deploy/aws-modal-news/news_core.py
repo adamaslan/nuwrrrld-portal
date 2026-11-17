@@ -752,10 +752,26 @@ _EVAL_SLOTS = ((10, 0), (10, 30))
 _SCORE_BACKLOG_SLOT = (17, 30)  # after the final aggregate, so ingest-time scoring misses are caught before the next session
 
 
-def due_jobs(now: datetime) -> list[str]:
+_BATCH_SCORE_MINUTES = (5, 35)  # after the :00/:30 corroborate slot, off the poller's every-minute path
+_BATCH_EXTRA_SLOTS = ((9, 15), (16, 15))  # one scoring pass before the 09:20 preview and between the 16:05 and 16:25 finals
+
+
+def final_deferred_for_unscored(unscored: int, preview: bool, force: bool, batch_scoring: bool) -> bool:
+    """With batch scoring ON, a non-preview final must not be written while the window still has
+    unscored articles: writing it would make the 'final already exists' check skip the later retry,
+    leaving stale or missing scores permanently. Deferring writes nothing, so the next slot can retry.
+    OFF (default): never defers, i.e. the old behavior."""
+    return bool(batch_scoring and not preview and not force and unscored > 0)
+
+
+def due_jobs(now: datetime, batch_scoring: bool = False) -> list[str]:
     """Which jobs §5.1 says should start this minute (evaluated in America/New_York).
 
     Holidays are handled inside the jobs (broker clock/calendar), not here.
+
+    batch_scoring (OFF by default, undeployed proposal): score the unscored backlog on a half-hourly
+    weekday slot instead of from every ingest run, so the 2-core FinBERT container starts about 30x
+    less often. The caller must then stop dispatching scoring from news_ingest.
     """
     local = now.astimezone(NEW_YORK)
     hour, minute, weekday = local.hour, local.minute, local.weekday()
@@ -779,6 +795,8 @@ def due_jobs(now: datetime) -> list[str]:
     if on_weekday and clock in _LABEL_SLOTS:
         due.append(JOB_LABEL)
     if on_weekday and clock == _SCORE_BACKLOG_SLOT:
+        due.append(JOB_SCORE_BACKLOG)
+    elif batch_scoring and in_ingest_window and (minute in _BATCH_SCORE_MINUTES or clock in _BATCH_EXTRA_SLOTS):
         due.append(JOB_SCORE_BACKLOG)
     if weekday == 5 and clock in _EVAL_SLOTS:
         due.append(JOB_EVAL)
