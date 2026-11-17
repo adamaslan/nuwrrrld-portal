@@ -68,12 +68,6 @@ image = (
     .pip_install("httpx~=0.28", "boto3~=1.35", "asyncpg~=0.30")
     .add_local_python_source(*LOCAL_SOURCES)
 )
-# NEWS_BATCH_SCORING must be identical in tick, news_ingest and news_aggregate. tick has no Secret, so the flag
-# cannot come from one. All three use `image`: when the flag is set at deploy time it is baked into that image's
-# environment (default off leaves the image definition unchanged).
-if os.environ.get("NEWS_BATCH_SCORING") == "1":
-    image = image.env({"NEWS_BATCH_SCORING": "1"})
-
 # FinBERT image: CPU torch only. Weights are cached on the nwf4-models Volume
 # (HF_HOME) so only the first scoring run downloads them.
 ml_image = (
@@ -187,12 +181,12 @@ def smoke() -> dict:
 
 
 @app.function(image=image, secrets=[market_secret, db_secret, aws_secret], timeout=300)
-def news_ingest() -> dict:
+def news_ingest(batch_scoring: bool = False) -> dict:
     """Alpaca news since the cursor -> Neon. Idempotent: Neon ON CONFLICT plus the nwf_seen pre-filter."""
-    return asyncio.run(_ingest())
+    return asyncio.run(_ingest(batch_scoring))
 
 
-async def _ingest() -> dict:
+async def _ingest(batch_scoring: bool = False) -> dict:
     import news_core as nc
     import news_io as io
 
@@ -271,8 +265,9 @@ async def _ingest() -> dict:
 
         if fetched:
             store.set_cursor(NEWS_STREAM, max(io.parse_iso(a["created_at"]) for a in fetched))
-        # NEWS_BATCH_SCORING=1: scoring runs only from the half-hourly backlog slots (news_core.due_jobs batch mode).
-        if new_ids and os.environ.get("NEWS_BATCH_SCORING") != "1":
+        # batch_scoring (passed by tick, never read from the environment here): scoring runs only from the
+        # half-hourly backlog slots (news_core.due_jobs batch mode).
+        if new_ids and not batch_scoring:
             await news_score_articles.spawn.aio(new_ids)
 
         summary = {"pages": pages, "fetched": len(fetched), "universe_matched": len(matched),
@@ -451,13 +446,14 @@ async def _corroborate() -> dict:
 
 
 @app.function(image=image, secrets=[market_secret, db_secret, aws_secret], timeout=600)
-def news_aggregate(session: str | None = None, preview: bool = False, force: bool = False) -> dict:
+def news_aggregate(session: str | None = None, preview: bool = False, force: bool = False,
+                   batch_scoring: bool = False) -> dict:
     """Per-ticker news_score for one session (§6.4). `preview` is the 09:20 pre-open look: its rows are
     flagged and replaced by the 16:05 final; the labeler ignores them."""
-    return asyncio.run(_aggregate(session, preview, force))
+    return asyncio.run(_aggregate(session, preview, force, batch_scoring))
 
 
-async def _aggregate(session_arg, preview, force) -> dict:
+async def _aggregate(session_arg, preview, force, batch_scoring: bool = False) -> dict:
     import news_core as nc
     import news_io as io
 
@@ -489,7 +485,7 @@ async def _aggregate(session_arg, preview, force) -> dict:
                     WHERE a.created_at > $1 AND a.created_at <= $2
                       AND NOT EXISTS (SELECT 1 FROM news_article_scores e WHERE e.article_id = a.article_id AND e.scorer = $3)""",
                 window_start, cutoff, nc.SCORER_VERSION)
-            if nc.final_deferred_for_unscored(unscored, preview, force, os.environ.get("NEWS_BATCH_SCORING") == "1"):
+            if nc.final_deferred_for_unscored(unscored, preview, force, batch_scoring):
                 return {"deferred": f"{unscored} unscored articles in window; final not written, a later slot retries"}
 
             rows = await conn.fetch(
@@ -818,17 +814,20 @@ def tick() -> list[str]:
     """Every minute: spawn the jobs news_core.due_jobs() says are scheduled for this minute (ET)."""
     import news_core as nc
 
+    # tick is the only reader of NEWS_BATCH_SCORING; it hands the value to ingest and aggregate as an argument, so
+    # the three cannot disagree whatever the environment looks like inside the other containers.
+    batch = os.environ.get("NEWS_BATCH_SCORING") == "1"
     launchers = {
-        nc.JOB_INGEST: lambda: news_ingest.spawn(),
+        nc.JOB_INGEST: lambda: news_ingest.spawn(batch),
         nc.JOB_CORROBORATE: lambda: news_corroborate.spawn(),
-        nc.JOB_AGGREGATE_PREVIEW: lambda: news_aggregate.spawn(None, True),
-        nc.JOB_AGGREGATE_FINAL: lambda: news_aggregate.spawn(None, False),
+        nc.JOB_AGGREGATE_PREVIEW: lambda: news_aggregate.spawn(None, True, False, batch),
+        nc.JOB_AGGREGATE_FINAL: lambda: news_aggregate.spawn(None, False, False, batch),
         nc.JOB_LABEL: lambda: news_label_outcomes.spawn(),
         nc.JOB_EVAL: lambda: news_accuracy_eval.spawn(),
         nc.JOB_POLLER: lambda: alpaca_live_poller.spawn(),
         nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None),  # separate from news_ingest's targeted scoring
     }
-    due = nc.due_jobs(_utcnow(), batch_scoring=os.environ.get("NEWS_BATCH_SCORING") == "1")
+    due = nc.due_jobs(_utcnow(), batch_scoring=batch)
     for job in due:
         launchers[job]()
     return due
