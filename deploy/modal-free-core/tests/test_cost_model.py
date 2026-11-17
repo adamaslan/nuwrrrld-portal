@@ -73,3 +73,14 @@ def test_partial_parse_is_rejected_not_half_priced(tmp_path):
         "  b: {runs-on: x, timeout-minutes: 20}\n")
     r = {x["name"]: x for x in cm.monthly_report(tmp_path, START)}["mix"]
     assert r["timeout_min"] == 0 and r["unbounded_jobs"] == ["<UNPARSED: jobs section not understood>"]
+
+
+def test_cron_comments_unquoted_and_named_fields(tmp_path):
+    job = "jobs:\n  one:\n    runs-on: x\n    timeout-minutes: 10\n    steps:\n      - run: x\n"
+    (tmp_path / "a.yml").write_text("on:\n  schedule:\n    # - cron: '* * * * *'\n    - cron: '0 9 * * *'\n" + job)
+    (tmp_path / "b.yml").write_text("on:\n  schedule:\n    - cron: 0 9 * * *  # daily\n" + job)
+    (tmp_path / "c.yml").write_text("on:\n  schedule:\n    - cron: '0 9 * * MON-FRI'\n" + job)
+    rows = {r["name"]: r for r in cm.monthly_report(tmp_path, START)}
+    assert rows["a"]["runs_30d"] == 30 and rows["a"]["crons"] == ["0 9 * * *"]
+    assert rows["b"]["runs_30d"] == 30
+    assert rows["c"]["scenario_usd"] == 0 and rows["c"]["unbounded_jobs"] == ["<UNSUPPORTED cron: 0 9 * * MON-FRI>"]
