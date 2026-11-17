@@ -79,19 +79,34 @@ def test_partition_count_is_four_not_a_quota_inventory():
 
 
 BATCH_EXTRA_CRON = "5,35 7-8,17-19 * * 1-5"   # batch slots on odd minutes that the 2-minute ingest cron skips
+# Alternative that keeps four crons: run the weekday ingest window every minute instead of every 2 minutes.
+BATCH_FOUR_CRONS = (PARTITION_CRONS[0], "* 7-8,17-19 * * 1-5") + PARTITION_CRONS[2:]
 
 
-def test_batch_mode_needs_the_extra_cron_to_avoid_lost_jobs():
-    base = PARTITION_CRONS
-    full = base + (BATCH_EXTRA_CRON,)
-    lost_without = lost_with = 0
+def test_batch_mode_needs_more_than_the_default_partition():
+    lost_without = lost_with_extra = 0
     for t in _year():
         local = t.astimezone(NY)
         if not nc.due_jobs(t, batch_scoring=True):
             continue
-        lost_without += not any(cron_matches(c, local) for c in base)
-        m = [c for c in full if cron_matches(c, local)]
+        lost_without += not any(cron_matches(c, local) for c in PARTITION_CRONS)
+        m = [c for c in PARTITION_CRONS + (BATCH_EXTRA_CRON,) if cron_matches(c, local)]
         assert len(m) <= 1, (t, m)
-        lost_with += not m
-    assert lost_without > 0      # the four-cron partition alone would drop batch slots
-    assert lost_with == 0        # the fifth cron covers them
+        lost_with_extra += not m
+    assert lost_without > 0       # the default 4-cron partition alone would drop batch slots
+    assert lost_with_extra == 0   # a fifth cron covers them, but 5 crons + the weekly refresh = 6
+
+
+def test_batch_mode_fits_four_crons_with_every_minute_ingest_window():
+    assert len(BATCH_FOUR_CRONS) == 4
+    starts = 0
+    for t in _year():
+        local = t.astimezone(NY)
+        m = [c for c in BATCH_FOUR_CRONS if cron_matches(c, local)]
+        assert len(m) <= 1, (t, m)                       # no minute matched by two crons
+        starts += bool(m)
+        if not m:
+            assert not nc.due_jobs(t, batch_scoring=True), t   # no lost job in batch mode
+            assert not nc.due_jobs(t), t                       # nor in default mode
+    assert starts < 525_600 * 0.45                       # still well under the per-minute tick (starts counted here)
+    print("dispatcher starts per year with four crons, ingest window every minute:", starts)
