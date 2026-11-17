@@ -79,9 +79,8 @@ def run(monkeypatch, db, now, batch):
     io.is_trading_day = lambda store, session: True
     monkeypatch.setitem(sys.modules, "news_io", io)
     monkeypatch.setattr(modal_app, "_utcnow", lambda: now)
-    if batch: monkeypatch.setenv("NEWS_BATCH_SCORING", "1")
-    else: monkeypatch.delenv("NEWS_BATCH_SCORING", raising=False)
-    return asyncio.run(modal_app._aggregate(None, False, False))
+    monkeypatch.delenv("NEWS_BATCH_SCORING", raising=False)   # aggregate must not read the environment at all
+    return asyncio.run(modal_app._aggregate(None, False, False, batch))
 
 
 def score_all(db):
