@@ -68,6 +68,11 @@ image = (
     .pip_install("httpx~=0.28", "boto3~=1.35", "asyncpg~=0.30")
     .add_local_python_source(*LOCAL_SOURCES)
 )
+# NEWS_BATCH_SCORING must be identical in tick, news_ingest and news_aggregate. tick has no Secret, so the flag
+# cannot come from one. All three use `image`: when the flag is set at deploy time it is baked into that image's
+# environment (default off leaves the image definition unchanged).
+if os.environ.get("NEWS_BATCH_SCORING") == "1":
+    image = image.env({"NEWS_BATCH_SCORING": "1"})
 
 # FinBERT image: CPU torch only. Weights are cached on the nwf4-models Volume
 # (HF_HOME) so only the first scoring run downloads them.
