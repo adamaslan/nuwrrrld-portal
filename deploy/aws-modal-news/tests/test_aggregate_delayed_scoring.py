@@ -49,7 +49,9 @@ class Txn:
 
 class Conn:
     def __init__(self, db): self.db = db; self.closed = False
-    def transaction(self, **kw): return Txn(self.db)
+    def transaction(self, **kw):
+        assert kw == {"isolation": "repeatable_read", "readonly": True}, kw   # production must request exactly this
+        return Txn(self.db)
     async def fetchval(self, sql, *a):
         if "SELECT 1 FROM news_ticker_scores" in sql: return 1 if self.db.final_exists else None
         if "COUNT(*)" in sql:
