@@ -84,7 +84,7 @@ def make_io(events, articles):
     return io
 
 
-def run_ingest(monkeypatch, spawn_aio, articles=None):
+def run_ingest(monkeypatch, spawn_aio, articles=None, batch=False):
     events = []
     arts = [{"id": 1, "symbols": ["AAPL"], "headline": "Apple up", "created_at": CREATED}] if articles is None else articles
     monkeypatch.setitem(sys.modules, "news_io", make_io(events, arts))
@@ -94,7 +94,7 @@ def run_ingest(monkeypatch, spawn_aio, articles=None):
         return await spawn_aio(ids)
     fake = types.SimpleNamespace(spawn=types.SimpleNamespace(aio=aio))
     monkeypatch.setattr(modal_app, "news_score_articles", fake)
-    return asyncio.run(modal_app._ingest()), events, calls
+    return asyncio.run(modal_app._ingest(batch)), events, calls
 
 
 async def _ok(ids): return None
@@ -153,12 +153,10 @@ def test_real_sdk_blocking_spawn_in_async_warns_but_aio_does_not():
 
 
 def test_ingest_does_not_dispatch_scoring_when_batch_mode_on(monkeypatch):
-    monkeypatch.setenv("NEWS_BATCH_SCORING", "1")
-    summary, events, calls = run_ingest(monkeypatch, _ok)
+    summary, events, calls = run_ingest(monkeypatch, _ok, batch=True)
     assert calls == [] and summary["new"] == 1
 
 
 def test_ingest_dispatches_when_batch_mode_off(monkeypatch):
-    monkeypatch.delenv("NEWS_BATCH_SCORING", raising=False)
-    summary, events, calls = run_ingest(monkeypatch, _ok)
+    summary, events, calls = run_ingest(monkeypatch, _ok, batch=False)
     assert calls == [[1]]
