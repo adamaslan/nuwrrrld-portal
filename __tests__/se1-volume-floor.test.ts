@@ -48,3 +48,13 @@ describe("S26-43 dollarVolumeFloorPersistence", () => {
     expect(() => dollarVolumeFloorPersistence([{ date: "2026/10/01", close: 10, volume: 1 }], { cutoff: day(1), window: 1, floorUsd: 1 })).toThrow(RangeError);
   });
 });
+
+
+describe("cutoff validation", () => {
+  it("ignores invalid values strictly after the cutoff", () => {
+    const bars = [1, 2, 3, 4, 5].map((i) => bar(i, 10, 100));
+    bars.push({ date: "2026-11-01", close: Infinity, volume: Infinity });
+    expect(dollarVolumeFloorPersistence(bars, { cutoff: day(5), window: 5, floorUsd: 1 }))
+      .toMatchObject({ status: "computed", excluded_after_cutoff: 1 });
+  });
+});

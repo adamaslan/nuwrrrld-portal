@@ -64,14 +64,14 @@ export function dollarVolumeFloorPersistence(bars: readonly VolumeBar[], options
   if (!Number.isInteger(window) || window < 1) throw new RangeError(`window must be an integer of at least 1, got ${window}`);
   if (!Number.isFinite(floorUsd) || floorUsd <= 0) throw new RangeError(`floorUsd must be finite and above zero, got ${floorUsd}`);
 
-  for (const b of bars) {
-    requireIsoDate(b.date, "bar date");
-    if (b.close !== null && (!Number.isFinite(b.close) || b.close < 0)) throw new RangeError(`invalid close on ${b.date}`);
-    if (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) throw new RangeError(`invalid volume on ${b.date}`);
-  }
+  for (const b of bars) requireIsoDate(b.date, "bar date");
 
   const dated = [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const visible = dated.filter((b) => b.date <= cutoff);
+  for (const b of visible) {
+    if (b.close !== null && (!Number.isFinite(b.close) || b.close < 0)) throw new RangeError(`invalid close on ${b.date}`);
+    if (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) throw new RangeError(`invalid volume on ${b.date}`);
+  }
   const excluded_after_cutoff = dated.length - visible.length;
 
   if (visible.length < window) {
