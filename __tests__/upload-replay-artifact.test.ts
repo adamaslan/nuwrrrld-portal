@@ -184,8 +184,11 @@ describe("upload database destination interlock", () => {
   });
   it("rejects malformed or non-PostgreSQL URLs without printing credentials", () => {
     for (const url of ["not-a-url-secret", "https://user:secret@prod.example.invalid/db"]) {
-      try { assertUploadDatabaseTarget(url); throw new Error("did not reject"); }
-      catch (err) { expect(String(err)).not.toContain("user:secret"); expect(String(err)).not.toContain("not-a-url-secret"); }
+      let thrown: unknown;
+      try { assertUploadDatabaseTarget(url); } catch (err) { thrown = err; }
+      expect(thrown).toBeDefined();
+      expect(String(thrown)).not.toContain("user:secret");
+      expect(String(thrown)).not.toContain("not-a-url-secret");
     }
   });
 });
