@@ -1,6 +1,4 @@
-"""NEWS_BATCH_SCORING is read in exactly one place: tick. tick passes the value to news_ingest and news_aggregate as an
-argument, so the three cannot disagree whatever Secret or image environment each container has (Secret versus image
-precedence is not established offline and is not relied on). Offline fake-boundary tests only."""
+"""tick is the only dispatch decision point; dispatch_status only reports the deployed flag."""
 import ast
 import sys
 import types
@@ -19,11 +17,30 @@ FINAL = datetime(2026, 11, 18, 21, 5, tzinfo=timezone.utc)        # 16:05 ET
 
 def test_environment_is_read_only_in_tick():
     tree = ast.parse(SRC)
-    reads = [n for n in ast.walk(tree)
-             if isinstance(n, ast.Constant) and n.value == "NEWS_BATCH_SCORING"]
-    assert len(reads) == 1
+    reads = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Attribute) and n.func.attr == "get"
+             and isinstance(n.func.value, ast.Attribute) and n.func.value.attr == "environ"
+             and n.args and isinstance(n.args[0], ast.Constant) and n.args[0].value == "NEWS_BATCH_SCORING"]
+    assert len(reads) == 2  # one dispatch read and one read-only status report
     tick = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "tick")
-    assert any(n is reads[0] for n in ast.walk(tick))
+    status = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "dispatch_status")
+    assert sum(any(n is read for n in ast.walk(function)) for read in reads for function in (tick, status)) == 2
+
+
+def test_deployed_image_enables_batch_mode_for_the_tick():
+    tree = ast.parse(SRC)
+    tick = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "tick")
+    decorator = tick.decorator_list[0]
+    assignment = next(n for n in tree.body if isinstance(n, ast.Assign)
+                      and any(isinstance(t, ast.Name) and t.id == "DISPATCH_ENV" for t in n.targets))
+    values = {key.value: value.value for key, value in zip(assignment.value.keys, assignment.value.values)}
+    assert values == {"NWF5_DISPATCH_ENABLED": "1", "NEWS_BATCH_SCORING": "1"}
+    assert any(k.arg == "schedule" for k in decorator.keywords)
+    image = next(n for n in tree.body if isinstance(n, ast.Assign)
+                 and any(isinstance(t, ast.Name) and t.id == "image" for t in n.targets))
+    assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "env"
+               and isinstance(n.args[0], ast.Name) and n.args[0].id == "DISPATCH_ENV"
+               for n in ast.walk(image.value))
 
 
 def _run_tick(monkeypatch, env, when):
@@ -33,6 +50,7 @@ def _run_tick(monkeypatch, env, when):
               "alpaca_live_poller", "news_score_articles"):
         monkeypatch.setattr(modal_app, n, rec(n))
     monkeypatch.setattr(modal_app, "_utcnow", lambda: when)
+    monkeypatch.setenv("NWF5_DISPATCH_ENABLED", "1")
     if env is None:
         monkeypatch.delenv("NEWS_BATCH_SCORING", raising=False)
     else:
@@ -55,3 +73,11 @@ def test_default_off_dispatch_matches_default_due_jobs(monkeypatch):
     for when in (INGEST, PREVIEW, FINAL):
         due, _ = _run_tick(monkeypatch, None, when)
         assert due == nc.due_jobs(when)
+
+
+def test_batch_flag_adds_score_job_and_passes_batch_args(monkeypatch):
+    from zoneinfo import ZoneInfo
+    when = datetime(2026, 11, 16, 9, 15, tzinfo=ZoneInfo("America/New_York"))
+    due, calls = _run_tick(monkeypatch, "1", when)
+    assert nc.JOB_SCORE_BACKLOG in due
+    assert ("news_score_articles", (None, True)) in calls

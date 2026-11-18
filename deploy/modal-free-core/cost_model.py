@@ -142,19 +142,6 @@ def monthly_report(workflows_dir: Path, start: datetime | None = None) -> list[d
     return rows
 
 
-if __name__ == "__main__":
-    wd = Path(sys.argv[1] if len(sys.argv) > 1 else ".github/workflows")
-    rows = monthly_report(wd)
-    for r in sorted(rows, key=lambda r: -r["scenario_usd"]):
-        extra = (f" UNPRICED jobs (no job timeout or reusable): {','.join(r['unbounded_jobs'])}" if r["unbounded_jobs"] else "")
-        extra += (f" NOT MODELLED: {','.join(r['flags'])}" if r["flags"] else "")
-        print(f"{r['name']:28} runs/30d={r['runs_30d']:4} priced_job_timeout_sum={r['timeout_min']:3}m "
-              f"scenario=${r['scenario_usd']:.2f}{extra}")
-    total = sum(r["scenario_usd"] for r in rows)
-    print(f"TOTAL of PRICED jobs only; unpriced jobs add unknown cost; scenario (unverified, not a bound) ${total:.2f} of ${STARTER_MONTHLY_CREDITS:.2f} Starter credits "
-          f"({total / STARTER_MONTHLY_CREDITS * 100:.0f}%)")
-
-
 # ── nwf4 (deploy/aws-modal-news) as currently written ───────────────────────
 # 30-day job counts come from news_core.due_jobs over Nov 2026 (see nwf4_job_counts). Timeouts, cpu and
 # memory are copied from modal_app.py @app.function decorators at 355e58a; lean jobs use Modal's default
@@ -196,3 +183,30 @@ def nwf4_monthly(counts: dict[str, int], score_typical_s: float | None = None, t
     to, cores, gib = NWF4_SCORE
     total += score_runs * job_cost(score_typical_s if score_typical_s is not None else to, cores, gib)
     return total
+
+
+if __name__ == "__main__":
+    wd = Path(sys.argv[1] if len(sys.argv) > 1 else ".github/workflows")
+    rows = monthly_report(wd)
+    for r in sorted(rows, key=lambda r: -r["scenario_usd"]):
+        extra = (f" UNPRICED jobs (no job timeout or reusable): {','.join(r['unbounded_jobs'])}" if r["unbounded_jobs"] else "")
+        extra += (f" NOT MODELLED: {','.join(r['flags'])}" if r["flags"] else "")
+        print(f"{r['name']:28} runs/30d={r['runs_30d']:4} priced_job_timeout_sum={r['timeout_min']:3}m "
+              f"scenario=${r['scenario_usd']:.2f}{extra}")
+    total = sum(r["scenario_usd"] for r in rows)
+    print(f"TOTAL of PRICED jobs only; unpriced jobs add unknown cost; scenario (unverified, not a bound) ${total:.2f} of ${STARTER_MONTHLY_CREDITS:.2f} Starter credits "
+          f"({total / STARTER_MONTHLY_CREDITS * 100:.0f}%)")
+    start = datetime(2026, 11, 1, 5, tzinfo=timezone.utc)
+    baseline_counts = nwf4_job_counts(start)
+    import news_core as nc
+    batch_starts = 0
+    t = start
+    while t < start + timedelta(days=30):
+        batch_starts += nc.JOB_SCORE_BACKLOG in nc.due_jobs(t, batch_scoring=True)
+        t += timedelta(minutes=1)
+    batch_counts = dict(baseline_counts, news_score_articles=batch_starts)
+    baseline = nwf4_monthly(baseline_counts, score_typical_s=30, typical_frac=0.1)
+    batch = nwf4_monthly(batch_counts, score_typical_s=30, typical_frac=0.1, score_per_ingest=False)
+    print("NWF4 -> NWF5 Modal scenario (not included above; 30s score runs, lean jobs at 10% timeout): "
+          f"score starts {baseline_counts.get('news_ingest', 0) + baseline_counts.get('news_score_articles', 0)} -> "
+          f"{batch_starts}; compute ${baseline:.2f} -> ${batch:.2f}. Actual runtime and workload are unmeasured.")
