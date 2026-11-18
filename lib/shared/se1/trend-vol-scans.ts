@@ -266,6 +266,7 @@ export function breakdownDistance(bars: readonly OhlcBar[], cutoff: string, supp
   const atr = trs.reduce((a, v) => a + v, 0) / trs.length;
   const last = span[span.length - 1].close;
   if (last === null) return { status: "unsupported", reason: "no close at cutoff" };
+  if (last === 0) return { status: "unsupported", reason: "zero close at cutoff" };
   const distance_pct = (last - support) / last * 100;
   const tiny = atr / last < TINY_ATR_FRACTION;
   if (atr === 0) {

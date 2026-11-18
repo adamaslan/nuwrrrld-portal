@@ -387,7 +387,7 @@ export function downsideFollowThroughFailure(bars: readonly Bar[], options: Foll
     const regained = after.some((b) => b.close !== null && b.close >= midpoint);
     let state: FollowThroughState;
     if (extended) state = "continued";
-    else if (after.length < followWindow) state = "pending";
+    else if (after.length < followWindow || after.some((b) => b.close === null)) state = "pending";
     else state = regained ? "failed_extension" : "pending";
     events.push({ breakdown_date: cur.date, support, breakdown_close: cur.close, midpoint, state, observed_after: after.length });
   }
