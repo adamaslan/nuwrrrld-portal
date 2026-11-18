@@ -44,11 +44,11 @@
 | S26-19 | Relative-strength bottom lead | Sector residual | A market-wide rebound without stock-relative improvement does not qualify |
 | S26-20 | Gap-down repair ladder | Gap context | Split or corporate-action adjustment cannot create an artificial gap; partial recovery is not a full reversal |
 | S26-21 | Repeated downside rejection with close recovery | Price-action family | Zero-range bars and unadjusted split bars are rejected; no claim about who the buyers are |
-| S26-22 | Bottom-pattern disagreement register | S26-010, S26-011 | Missing rows cannot yield neutral or a high-confidence bottom; no majority vote is presented as calibrated probability |
+| S26-22 | Bottom-pattern disagreement register | S26-10, S26-11 | Missing rows cannot yield neutral or a high-confidence bottom; no majority vote is presented as calibrated probability |
 
 ## X26 AI-native follow-ons (22)
 
-Each entry gives a small model a bounded tool or result, an explicit stop condition, and a measurable acceptance check. None is implemented. None is a model call.
+Each entry gives a small model a bounded tool or result and a measurable acceptance check. Most also state an explicit stop condition. None is implemented. None is a model call.
 
 | ID | Name | Parent / refines | Acceptance check |
 |---|---|---|---|
@@ -66,8 +66,8 @@ Each entry gives a small model a bounded tool or result, an explicit stop condit
 | X26-12 | Evidence correction inbox | D7, G3, S26-12 | Proposed corrections are shown; no alerts are sent automatically; historical versions remain available |
 | X26-13 | Scan-to-question coverage map | G7, J9, S26-05 | A catalog card alone cannot make a question answerable; unsupported filters fail before execution |
 | X26-14 | Abstention-quality evaluator | J2, J3, S26-05, S26-06 | Reports false-confident and unnecessary-abstention rates on frozen cases; model calls need separate approval |
-| X26-15 | Same-evidence model comparison | J3, S26-11 | Compares small models on the same bounded packet; prompt versions are recorded |
-| X26-16 | Counterexample finder | J3, J9 | Each applicable counterexample links its outcome, cutoff, and version; an absent counterexample is reported as a gap |
+| X26-15 | Same-evidence model comparison | J3, S26-11 | Inputs are equivalent; no silent fallback; factual claims are checked against exact rows; no provider calls from this plan |
+| X26-16 | Claim-level counterexample finder | C3, C5, J2, S26-02, S26-07 | Retrieves actual conflicting cases from held-out evidence, not invented devil's advocacy; no applicable counterexample produces an explicit gap; each case links outcome, cutoff, and version |
 | X26-17 | Repair-or-stop tool coach | A2, I2, S26-05 | At most one schema-valid repair; no alternative provider or feed chosen without scope; no fabricated success after failure |
 | X26-18 | Recipe-change impact preview | I5, B7, F3, S26-12 | Dry preview has zero persistence or execution effects; prior recipe identities stay immutable |
 | X26-19 | Novelty-with-evidence idea composer | B1, J5, S26-02, S26-11 | Duplicated indicators do not count as novelty; observation, inference, and untested mechanism are kept separate |

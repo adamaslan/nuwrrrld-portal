@@ -18,13 +18,13 @@ Each proposal names four things before any code exists:
 3. **Acceptance check.** A fixture-based test that must fail the bad behavior: a fragile score that must be labeled fragile, a future bar that must be rejected, a duplicated signal that must count once.
 4. **Evidence level.** Every row is E0 until a held-out evaluation runs against a declared baseline, after costs.
 
-X26 items reuse the same discipline for small models. Each gets a bounded tool or packet, an explicit stop condition, and an abstention or false-confidence measure.
+X26 items reuse the same discipline for small models. Each gets a bounded tool or packet and an acceptance check. Most state an explicit stop condition, and X26-14 measures abstention and false-confidence rates directly.
 
 ## Where it appears
 
 - `docs/scan-expansion-s26-x26.md`: the full catalog, 22 scans and 22 AI-feature rows so far.
 - [[concept-small-model-prompting]]: X26 rows assume the same worst-model-in-chain constraint.
-- [[concept-three-state-signal]]: S26-05 and X26-04 separate no-hit, not-computed, and failed, which is the same distinction.
+- [[concept-three-state-signal]]: S26-05 and X26-04 separate no-hit, not-computed, and failed. That is related to, but not the same as, the three-state signal concept, which distinguishes not computed, computed negative, and computed positive. The two must not be treated as equivalent.
 - Captain's Log (homebase#24, cl24): the 2026-11-18 00:20 and 01:00 entries are the source. The log says that no execution, spending, or deployment is authorized.
 
 ## Contradictions / tensions
