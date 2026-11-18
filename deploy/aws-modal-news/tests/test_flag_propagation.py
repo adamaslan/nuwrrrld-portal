@@ -27,15 +27,26 @@ def test_environment_is_read_only_in_tick():
     assert sum(any(n is read for n in ast.walk(function)) for read in reads for function in (tick, status)) == 2
 
 
-def test_deployed_image_enables_batch_mode_for_the_tick():
+def test_dispatch_defaults_off_and_requires_explicit_deploy_opt_in():
+    disabled = modal_app._dispatch_env({})
+    enabled = modal_app._dispatch_env({"NWF5_DISPATCH_ENABLED": "1", "NEWS_BATCH_SCORING": "1"})
+    assert disabled == {"NWF5_DISPATCH_ENABLED": "0", "NEWS_BATCH_SCORING": "0"}
+    assert enabled == {"NWF5_DISPATCH_ENABLED": "1", "NEWS_BATCH_SCORING": "1"}
+    assert modal_app._dispatch_schedule(disabled) is None
+    assert modal_app._dispatch_schedule(enabled) is not None
+
+
+def test_deploy_opt_in_sets_image_environment_and_single_minute_schedule():
     tree = ast.parse(SRC)
     tick = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "tick")
     decorator = tick.decorator_list[0]
-    assignment = next(n for n in tree.body if isinstance(n, ast.Assign)
-                      and any(isinstance(t, ast.Name) and t.id == "DISPATCH_ENV" for t in n.targets))
-    values = {key.value: value.value for key, value in zip(assignment.value.keys, assignment.value.values)}
-    assert values == {"NWF5_DISPATCH_ENABLED": "1", "NEWS_BATCH_SCORING": "1"}
-    assert any(k.arg == "schedule" for k in decorator.keywords)
+    schedule = next(k.value for k in decorator.keywords if k.arg == "schedule")
+    assert isinstance(schedule, ast.Name) and schedule.id == "DISPATCH_SCHEDULE"
+    schedule_assignment = next(n for n in tree.body if isinstance(n, ast.Assign)
+                               and any(isinstance(t, ast.Name) and t.id == "DISPATCH_SCHEDULE" for t in n.targets))
+    assert isinstance(schedule_assignment.value, ast.Call)
+    assert isinstance(schedule_assignment.value.func, ast.Name)
+    assert schedule_assignment.value.func.id == "_dispatch_schedule"
     image = next(n for n in tree.body if isinstance(n, ast.Assign)
                  and any(isinstance(t, ast.Name) and t.id == "image" for t in n.targets))
     assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "env"

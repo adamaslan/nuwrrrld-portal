@@ -52,12 +52,28 @@ import json
 import os
 import time
 from collections import defaultdict
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 
 import modal
 
 APP_NAME = "nwf5"
-DISPATCH_ENV = {"NWF5_DISPATCH_ENABLED": "1", "NEWS_BATCH_SCORING": "1"}
+
+
+def _dispatch_env(environ: Mapping[str, str]) -> dict[str, str]:
+    """Require explicit deploy-time opt-in; an unconfigured deployment stays inert."""
+    return {
+        "NWF5_DISPATCH_ENABLED": environ.get("NWF5_DISPATCH_ENABLED", "0"),
+        "NEWS_BATCH_SCORING": environ.get("NEWS_BATCH_SCORING", "0"),
+    }
+
+
+def _dispatch_schedule(dispatch_env: Mapping[str, str]):
+    return modal.Cron("* * * * *") if dispatch_env["NWF5_DISPATCH_ENABLED"] == "1" else None
+
+
+DISPATCH_ENV = _dispatch_env(os.environ)
+DISPATCH_SCHEDULE = _dispatch_schedule(DISPATCH_ENV)
 
 app = modal.App(APP_NAME)
 
@@ -517,15 +533,16 @@ async def _aggregate(session_arg, preview, force, batch_scoring: bool = False) -
                                               WHERE e.article_id = a.article_id AND e.scorer = $3)"""
         if batch_scoring:
             # In batch mode, count and scored rows share one snapshot; a final is only written if that
-            # same snapshot shows complete scoring. The default mode keeps its historical read path.
+            # same snapshot shows complete scoring.
             async with conn.transaction(isolation="repeatable_read", readonly=True):
                 unscored = await conn.fetchval(unscored_sql, window_start, cutoff, nc.SCORER_VERSION)
                 if nc.final_deferred_for_unscored(unscored, preview, force, batch_scoring):
                     return {"deferred": f"{unscored} unscored articles in window; final not written, a later score pass retries"}
                 rows = await conn.fetch(rows_sql, window_start, cutoff, nc.SCORER_VERSION)
         else:
-            rows = await conn.fetch(rows_sql, window_start, cutoff, nc.SCORER_VERSION)
-            unscored = await conn.fetchval(unscored_sql, window_start, cutoff, nc.SCORER_VERSION)
+            async with conn.transaction(isolation="repeatable_read", readonly=True):
+                rows = await conn.fetch(rows_sql, window_start, cutoff, nc.SCORER_VERSION)
+                unscored = await conn.fetchval(unscored_sql, window_start, cutoff, nc.SCORER_VERSION)
 
         signals = defaultdict(list)
         for r in rows:
@@ -845,10 +862,11 @@ def dispatch_status() -> dict[str, bool]:
     return {
         "dispatcher_enabled": _dispatcher_enabled(os.environ.get("NWF5_DISPATCH_ENABLED")),
         "batch_scoring_enabled": os.environ.get("NEWS_BATCH_SCORING") == "1",
+        "schedule_enabled": os.environ.get("NWF5_DISPATCH_ENABLED") == "1",
     }
 
 
-@app.function(image=image, schedule=modal.Cron("* * * * *"), timeout=60)
+@app.function(image=image, schedule=DISPATCH_SCHEDULE, timeout=60)
 def tick() -> list[str]:
     """Dispatch scheduled jobs with batch scoring enabled after the NWF4 cutover."""
     if not _dispatcher_enabled(os.environ.get("NWF5_DISPATCH_ENABLED")):
