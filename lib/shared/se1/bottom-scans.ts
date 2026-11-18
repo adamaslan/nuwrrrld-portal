@@ -446,7 +446,7 @@ export function gapDownRepairLadder(bars: readonly Bar[], options: GapRepairOpti
     const invasion = invasionAt >= 0 ? later[invasionAt] : undefined;
     // No repair credit on or after the invalidation session. On the invalidating session itself the close is the
     // last print, so it cannot precede the low; daily bars give no finer order, so invalidation takes precedence.
-    const creditable = invasionAt >= 0 ? later.slice(0, invasionAt) : later;
+    const creditable = invasionAt >= 0 ? [cur, ...later.slice(0, invasionAt)] : [cur, ...later];
     const milestones = [0.25, 0.5, 0.75, 1].map((fraction) => {
       const hit = creditable.find((b) => b.close !== null && (b.close - cur.open!) / span >= fraction);
       return { fraction, date: hit ? hit.date : null };
@@ -514,7 +514,7 @@ export function downsideRejectionRecovery(bars: readonly Bar[], options: Rejecti
   for (let i = supportWindow; i < visible.length; i++) {
     const cur = visible[i];
     const prev = visible[i - 1].close;
-    if (cur.high === null || cur.low === null || cur.close === null) continue;
+    if (cur.open === null || cur.high === null || cur.low === null || cur.close === null) continue;
     const range = cur.high - cur.low;
     if (range <= 0) { rejected.zero_range += 1; continue; }
     if (prev !== null && prev > 0) {
@@ -524,8 +524,8 @@ export function downsideRejectionRecovery(bars: readonly Bar[], options: Rejecti
     const prefix = visible.slice(i - supportWindow, i).flatMap((b) => (b.close === null ? [] : [b.close]));
     if (prefix.length < supportWindow) continue;
     const support = Math.min(...prefix);
-    const wick = Math.min(cur.open ?? cur.close, cur.close) - cur.low;
-    const nearOk = cur.low <= support * (1 + nearSupport);
+    const wick = Math.min(cur.open, cur.close) - cur.low;
+    const nearOk = Math.abs(cur.low - support) <= support * nearSupport;
     const wickOk = wick / range >= minWickFraction;
     const recovered = (cur.close - cur.low) / range >= recoverFraction;
     if (!(nearOk && wickOk && recovered)) continue;

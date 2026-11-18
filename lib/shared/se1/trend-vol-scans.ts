@@ -23,14 +23,14 @@ function requireIsoDate(value: string, label: string): void {
 
 function observed(bars: readonly OhlcBar[], cutoff: string): { visible: OhlcBar[]; excluded_after_cutoff: number } {
   requireIsoDate(cutoff, "cutoff");
-  for (const b of bars) {
-    requireIsoDate(b.date, "bar date");
+  for (const b of bars) requireIsoDate(b.date, "bar date");
+  const sorted = [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const visible = sorted.filter((b) => b.date <= cutoff);
+  for (const b of visible) {
     for (const [name, v] of [["open", b.open], ["high", b.high], ["low", b.low], ["close", b.close]] as const) {
       if (v !== null && (!Number.isFinite(v) || v < 0)) throw new RangeError(`invalid ${name} on ${b.date}`);
     }
   }
-  const sorted = [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const visible = sorted.filter((b) => b.date <= cutoff);
   return { visible, excluded_after_cutoff: sorted.length - visible.length };
 }
 

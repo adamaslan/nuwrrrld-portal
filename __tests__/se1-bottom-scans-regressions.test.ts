@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { postCapitulationStabilization, gapDownRepairLadder, type Bar } from "@/lib/shared/se1/bottom-scans";
+import { postCapitulationStabilization, gapDownRepairLadder, downsideRejectionRecovery, type Bar } from "@/lib/shared/se1/bottom-scans";
 
 const bar = (date: string, o: number | null, h: number | null, l: number | null, c: number | null, v: number | null = 100): Bar =>
   ({ date, open: o, high: h, low: l, close: c, volume: v });
@@ -134,5 +134,38 @@ describe("review B: gapDownRepairLadder gives no recovery credit after invalidat
     expect(g.invalidated).toBe(false);
     expect(g.recovered_fraction).toBe(1);
     expect(g.milestones.every((m) => m.date === "2026-01-03")).toBe(true);
+  });
+});
+
+
+describe("review regressions: gap repair and support-rejection inputs", () => {
+  it("credits a repair reached on the gap day itself", () => {
+    const bars = [
+      bar("2026-01-01", 100, 101, 99, 100),
+      bar("2026-01-02", 90, 94, 89, 93),
+    ];
+    const r = gapDownRepairLadder(bars, { cutoff: "2026-01-02", minGap: 0.05 });
+    if (r.status !== "computed") throw new Error("expected computed");
+    expect(r.gaps[0]).toMatchObject({ recovered_fraction: 0.3, milestones: [{ fraction: 0.25, date: "2026-01-02" }] });
+  });
+
+  it("does not infer a lower wick when the open is missing", () => {
+    const bars = [
+      ...[1, 2, 3, 4, 5].map((i) => bar("2026-01-0" + i, 100, 101, 99, 100)),
+      bar("2026-01-06", null, 100, 90, 92),
+    ];
+    const r = downsideRejectionRecovery(bars, { cutoff: "2026-01-06", supportWindow: 5, minWickFraction: 0.1, recoverFraction: 0.1, nearSupport: 0.05 });
+    if (r.status !== "computed") throw new Error("expected computed");
+    expect(r.rejections).toHaveLength(0);
+  });
+
+  it("rejects lows beyond either side of the declared support tolerance", () => {
+    const bars = [
+      ...[1, 2, 3, 4, 5].map((i) => bar("2026-01-0" + i, 100, 101, 99, 100)),
+      bar("2026-01-06", 98, 100, 80, 99),
+    ];
+    const r = downsideRejectionRecovery(bars, { cutoff: "2026-01-06", supportWindow: 5, minWickFraction: 0.1, recoverFraction: 0.1, nearSupport: 0.05 });
+    if (r.status !== "computed") throw new Error("expected computed");
+    expect(r.rejections).toHaveLength(0);
   });
 });
