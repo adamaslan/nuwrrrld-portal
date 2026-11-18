@@ -68,3 +68,15 @@ describe("S26-46 participationAsymmetry", () => {
     expect(participationAsymmetry(bars, { cutoff: day(2), window: 2 })).toMatchObject({ status: "unsupported" });
   });
 });
+
+
+describe("cutoff validation", () => {
+  it("ignores invalid values strictly after the cutoff for both participation scans", () => {
+    const bars = [1, 2, 3, 4, 5, 6].map((i) => bar(i, 10 + i, 100));
+    bars.push({ date: "2026-11-01", close: Infinity, volume: Infinity });
+    expect(volumeConcentration(bars, { cutoff: day(6), window: 6 }, 1))
+      .toMatchObject({ status: "computed", excluded_after_cutoff: 1 });
+    expect(participationAsymmetry(bars, { cutoff: day(6), window: 5 }))
+      .toMatchObject({ status: "computed", excluded_after_cutoff: 1 });
+  });
+});

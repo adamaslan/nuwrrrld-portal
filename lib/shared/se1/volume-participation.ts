@@ -67,12 +67,15 @@ function validate(bars: readonly ParticipationBar[], options: ParticipationOptio
   if (!Number.isInteger(options.window) || options.window < 2) {
     throw new RangeError(`window must be an integer of at least 2, got ${options.window}`);
   }
+  for (const b of bars) requireIsoDate(b.date, "bar date");
+  return [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+function validateVisibleValues(bars: readonly ParticipationBar[]): void {
   for (const b of bars) {
-    requireIsoDate(b.date, "bar date");
     if (b.close !== null && (!Number.isFinite(b.close) || b.close < 0)) throw new RangeError(`invalid close on ${b.date}`);
     if (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) throw new RangeError(`invalid volume on ${b.date}`);
   }
-  return [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 function median(sorted: number[]): number {
@@ -86,6 +89,7 @@ export function volumeConcentration(bars: readonly ParticipationBar[], options: 
   if (!Number.isInteger(topK) || topK < 1) throw new RangeError(`topK must be an integer of at least 1, got ${topK}`);
 
   const visible = sorted.filter((b) => b.date <= options.cutoff);
+  validateVisibleValues(visible);
   const excluded_after_cutoff = sorted.length - visible.length;
   if (visible.length < options.window) {
     return { status: "unsupported", reason: `insufficient history: ${visible.length} bars at or before cutoff, window ${options.window}` };
@@ -127,6 +131,7 @@ export function volumeConcentration(bars: readonly ParticipationBar[], options: 
 export function participationAsymmetry(bars: readonly ParticipationBar[], options: ParticipationOptions): AsymmetryResult {
   const sorted = validate(bars, options);
   const visible = sorted.filter((b) => b.date <= options.cutoff);
+  validateVisibleValues(visible);
   const excluded_after_cutoff = sorted.length - visible.length;
   // One extra bar is needed before the window to compare the first session's close.
   if (visible.length < options.window + 1) {
