@@ -154,6 +154,8 @@ export function successiveHighParticipationDecay(bars: readonly DailyBar[], opti
 export interface MemberRankInput {
   ticker: string;
   sector: string;
+  prior_date: string;
+  current_date: string;
   prior_return: number | null;
   current_return: number | null;
   prior_member: boolean;
@@ -170,15 +172,21 @@ export function leadershipRankRollover(members: readonly MemberRankInput[], opti
   prior_date: string;
   current_date: string;
   denominator: number;
-  exclusions: { membership_changed: number; missing_return: number };
+  exclusions: { membership_changed: number; missing_return: number; date_mismatch: number };
   rollovers: { ticker: string; sector: string; prior_rank: number; current_rank: number; sector_residual: number | null }[];
 } {
   if (!Number.isInteger(options.cohort_size) || options.cohort_size < 1 || parseIso(options.prior_date) === null
     || parseIso(options.current_date) === null || options.prior_date >= options.current_date) throw new RangeError("invalid cohort or comparison dates");
   if (new Set(members.map((item) => item.ticker)).size !== members.length) throw new RangeError("member tickers must be unique");
+  if (members.some((item) => parseIso(item.prior_date) === null || parseIso(item.current_date) === null
+    || (item.prior_return !== null && !Number.isFinite(item.prior_return)) || (item.current_return !== null && !Number.isFinite(item.current_return)))) {
+    throw new RangeError("member dates and returns must be valid");
+  }
   const changed = members.filter((item) => item.prior_member !== item.current_member).length;
+  const date_mismatch = members.filter((item) => item.prior_date !== options.prior_date || item.current_date !== options.current_date).length;
   const missing = members.filter((item) => item.prior_member && item.current_member && (item.prior_return === null || item.current_return === null)).length;
-  const eligible = members.filter((item) => item.prior_member && item.current_member && item.prior_return !== null && item.current_return !== null);
+  const eligible = members.filter((item) => item.prior_member && item.current_member && item.prior_date === options.prior_date
+    && item.current_date === options.current_date && item.prior_return !== null && item.current_return !== null);
   const rank = (key: "prior_return" | "current_return") => new Map([...eligible]
     .sort((a, b) => b[key]! - a[key]! || a.ticker.localeCompare(b.ticker)).map((item, index) => [item.ticker, index + 1]));
   const prior = rank("prior_return");
@@ -191,7 +199,7 @@ export function leadershipRankRollover(members: readonly MemberRankInput[], opti
     if (prior_rank > options.cohort_size || current_rank <= options.cohort_size || sectorReturn === null || sectorReturn === undefined || sectorReturn <= 0) return [];
     return [{ ticker: item.ticker, sector: item.sector, prior_rank, current_rank, sector_residual }];
   });
-  return { prior_date: options.prior_date, current_date: options.current_date, denominator: eligible.length, exclusions: { membership_changed: changed, missing_return: missing }, rollovers };
+  return { prior_date: options.prior_date, current_date: options.current_date, denominator: eligible.length, exclusions: { membership_changed: changed, missing_return: missing, date_mismatch }, rollovers };
 }
 
 // ── S26-026 Blow-off extension and range reversal ─────────────────────────────
@@ -220,6 +228,7 @@ export function blowOffExtensionReversal(bars: readonly DailyBar[], options: {
   if (visible.length < Math.max(options.baselineWindow, options.atrWindow + 1) + 1) return { status: "unsupported", reason: "insufficient history" };
   const contaminated = options.contaminatedDates === undefined ? null : new Set(options.contaminatedDates);
   const events: BlowOffEvent[] = [];
+  let lastExtensionIndex = -Infinity;
   for (let i = Math.max(options.baselineWindow, options.atrWindow + 1); i < visible.length; i++) {
     const current = visible[i];
     const pre = visible.slice(i - options.baselineWindow, i);
@@ -227,7 +236,7 @@ export function blowOffExtensionReversal(bars: readonly DailyBar[], options: {
     if (pre.some((bar) => bar.close === null || bar.high === null || bar.low === null) || current.close === null || atr === null || atr <= 0) continue;
     const average = pre.reduce((sum, bar) => sum + bar.close!, 0) / pre.length;
     const extension = (current.close - average) / atr;
-    if (extension < options.extensionAtr) continue;
+    if (extension < options.extensionAtr || i <= lastExtensionIndex + options.reversalWindow) continue;
     const referenceHigh = Math.max(...pre.map((bar) => bar.high!));
     const referenceLow = Math.min(...pre.map((bar) => bar.low!));
     const after = visible.slice(i + 1, i + 1 + options.reversalWindow);
@@ -239,6 +248,7 @@ export function blowOffExtensionReversal(bars: readonly DailyBar[], options: {
     const listed = contaminated === null ? "not_supplied" : "not_listed_by_caller";
     const event_contamination = contaminated?.has(current.date) || (reversal && contaminated?.has(reversal.date)) ? "listed_by_caller" : listed;
     events.push({ extension_date: current.date, extension_atr: extension, reversal_date: reversal?.date ?? null, state, event_contamination });
+    lastExtensionIndex = i;
   }
   return { status: "computed", events, excluded_after_cutoff: bars.length - visible.length };
 }

@@ -33,10 +33,10 @@ describe("S26-024 successiveHighParticipationDecay", () => {
 describe("S26-025 leadershipRankRollover", () => {
   it("uses only the stable comparable membership set when ranking both dates", () => {
     const r = leadershipRankRollover([
-      { ticker: "AAA", sector: "tech", prior_return: 0.3, current_return: 0.05, prior_member: true, current_member: true },
-      { ticker: "BBB", sector: "tech", prior_return: 0.2, current_return: 0.2, prior_member: true, current_member: true },
-      { ticker: "CCC", sector: "tech", prior_return: 0.1, current_return: 0.25, prior_member: true, current_member: true },
-      { ticker: "DDD", sector: "tech", prior_return: 0.4, current_return: -0.5, prior_member: true, current_member: false },
+      { ticker: "AAA", sector: "tech", prior_date: "2026-02-01", current_date: "2026-02-06", prior_return: 0.3, current_return: 0.05, prior_member: true, current_member: true },
+      { ticker: "BBB", sector: "tech", prior_date: "2026-02-01", current_date: "2026-02-06", prior_return: 0.2, current_return: 0.2, prior_member: true, current_member: true },
+      { ticker: "CCC", sector: "tech", prior_date: "2026-02-01", current_date: "2026-02-06", prior_return: 0.1, current_return: 0.25, prior_member: true, current_member: true },
+      { ticker: "DDD", sector: "tech", prior_date: "2026-02-01", current_date: "2026-02-06", prior_return: 0.4, current_return: -0.5, prior_member: true, current_member: false },
     ], { cohort_size: 2, sector_returns: { tech: 0.1 }, prior_date: "2026-02-01", current_date: "2026-02-06" });
     expect(r).toMatchObject({ denominator: 3, exclusions: { membership_changed: 1 }, rollovers: [{ ticker: "AAA", prior_rank: 1, current_rank: 3, sector_residual: -0.05 }] });
   });
