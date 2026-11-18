@@ -204,10 +204,12 @@ export function rangeWithoutCloseProgress(bars: readonly OhlcBar[], cutoff: stri
   const secondMean = ranges.slice(half).reduce((a, v) => a + v, 0) / (span.length - half);
   const range_expansion = firstMean > 0 ? secondMean / firstMean - 1 : null;
 
+  // Net and path share one scale (price units over the first close), so efficiency stays within [0, 1].
   const closes = span.map((b) => b.close as number);
-  const net = closes[closes.length - 1] / closes[0] - 1;
+  const base = closes[0];
+  const net = (closes[closes.length - 1] - base) / base;
   let path = 0;
-  for (let i = 1; i < closes.length; i++) path += Math.abs(closes[i] / closes[i - 1] - 1);
+  for (let i = 1; i < closes.length; i++) path += Math.abs(closes[i] - closes[i - 1]) / base;
   const path_efficiency = path > 0 ? Math.abs(net) / path : null;
 
   return {
