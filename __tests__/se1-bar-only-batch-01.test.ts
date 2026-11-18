@@ -32,6 +32,12 @@ describe("S26-001 signalFragility", () => {
     });
     expect(r).toMatchObject({ status: "computed", detector_id: "fixture-detector", config_version: "v1" });
     if (r.status === "computed") expect(r.scenario_count).toBeGreaterThan(0);
+    const strict = signalFragility([bar(1, 10), bar(2, 11)], {
+      cutoff: "2026-01-02", detector_id: "fixture-detector", config_version: "v1", uncertainty_basis: "documented_tick_size",
+      price_bound: 0.01, volume_bound: 1, score_tolerance: 0,
+      evaluate: (bars) => ({ score: bars[1].close!, action: bars[1].close! > 10.5 ? "qualify" : "hold" }),
+    });
+    if (r.status === "computed" && strict.status === "computed") expect(r.stable_fraction).toBeGreaterThan(strict.stable_fraction);
   });
 });
 
@@ -72,6 +78,16 @@ describe("S26-015 baseWidthVersusDepth", () => {
   it("does not call a monotonic falling channel a base", () => {
     const bars = Array.from({ length: 12 }, (_, i) => bar(i + 1, 120 - i * 2));
     expect(baseWidthVersusDepth(bars, { cutoff: "2026-01-12", window: 12, supportBand: 0.01, maxSupportDrift: 0.02 })).toMatchObject({ status: "computed", qualifies: false });
+  });
+
+  it("shows the configured depth-shrink threshold sensitivity on a fixed fixture", () => {
+    const highs = [112, 113, 112, 113, 112, 113, 104, 105, 104, 105, 104, 105];
+    const lows = [99, 100, 99, 100, 99, 100, 99, 100, 99, 100, 99, 100];
+    const bars: DailyBar[] = highs.map((high, i) => ({ date: `2026-01-${String(i + 1).padStart(2, "0")}`, open: 105, high, low: lows[i], close: 105, volume: 100 }));
+    const loose = baseWidthVersusDepth(bars, { cutoff: "2026-01-12", window: 12, supportBand: 0.01, maxSupportDrift: 0.02, minTouchSpacing: 2, minDepthShrink: 0.25 });
+    const strict = baseWidthVersusDepth(bars, { cutoff: "2026-01-12", window: 12, supportBand: 0.01, maxSupportDrift: 0.02, minTouchSpacing: 2, minDepthShrink: 0.8 });
+    expect(loose).toMatchObject({ status: "computed", qualifies: true });
+    expect(strict).toMatchObject({ status: "computed", qualifies: false });
   });
 });
 
