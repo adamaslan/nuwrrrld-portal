@@ -21,13 +21,13 @@ function requireIsoDate(value: string, label: string): void {
 /** Bars at or before the cutoff, sorted, with the count of bars excluded for being later. */
 function observed(bars: readonly VolumeBar[], cutoff: string): { visible: VolumeBar[]; excluded_after_cutoff: number } {
   requireIsoDate(cutoff, "cutoff");
-  for (const b of bars) {
-    requireIsoDate(b.date, "bar date");
+  for (const b of bars) requireIsoDate(b.date, "bar date");
+  const sorted = [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const visible = sorted.filter((b) => b.date <= cutoff);
+  for (const b of visible) {
     if (b.close !== null && (!Number.isFinite(b.close) || b.close < 0)) throw new RangeError(`invalid close on ${b.date}`);
     if (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) throw new RangeError(`invalid volume on ${b.date}`);
   }
-  const sorted = [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const visible = sorted.filter((b) => b.date <= cutoff);
   return { visible, excluded_after_cutoff: sorted.length - visible.length };
 }
 
@@ -47,7 +47,7 @@ export interface BreakoutOptions {
   holdWindow: number;
 }
 
-export type BreakoutState = "held" | "failed" | "pending";
+export type BreakoutState = "held" | "failed" | "pending" | "unavailable";
 
 export interface BreakoutEvent {
   breakout_date: string;
@@ -96,6 +96,7 @@ export function breakoutParticipation(bars: readonly VolumeBar[], options: Break
     let state: BreakoutState;
     if (closesAfter.some((c) => c <= level)) state = "failed";
     else if (after.length < holdWindow) state = "pending";
+    else if (closesAfter.length < after.length) state = "unavailable";
     else state = "held";
 
     events.push({ breakout_date: cur.date, breakout_level: level, relative_volume, state, observed_after: after.length });
@@ -136,7 +137,7 @@ export function quietPullbackContrast(bars: readonly VolumeBar[], options: Pullb
   if (!(minPullback > 0 && minPullback < 1)) throw new RangeError(`minPullback must be between 0 and 1`);
   if (!(reducedVolume > 0)) throw new RangeError(`reducedVolume must be above zero`);
   const { visible } = observed(bars, options.cutoff);
-  if (visible.length < window + 1) return { status: "unsupported", reason: `insufficient history: ${visible.length} bars` };
+  if (visible.length < window) return { status: "unsupported", reason: `insufficient history: ${visible.length} bars` };
 
   const span = visible.slice(visible.length - window);
   const last = span[span.length - 1];
@@ -177,6 +178,7 @@ export interface LagOptions {
 export type LagRecord =
   | { break_date: string; status: "confirmed"; confirm_date: string; lag_bars: number }
   | { break_date: string; status: "unconfirmed"; censored: false; lag_bars: null }
+  | { break_date: string; status: "unavailable"; censored: false; lag_bars: null }
   | { break_date: string; status: "pending"; censored: true; lag_bars: null; observed_after: number };
 
 export type LagResult =
@@ -216,6 +218,8 @@ export function confirmationLag(bars: readonly VolumeBar[], options: LagOptions)
       records.push({ break_date: cur.date, status: "confirmed", confirm_date: after[hit].date, lag_bars: hit + 1 });
     } else if (after.length < confirmWindow) {
       records.push({ break_date: cur.date, status: "pending", censored: true, lag_bars: null, observed_after: after.length });
+    } else if (after.some((b) => b.volume === null)) {
+      records.push({ break_date: cur.date, status: "unavailable", censored: false, lag_bars: null });
     } else {
       records.push({ break_date: cur.date, status: "unconfirmed", censored: false, lag_bars: null });
     }

@@ -108,3 +108,32 @@ describe("S26-051 candidateCapacity", () => {
     expect(r.labels.join(" ")).toContain("no intraday fill quality");
   });
 });
+
+
+describe("review regressions: missing and post-cutoff observations", () => {
+  it("does not call a full breakout hold window held when a close is missing", () => {
+    const bars = [1, 2, 3, 4].map((i) => bar(i, 10, 100));
+    bars.push(bar(5, 12, 300), bar(6, null, 100), bar(7, 13, 100));
+    const r = breakoutParticipation(bars, { cutoff: day(7), baselineWindow: 4, holdWindow: 2 });
+    expect(r).toMatchObject({ status: "computed", events: [{ state: "unavailable", observed_after: 2 }] });
+  });
+
+  it("does not call a fully observed confirmation window unconfirmed when volume is missing", () => {
+    const bars = [bar(1, 10, 100), bar(2, 10, 100), bar(3, 11, 300), bar(4, 12, null), bar(5, 12, null)];
+    const r = confirmationLag(bars, { cutoff: day(5), breakWindow: 2, confirmWindow: 2, confirmMultiple: 2 });
+    expect(r).toMatchObject({ status: "computed", records: [{ status: "unavailable", lag_bars: null }] });
+  });
+
+  it("accepts exactly the declared quiet-pullback window length", () => {
+    const bars = [bar(1, 10, 100), bar(2, 10, 100), bar(3, 10, 100), bar(4, 10, 100), bar(5, 9, 50)];
+    expect(quietPullbackContrast(bars, {
+      cutoff: day(5), window: 5, floorUsd: 1, minPullback: 0.05, reducedVolume: 0.6,
+    })).toMatchObject({ status: "computed", classification: "abandonment_candidate" });
+  });
+
+  it("ignores invalid OHLC values strictly after the cutoff", () => {
+    const bars = [1, 2, 3, 4, 5].map((i) => bar(i, i <= 4 ? 10 : 12, 100));
+    bars.push({ date: "2026-11-01", close: Infinity, volume: Infinity });
+    expect(() => breakoutParticipation(bars, { cutoff: day(5), baselineWindow: 4, holdWindow: 2 })).not.toThrow();
+  });
+});
