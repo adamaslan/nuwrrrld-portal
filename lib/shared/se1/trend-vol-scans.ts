@@ -74,6 +74,8 @@ export type SemivarianceResult =
       n_positive: number;
       n_negative: number;
       n_zero: number;
+      /** Sessions skipped because the prior close was zero or missing, so no return could be computed. */
+      skipped_unusable_prior: number;
       excluded_after_cutoff: number;
     }
   | { status: "unsupported"; reason: string };
@@ -89,10 +91,11 @@ export function semivarianceBalance(bars: readonly OhlcBar[], cutoff: string, wi
   let nPos = 0;
   let nNeg = 0;
   let nZero = 0;
+  let skipped = 0;
   for (let i = 1; i < span.length; i++) {
     const prev = span[i - 1].close;
     const cur = span[i].close;
-    if (prev === null || cur === null || prev === 0) continue;
+    if (prev === null || cur === null || prev === 0) { skipped += 1; continue; }
     const r = cur / prev - 1;
     if (r > 0) { pos += r * r; nPos += 1; }
     else if (r < 0) { neg += r * r; nNeg += 1; }
@@ -108,6 +111,7 @@ export function semivarianceBalance(bars: readonly OhlcBar[], cutoff: string, wi
     n_positive: nPos,
     n_negative: nNeg,
     n_zero: nZero,
+    skipped_unusable_prior: skipped,
     excluded_after_cutoff,
   };
 }
@@ -117,9 +121,9 @@ export function semivarianceBalance(bars: readonly OhlcBar[], cutoff: string, wi
 export type GapComponentResult =
   | {
       status: "computed";
-      median_abs_gap_pct: number;
-      median_abs_open_to_close_pct: number;
-      median_range_pct: number;
+      median_abs_gap_pct: number | null;
+      median_abs_open_to_close_pct: number | null;
+      median_range_pct: number | null;
       sessions: number;
       missing_open: number;
       split_like: number;
@@ -158,9 +162,9 @@ export function gapSessionComponents(bars: readonly OhlcBar[], cutoff: string, w
   if (gaps.length === 0 && oc.length === 0 && ranges.length === 0) return { status: "unsupported", reason: "no usable sessions" };
   return {
     status: "computed",
-    median_abs_gap_pct: gaps.length > 0 ? median(gaps) : NaN,
-    median_abs_open_to_close_pct: oc.length > 0 ? median(oc) : NaN,
-    median_range_pct: ranges.length > 0 ? median(ranges) : NaN,
+    median_abs_gap_pct: gaps.length > 0 ? median(gaps) : null,
+    median_abs_open_to_close_pct: oc.length > 0 ? median(oc) : null,
+    median_range_pct: ranges.length > 0 ? median(ranges) : null,
     sessions: span.length - 1,
     missing_open,
     split_like,
@@ -198,6 +202,8 @@ export function rangeWithoutCloseProgress(bars: readonly OhlcBar[], cutoff: stri
   if (span.some((b) => b.high === null || b.low === null || b.close === null)) {
     return { status: "unsupported", reason: "missing high, low or close in window" };
   }
+  // Ranges and returns divide by the close, so a zero close has no meaningful value here.
+  if (span.some((b) => b.close === 0)) return { status: "unsupported", reason: "zero close in window" };
   const ranges = span.map((b) => (b.high! - b.low!) / b.close!);
   const half = Math.floor(span.length / 2);
   const firstMean = ranges.slice(0, half).reduce((a, v) => a + v, 0) / half;
@@ -291,6 +297,8 @@ export interface HighLowBalance {
   ties_high: number;
   ties_low: number;
   short_history: number;
+  /** Members with enough closes but a missing close somewhere in the lookback. Not short history. */
+  missing_in_window: number;
   missing_last_close: number;
 }
 
@@ -301,13 +309,13 @@ export interface HighLowBalance {
  */
 export function newHighLowBalance(members: readonly MemberCloses[], lookback: number): HighLowBalance {
   if (!Number.isInteger(lookback) || lookback < 2) throw new RangeError("lookback must be an integer of at least 2");
-  const out: HighLowBalance = { eligible: 0, new_highs: 0, new_lows: 0, ties_high: 0, ties_low: 0, short_history: 0, missing_last_close: 0 };
+  const out: HighLowBalance = { eligible: 0, new_highs: 0, new_lows: 0, ties_high: 0, ties_low: 0, short_history: 0, missing_in_window: 0, missing_last_close: 0 };
   for (const m of members) {
     if (m.closes.length < lookback) { out.short_history += 1; continue; }
     const span = m.closes.slice(m.closes.length - lookback);
     const last = span[span.length - 1];
     if (last === null) { out.missing_last_close += 1; continue; }
-    if (span.some((c) => c === null)) { out.short_history += 1; continue; }
+    if (span.some((c) => c === null)) { out.missing_in_window += 1; continue; }
     const values = span as number[];
     const others = values.slice(0, -1);
     out.eligible += 1;

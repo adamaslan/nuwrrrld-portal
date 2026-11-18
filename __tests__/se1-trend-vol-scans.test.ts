@@ -126,8 +126,8 @@ describe("S26-065 newHighLowBalance", () => {
     expect(r).toMatchObject({ eligible: 2, new_highs: 1, ties_high: 1, short_history: 1 });
   });
 
-  it("counts a member with a missing close in the lookback as short history, not as an extreme", () => {
+  it("counts a member with a missing close in the lookback as missing, not as short history or an extreme", () => {
     const r = newHighLowBalance([{ ticker: "DDD", closes: [1, null, 3, 4, 5] }], 5);
-    expect(r).toMatchObject({ eligible: 0, short_history: 1 });
+    expect(r).toMatchObject({ eligible: 0, short_history: 0, missing_in_window: 1 });
   });
 });

@@ -88,7 +88,11 @@ export interface ReclaimOptions {
   atrWindow: number;
 }
 
-export type ReclaimState = "reclaimed" | "continuing_breakdown" | "pending";
+/**
+ * "unavailable": the reclaim window has elapsed without a reclaim, but at least one close in it is missing, so a
+ * continuing breakdown cannot be established. The window is not extended to later bars to compensate.
+ */
+export type ReclaimState = "reclaimed" | "continuing_breakdown" | "pending" | "unavailable";
 
 export interface ReclaimEvent {
   breach_date: string;
@@ -138,6 +142,8 @@ export function failedBreakdownReclaim(bars: readonly Bar[], options: ReclaimOpt
       flag_date = after[reclaimAt].date;
     } else if (after.length < reclaimWindow) {
       state = "pending";
+    } else if (after.some((b) => b.close === null)) {
+      state = "unavailable";
     } else {
       state = "continuing_breakdown";
     }
@@ -251,7 +257,11 @@ export interface CapitulationOptions {
   quietWindow: number;
 }
 
-export type StabilizationState = "stabilized" | "cancelled" | "pending";
+/**
+ * "unavailable": the quiet window has elapsed but at least one of its closes is missing, so a quiet period cannot be
+ * established. The horizon is not extended to later bars to compensate.
+ */
+export type StabilizationState = "stabilized" | "cancelled" | "pending" | "unavailable";
 
 export interface CapitulationEvent {
   event_date: string;
@@ -302,6 +312,8 @@ export function postCapitulationStabilization(bars: readonly Bar[], options: Cap
       state = "cancelled";
     } else if (after.length < quietWindow) {
       state = "pending";
+    } else if (after.some((b) => b.close === null)) {
+      state = "unavailable";
     } else {
       state = "stabilized";
       stabilization_bars = quietWindow;
@@ -395,7 +407,7 @@ export interface GapRepair {
   prior_close: number;
   open: number;
   gap_low: number;
-  /** Highest recovered fraction of the gap on a closing bar so far, capped at 1. */
+  /** Highest recovered fraction of the gap on a closing bar before any invalidation session, capped at 1. */
   recovered_fraction: number;
   milestones: { fraction: number; date: string | null }[];
   invalidated: boolean;
@@ -430,17 +442,21 @@ export function gapDownRepairLadder(bars: readonly Bar[], options: GapRepairOpti
     if (span <= 0) continue;
 
     const later = visible.slice(i + 1);
+    const invasionAt = later.findIndex((b) => b.low !== null && b.low < cur.low!);
+    const invasion = invasionAt >= 0 ? later[invasionAt] : undefined;
+    // No repair credit on or after the invalidation session. On the invalidating session itself the close is the
+    // last print, so it cannot precede the low; daily bars give no finer order, so invalidation takes precedence.
+    const creditable = invasionAt >= 0 ? later.slice(0, invasionAt) : later;
     const milestones = [0.25, 0.5, 0.75, 1].map((fraction) => {
-      const hit = later.find((b) => b.close !== null && (b.close - cur.open!) / span >= fraction);
+      const hit = creditable.find((b) => b.close !== null && (b.close - cur.open!) / span >= fraction);
       return { fraction, date: hit ? hit.date : null };
     });
     let recovered = 0;
-    for (const b of later) {
+    for (const b of creditable) {
       if (b.close === null) continue;
       const f = Math.min(1, (b.close - cur.open) / span);
       if (f > recovered) recovered = f;
     }
-    const invasion = later.find((b) => b.low !== null && b.low < cur.low!);
     gaps.push({
       gap_date: cur.date,
       prior_close: prev,
