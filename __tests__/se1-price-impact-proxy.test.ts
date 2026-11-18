@@ -76,3 +76,13 @@ describe("S26-047 priceImpactRegimeShift", () => {
     expect(() => priceImpactRegimeShift(bars, { cutoff: day(bars.length), window: 3, floorUsd: 1 })).toThrow(RangeError);
   });
 });
+
+
+describe("cutoff validation", () => {
+  it("ignores invalid OHLC values strictly after the cutoff", () => {
+    const bars = series(5, Array(10).fill(0.01), 10_000);
+    bars.push({ date: "2026-11-01", close: Infinity, volume: Infinity });
+    expect(priceImpactRegimeShift(bars, { cutoff: day(bars.length - 1), window: 5, floorUsd: 1 }))
+      .toMatchObject({ status: "computed", excluded_after_cutoff: 1 });
+  });
+});

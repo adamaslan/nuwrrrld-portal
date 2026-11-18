@@ -73,14 +73,14 @@ export function priceImpactRegimeShift(bars: readonly ImpactBar[], options: Impa
   }
   if (!Number.isFinite(floorUsd) || floorUsd <= 0) throw new RangeError(`floorUsd must be finite and above zero, got ${floorUsd}`);
 
-  for (const b of bars) {
-    requireIsoDate(b.date, "bar date");
-    if (b.close !== null && (!Number.isFinite(b.close) || b.close < 0)) throw new RangeError(`invalid close on ${b.date}`);
-    if (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) throw new RangeError(`invalid volume on ${b.date}`);
-  }
+  for (const b of bars) requireIsoDate(b.date, "bar date");
 
   const sorted = [...bars].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const visible = sorted.filter((b) => b.date <= cutoff);
+  for (const b of visible) {
+    if (b.close !== null && (!Number.isFinite(b.close) || b.close < 0)) throw new RangeError(`invalid close on ${b.date}`);
+    if (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) throw new RangeError(`invalid volume on ${b.date}`);
+  }
   const excluded_after_cutoff = sorted.length - visible.length;
 
   // Each session needs its prior close, so the two windows need 2 * window + 1 bars.
