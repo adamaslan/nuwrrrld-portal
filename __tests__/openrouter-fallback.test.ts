@@ -445,6 +445,8 @@ describe("runSeat — per-seat chain composition", () => {
 });
 
 describe("runSeat — per-attempt diagnostics", () => {
+  beforeEach(() => { vi.stubEnv("CI", "true"); vi.stubEnv("NODE_ENV", "test"); });
+  afterEach(() => { vi.unstubAllEnvs(); });
   // The skipped-primary failure mode that hid the 2026-11-02 PR #334 red: a
   // primary that 429s / empties / times out used to leave NO trace, so the
   // fallback serving the seat read as healthy in CI logs. Every skipped

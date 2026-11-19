@@ -31,6 +31,15 @@ export interface CouncilResponse {
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 
+/** Playwright's local development webServer forwards stderr in CI. Never
+ * promote diagnostics to production errors, even if the build/runtime also
+ * carries CI=true. The repository's webServer runs npm run dev, not next start.
+ * Strict CI parsing avoids treating the string "false" as enabled. */
+function logAttemptDiagnostic(line: string): void {
+  if (process.env.CI === "true" && process.env.NODE_ENV !== "production") console.error(line);
+  else console.info(line);
+}
+
 // Free-tier model fallback chain — tried in order on 402 / 429 / 5xx.
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
@@ -460,11 +469,10 @@ export async function fetchWithModelFallbackChecked(
       if (scan.sawDone && !sawContent) { streamEnded = true; break; }
     }
 
-    // console.error, not console.info: Playwright's webServer forwards only
-    // the child's STDERR to CI job logs ([WebServer] lines); stdout is held
-    // unless startup fails (PR #335 CI, 2026-11-02: every attempt line here
-    // was emitted but invisible, only the route's console.error surfaced).
-    console.error(
+    // Routed through logAttemptDiagnostic: stderr in CI (Playwright forwards
+    // only stderr), info in production so recovered attempts stay out of the
+    // error stream.
+    logAttemptDiagnostic(
       `[openrouter] health-ai attempt model=${model} status=200 sawContent=${sawContent} ` +
       `parsedLines=${parsedLines} emptyLines=${emptyLines} sawDone=${sawDone} streamEnded=${streamEnded}`,
     );
@@ -618,10 +626,8 @@ export async function runSeat(
     // fallback save in CI logs (2026-11-02, PR #334: five primaries silently
     // skipped, cause unclassifiable from the logs).
     const attemptStart = Date.now();
-    // console.error for the same reason as the health-ai attempt line above:
-    // stderr is the only channel Playwright's webServer pipes into CI logs.
     const logAttempt = (classification: string) =>
-      console.error(
+      logAttemptDiagnostic(
         `[openrouter] seat=${seat} model=${model} outcome=${classification} latencyMs=${Date.now() - attemptStart}`,
       );
     const ctrl = new AbortController();
