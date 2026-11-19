@@ -16,6 +16,7 @@ import {
   DEBATE_SEATS,
   FREE_MODEL_CHAIN,
   fetchWithModelFallback,
+  fetchWithModelFallbackChecked,
   runSeat,
   type CouncilSeat,
 } from "@/lib/openrouter";
@@ -85,12 +86,23 @@ describeLive("LIVE: every council seat can actually answer", () => {
   });
 });
 
-describeLive("LIVE: fetchWithModelFallback (the /api/brief and /api/nuai path)", () => {
-  it("resolves to a model that streams, and reports which one", async () => {
-    const { response, model } = await fetchWithModelFallback(
+describeLive("LIVE: fetchWithModelFallbackChecked (the /api/brief and /api/nuai path)", () => {
+  it("resolves to a model that actually streams content, and reports which one", async () => {
+    // The Checked variant is what /api/brief and /api/nuai call: it resolves
+    // only after a visible content token arrived, so response.ok here really
+    // does mean "a model answered" — the old unchecked call passed on a 200
+    // with an empty completion, which is exactly the shed-free-model case.
+    const { response, model } = await fetchWithModelFallbackChecked(
       LIVE_KEY,
       {
-        max_tokens: 48,
+        // 350, not 48: the Checked contract condemns a model whose first
+        // visible token lands after the budget, and chain reasoning models
+        // (nemotron-3-nano-omni, dots-3-note) can spend >48 tokens on hidden
+        // reasoning before their first content token. /api/brief runs this
+        // path at max_tokens 350 (app/api/brief/route.ts); a smaller test
+        // budget re-creates the false-empty failure the content-aware probes
+        // exist to eliminate.
+        max_tokens: 350,
         stream: true,
         temperature: 0.3,
         messages: [{ role: "user", content: "In one sentence, what is an RSI indicator?" }],
