@@ -96,6 +96,7 @@ Cross-cutting patterns and design choices.
 
 - [[concept-ai-run-privacy]] — content-free metadata boundary for external model-call traces
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
+- [[concept-scan-expansion-s26]] — S26 scan and X26 AI-feature proposal catalog; every row SPEC/E0, nothing built or run
 - [[concept-unvalidated-recommendation-surface]] — the app emits BUY/HOLD/SELL from four booleans with no backtest, no fundamentals, and no risk model; the vocabulary of rigor exists where the capability does not
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
