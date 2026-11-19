@@ -1,11 +1,11 @@
-"""Modal deployment of the 4th ("AWS-Modal") pipeline: Alpaca news ingest and
+"""Modal deployment of the 5th ("AWS-Modal") pipeline: Alpaca news ingest and
 scoring, accuracy metrics, and the news weight fed into confluence.
 
 Design: docs/fin-api-and-4th-aws-modal-pipeline.md (§5.1 jobs, §6 scoring, §7
 accuracy, §8.3 weight governance). Pure logic lives in news_core.py (unit
 tested offline), I/O in news_io.py; this file is the Modal wiring.
 
-Jobs (all functions of the `nwf4` app):
+Jobs (all functions of the `nwf5` app):
 
     news_ingest          Alpaca news -> Neon, universe-filtered, story-clustered
     news_score_articles  lexicon + FinBERT -> ensemble per article (LLM scorer OFF)
@@ -52,11 +52,28 @@ import json
 import os
 import time
 from collections import defaultdict
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 
 import modal
 
-APP_NAME = "nwf4"
+APP_NAME = "nwf5"
+
+
+def _dispatch_env(environ: Mapping[str, str]) -> dict[str, str]:
+    """Require explicit deploy-time opt-in; an unconfigured deployment stays inert."""
+    return {
+        "NWF5_DISPATCH_ENABLED": environ.get("NWF5_DISPATCH_ENABLED", "0"),
+        "NEWS_BATCH_SCORING": environ.get("NEWS_BATCH_SCORING", "0"),
+    }
+
+
+def _dispatch_schedule(dispatch_env: Mapping[str, str]):
+    return modal.Cron("* * * * *") if dispatch_env["NWF5_DISPATCH_ENABLED"] == "1" else None
+
+
+DISPATCH_ENV = _dispatch_env(os.environ)
+DISPATCH_SCHEDULE = _dispatch_schedule(DISPATCH_ENV)
 
 app = modal.App(APP_NAME)
 
@@ -66,10 +83,11 @@ LOCAL_SOURCES = ("news_core", "news_io")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("httpx~=0.28", "boto3~=1.35", "asyncpg~=0.30")
+    .env(DISPATCH_ENV)
     .add_local_python_source(*LOCAL_SOURCES)
 )
 
-# FinBERT image: CPU torch only. Weights are cached on the nwf4-models Volume
+# FinBERT image: CPU torch only. Weights are cached on the shared nwf4-models Volume
 # (HF_HOME) so only the first scoring run downloads them.
 ml_image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -119,6 +137,11 @@ VOLUME_Z_BUCKETS = (("<1", None, 1.0), ("1-2", 1.0, 2.0), (">=2", 2.0, None))
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _dispatcher_enabled(value: str | None) -> bool:
+    """Keep the replacement scheduler inert until the old app is retired."""
+    return value == "1"
 
 
 # ── smoke ────────────────────────────────────────────────────────────────────
@@ -182,12 +205,12 @@ def smoke() -> dict:
 
 
 @app.function(image=image, secrets=[market_secret, db_secret, aws_secret], timeout=300)
-def news_ingest() -> dict:
+def news_ingest(batch_scoring: bool = False) -> dict:
     """Alpaca news since the cursor -> Neon. Idempotent: Neon ON CONFLICT plus the nwf_seen pre-filter."""
-    return asyncio.run(_ingest())
+    return asyncio.run(_ingest(batch_scoring))
 
 
-async def _ingest() -> dict:
+async def _ingest(batch_scoring: bool = False) -> dict:
     import news_core as nc
     import news_io as io
 
@@ -266,8 +289,8 @@ async def _ingest() -> dict:
 
         if fetched:
             store.set_cursor(NEWS_STREAM, max(io.parse_iso(a["created_at"]) for a in fetched))
-        if new_ids:
-            news_score_articles.spawn(new_ids)
+        if new_ids and not batch_scoring:
+            await news_score_articles.spawn.aio(new_ids)
 
         summary = {"pages": pages, "fetched": len(fetched), "universe_matched": len(matched),
                    "new": len(new_ids), "budget_exhausted": budget_stopped,
@@ -302,14 +325,14 @@ async def _load_story_refs(conn, tickers, since):
     image=ml_image, secrets=[db_secret], volumes={"/models": models_volume},
     cpu=2.0, memory=3072, timeout=900,
 )
-def news_score_articles(article_ids: list[int] | None = None) -> dict:
+def news_score_articles(article_ids: list[int] | None = None, finalize_batch: bool = False) -> dict:
     """Lexicon + FinBERT -> ensemble_v1 per article. The LLM scorer (llm_v1) is OFF by decision.
 
     Fails closed: if FinBERT can't run, nothing is written and the articles stay
     unscored (and are counted as unscored by news_aggregate) rather than being
     scored by the lexicon alone.
     """
-    return asyncio.run(_score(article_ids))
+    return asyncio.run(_score(article_ids, finalize_batch))
 
 
 def _finbert_outputs(texts):
@@ -338,7 +361,7 @@ def _finbert_outputs(texts):
     return outputs
 
 
-async def _score(article_ids) -> dict:
+async def _score(article_ids, finalize_batch: bool = False) -> dict:
     import news_core as nc
     import news_io as io
 
@@ -355,7 +378,8 @@ async def _score(article_ids) -> dict:
                     ORDER BY created_at LIMIT $2""",
                 nc.SCORER_VERSION, SCORE_BACKLOG_LIMIT)
         if not rows:
-            return {"scored": 0}
+            finalized = await _maybe_finalize_batch_aggregate(conn, nc) if finalize_batch else False
+            return {"scored": 0, "final_aggregate_dispatched": finalized}
 
         lexicon = [nc.lexicon_score(r["headline"], r["summary"]) for r in rows]
         texts = [f"{r['headline']}. {(r['summary'] or '')[:FINBERT_MAX_CHARS_SUMMARY]}".strip() for r in rows]
@@ -376,9 +400,31 @@ async def _score(article_ids) -> dict:
         )
         summary = {"scored": len(rows), "llm": "disabled"}
         await io.log_run(conn, "news-score", "ok", summary, items_total=len(rows))
+        if finalize_batch:
+            summary["final_aggregate_dispatched"] = await _maybe_finalize_batch_aggregate(conn, nc)
         return summary
     finally:
         await conn.close()
+
+
+async def _maybe_finalize_batch_aggregate(conn, nc) -> bool:
+    """After a backlog batch, dispatch a deferred final as soon as its session window is fully scored."""
+    now = _utcnow().astimezone(nc.NEW_YORK)
+    if now.weekday() >= 5 or (now.hour, now.minute) < (16, 5):
+        return False
+    cutoff = nc.session_cutoff(now.date())
+    window_start = cutoff - timedelta(hours=nc.AGGREGATE_WINDOW_HOURS)
+    unscored = await conn.fetchval(
+        """SELECT COUNT(*) FROM news_articles a
+            WHERE a.created_at > $1 AND a.created_at <= $2
+              AND NOT EXISTS (SELECT 1 FROM news_article_scores s
+                              WHERE s.article_id = a.article_id AND s.scorer = $3)""",
+        window_start, cutoff, nc.SCORER_VERSION)
+    if unscored:
+        return False
+    # The aggregate checks trading-day status and is idempotent if an earlier retry already completed.
+    await news_aggregate.spawn.aio(None, False, False, True)
+    return True
 
 
 # ── news_corroborate ─────────────────────────────────────────────────────────
@@ -445,13 +491,14 @@ async def _corroborate() -> dict:
 
 
 @app.function(image=image, secrets=[market_secret, db_secret, aws_secret], timeout=600)
-def news_aggregate(session: str | None = None, preview: bool = False, force: bool = False) -> dict:
+def news_aggregate(session: str | None = None, preview: bool = False, force: bool = False,
+                   batch_scoring: bool = False) -> dict:
     """Per-ticker news_score for one session (§6.4). `preview` is the 09:20 pre-open look: its rows are
     flagged and replaced by the 16:05 final; the labeler ignores them."""
-    return asyncio.run(_aggregate(session, preview, force))
+    return asyncio.run(_aggregate(session, preview, force, batch_scoring))
 
 
-async def _aggregate(session_arg, preview, force) -> dict:
+async def _aggregate(session_arg, preview, force, batch_scoring: bool = False) -> dict:
     import news_core as nc
     import news_io as io
 
@@ -474,19 +521,28 @@ async def _aggregate(session_arg, preview, force) -> dict:
         window_start = cutoff - timedelta(hours=nc.AGGREGATE_WINDOW_HOURS)
         universe = await io.load_universe(conn)
 
-        rows = await conn.fetch(
-            """SELECT s.ticker, a.article_id, a.created_at, a.source, a.corroborated,
-                      s.relevance, s.novelty, s.story_id, e.polarity, e.confidence, e.event_type
-                 FROM news_articles a
-                 JOIN news_article_symbols s USING (article_id)
-                 JOIN news_article_scores e ON e.article_id = a.article_id AND e.scorer = $3
-                WHERE a.created_at > $1 AND a.created_at <= $2""",
-            window_start, cutoff, nc.SCORER_VERSION)
-        unscored = await conn.fetchval(
-            """SELECT COUNT(*) FROM news_articles a
-                WHERE a.created_at > $1 AND a.created_at <= $2
-                  AND NOT EXISTS (SELECT 1 FROM news_article_scores e WHERE e.article_id = a.article_id AND e.scorer = $3)""",
-            window_start, cutoff, nc.SCORER_VERSION)
+        rows_sql = """SELECT s.ticker, a.article_id, a.created_at, a.source, a.corroborated,
+                              s.relevance, s.novelty, s.story_id, e.polarity, e.confidence, e.event_type
+                         FROM news_articles a
+                         JOIN news_article_symbols s USING (article_id)
+                         JOIN news_article_scores e ON e.article_id = a.article_id AND e.scorer = $3
+                        WHERE a.created_at > $1 AND a.created_at <= $2"""
+        unscored_sql = """SELECT COUNT(*) FROM news_articles a
+                            WHERE a.created_at > $1 AND a.created_at <= $2
+                              AND NOT EXISTS (SELECT 1 FROM news_article_scores e
+                                              WHERE e.article_id = a.article_id AND e.scorer = $3)"""
+        if batch_scoring:
+            # In batch mode, count and scored rows share one snapshot; a final is only written if that
+            # same snapshot shows complete scoring.
+            async with conn.transaction(isolation="repeatable_read", readonly=True):
+                unscored = await conn.fetchval(unscored_sql, window_start, cutoff, nc.SCORER_VERSION)
+                if nc.final_deferred_for_unscored(unscored, preview, force, batch_scoring):
+                    return {"deferred": f"{unscored} unscored articles in window; final not written, a later score pass retries"}
+                rows = await conn.fetch(rows_sql, window_start, cutoff, nc.SCORER_VERSION)
+        else:
+            async with conn.transaction(isolation="repeatable_read", readonly=True):
+                rows = await conn.fetch(rows_sql, window_start, cutoff, nc.SCORER_VERSION)
+                unscored = await conn.fetchval(unscored_sql, window_start, cutoff, nc.SCORER_VERSION)
 
         signals = defaultdict(list)
         for r in rows:
@@ -800,22 +856,35 @@ async def _poll() -> dict:
 # ── dispatcher: the only scheduled function ──────────────────────────────────
 
 
-@app.function(image=image, schedule=modal.Cron("* * * * *"), timeout=60)
+@app.function(image=image, timeout=30)
+def dispatch_status() -> dict[str, bool]:
+    """Report deployed dispatcher flags without contacting providers or databases."""
+    return {
+        "dispatcher_enabled": _dispatcher_enabled(os.environ.get("NWF5_DISPATCH_ENABLED")),
+        "batch_scoring_enabled": os.environ.get("NEWS_BATCH_SCORING") == "1",
+        "schedule_enabled": os.environ.get("NWF5_DISPATCH_ENABLED") == "1",
+    }
+
+
+@app.function(image=image, schedule=DISPATCH_SCHEDULE, timeout=60)
 def tick() -> list[str]:
-    """Every minute: spawn the jobs news_core.due_jobs() says are scheduled for this minute (ET)."""
+    """Dispatch scheduled jobs with batch scoring enabled after the NWF4 cutover."""
+    if not _dispatcher_enabled(os.environ.get("NWF5_DISPATCH_ENABLED")):
+        return []
     import news_core as nc
 
+    batch = os.environ.get("NEWS_BATCH_SCORING") == "1"
     launchers = {
-        nc.JOB_INGEST: lambda: news_ingest.spawn(),
+        nc.JOB_INGEST: lambda: news_ingest.spawn(batch),
         nc.JOB_CORROBORATE: lambda: news_corroborate.spawn(),
-        nc.JOB_AGGREGATE_PREVIEW: lambda: news_aggregate.spawn(None, True),
-        nc.JOB_AGGREGATE_FINAL: lambda: news_aggregate.spawn(None, False),
+        nc.JOB_AGGREGATE_PREVIEW: lambda: news_aggregate.spawn(None, True, False, batch),
+        nc.JOB_AGGREGATE_FINAL: lambda: news_aggregate.spawn(None, False, False, batch),
         nc.JOB_LABEL: lambda: news_label_outcomes.spawn(),
         nc.JOB_EVAL: lambda: news_accuracy_eval.spawn(),
         nc.JOB_POLLER: lambda: alpaca_live_poller.spawn(),
-        nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None),  # separate from news_ingest's targeted scoring
+        nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None, batch),
     }
-    due = nc.due_jobs(_utcnow())
+    due = nc.due_jobs(_utcnow(), batch_scoring=batch)
     for job in due:
         launchers[job]()
     return due
