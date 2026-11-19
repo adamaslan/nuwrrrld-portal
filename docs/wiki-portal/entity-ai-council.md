@@ -2,7 +2,7 @@
 date: 2026-10-12
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/langsmith-council-trace.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/langsmith-council-trace.ts, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285, PR#400, PR#401]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
@@ -54,6 +54,12 @@ This wiring has not been exercised against a LangSmith endpoint. The owner must
 choose the hosting/retention policy and review the sanitized payload before
 enabling it on real traffic. See [[decision-langsmith-council-tracing]] and
 [[concept-ai-run-privacy]].
+
+`fixtures/langsmith/council-fallback-contract-v1.json` adds synthetic fallback
+sequences for a local deterministic evaluator and an explicitly invoked
+LangSmith dataset/experiment command. The fixture uses no Nov 10 prompt,
+completion, or production trace; it checks status and visible-content counts
+only.
 
 ## The landing sample (PR #97)
 

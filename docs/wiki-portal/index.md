@@ -1,6 +1,12 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-11-16 (LangSmith Council tracing; no endpoint ingestion)_
+_Last updated: 2026-11-16 (LangSmith Council traces and synthetic evaluator; mobile parity unchanged)_
+
+**PRs #400/#401 scope:** add opt-in, content-free LangSmith attempt traces and a
+synthetic fallback evaluator in the portal only. No mobile client or shared
+module changed; the parity matrix and historical denominators are unchanged.
+See [[entity-ai-council]], [[decision-langsmith-council-tracing]],
+[[concept-ai-run-privacy]], and [[concept-mobile-web-parity]].
 
 **PR #304 scope:** live grounding extraction failures now fail the scheduled
 workflow, including partial failures, so issue recovery cannot infer a clean

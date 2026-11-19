@@ -7,6 +7,16 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal PRs #400/#401 LangSmith assessment — November 16, 2026
+
+The Council's per-attempt trace adapter and synthetic evaluator are portal-side
+operational tooling. They add no mobile client, shared module, route contract,
+or user-facing feature domain. The mobile Council continues to call its backend
+service and does not receive a LangSmith key. No matrix row or denominator
+changes; the historical ≈76% feature-domain, ≈40% single-source, and ≈62%
+blended figures remain unchanged. This is a scoped assessment, not a fresh
+parity audit.
+
 ## Portal PR #378 Judge-simulation assessment - November 14, 2026
 
 The deterministic Judge simulator is a portal-only library addition with no
