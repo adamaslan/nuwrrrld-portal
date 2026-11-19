@@ -11,6 +11,7 @@ describe('legal page restyle', () => {
     expect(mark).toMatch(/background:\s*var\(--fill-strong\)/);
     expect(mark).toMatch(/color:\s*var\(--bg\)/);
     expect(mark).toMatch(/border-radius:\s*0/);
+    expect(mark).toMatch(/font-size:\s*12px/);
   });
 });
 
