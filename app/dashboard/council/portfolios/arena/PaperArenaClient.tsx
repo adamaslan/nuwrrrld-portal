@@ -15,16 +15,29 @@ import { flagLive } from "@/lib/flags";
 const SHOW_BENCHMARKS = flagLive("paper_benchmark_metrics");
 const BENCHMARK_KEYS: ReadonlySet<JudgeKey> = new Set<JudgeKey>(["sharpeRf0", "activeReturnVsSpyPct"]);
 
-const ACCOUNT_COLORS: Record<PaperAccount, string> = {
-  t1: "#ef4444",
-  t2: "#f59e0b",
-  risk: "#10b981",
-  macro: "#06b6d4",
-  quant: "#6366f1",
-  chair: "#d946ef",
-  equal: "#9ca3af",
-  spy: "#e5e7eb",
+// Monochrome chart encoding (style guide docs/nwf-style-guide.md): every series
+// is black; accounts differ by dash pattern and stroke width, never by color.
+// The Chair portfolio - the primary data on this page - gets the heaviest line.
+const ACCOUNT_STROKES: Record<PaperAccount, { width: number; dash?: string }> = {
+  chair: { width: 3.25 },
+  t1: { width: 2.25 },
+  t2: { width: 2.25, dash: "8 4" },
+  risk: { width: 2.25, dash: "3 3" },
+  macro: { width: 2.25, dash: "12 4 3 4" },
+  quant: { width: 2.25, dash: "1.5 3" },
+  equal: { width: 1.5, dash: "5 4" },
+  spy: { width: 1.5, dash: "2 2" },
 };
+
+// Legend key that mirrors the exact stroke of each chart series.
+function LineKey({ account }: { account: PaperAccount }) {
+  const s = ACCOUNT_STROKES[account];
+  return (
+    <svg className="pa-key" width="18" height="6" aria-hidden="true" focusable="false">
+      <line x1="0" y1="3" x2="18" y2="3" stroke="#111111" strokeWidth={s.width} strokeDasharray={s.dash} />
+    </svg>
+  );
+}
 
 function fmtPct(v: number | null, digits = 1): string {
   if (v == null) return "—";
@@ -66,9 +79,9 @@ function EquityChart({ curves, visible }: { curves: ArenaVM["curves"]; visible: 
         <polyline
           key={account}
           fill="none"
-          stroke={ACCOUNT_COLORS[account]}
-          strokeWidth={account === "spy" || account === "equal" ? 1.5 : 2.25}
-          strokeDasharray={account === "spy" || account === "equal" ? "5 4" : undefined}
+          stroke="#111111"
+          strokeWidth={ACCOUNT_STROKES[account].width}
+          strokeDasharray={ACCOUNT_STROKES[account].dash}
           points={pts.map((p) => `${xOf(p.date).toFixed(1)},${yOf(p.indexed).toFixed(1)}`).join(" ")}
         />
       ))}
@@ -151,7 +164,7 @@ function MetricsTable({
             >
               <td>{r.isBaseline ? "base" : r.judgeRank != null ? `#${r.judgeRank}` : "—"}</td>
               <td>
-                <span className="pa-dot" style={{ background: ACCOUNT_COLORS[r.account] }} aria-hidden />
+                <LineKey account={r.account} />
                 <button type="button" className="pa-th" aria-label={`Select ${r.label} account`} aria-pressed={selected === r.account}><strong>{r.label}</strong></button> <span className="pp-seat">{r.seat ?? "control"}</span>
               </td>
               <td>{fmtUsd(r.nav)}</td>
@@ -252,7 +265,7 @@ function TradeFeed({ data, selected }: { data: ArenaVM; selected: PaperAccount |
               <Fragment key={t.id}>
                 <tr className="pa-row" onClick={() => setOpen(open === t.id ? null : t.id)}>
                   <td>{new Date(t.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
-                  <td><span className="pa-dot" style={{ background: ACCOUNT_COLORS[t.account] }} aria-hidden />{t.account}</td>
+                  <td><LineKey account={t.account} />{t.account}</td>
                   <td className={t.side === "buy" ? "pp-pos" : "pp-neg"}>{t.side}</td>
                   <td><button type="button" className="pa-th" aria-label={`Trade details: ${t.account} ${t.side} ${t.ticker} at ${t.when}`} aria-expanded={open === t.id}><strong>{t.ticker}</strong></button></td>
                   <td>${t.fillPrice.toFixed(2)}</td>
@@ -330,7 +343,7 @@ export function PaperArenaClient({ initial }: { initial: ArenaVM | null }) {
               onClick={() => toggle(r.account)}
               aria-pressed={!hidden.has(r.account)}
             >
-              <span className="pa-dot" style={{ background: ACCOUNT_COLORS[r.account] }} aria-hidden />
+              <LineKey account={r.account} />
               {r.account}
             </button>
           ))}

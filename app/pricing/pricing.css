@@ -38,7 +38,7 @@
 
 .pricing-card {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 2rem;
   width: 280px;
   display: flex;
@@ -63,7 +63,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 0;
   white-space: nowrap;
 }
 
@@ -113,7 +113,7 @@
   background: var(--neon-blue);
   color: var(--bg);
   border: none;
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;

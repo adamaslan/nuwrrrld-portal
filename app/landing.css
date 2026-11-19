@@ -3,38 +3,39 @@
 .nwf-landing {
   /* Fixed light palette for every public page, independent of OS theme. */
   --bg: #ffffff;
-  --ink: #141a24;
-  --muted: #4b5566;
-  --dim: #66707e;
+  --ink: #111111;
+  --muted: #555555;
+  --dim: #555555;
   --panel: rgba(255, 255, 255, 0.88);
-  --panel-solid: #f4f6f9;
-  --line: rgba(20, 26, 36, 0.12);
-  --line-strong: rgba(20, 26, 36, 0.22);
-  --blue: #3355cc;
-  --cyan: #0e8fa8;
-  --green: #0077a8;
-  --amber: #b45309;
-  --coral: #d7263d;
-  --violet: #7c3aed;
-  --shadow: 0 22px 80px rgba(20, 26, 36, 0.14);
+  --panel-solid: #f5f5f5;
+  --line: #111111;
+  --line-strong: #111111;
+  /* Monochrome aliases (style guide): meaning via weight/fill/shape, never color. */
+  --blue: #111111;
+  --cyan: #111111;
+  --green: #111111;
+  --amber: #555555;
+  --coral: #111111;
+  --violet: #111111;
+  --shadow: none;
   /* Light-theme remap of the globals.css tokens, so shared pre-login
      stylesheets (landing-pages.css, pricing.css) that read var(--surface),
      var(--neon-blue) etc. render light inside the pre-login scope. */
-  --surface: #f4f6f9;
-  --surface-2: #e9edf2;
-  --text: #141a24;
-  --text-dim: #4b5566;
-  --border: rgba(20, 26, 36, 0.12);
-  --neon-blue: #0077a8;
-  --neon-red: #d7263d;
-  --neon-yellow: #b45309;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --text: #111111;
+  --text-dim: #555555;
+  --border: #111111;
+  --neon-blue: #111111;
+  --neon-red: #111111;
+  --neon-yellow: #555555;
   --bull: var(--neon-blue);
   --bear: var(--neon-red);
   --background: #ffffff;
-  --foreground: #141a24;
-  --glow-blue: 0 0 12px rgba(0, 119, 168, .35), 0 0 32px rgba(0, 119, 168, .18);
-  --glow-red:  0 0 12px rgba(215, 38, 61, .35),  0 0 32px rgba(215, 38, 61, .18);
-  --radius: 8px;
+  --foreground: #111111;
+  --glow-blue: none;
+  --glow-red: none;
+  --radius: 0;
   --max: 1180px;
 
   min-height: 100vh;
@@ -77,13 +78,13 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 7px;
+  border-radius: 0;
   color: #ffffff;
-  background: linear-gradient(135deg, var(--green), var(--amber));
+  background: var(--fill-strong, #111111);
   font-size: 0.64rem;
   font-weight: 950;
   letter-spacing: -0.06em;
-  box-shadow: 0 0 0 1px rgba(20, 26, 36, 0.12), 0 10px 28px rgba(79, 124, 255, 0.24);
+  box-shadow: 0 0 0 1px rgba(17, 17, 17, 0.12), 0 10px 28px rgba(17, 17, 17, 0.24);
 }
 
 .nwf-landing .navlinks {
@@ -105,12 +106,12 @@
   justify-content: center;
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid rgba(47, 216, 255, 0.32);
-  border-radius: 999px;
+  border: 1px solid var(--border);
+  border-radius: 0;
   color: #ffffff;
   background: var(--green);
   font-weight: 900;
-  box-shadow: 0 12px 34px rgba(47, 216, 255, 0.24);
+  box-shadow: 0 12px 34px rgba(17, 17, 17, 0.24);
   cursor: pointer;
   font-size: 0.9rem;
 }
@@ -142,8 +143,8 @@
   opacity: 0.56;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.3) 45%, rgba(255, 255, 255, 0.94) 100%),
-    repeating-linear-gradient(90deg, transparent 0 80px, rgba(20, 26, 36, 0.06) 80px 81px),
-    repeating-linear-gradient(0deg, transparent 0 46px, rgba(20, 26, 36, 0.05) 46px 47px);
+    repeating-linear-gradient(90deg, transparent 0 80px, rgba(17, 17, 17, 0.06) 80px 81px),
+    repeating-linear-gradient(0deg, transparent 0 46px, rgba(17, 17, 17, 0.05) 46px 47px);
 }
 
 .nwf-landing .market-wall::before {
@@ -153,7 +154,7 @@
   right: 0;
   top: 34px;
   white-space: nowrap;
-  color: rgba(20, 26, 36, 0.08);
+  color: rgba(17, 17, 17, 0.08);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: clamp(32px, 6vw, 96px);
   font-weight: 900;
@@ -180,10 +181,10 @@
   align-items: center;
   min-height: 34px;
   padding: 0 13px;
-  border: 1px solid rgba(244, 184, 63, 0.34);
-  border-radius: 999px;
-  background: rgba(244, 184, 63, 0.08);
-  color: #92400e;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.08);
+  color: var(--text);
   font-size: 0.75rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -204,7 +205,7 @@
 
 .nwf-landing .hero-copy {
   max-width: min(760px, calc(100vw - 36px));
-  color: #4b5566;
+  color: #555555;
   font-size: clamp(1.05rem, 2vw, 1.3rem);
   line-height: 1.65;
   text-wrap: balance;
@@ -252,9 +253,9 @@
   flex: 1 1 200px;
   min-height: 48px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid var(--line-strong);
-  background: rgba(20, 26, 36, 0.06);
+  background: rgba(17, 17, 17, 0.06);
   color: var(--ink);
   font-size: 0.95rem;
   font-weight: 700;
@@ -285,9 +286,9 @@
 .nwf-landing .public-demo-result {
   margin-top: 18px;
   padding: 16px 18px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 59, 92, 0.3);
-  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(255, 255, 255, 0.85));
+  border-radius: 0;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.08), rgba(255, 255, 255, 0.85));
   text-align: left;
 }
 
@@ -332,7 +333,7 @@
   justify-content: center;
   min-height: 52px;
   padding: 0 22px;
-  border-radius: 999px;
+  border-radius: 0;
   font-weight: 900;
   font-size: 1rem;
   border: none;
@@ -347,13 +348,13 @@
 .nwf-landing .btn.primary {
   color: #ffffff;
   background: var(--green);
-  box-shadow: 0 18px 50px rgba(47, 216, 255, 0.28);
+  box-shadow: 0 18px 50px rgba(17, 17, 17, 0.28);
 }
 
 .nwf-landing .btn.secondary {
   border: 1px solid var(--line-strong);
   color: var(--ink);
-  background: rgba(20, 26, 36, 0.08);
+  background: rgba(17, 17, 17, 0.08);
   backdrop-filter: blur(14px);
 }
 
@@ -368,10 +369,10 @@
 }
 
 .nwf-landing .phone {
-  border: 1px solid rgba(20, 26, 36, 0.16);
-  border-radius: 34px;
-  background: linear-gradient(180deg, #ffffff, #eef1f5);
-  box-shadow: var(--shadow), inset 0 0 0 8px #050609;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: linear-gradient(180deg, #ffffff, #f5f5f5);
+  box-shadow: var(--shadow), inset 0 0 0 8px #111111;
   overflow: hidden;
 }
 
@@ -392,8 +393,8 @@
   min-height: 420px;
   padding: 28px 18px 18px;
   background:
-    linear-gradient(rgba(20, 26, 36, 0.05) 1px, transparent 1px),
-    linear-gradient(180deg, #ffffff 0%, #f4f6f9 100%);
+    linear-gradient(rgba(17, 17, 17, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, #ffffff 0%, #f5f5f5 100%);
   background-size: 22px 22px, auto;
   text-align: left;
 }
@@ -425,7 +426,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #66707e;
+  color: #555555;
   margin: 0 0 6px;
 }
 
@@ -434,10 +435,10 @@
   align-items: center;
   min-height: 24px;
   padding: 0 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(47, 216, 255, 0.34);
-  color: #0077a8;
-  background: rgba(47, 216, 255, 0.1);
+  border-radius: 0;
+  border: 1px solid var(--border);
+  color: #111111;
+  background: rgba(17, 17, 17, 0.1);
   font-size: 0.64rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -446,9 +447,9 @@
 
 .nwf-landing .brief-card,
 .nwf-landing .mini-card {
-  border: 1px solid rgba(20, 26, 36, 0.12);
-  border-radius: var(--radius);
-  background: rgba(20, 26, 36, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.06);
   padding: 14px;
 }
 
@@ -472,13 +473,13 @@
   letter-spacing: -0.08em;
 }
 
-.nwf-landing .up { color: var(--green); }
-.nwf-landing .down { color: var(--coral); }
-.nwf-landing .flat { color: var(--amber); }
+.nwf-landing .up { color: var(--text); font-weight: 700; }
+.nwf-landing .down { color: var(--text); text-decoration: underline; }
+.nwf-landing .flat { color: var(--text-dim); }
 
 .nwf-landing .brief-text {
   margin-top: 10px;
-  color: #4b5566;
+  color: #555555;
   font-size: 0.87rem;
   line-height: 1.55;
 }
@@ -507,7 +508,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(20, 26, 36, 0.08);
+  border-bottom: 1px solid var(--border);
   font-size: 0.78rem;
 }
 
@@ -521,25 +522,25 @@
 
 .nwf-landing .bar {
   height: 7px;
-  border-radius: 999px;
-  background: rgba(20, 26, 36, 0.1);
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.1);
   overflow: hidden;
 }
 
 .nwf-landing .bar span {
   display: block;
   height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--cyan), var(--green));
+  border-radius: 0;
+  background: var(--text);
 }
 
 .nwf-landing .council-bubble {
   margin-top: 10px;
   padding: 12px;
-  border-radius: 14px 14px 14px 4px;
-  color: #4b5566;
-  background: rgba(79, 124, 255, 0.12);
-  border: 1px solid rgba(79, 124, 255, 0.22);
+  border-radius: 0;
+  color: #555555;
+  background: rgba(17, 17, 17, 0.12);
+  border: 1px solid var(--border);
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -629,7 +630,7 @@
   min-height: 240px;
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0;
   background: var(--panel);
   box-shadow: 0 12px 42px rgba(0, 0, 0, 0.16);
   overflow: hidden;
@@ -662,7 +663,7 @@
 .nwf-landing .feature-list li {
   display: flex;
   gap: 9px;
-  color: #4b5566;
+  color: #555555;
   font-size: 0.88rem;
   line-height: 1.45;
 }
@@ -672,14 +673,14 @@
   width: 7px;
   height: 7px;
   margin-top: 0.52em;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--green);
   flex: 0 0 auto;
 }
 
 .nwf-landing .engine {
   background:
-    linear-gradient(180deg, rgba(20, 26, 36, 0.02), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, rgba(17, 17, 17, 0.02), rgba(255, 255, 255, 0)),
     #ffffff;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -687,7 +688,7 @@
 
 .nwf-landing .matrix {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0;
   overflow: hidden;
   background: #ffffff;
   box-shadow: var(--shadow);
@@ -699,7 +700,7 @@
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
-  background: #f4f6f9;
+  background: #f5f5f5;
 }
 
 .nwf-landing .matrix-head strong {
@@ -718,8 +719,8 @@
 
 .nwf-landing .matrix-cell {
   padding: 12px;
-  border-right: 1px solid rgba(20, 26, 36, 0.08);
-  border-bottom: 1px solid rgba(20, 26, 36, 0.08);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -734,7 +735,7 @@
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: rgba(20, 26, 36, 0.04);
+  background: rgba(17, 17, 17, 0.04);
 }
 
 .nwf-landing .matrix-cell.name {
@@ -747,28 +748,28 @@
   justify-content: center;
   min-width: 46px;
   padding: 4px 7px;
-  border-radius: 5px;
+  border-radius: 0;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.72rem;
   font-weight: 900;
 }
 
 .nwf-landing .buy {
-  color: #0077a8;
-  background: rgba(47, 216, 255, 0.12);
-  border: 1px solid rgba(47, 216, 255, 0.3);
+  color: #111111;
+  background: rgba(17, 17, 17, 0.12);
+  border: 1px solid var(--border);
 }
 
 .nwf-landing .hold {
-  color: #92400e;
-  background: rgba(244, 184, 63, 0.12);
-  border: 1px solid rgba(244, 184, 63, 0.28);
+  color: var(--text);
+  background: rgba(17, 17, 17, 0.12);
+  border: 1px solid var(--border);
 }
 
 .nwf-landing .sell {
-  color: #c7253c;
-  background: rgba(255, 59, 92, 0.12);
-  border: 1px solid rgba(255, 59, 92, 0.28);
+  color: var(--text);
+  background: rgba(17, 17, 17, 0.12);
+  border: 1px solid var(--border);
 }
 
 .nwf-landing .moat-grid {
@@ -780,9 +781,9 @@
 
 .nwf-landing .moat-card {
   padding: 22px;
-  border: 1px solid rgba(47, 216, 255, 0.3);
-  border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(47, 216, 255, 0.07), rgba(18, 200, 216, 0.04));
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.07), rgba(17, 17, 17, 0.04));
 }
 
 .nwf-landing .moat-card h3 {
@@ -806,7 +807,7 @@
 
 .nwf-landing .council-panel {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0;
   background: var(--panel);
   padding: 22px;
 }
@@ -820,8 +821,8 @@
 .nwf-landing .council-live-output {
   margin-top: 12px;
   background: color-mix(in srgb, var(--accent) 6%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
-  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--border);
+  border-radius: 0;
   padding: 14px 16px;
 }
 
@@ -851,9 +852,9 @@
 
 .nwf-landing .horizon {
   padding: 14px;
-  border: 1px solid rgba(20, 26, 36, 0.12);
-  border-radius: var(--radius);
-  background: rgba(20, 26, 36, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.05);
 }
 
 .nwf-landing .horizon b {
@@ -874,8 +875,8 @@
   place-items: center;
   text-align: center;
   background:
-    linear-gradient(rgba(20, 26, 36, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 26, 36, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(17, 17, 17, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.05) 1px, transparent 1px),
     #ffffff;
   background-size: 30px 30px;
   border-top: 1px solid var(--line);
@@ -907,7 +908,7 @@
 .nwf-landing .whats-new-band {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  background: rgba(18, 200, 216, 0.04);
+  background: rgba(17, 17, 17, 0.04);
   padding: 14px clamp(18px, 4vw, 44px);
 }
 
@@ -938,10 +939,10 @@
   align-items: center;
   height: 26px;
   padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(18, 200, 216, 0.28);
-  background: rgba(18, 200, 216, 0.07);
-  color: #087b90;
+  border-radius: 0;
+  border: 1px solid var(--border);
+  background: rgba(17, 17, 17, 0.07);
+  color: var(--text);
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
@@ -953,9 +954,9 @@
   align-items: center;
   height: 20px;
   padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(47, 216, 255, 0.14);
-  border: 1px solid rgba(47, 216, 255, 0.32);
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.14);
+  border: 1px solid var(--border);
   color: var(--green);
   font-size: 0.66rem;
   font-weight: 900;
@@ -1055,7 +1056,7 @@
   position: relative;
   padding: 26px 22px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0;
   background: var(--panel);
 }
 
@@ -1066,7 +1067,7 @@
   font-size: 2.2rem;
   font-weight: 950;
   letter-spacing: -0.06em;
-  color: rgba(20, 26, 36, 0.06);
+  color: rgba(17, 17, 17, 0.06);
 }
 
 .nwf-landing .how-step-icon {
@@ -1089,7 +1090,7 @@
 /* ── RISK spotlight section ── */
 .nwf-landing .risk-spotlight {
   background:
-    linear-gradient(180deg, rgba(255, 59, 92, 0.05), rgba(255, 59, 92, 0)),
+    linear-gradient(180deg, rgba(17, 17, 17, 0.05), rgba(17, 17, 17, 0)),
     #ffffff;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -1129,7 +1130,7 @@
   gap: 12px;
   align-items: flex-start;
   padding: 14px 16px;
-  border-radius: var(--radius);
+  border-radius: 0;
   border: 1px solid var(--line);
   background: var(--panel);
 }
@@ -1149,24 +1150,24 @@
   min-width: 42px;
   height: 26px;
   padding: 0 8px;
-  border-radius: 5px;
+  border-radius: 0;
   font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.7rem;
   font-weight: 900;
-  background: rgba(18, 200, 216, 0.12);
-  border: 1px solid rgba(18, 200, 216, 0.3);
+  background: rgba(17, 17, 17, 0.12);
+  border: 1px solid var(--border);
   color: var(--cyan);
 }
 
 .nwf-landing .risk-line-tag--risk {
-  background: rgba(255, 59, 92, 0.14);
-  border: 1px solid rgba(255, 59, 92, 0.35);
+  background: rgba(17, 17, 17, 0.14);
+  border: 1px solid var(--border);
   color: var(--coral);
 }
 
 .nwf-landing .risk-line--risk {
-  border-color: rgba(255, 59, 92, 0.3);
-  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(255, 255, 255, 0.85));
+  border-color: rgba(17, 17, 17, 0.3);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.08), rgba(255, 255, 255, 0.85));
 }
 
 .nwf-landing .risk-footer {
@@ -1185,7 +1186,7 @@
 .nwf-landing .seat-card {
   padding: 20px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0;
   background: var(--panel);
   display: flex;
   flex-direction: column;
@@ -1194,13 +1195,13 @@
 
 /* RISK leads the seat grid — the most viral idea on the page gets top billing. */
 .nwf-landing .seat-card--risk {
-  border-color: rgba(255, 59, 92, 0.35);
-  background: linear-gradient(180deg, rgba(255, 59, 92, 0.08), rgba(255, 255, 255, 0.85));
+  border-color: rgba(17, 17, 17, 0.35);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.08), rgba(255, 255, 255, 0.85));
 }
 
 .nwf-landing .seat-card.chair {
-  border-color: rgba(155, 114, 255, 0.35);
-  background: linear-gradient(180deg, rgba(155, 114, 255, 0.07), rgba(255, 255, 255, 0.85));
+  border-color: rgba(17, 17, 17, 0.35);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.07), rgba(255, 255, 255, 0.85));
 }
 
 .nwf-landing .seat-tag {
@@ -1208,7 +1209,7 @@
   align-items: center;
   height: 24px;
   padding: 0 9px;
-  border-radius: 5px;
+  border-radius: 0;
   font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.7rem;
   font-weight: 900;
@@ -1216,12 +1217,12 @@
   width: fit-content;
 }
 
-.nwf-landing .seat-tag.t1    { background: rgba(18, 200, 216, 0.12); border: 1px solid rgba(18, 200, 216, 0.3); color: var(--cyan); }
-.nwf-landing .seat-tag.t2    { background: rgba(47, 216, 255, 0.12); border: 1px solid rgba(47, 216, 255, 0.3); color: var(--green); }
-.nwf-landing .seat-tag.risk  { background: rgba(255, 59, 92, 0.12); border: 1px solid rgba(255, 59, 92, 0.3); color: var(--coral); }
-.nwf-landing .seat-tag.macro { background: rgba(244, 184, 63, 0.12); border: 1px solid rgba(244, 184, 63, 0.3); color: var(--amber); }
-.nwf-landing .seat-tag.quant { background: rgba(79, 124, 255, 0.12); border: 1px solid rgba(79, 124, 255, 0.3); color: var(--blue); }
-.nwf-landing .seat-tag.chair-tag { background: rgba(155, 114, 255, 0.14); border: 1px solid rgba(155, 114, 255, 0.35); color: var(--violet); }
+.nwf-landing .seat-tag.t1 { background: var(--fill-ghost, #fff); border: 1px solid var(--text); color: var(--text); }
+.nwf-landing .seat-tag.t2 { background: var(--fill-ghost, #fff); border: 1px dashed var(--text); color: var(--text); }
+.nwf-landing .seat-tag.risk { background: var(--fill-ghost, #fff); border: 1px dotted var(--text); color: var(--text); }
+.nwf-landing .seat-tag.macro { background: var(--surface-2, #f5f5f5); border: 1px solid var(--text); color: var(--text); }
+.nwf-landing .seat-tag.quant { background: var(--fill-ghost, #fff); border: 2px solid var(--text); color: var(--text); }
+.nwf-landing .seat-tag.chair-tag { background: var(--fill-strong, #111); border: 1px solid var(--fill-strong, #111); color: #ffffff; }
 
 .nwf-landing .seat-card h3 {
   font-size: 1.05rem;
@@ -1239,10 +1240,10 @@
 .nwf-landing .verdict-example {
   margin-top: 10px;
   padding: 10px 12px;
-  border-radius: 6px;
-  background: rgba(155, 114, 255, 0.08);
-  border: 1px solid rgba(155, 114, 255, 0.22);
-  color: #6d28d9;
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 0.72rem;
   line-height: 1.4;
   word-break: break-all;
@@ -1325,9 +1326,9 @@
 .nwf-landing .verdict-badge {
   margin-top: 10px;
   padding: 12px 14px;
-  border-radius: 8px;
-  background: rgba(155, 114, 255, 0.08);
-  border: 1px solid rgba(155, 114, 255, 0.22);
+  border-radius: 0;
+  background: rgba(17, 17, 17, 0.08);
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1336,15 +1337,15 @@
 .nwf-landing .verdict-badge-call {
   align-self: flex-start;
   padding: 3px 10px;
-  border-radius: 5px;
+  border-radius: 0;
   font-weight: 900;
   font-size: 0.85rem;
   letter-spacing: 0.04em;
 }
 
 .nwf-landing .verdict-badge-call.buy {
-  background: rgba(47, 216, 255, 0.14);
-  border: 1px solid rgba(47, 216, 255, 0.4);
+  background: rgba(17, 17, 17, 0.14);
+  border: 1px solid var(--border);
   color: var(--neon-blue);
 }
 
@@ -1373,16 +1374,16 @@
   .nwf-landing .nav-menu { display: block; position: relative; }
   .nwf-landing .nav-menu summary {
     list-style: none; cursor: pointer; font-size: 1.25rem; line-height: 1;
-    padding: 0.4rem 0.6rem; border: 1px solid rgba(20,26,36,0.16); border-radius: 10px;
+    padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 0;
   }
   .nwf-landing .nav-menu summary::-webkit-details-marker { display: none; }
   .nwf-landing .nav-menu-links {
     position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 50;
     display: flex; flex-direction: column; gap: 0.25rem; min-width: 180px;
-    background: rgba(10,14,18,0.97); border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 12px; padding: 0.6rem;
+    background: rgba(17, 17, 17, 0.97); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 0; padding: 0.6rem;
   }
-  .nwf-landing .nav-menu-links a { padding: 0.45rem 0.6rem; border-radius: 8px; }
+  .nwf-landing .nav-menu-links a { padding: 0.45rem 0.6rem; border-radius: 0; }
   .nwf-landing .navlinks a.nav-action { white-space: nowrap; padding: 0 12px; }
 }
 
@@ -1390,7 +1391,7 @@
    canvas - suppress the signed-in app's dark body and neon haze behind them.
    globals.css stays untouched, so the signed-in app keeps its current look. */
 html:has(.nwf-landing) { color-scheme: light; }
-body:has(.nwf-landing) { background: #ffffff; color: #141a24; }
+body:has(.nwf-landing) { background: #ffffff; color: #111111; }
 body:has(.nwf-landing)::before,
 body:has(.nwf-landing)::after { display: none; }
 
@@ -1404,18 +1405,18 @@ body:has(.nwf-landing)::after { display: none; }
 .nwf-landing {
   --bg: #fff; --ink: #111; --muted: #444; --dim: #666;
   --panel: #fff; --panel-solid: #f5f5f5;
-  --line: #ddd; --line-strong: #111;
-  --blue: #111; --cyan: #111; --green: #111; --amber: #111;
+  --line: #111; --line-strong: #111;
+  --blue: #111; --cyan: #111; --green: #111; --amber: #555;
   --coral: #111; --violet: #111;
-  --surface: #f5f5f5; --surface-2: #eee;
-  --text: #111; --text-dim: #444; --border: #ddd;
+  --surface: #fff; --surface-2: #f5f5f5;
+  --text: #111; --text-dim: #555; --border: #111;
   --neon-blue: #111; --neon-red: #111; --neon-yellow: #111;
   --bull: #111; --bear: #111; --shadow: none;
   --glow-blue: none; --glow-red: none; --radius: 0;
   filter: grayscale(1);
 }
 .nwf-landing *, .nwf-landing *::before, .nwf-landing *::after {
-  border-radius: 0 !important;
+  border-radius: 0;
   box-shadow: none !important;
   text-shadow: none !important;
 }

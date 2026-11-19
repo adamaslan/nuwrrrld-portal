@@ -20,7 +20,7 @@
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
+  border-radius: 0;
   border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
   background: var(--surface);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
@@ -85,9 +85,9 @@
 .disclaimer-btn {
   width: 100%;
   border: none;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--neon-yellow);
-  color: #0d1018;
+  color: #111111;
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 0.02em;

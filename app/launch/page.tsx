@@ -54,7 +54,7 @@ export default function LaunchPage() {
       <section className="landing-cta-block">
         <h2>Support us today</h2>
         <p className="launch-sub">A Product Hunt upvote takes 10 seconds and means a lot to a solo founder.</p>
-        <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn ph-btn--lg">
+        <a href={PH_URL} target="_blank" rel="noreferrer" className="ph-btn ph-btn--lg ph-btn--solid">
           <span aria-hidden="true">🏆</span> Upvote on Product Hunt
         </a>
         <p className="landing-disclaimer">

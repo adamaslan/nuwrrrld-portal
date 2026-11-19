@@ -28,7 +28,7 @@ export default function TwoAudiences({
           { label: "New to markets?", data: beginner },
           { label: "Trade actively?", data: trader },
         ].map(({ label, data }) => (
-          <article key={label} style={{ border: "1px solid var(--line)", borderRadius: "16px", padding: "1.5rem" }}>
+          <article key={label} style={{ border: "1px solid var(--line)", borderRadius: "0", padding: "1.5rem" }}>
             <h3>{label}</h3>
             <h4 style={{ margin: "0.25rem 0 0.5rem", fontSize: "1rem" }}>{data.heading}</h4>
             {data.paragraphs.map((p, i) => (

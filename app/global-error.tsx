@@ -29,8 +29,8 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#06070d",
-          color: "#e8ecf4",
+          background: "#ffffff",
+          color: "#111111",
           fontFamily: "Arial, Helvetica, sans-serif",
           padding: "2rem 1.25rem",
         }}
@@ -40,9 +40,9 @@ export default function GlobalError({
           style={{
             width: "100%",
             maxWidth: "34rem",
-            background: "#0d1018",
-            border: "1px solid #212a3d",
-            borderRadius: "14px",
+            background: "#ffffff",
+            border: "2px solid #111111",
+            borderRadius: "0",
             padding: "2rem 1.75rem",
           }}
         >
@@ -52,7 +52,7 @@ export default function GlobalError({
               fontSize: ".75rem",
               letterSpacing: ".14em",
               textTransform: "uppercase",
-              color: "#ff3b5c",
+              color: "#111111",
             }}
           >
             Application error
@@ -60,7 +60,7 @@ export default function GlobalError({
           <h1 style={{ margin: ".5rem 0 0", fontSize: "1.6rem", lineHeight: 1.25 }}>
             NuWrrrld Financial couldn&rsquo;t start
           </h1>
-          <p style={{ margin: ".85rem 0 0", color: "#9aa4bd", lineHeight: 1.6 }}>
+          <p style={{ margin: ".85rem 0 0", color: "#555555", lineHeight: 1.6 }}>
             This is an error in the application shell itself. It has been logged.
           </p>
 
@@ -69,10 +69,10 @@ export default function GlobalError({
             onClick={() => unstable_retry()}
             style={{
               marginTop: "1.5rem",
-              background: "#2fd8ff",
-              color: "#06070d",
-              border: "none",
-              borderRadius: "8px",
+              background: "#111111",
+              color: "#ffffff",
+              border: "2px solid #111111",
+              borderRadius: "0",
               padding: ".7rem 1.3rem",
               fontWeight: 600,
               fontSize: ".95rem",
@@ -87,16 +87,16 @@ export default function GlobalError({
               style={{
                 margin: "1.5rem 0 0",
                 paddingTop: "1.1rem",
-                borderTop: "1px solid #212a3d",
+                borderTop: "1px solid #111111",
                 fontSize: ".85rem",
-                color: "#9aa4bd",
+                color: "#555555",
                 lineHeight: 1.7,
               }}
             >
-              Reference code <code style={{ color: "#e8ecf4" }}>{error.digest}</code>
+              Reference code <code style={{ color: "#111111", fontWeight: 700 }}>{error.digest}</code>
               <br />
               Include it if you email{" "}
-              <a href="mailto:chillcoders@gmail.com" style={{ color: "#2fd8ff" }}>
+              <a href="mailto:chillcoders@gmail.com" style={{ color: "#111111", textDecoration: "underline" }}>
                 chillcoders@gmail.com
               </a>
               .
