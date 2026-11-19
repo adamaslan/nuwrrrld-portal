@@ -146,7 +146,15 @@ describe("review regressions: gap repair and support-rejection inputs", () => {
     ];
     const r = gapDownRepairLadder(bars, { cutoff: "2026-01-02", minGap: 0.05 });
     if (r.status !== "computed") throw new Error("expected computed");
-    expect(r.gaps[0]).toMatchObject({ recovered_fraction: 0.3, milestones: [{ fraction: 0.25, date: "2026-01-02" }] });
+    expect(r.gaps[0]).toMatchObject({
+      recovered_fraction: 0.3,
+      milestones: [
+        { fraction: 0.25, date: "2026-01-02" },
+        { fraction: 0.5, date: null },
+        { fraction: 0.75, date: null },
+        { fraction: 1, date: null },
+      ],
+    });
   });
 
   it("does not infer a lower wick when the open is missing", () => {

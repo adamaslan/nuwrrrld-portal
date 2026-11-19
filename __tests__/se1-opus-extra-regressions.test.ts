@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { failedBreakdownReclaim, type Bar } from "@/lib/shared/se1/bottom-scans";
-import { gapSessionComponents, rangeWithoutCloseProgress, semivarianceBalance, newHighLowBalance, type OhlcBar } from "@/lib/shared/se1/trend-vol-scans";
+import { failedBreakdownReclaim, secondLowContraction, type Bar } from "@/lib/shared/se1/bottom-scans";
+import { breakdownDistance, gapSessionComponents, rangeWithoutCloseProgress, semivarianceBalance, newHighLowBalance, type OhlcBar } from "@/lib/shared/se1/trend-vol-scans";
 
 /** Regressions for the five defects the independent Opus review reported beyond PR409/PR410's reproduced cases. */
 const day = (i: number) => `2026-02-${String(i).padStart(2, "0")}`;
@@ -39,6 +39,31 @@ describe("rangeWithoutCloseProgress with a zero close", () => {
   it("is unsupported instead of returning infinite or negative values", () => {
     const bars = [ohlc(1, null, 1, 0, 0), ohlc(2, null, 2, 1, 1), ohlc(3, null, 3, 2, 2), ohlc(4, null, 4, 3, 3)];
     expect(rangeWithoutCloseProgress(bars, day(4), 4)).toMatchObject({ status: "unsupported", reason: "zero close in window" });
+  });
+});
+
+describe("secondLowContraction with missing selling-volume evidence", () => {
+  it("does not allow an exhaustion label for a lower low when volume cannot be compared", () => {
+    const closes = [105, 104, 90, 100, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 85, 100, 105, 110];
+    const bars: Bar[] = closes.map((close, i) => ({
+      date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+      open: close,
+      high: close + 1,
+      low: close - 1,
+      close,
+      volume: null,
+    }));
+    const r = secondLowContraction(bars, { cutoff: "2026-01-22", pivotK: 1, minSeparation: 10, atrWindow: 3 });
+    if (r.status !== "computed") throw new Error("expected computed");
+    expect(r.pairs[0]).toMatchObject({ new_lower_low: true, heavier_selling: null, exhaustion_label_allowed: false });
+  });
+});
+
+describe("breakdownDistance with a zero cutoff close", () => {
+  it("does not return infinite percent distance", () => {
+    const bars = [ohlc(1, 10, 11, 9, 10), ohlc(2, 9, 10, 8, 9), ohlc(3, 8, 9, 7, 8), ohlc(4, 0, 1, 0, 0)];
+    const r = breakdownDistance(bars, day(4), 5, 3);
+    expect(r).toMatchObject({ status: "unsupported", reason: "zero close at cutoff" });
   });
 });
 

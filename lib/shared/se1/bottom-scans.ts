@@ -235,7 +235,8 @@ export function secondLowContraction(bars: readonly Bar[], options: SecondLowOpt
       retest_distance_atr: atr !== null && atr > 0 ? (current.close - prior.close) / atr : null,
       new_lower_low,
       heavier_selling: heavier,
-      exhaustion_label_allowed: !(new_lower_low && heavier === true),
+      // Without a volume comparison, a lower low cannot support an exhaustion reading.
+      exhaustion_label_allowed: !(new_lower_low && heavier !== false),
       available_date: visible[current.available_index].date,
     });
   }
