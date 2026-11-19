@@ -17,7 +17,7 @@ Jobs (all functions of the `nwf4` app):
 
 **One cron, not seven.** Modal's Starter plan caps cron schedules per account,
 and this app needs eight. `tick` is the only scheduled function: it runs every
-five minutes, asks news_core.due_jobs(profile="shadow-batch") which jobs §5.1 schedules for that minute (in
+minute, asks news_core.due_jobs() which jobs §5.1 schedules for that minute (in
 America/New_York, DST-correct), and spawns them. Each job is idempotent, so the
 retry slots in due_jobs() are safe.
 
@@ -800,9 +800,10 @@ async def _poll() -> dict:
 # ── dispatcher: the only scheduled function ──────────────────────────────────
 
 
-@app.function(image=image, schedule=modal.Cron("*/5 * * * *"), timeout=60)
+@app.function(image=image, schedule=modal.Cron("* * * * *"), timeout=60)
 def tick() -> list[str]:
-    """Five-minute dispatcher; shadow news batches, no duplicate live-price poller."""
+    """Every minute: spawn the jobs due for this minute (ET). The cadence profile defaults to legacy,
+    which keeps the live-price poller running; shadow-batch is opt-in until a replacement writer is verified."""
     import news_core as nc
 
     launchers = {
@@ -815,7 +816,7 @@ def tick() -> list[str]:
         nc.JOB_POLLER: lambda: alpaca_live_poller.spawn(),
         nc.JOB_SCORE_BACKLOG: lambda: news_score_articles.spawn(None),  # separate from news_ingest's targeted scoring
     }
-    due = nc.due_jobs(_utcnow(), profile="shadow-batch")
+    due = nc.due_jobs(_utcnow(), profile=os.environ.get("NWF4_CADENCE_PROFILE", "legacy"))
     for job in due:
         launchers[job]()
     return due

@@ -445,8 +445,8 @@ class TestShadowBatchCadence:
             assert (nc.JOB_INGEST in due)==(minute%15==0)
     def test_deployment_selects_profile_and_lock_exceeds_runtime(self):
         source=(Path(__file__).resolve().parents[1]/"modal_app.py").read_text()
-        assert 'schedule=modal.Cron("*/5 * * * *")' in source
-        assert 'due_jobs(_utcnow(), profile="shadow-batch")' in source
+        assert 'schedule=modal.Cron("* * * * *")' in source
+        assert 'profile=os.environ.get("NWF4_CADENCE_PROFILE", "legacy")' in source
         assert 'INGEST_LOCK_TTL_SECONDS = 360' in source
     def test_unknown_profile_is_rejected(self):
         with pytest.raises(ValueError):nc.due_jobs(datetime.now(UTC),profile="typo")
