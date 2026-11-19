@@ -118,10 +118,21 @@ describe("review regressions: missing and post-cutoff observations", () => {
     expect(r).toMatchObject({ status: "computed", events: [{ state: "unavailable", observed_after: 2 }] });
   });
 
+  it("counts a usable breakout close whose baseline has a missing close, instead of dropping it silently", () => {
+    const bars = [bar(1, 10, 100), bar(2, null, 100), bar(3, 10, 100), bar(4, 10, 100), bar(5, 12, 300)];
+    const r = breakoutParticipation(bars, { cutoff: day(5), baselineWindow: 4, holdWindow: 1 });
+    expect(r).toMatchObject({ status: "computed", events: [], excluded_missing_baseline: 1 });
+  });
+
   it("does not call a fully observed confirmation window unconfirmed when volume is missing", () => {
     const bars = [bar(1, 10, 100), bar(2, 10, 100), bar(3, 11, 300), bar(4, 12, null), bar(5, 12, null)];
     const r = confirmationLag(bars, { cutoff: day(5), breakWindow: 2, confirmWindow: 2, confirmMultiple: 2 });
-    expect(r).toMatchObject({ status: "computed", records: [{ status: "unavailable", lag_bars: null }] });
+    // Day 3 breaks above 10 and 10 and its window is fully observed with a missing volume. Day 4 also breaks above
+    // 10 and 11, but its window is still open at the cutoff, so it is pending.
+    expect(r).toMatchObject({
+      status: "computed",
+      records: [{ break_date: day(3), status: "unavailable", lag_bars: null }, { break_date: day(4), status: "pending" }],
+    });
   });
 
   it("accepts exactly the declared quiet-pullback window length", () => {

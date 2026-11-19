@@ -59,7 +59,7 @@ export interface BreakoutEvent {
 }
 
 export type BreakoutResult =
-  | { status: "computed"; events: BreakoutEvent[]; excluded_after_cutoff: number }
+  | { status: "computed"; events: BreakoutEvent[]; excluded_after_cutoff: number; excluded_missing_baseline: number }
   | { status: "unsupported"; reason: string };
 
 /**
@@ -78,11 +78,17 @@ export function breakoutParticipation(bars: readonly VolumeBar[], options: Break
   }
 
   const events: BreakoutEvent[] = [];
+  let excluded_missing_baseline = 0;
   for (let i = baselineWindow; i < visible.length; i++) {
     const prior = visible.slice(i - baselineWindow, i);
     const cur = visible[i];
     const priorCloses = prior.flatMap((b) => (b.close === null ? [] : [b.close]));
-    if (cur.close === null || priorCloses.length < baselineWindow) continue;
+    if (priorCloses.length < baselineWindow) {
+      // A usable close here could have been a breakout, but its baseline has a missing close. Count it, never fill it.
+      if (cur.close !== null) excluded_missing_baseline += 1;
+      continue;
+    }
+    if (cur.close === null) continue;
     const level = Math.max(...priorCloses);
     if (cur.close <= level) continue;
 
@@ -101,7 +107,7 @@ export function breakoutParticipation(bars: readonly VolumeBar[], options: Break
 
     events.push({ breakout_date: cur.date, breakout_level: level, relative_volume, state, observed_after: after.length });
   }
-  return { status: "computed", events, excluded_after_cutoff };
+  return { status: "computed", events, excluded_after_cutoff, excluded_missing_baseline };
 }
 
 // ── S26-048 Quiet-pullback versus abandonment contrast ────────────────────────
