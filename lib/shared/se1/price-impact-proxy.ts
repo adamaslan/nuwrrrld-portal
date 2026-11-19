@@ -105,7 +105,7 @@ export function priceImpactRegimeShift(bars: readonly ImpactBar[], options: Impa
       continue;
     }
     const ratio = cur.close / prev;
-    if (ratio < SPLIT_LOW || ratio > SPLIT_HIGH) {
+    if (ratio <= SPLIT_LOW || ratio >= SPLIT_HIGH) {
       excluded_split_like += 1;
       proxies.push(null);
       continue;

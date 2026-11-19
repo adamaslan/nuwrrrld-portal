@@ -40,10 +40,18 @@ describe("S26-047 priceImpactRegimeShift", () => {
   });
 
   it("treats a close ratio outside the split band as a possible split, not a price move", () => {
-    // Window 6 so that one excluded session still leaves the 5 usable sessions the minimum needs.
-    const bars = series(6, Array(12).fill(0.01), 10_000);
+    // Window 8 so that two excluded sessions still leave the 5 usable sessions each window needs.
+    const bars = series(8, Array(16).fill(0.01), 10_000);
     // A 2-for-1 style drop on one session: the ratio is well outside the band.
     bars[3] = bar(4, bars[2].close! * 0.5, 10_000);
+    const r = priceImpactRegimeShift(bars, { cutoff: day(bars.length), window: 8, floorUsd: 100_000 });
+    // The split day (ratio 0.5) and the rebound after it (ratio ~2.04) are both outside the band.
+    expect(r).toMatchObject({ status: "computed", excluded_split_like: 2 });
+  });
+
+  it("excludes an exact 2-for-1 split at the band edge, with no rebound to mask it", () => {
+    // Close steps from 100 to 50 on day 4 and stays there, so that one day's ratio is exactly 0.5.
+    const bars = Array.from({ length: 13 }, (_, i) => bar(i + 1, i < 3 ? 100 : 50, 10_000));
     const r = priceImpactRegimeShift(bars, { cutoff: day(bars.length), window: 6, floorUsd: 100_000 });
     expect(r).toMatchObject({ status: "computed", excluded_split_like: 1 });
   });
