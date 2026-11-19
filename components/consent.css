@@ -1,5 +1,5 @@
 /* Styles for ConsentBanner, ConsentPreferences, and CookiePreferencesLink.
-   Uses the same dark-theme design tokens as disclaimer.css for brand consistency. */
+   Uses the shared monochrome design tokens. */
 
 /* ===== Banner (fixed bottom) ===== */
 
@@ -12,7 +12,7 @@
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding: 16px;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 .consent-banner-inner {
@@ -116,7 +116,7 @@
   border-radius: 0;
   border: 1px solid color-mix(in srgb, var(--neon-yellow) 40%, var(--border));
   background: var(--surface);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
 }
 
 .consent-modal-header {

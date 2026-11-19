@@ -1,3 +1,4 @@
+import { formatComputedAt } from "@/lib/shared/stored-card-honesty";
 import { getStoredHoldFold } from "./stored-signals";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
@@ -16,13 +17,6 @@ export const metadata: Metadata = {
 
 async function fetchHoldFoldData(): Promise<HoldFoldPayload | null> {
   return getStoredHoldFold();
-}
-
-function formatUpdated(iso: string): string {
-  if (!iso || Number.isNaN(Date.parse(iso))) return "Unavailable";
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
-  });
 }
 
 export default async function HoldFoldPage() {
@@ -57,7 +51,7 @@ export default async function HoldFoldPage() {
               </div>
               <p className="hf-updated">
                 <span className="hf-updated-dot" />
-                Updated {formatUpdated(data.updatedAt)}
+                Signals computed {formatComputedAt(data.updatedAt)}
               </p>
             </div>
           )}

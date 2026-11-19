@@ -1,3 +1,4 @@
+import { formatComputedAt, outlookLabel } from "@/lib/shared/stored-card-honesty";
 import { getTickerVerdict } from "../stored-signals";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
@@ -129,7 +130,7 @@ export default async function TickerDetailPage(
 
         {v.aiOutlook && (
           <div className="hf-outlook">
-            <p className="hf-section-label">AI OUTLOOK</p>
+            <p className="hf-section-label">{outlookLabel(v.outlookSource)}</p>
             <p className="hf-outlook-text">{v.aiOutlook}</p>
           </div>
         )}
@@ -147,7 +148,7 @@ export default async function TickerDetailPage(
           </Link>
           <p className="hf-updated" style={{ margin: 0 }}>
             <span className="hf-updated-dot" />
-            {new Date(v.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+            Market bar {v.barDate ?? "unknown"} · Calculated {formatComputedAt(v.updatedAt)}
           </p>
         </div>
       </div>

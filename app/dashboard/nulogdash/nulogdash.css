@@ -170,3 +170,15 @@
 .nld-result { margin: .4rem 0 0; font-size: .8rem; flex-basis: 100%; }
 .nld-result--ok { color: var(--text); }
 .nld-result--err { color: var(--text); font-weight: 600; text-decoration: underline; }
+
+/* A batch subject can be an entire ticker universe. Keep the other item
+   columns reachable without discarding any subject text. The labelled,
+   focusable region scrolls with keyboard or touch when its text is long. */
+.nld-item-subject {
+  width: min(18rem, 40vw);
+  max-height: 8rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.nld-item-subject:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
