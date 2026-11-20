@@ -70,6 +70,7 @@ describeLive("LIVE: every council seat can actually answer", () => {
   // its chain serves it. This is checked per seat because each has a distinct
   // primary model, so seats fail independently and invisibly.
   it.each(ALL_SEATS)("seat %s returns a non-empty answer", async (seat) => {
+    const assertPrimary = seat === "T2" || seat === "RISK";
     const result = await runSeat(
       seat,
       [
@@ -77,20 +78,15 @@ describeLive("LIVE: every council seat can actually answer", () => {
         { role: "user", content: "Name one risk of holding a single concentrated equity position." },
       ],
       LIVE_KEY,
-      // Mirror the production seat contract from app/api/council/route.ts
-      // (initial + retry): callCouncilSeat(..., 1200, { answerOnly: true }),
-      // which is runSeat at maxTokens 1200, temperature 0.4, no override,
-      // answerOnly on. The previous 64-token test budget could starve a
-      // reasoning primary into an empty completion, which advances to the
-      // chain — the T2/RISK primary-serving assertion below would then report
-      // "repoint not live" for a primary that is actually healthy. answerOnly
-      // matches production's reasoning-disabled request for optional-reasoning
-      // models. (Deliberate paths keep their own budgets; this test covers
-      // primary serving, not deliberation.)
-      1200,
+      // Match production's 1200-token, answerOnly request for the two seats
+      // whose primaries this PR validates. Keep the previous 64-token,
+      // default-options probe for other seats to limit their live-test quota.
+      // A smaller budget could starve a reasoning primary and make fallback
+      // mask an otherwise healthy T2/RISK primary.
+      assertPrimary ? 1200 : 64,
       0.4,
       undefined,
-      { answerOnly: true },
+      assertPrimary ? { answerOnly: true } : {},
     );
     console.info(`[seat] ${seat} served by ${result.model} in ${result.latencyMs}ms`);
     expect(result.answer.trim().length, `seat ${seat} returned an empty answer`).toBeGreaterThan(0);

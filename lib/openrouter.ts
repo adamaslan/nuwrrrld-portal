@@ -56,9 +56,9 @@ export const FREE_MODEL_CHAIN = [
 //      synthesis, the smallest on QUANT, which is reduced to classification.
 //   2. Vendors are spread deliberately. FREE_MODEL_CHAIN is all-nvidia, so it
 //      has nominal depth 4 and real depth 1 against an account-tier failure —
-//      the failure that actually happens. Seats drawing from thinkingmachines,
-//      google, inclusionai, liquid and nvidia mean a single vendor outage
-//      degrades some seats rather than every one at once.
+//      the failure that actually happens. Seats drawing from google, baidu,
+//      dots-studio, liquid and nvidia mean a single vendor outage degrades
+//      some seats rather than every one at once.
 //
 // 2026-09-07 refresh (docs/free-model-rotation-status.md, P1 + P2):
 //   - RISK was 'z-ai/glm-5.2:free', which no longer exists — z-ai retired its
@@ -120,8 +120,9 @@ export const SEAT_MODELS: Record<CouncilSeat, string> = {
   //   RISK: baidu/ernie-5.5-flash-preview:free — catalog-$0 today, 1M context,
   //     does-not-train per the current provider table, and a new vendor so the
   //     two seats don't both sit on Google. UNPROBED as of 2026-11-12: if the
-  //     seat live test shows it falling through, use the documented fallback
-  //     google/gemma-4-26b-a4b-it:free instead.
+  //     seat live test shows it falling through, google/gemma-4-26b-a4b-it:free
+  //     is a manual fallback candidate, not an automatic retry. Verify current
+  //     account reachability and provider terms before reassigning the seat.
   // Reachability is verified by __tests__/live/model-chain.live.test.ts, which
   // probes every seat under the production contract — catalog presence alone
   // was never sufficient (2026-09-11 note).
