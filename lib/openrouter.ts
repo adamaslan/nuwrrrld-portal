@@ -123,9 +123,9 @@ export const SEAT_MODELS: Record<CouncilSeat, string> = {
   //     seat live test shows it falling through, google/gemma-4-26b-a4b-it:free
   //     is a manual fallback candidate, not an automatic retry. Verify current
   //     account reachability and provider terms before reassigning the seat.
-  // Reachability is verified by __tests__/live/model-chain.live.test.ts, which
-  // probes every seat under the production contract — catalog presence alone
-  // was never sufficient (2026-09-11 note).
+  // __tests__/live/model-chain.live.test.ts probes every seat, but enforces
+  // primary serving with production-shaped options only for T2 and RISK.
+  // Catalog presence alone was never sufficient (2026-09-11 note).
   T2: 'google/gemma-4-31b-it:free',
   RISK: 'baidu/ernie-5.5-flash-preview:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
