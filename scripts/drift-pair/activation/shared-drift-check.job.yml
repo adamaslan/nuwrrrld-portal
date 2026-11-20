@@ -1,0 +1,85 @@
+# INERT TEMPLATE. NOT APPLIED. NOT ACTIVE.
+#
+# Replaces the `shared-drift-check` job in .github/workflows/ci.yml. Apply ONLY in a
+# separate, reviewed PR, AFTER scripts/drift-pair/ is on trusted default main. Until
+# then the original job stays in place, unchanged and green.
+#
+# Contract this template relies on (all implemented in resolve-pair.mjs):
+#   --repo <owner/name>            repo running the gate
+#   --pr <n>                       PR number (omit for push runs)
+#   --event-head-sha <sha>         head SHA the triggering event carried; a live
+#                                  own head that differs fails `event-head-mismatch`
+#   --expect-binding <sha256>      final re-resolution must reproduce this binding
+#   outputs: mode, reason, counterpart_repo, counterpart_ref, counterpart_pr,
+#            own_sha, binding
+#
+# Trigger note: at activation, add `types: [opened, synchronize, reopened, edited]`
+# to the pull_request trigger in ci.yml so body edits (pins, back-references) rerun
+# the gate. Not done here; this template is not applied.
+#
+# Freshness (proposal, not yet reviewed): the last step re-resolves from live state
+# and must reproduce the frozen `binding`. Any counterpart or body change after the
+# run leaves a stale green. The author must re-run after such changes.
+  shared-drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted base (resolver + checker)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Checkout web at the event head (PR head = data)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: nuwrrrld-portal
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve counterpart (fail-closed, binds the event head)
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" --pr "$PR_NUMBER" --event-head-sha "$EVENT_HEAD" >> "$GITHUB_OUTPUT"
+          else
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout mobile at the resolved counterpart SHA
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.resolve.outputs.counterpart_repo }}
+          ref: ${{ steps.resolve.outputs.counterpart_ref }}
+          path: gcp3-mobile
+          persist-credentials: false
+
+      - name: Check shared-core drift (all 13 pairs, unchanged normalizers)
+        env:
+          WEB_ROOT: nuwrrrld-portal
+          MOBILE_ROOT: gcp3-mobile
+        run: node trusted/scripts/check-shared-drift.mjs
+
+      - name: Final re-resolution must reproduce the frozen binding
+        if: steps.resolve.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECT: ${{ steps.resolve.outputs.binding }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" --pr "$PR_NUMBER" --event-head-sha "$EVENT_HEAD" --expect-binding "$EXPECT"
+          else
+            node trusted/scripts/drift-pair/resolve-pair.mjs --repo "$REPO" --expect-binding "$EXPECT"
+          fi
