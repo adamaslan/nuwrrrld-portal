@@ -1,5 +1,8 @@
 """DynamoDB layer (free tier, provisioned <= 25 RCU / 25 WCU in total).
 
+Sizing: CAPACITY below gives pipeline 4/4, live 6/5, cache 2/2, locks 1/1 (13 RCU / 12 WCU
+for these four). With the other nwf_* tables in the account, the total is 25/25.
+
 Role (owner decision 2026-10-07: "have Dynamo receive all the data"):
   * `nwf_pipeline_data`  - write-through MIRROR of every pipeline output (bars, indicators,
                            signals, hold/fold, rotation, council, paper, followed, billing
@@ -34,12 +37,14 @@ TABLE_LOCKS = "nwf_locks"
 MAX_ITEM_BYTES = 350_000     # DynamoDB hard limit is 400 KB; leave headroom
 BATCH_SIZE = 25
 
-# Provisioned capacity (RCU, WCU) - within the free-tier ceiling of 25/25.
+# Provisioned capacity (RCU, WCU) for the four tables this module owns. Together with the
+# other nwf_* tables in the account, the total is 25 RCU / 25 WCU, the always-free ceiling
+# with no headroom (owner choice 2026-11-19).
 CAPACITY: dict[str, tuple[int, int]] = {
-    TABLE_PIPELINE: (10, 12),
+    TABLE_PIPELINE: (4, 4),
     TABLE_LIVE: (6, 5),
-    TABLE_CACHE: (4, 3),
-    TABLE_LOCKS: (2, 1),
+    TABLE_CACHE: (2, 2),
+    TABLE_LOCKS: (1, 1),
 }
 
 
