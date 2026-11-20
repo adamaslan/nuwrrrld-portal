@@ -9,13 +9,14 @@ describe("dark-launch flags", () => {
     expect(flagLive(name)).toBe(false);
   });
 
-  it("lists exactly the five surfaces from the dark-launch workflow", () => {
+  it("lists exactly the six surfaces from the dark-launch workflow", () => {
     expect([...FLAG_NAMES].sort()).toEqual([
       "backtest_hit_rates",
       "council_public_demo",
       "holdfold_top_movers",
       "news_vote",
       "paper_benchmark_metrics",
+      "scan_ai_assist",
     ]);
   });
 });
