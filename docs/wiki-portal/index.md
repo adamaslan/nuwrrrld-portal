@@ -189,3 +189,4 @@ The 2026-07-15 chain-of-thought leak remains documented as context inside [[deci
 
 - [[concept-se1-evidence-surfaces]]: evidence badge, provenance footer, scan pages, gap list, scan graph, and llms.txt; every finding carries its evidence level and source, and missing provenance fails closed.
 - [[decision-se1-pure-logic-before-results-store]]: pure logic and catalog pages ship before the se1 results store; no live results are wired yet.
+- [[concept-se1-bar-only-scan-batches]]: six bar-only batch modules carrying 36 S26 scans (PR #413); static test count only, no build or real-data run recorded.
