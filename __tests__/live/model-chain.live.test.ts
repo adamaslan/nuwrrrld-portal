@@ -15,6 +15,7 @@ import { expect, it } from "vitest";
 import {
   DEBATE_SEATS,
   FREE_MODEL_CHAIN,
+  SEAT_MODELS,
   fetchWithModelFallback,
   fetchWithModelFallbackChecked,
   runSeat,
@@ -70,6 +71,7 @@ describeLive("LIVE: every council seat can actually answer", () => {
   // its chain serves it. This is checked per seat because each has a distinct
   // primary model, so seats fail independently and invisibly.
   it.each(ALL_SEATS)("seat %s returns a non-empty answer", async (seat) => {
+    const assertPrimary = seat === "T2" || seat === "RISK";
     const result = await runSeat(
       seat,
       [
@@ -77,10 +79,32 @@ describeLive("LIVE: every council seat can actually answer", () => {
         { role: "user", content: "Name one risk of holding a single concentrated equity position." },
       ],
       LIVE_KEY,
-      64,
+      // Match production's 1200-token, answerOnly request for the two seats
+      // whose primaries this PR validates. Keep the previous 64-token,
+      // default-options probe for other seats to limit their live-test quota.
+      // A smaller budget could starve a reasoning primary and make fallback
+      // mask an otherwise healthy T2/RISK primary.
+      assertPrimary ? 1200 : 64,
+      0.4,
+      undefined,
+      assertPrimary ? { answerOnly: true } : {},
     );
     console.info(`[seat] ${seat} served by ${result.model} in ${result.latencyMs}ms`);
     expect(result.answer.trim().length, `seat ${seat} returned an empty answer`).toBeGreaterThan(0);
+    // 2026-11-02: T2/RISK primaries were repointed off retired poolside/laguna
+    // ids. A green seat test alone never proved those repoints — this suite
+    // stayed green while laguna 404'd because the chain covers the seat. For
+    // the repointed seats, assert the PRIMARY actually served; anything else
+    // is the invisible-degradation failure mode this fix exists to close.
+    // Deliberately NOT extended to every seat: a future provider retirement
+    // should surface via the refresh script's audit cadence, not block CI.
+    if (seat === "T2" || seat === "RISK") {
+      expect(
+        result.model,
+        `seat ${seat} was served by ${result.model} instead of its repointed primary ` +
+          `${SEAT_MODELS[seat]} — the repoint is not live (fallback is masking it)`,
+      ).toBe(SEAT_MODELS[seat]);
+    }
     expect(result.seat).toBe(seat);
     expect(result.latencyMs).toBeLessThan(SEAT_LATENCY_BUDGET_MS);
   });
