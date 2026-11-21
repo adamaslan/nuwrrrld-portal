@@ -41,8 +41,13 @@ Signals also exposes `python -m signals_app.scan_recipes --list`, `--list-method
 
 The pure engines, module adapter, actual workbench components and targeted TypeScript checks were exercised locally on invented fixtures. All 100 chapter calculators produced available outputs on a 1,200-session, eight-member invented fixture with every supplemental input supplied. Targeted controls check event timing, publication cutoffs, weight timing, action contamination, pivot confirmation and historical normalization. This is development evidence, not independent validation of every method or a predictive edge. Both app components executed the same chapter breadth calculation. This is not complete app, authentication, deployment or real-data validation.
 
-No branch has been pushed, no pull request created, no preview deployed and no production changes made for this work. Existing hosting settings can build feature-branch pushes. Publication is held until preview scope and build-time effects are settled. In particular, the portal's package `prebuild` runs a DB migration. Its existing Vercel configuration bypasses that script, but this alone does not prove every route import or prerender is free of live database/provider access. Do not run `npm run build` against live credentials to test this feature.
+This is source-branch research code, not full-app or live acceptance. The exact feature branch disables automatic Vercel deployment in its effective configuration; production and other branches are unchanged. No preview or production change is part of this source publication. In particular, the portal's package `prebuild` runs a DB migration. Its existing Vercel configuration bypasses that script, but this alone does not prove every route import or prerender is free of live database/provider access. Do not run `npm run build` against live credentials to test this feature.
 
 ## Calculation conventions
 
 Empirical percentile ties count reference values less than or equal to the current value. The current reading is excluded wherever a prior-only reference is specified. Method 13 uses inclusive rolling lows: a close equal to the rolling minimum counts, including flat series. It does not claim a strict new-low breakout.
+
+## Catalog packaging
+`catalog.mjs` concatenates ten ordered100-recipe data modules. They contain the unchanged original1,000recipe objects, in the same order, with no runtime codec or regeneration. CLI, workbench and tests import this same module.
+
+`ai-boundary.mjs` prepares an optional free-model explanation request only. It does not fetch, hold keys, authenticate caller policy, consume an atomic budget or establish working OpenRouter connectivity. Catalog/time/budget inputs are caller assertions pending a real authorized server adapter. Use `node test-ai-boundary.mjs` for offline boundary checks.
