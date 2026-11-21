@@ -48,6 +48,7 @@ export default async function ScansPage({ searchParams }: { searchParams: Promis
   return (
     <main className="ev-page">
       <h1>Scan encyclopedia</h1>
+      <p><Link href="/scans/recipes">Open the 1,000-recipe offline workbench</Link> · shared deterministic scripts, no automatic data fetch. Includes the 100 pullback-method coverage map.</p>
       <p>
         {SEED_CARDS.length} of {totalPlanned()} planned scan cards are written so far. Every card is a spec until
         the evidence harness runs it. <Link href="/scans/gaps">See what we can&apos;t answer yet</Link>.
