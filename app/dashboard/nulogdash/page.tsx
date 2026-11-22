@@ -6,7 +6,7 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isNulogdashAdmin, canPerformAdminAction, summarizeCounts, splitResults } from "@/lib/nulogdash";
-import { MfaNotice, NulogdashTabs, FeatureRow } from "./ReportComponents";
+import { MfaNotice, NulogdashTabs, FeatureRow, QualityEvidencePanel } from "./ReportComponents";
 import "./nulogdash.css";
 
 export const metadata: Metadata = {
@@ -53,7 +53,6 @@ export default async function NulogdashPage() {
   // "features not run end-to-end" with every skipped Playwright spec.
   const featureResults = run.results.filter((r) => r.tier !== "browser");
   const counts = summarizeCounts(featureResults);
-  const notExercised = counts.blocked + counts.not_run;
   const total = featureResults.length;
 
   const { notExercised: notExercisedResults, exercised: exercisedResults } = splitResults(featureResults);
@@ -70,10 +69,12 @@ export default async function NulogdashPage() {
         Last run {formatRunTimeET(run.runAt)} · {run.branch}@{run.gitSha} · {run.baseUrl}
       </p>
 
+      {run.syntheticFixture && <p className="nld-quality-note">Synthetic display fixture — not production data.</p>}
+
       {!canMutate && <MfaNotice />}
 
       <div className="nld-headline">
-        <strong>{notExercised} of {total} features not run end-to-end this pass.</strong>
+        <strong>Operational endpoint probes: {counts.pass} returned accepted responses out of {total} features.</strong>
         <span className="nld-headline-sub">
           {counts.pass} pass · {counts.fail} fail · {counts.blocked} blocked · {counts.not_run} not run
         </span>
@@ -84,6 +85,8 @@ export default async function NulogdashPage() {
           </span>
         )}
       </div>
+
+      {run.qualityEvaluation && <QualityEvidencePanel quality={run.qualityEvaluation} />}
 
       {run.driftWarnings.length > 0 && (
         <div className="nld-drift">

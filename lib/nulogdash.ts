@@ -1,4 +1,5 @@
 import { loadLatestReport } from "./nulogdash-report";
+import type { QualityEvidence } from "./nulogdash-quality.mjs";
 
 export type FeatureStatus = "pass" | "fail" | "blocked" | "not_run";
 
@@ -20,6 +21,8 @@ export interface ExcludedFeature {
 }
 
 export interface NulogdashRun {
+  artifactVersion?: "nulogdash-run/v2";
+  syntheticFixture?: boolean;
   runId: string;
   runAt: string;
   gitSha: string;
@@ -29,6 +32,8 @@ export interface NulogdashRun {
   results: FeatureResult[];
   excluded: ExcludedFeature[];
   driftWarnings: string[];
+  transportOutcome?: { pass: number; fail: number; blocked: number; not_run: number };
+  qualityEvaluation?: QualityEvidence;
 }
 
 
