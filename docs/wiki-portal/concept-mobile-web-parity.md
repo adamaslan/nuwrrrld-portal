@@ -7,6 +7,16 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal PR #415 — nulogdash quality evidence, 2026-11-21
+
+This adds a versioned evidence reader and quality panel to the portal's
+admin-only Nulogdash sweep/report. It changes no mobile client, shared module,
+or cross-surface API contract. The feature-domain and single-source
+denominators remain unchanged; the historical ~62% blended headline and domain
+matrix remain as recorded. This is a scoped assessment, not a fresh parity
+audit. Actual news-quality values and workload denominators were not recovered.
+See [[entity-nulogdash]] and [[concept-sync-requirements]].
+
 ## Portal PRs #400/#401 LangSmith assessment — November 16, 2026
 
 The Council's per-attempt trace adapter and synthetic evaluator are portal-side

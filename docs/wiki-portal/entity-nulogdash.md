@@ -2,7 +2,7 @@
 date: 2026-09-11
 type: entity
 tags: [nulogdash, admin, testing, coverage, clerk, mfa, inventory, sweep]
-sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../lib/format-time.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118, PR#328]
+sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../lib/nulogdash-report.ts, ../../lib/nulogdash-quality.mjs, ../../lib/format-time.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118, PR#328, PR#415]
 ---
 
 # Entity — nulogdash (admin console + feature sweep)
@@ -193,6 +193,25 @@ or the CLI (`npm run nulogdash:report`). Chart.js loads from a pinned cdnjs
 URL with a plain-text fallback if the CDN is unreachable, so the report still
 reads (numbers only, no charts) offline or if cdnjs is blocked.
 
+## Quality results (PR #415, 2026-11-21)
+
+The sweep artifact now has a bounded, versioned reader path for
+`nulogdash-run/v2` and `nulogdash-quality/v1`. Operational probe results,
+useful-workload coverage, and measured-quality verdicts are separate. The
+dashboard and HTML report preserve source/run/evaluator versions, cutoff,
+scope, observed values (including explicit `NULL`), eligible/measured
+denominators, target/rationale, and blocked or insufficient reasons. Older
+reports display “quality not recorded”; successful transport alone cannot
+create a quality pass. Existing allowlist and mutating-action MFA gates remain
+unchanged.
+
+The retained news-evaluation evidence still lacks recovered numeric results and
+workload denominators. GCP9/25 is an attributed offline captured-data checkpoint,
+not deployed parity; NWF4 is historical relative to known NWF5, with deployed
+source version and schedules unverified. `deltaIC` is preserved as source
+SQL `NULL`. The included desktop/mobile captures are synthetic fixtures, not
+production or browser acceptance evidence.
+
 ## See also
 
 - [[incident-2026-09-11-nulogdash-blind-sweep]] — the run that made this harness honest, and the four bugs it had been covering
@@ -209,4 +228,5 @@ reads (numbers only, no charts) offline or if cdnjs is blocked.
   behind known failure 1
 - [[concept-test-strategy]] — where this sits relative to the vitest layers
 - [[entity-dev-command-suite]] — the `/nulogdash` command wrapper
+- [[concept-mobile-web-parity]] — PR #415 adds portal-only admin reporting, not a mobile client or shared quality module
 - `../nulogdash-dashboard-plan.md` — the original design

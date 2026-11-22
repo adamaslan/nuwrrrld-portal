@@ -1,5 +1,13 @@
 # Wiki Log — nuwrrrld-portal
 
+## [2026-11-21] ingest | PR #415 feat(nulogdash): show versioned quality evidence | pages touched: 4
+
+Nulogdash now distinguishes operational probes, useful-workload coverage, and
+measured quality. Its bounded reader preserves the versioned artifact and
+labels legacy reports unrecorded. The actual news values remain unrecovered;
+display captures are synthetic. This portal-only report change does not alter
+shared-client parity or the historical headline.
+
 ## [2026-11-14] ingest | PR #378 feat(judge-sim): deterministic rubric proxies (T-013–T-018) | pages touched: 3
 
 Append-only chronological record. Format: `## [{date}] {ingest|query|lint|friction} | {summary} | pages touched: N`

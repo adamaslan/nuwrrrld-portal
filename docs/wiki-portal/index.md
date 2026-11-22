@@ -1,6 +1,12 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-11-16 (LangSmith Council traces and synthetic evaluator; mobile parity unchanged)_
+_Last updated: 2026-11-21 (Nulogdash quality evidence reader; historical mobile parity unchanged)_
+
+**PR #415 scope:** Nulogdash now reads a versioned quality artifact separately
+from operational probe results and labels absent numeric evidence as
+unrecorded. This is portal-only admin reporting; it adds no mobile client,
+shared module, or parity-matrix domain. See [[entity-nulogdash]],
+[[concept-mobile-web-parity]], and [[concept-sync-requirements]].
 
 **PRs #400/#401 scope:** add opt-in, content-free LangSmith attempt traces and a
 synthetic fallback evaluator in the portal only. No mobile client or shared
