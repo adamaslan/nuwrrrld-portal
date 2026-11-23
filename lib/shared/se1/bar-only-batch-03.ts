@@ -45,6 +45,19 @@ function smaAt(bars: readonly DailyBar[], index: number, window: number): number
   return mean(values as number[]);
 }
 
+function datedVisible<T extends { date: string }>(rows: readonly T[], cutoff: string): T[] {
+  const end = parseIso(cutoff);
+  if (end === null) throw new RangeError("cutoff must be a valid ISO date");
+  const seen = new Set<number>();
+  return rows.map(row => {
+    const time = parseIso(row.date);
+    if (time === null) throw new RangeError("invalid input date");
+    if (seen.has(time)) throw new RangeError("dates must be unique by instant");
+    seen.add(time);
+    return { row, time };
+  }).filter(item => item.time <= end).sort((a, b) => a.time - b.time).map(item => item.row);
+}
+
 // ── S26-029 Defensive-sector relative rotation ────────────────────────────────
 
 export interface SectorBasketMember {
@@ -71,10 +84,10 @@ export function defensiveSectorRotation(members: readonly SectorBasketMember[], 
     const total = members.filter((item) => item.category === category).reduce((sum, item) => sum + item.weight, 0);
     if (Math.abs(total - 1) > 1e-8) return { status: "unsupported", reason: `${category} basket weights must sum to one` };
   }
-  const index = indexBars.filter((item) => item.date <= options.cutoff).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const index = datedVisible(indexBars, options.cutoff);
   if (index.length < options.indexWindow) return { status: "unsupported", reason: "insufficient broad-index history" };
   const indexTail = index.slice(-options.indexWindow);
-  if (indexTail.some((item) => item.close === null || item.close <= 0)) return { status: "unsupported", reason: "missing broad-index close in window" };
+  if (indexTail.some((item) => item.close === null || !Number.isFinite(item.close) || item.close <= 0)) return { status: "unsupported", reason: "missing broad-index close in window" };
   const indexHigh = Math.max(...indexTail.map((item) => item.close!));
   const broad_index_near_high = indexTail.at(-1)!.close! / indexHigh >= options.nearHighRatio;
   const firstDate = indexTail[0].date;
@@ -82,10 +95,10 @@ export function defensiveSectorRotation(members: readonly SectorBasketMember[], 
   const missing_legs: string[] = [];
   const returns = new Map<string, number>();
   for (const member of members) {
-    const series = new Map(member.bars.filter((item) => item.date <= options.cutoff).map((item) => [item.date, item.close]));
-    const first = series.get(firstDate);
-    const last = series.get(lastDate);
-    if (first === undefined || last === undefined || first === null || last === null || first <= 0 || last <= 0) {
+    const series = new Map(datedVisible(member.bars, options.cutoff).map((item) => [parseIso(item.date), item.close]));
+    const first = series.get(parseIso(firstDate));
+    const last = series.get(parseIso(lastDate));
+    if (first === undefined || last === undefined || first === null || last === null || !Number.isFinite(first) || !Number.isFinite(last) || first <= 0 || last <= 0) {
       missing_legs.push(member.ticker);
       continue;
     }
@@ -126,8 +139,8 @@ export function horizonDisagreementAge(points: readonly OscillatorPoint[], optio
   if (parseIso(options.cutoff) === null) throw new RangeError("cutoff must be a valid ISO date");
   if (points.some((item) => parseIso(item.date) === null || (item.price !== null && (!Number.isFinite(item.price) || item.price < 0))
     || (item.oscillator !== null && !Number.isFinite(item.oscillator)))) throw new RangeError("oscillator points contain invalid dates or values");
-  if (new Set(points.map((item) => item.date)).size !== points.length) throw new RangeError("oscillator dates must be unique");
-  const visible = points.filter((item) => item.date <= options.cutoff).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (new Set(points.map((item) => parseIso(item.date))).size !== points.length) throw new RangeError("oscillator dates must be unique");
+  const visible = datedVisible(points, options.cutoff);
   if (visible.length < 2 * options.pivotK + 1) return { status: "unsupported", reason: "insufficient history for confirmed pivots" };
   const pivots: number[] = [];
   for (let i = options.pivotK; i + options.pivotK < visible.length; i++) {
@@ -149,7 +162,7 @@ export function horizonDisagreementAge(points: readonly OscillatorPoint[], optio
     const later = visible.slice(confirmationIndex + 1);
     const resolved = later.find((item) => item.oscillator !== null && item.oscillator > priorOscillator);
     const failed = later.find((item) => item.price !== null && item.price < valley * (1 - options.weaknessBuffer));
-    const state: DisagreementEvent["state"] = failed && (!resolved || failed.date <= resolved.date) ? "failed"
+    const state: DisagreementEvent["state"] = failed && (!resolved || parseIso(failed.date)! <= parseIso(resolved.date)!) ? "failed"
       : resolved ? "resolved" : "pending";
     divergences.push({ prior_high_date: prior.date, higher_high_date: high.date, available_date: visible[confirmationIndex].date, age: visible.length - 1 - confirmationIndex, state });
   }
@@ -173,9 +186,9 @@ export function rallyRepairFailure(bars: readonly DailyBar[], options: {
 }): { status: "computed" | "unsupported"; reason?: string; events?: RallyRepairEvent[] } {
   if (!Number.isFinite(options.confirmed_higher_low.level) || options.confirmed_higher_low.level <= 0 || parseIso(options.confirmed_higher_low.confirmed_date) === null) throw new RangeError("a valid confirmed higher-low level is required");
   const visibleBars = visible(bars, options.cutoff);
-  const startIndex = visibleBars.findIndex((item) => item.date >= options.confirmed_higher_low.confirmed_date);
+  const startIndex = visibleBars.findIndex((item) => parseIso(item.date)! >= parseIso(options.confirmed_higher_low.confirmed_date)!);
   if (startIndex < 0) return { status: "unsupported", reason: "confirmed higher-low date is not observed by cutoff" };
-  const breakIndex = visibleBars.findIndex((item, index) => index >= startIndex && item.date > options.confirmed_higher_low.confirmed_date && item.close !== null && item.close < options.confirmed_higher_low.level);
+  const breakIndex = visibleBars.findIndex((item, index) => index >= startIndex && parseIso(item.date)! > parseIso(options.confirmed_higher_low.confirmed_date)! && item.close !== null && item.close < options.confirmed_higher_low.level);
   if (breakIndex < 0) return { status: "computed", events: [] };
   const after = visibleBars.slice(breakIndex + 1);
   let trough = visibleBars[breakIndex].close!;
@@ -299,7 +312,7 @@ export function crossoverSurvivalInput(bars: readonly DailyBar[], options: {
       crossover_date: series[index].date, status: unavailable ? "unavailable" : recross ? "recrossed" : "right_censored", duration_bars,
       recross_date: recross && !unavailable ? series[recrossIndex].date : null, event_observed: recross && !unavailable,
       censoring_reason: unavailable ? null : recross ? null : complete ? "hold_horizon" : "decision_cutoff",
-      split: series[index].date < options.splitDate ? "training" : "holdout",
+      split: parseIso(series[index].date)! < parseIso(options.splitDate)! ? "training" : "holdout",
       missing_sessions,
     };
   });
