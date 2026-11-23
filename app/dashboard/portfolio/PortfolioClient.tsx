@@ -353,7 +353,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
             <p className="port-watch-empty">Symbols only. Quantities, purchase dates, cost basis and market values are not imported. Existing watchlist entries are kept.</p>
             <p className="port-watch-empty">
               Will add {csvPreview.added.length} · {csvPreview.skipped.already_present} already on your list ·{" "}
-              {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} skipped
+              {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} server-rejected symbols (unsupported input rows are counted above)
               {csvPreview.rejectedSample.length > 0 && ` (e.g. ${csvPreview.rejectedSample.slice(0, 5).join(", ")})`}
             </p>
             <button className="port-watch-btn" onClick={confirmCsvImport} disabled={csvBusy || csvPreview.added.length === 0}>
