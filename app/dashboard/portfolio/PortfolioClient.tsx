@@ -182,7 +182,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     if (selection !== csvSelection.current) return null;
     const error = getCsvImportResponseError(res.status, payload?.error);
     if (error) { setCsvMessage(error); return null; }
-    if (!payload) { setCsvMessage("Import returned an unreadable response."); return null; }
+    if (!payload) { setCsvMessage(dryRun ? "Preview returned an unreadable response. Nothing was saved." : "Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again."); return null; }
     return payload as ImportSummary;
   }
 
@@ -240,7 +240,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       setCsvPreview(null);
       setCsvUnsupported(null);
     } catch {
-      setCsvMessage("Network error — import not completed.");
+      setCsvMessage("Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again.");
     } finally {
       setCsvBusy(false);
     }
