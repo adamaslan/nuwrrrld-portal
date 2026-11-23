@@ -54,11 +54,9 @@ const results = [...run.results].sort(
 );
 const counts = results.reduce((acc, r) => { acc[r.status] = (acc[r.status] ?? 0) + 1; return acc; }, {});
 const total = results.length;
-// A failed feature still ran — it's distinct from blocked/not_run, which
-// never got the chance to. Excluding fail understated coverage whenever any
-// feature legitimately failed.
-const exercised = (counts.pass ?? 0) + (counts.fail ?? 0);
-const notExercised = (counts.blocked ?? 0) + (counts.not_run ?? 0);
+// Accepted-response coverage excludes failed, blocked, and unrun probes.
+const exercised = counts.pass ?? 0;
+const notExercised = (counts.fail ?? 0) + (counts.blocked ?? 0) + (counts.not_run ?? 0);
 const coverage = total ? Math.round((exercised / total) * 100) : 0;
 
 // Group blocked/not_run by their cause so N identical rows read as one root
@@ -280,7 +278,7 @@ const html = `<!doctype html>
   <p class="sub">
     Feature probes from <code>docs/nulogdash-inventory.json</code> ran against <code>${esc(run.baseUrl)}</code>
     on branch <code>${esc(run.branch)}</code> at <code>${esc(run.gitSha)}</code>.
-    <b>${exercised} of ${total}</b> endpoint probes returned an accepted response; <b>${notExercised}</b> were blocked or not run. These are operational probe results, not workload-quality measurements.
+    <b>${exercised} of ${total}</b> endpoint probes returned an accepted response; <b>${notExercised}</b> failed, were blocked, or were not run. These are operational probe results, not workload-quality measurements.
     A <span class="badge warn">blocked</span> feature is one whose dependency was unmet, not one that failed —
     the distinction is the point of this sweep.
   </p>
