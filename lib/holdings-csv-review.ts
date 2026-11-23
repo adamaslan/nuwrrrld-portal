@@ -1,6 +1,7 @@
 /** Lossless browser-only review. No persistence, market lookup, deduplication or inferred values. */
 export const HOLDINGS_MAX_BYTES = 1024 * 1024;
 export const HOLDINGS_MAX_ROWS = 4000;
+export const HOLDINGS_MAX_COLUMNS = 256;
 export type HoldingField = 'account' | 'symbol' | 'description' | 'purchaseDate' | 'quantity' | 'costPerShare' | 'costBasis' | 'currentPrice' | 'marketValue' | 'unrealizedPnl' | 'unrealizedPnlPercent';
 export const HOLDING_FIELDS: readonly HoldingField[] = ['account','symbol','description','purchaseDate','quantity','costPerShare','costBasis','currentPrice','marketValue','unrealizedPnl','unrealizedPnlPercent'];
 const ALIASES: Record<HoldingField, readonly string[]> = {
@@ -17,7 +18,7 @@ function tokenize(text:string, delimiter:string) {
   function end(){cells.push(cell);rows.push({line:start,cells});cells=[];cell='';afterQuote=false;start=line+1;}
   for(let i=0;i<text.length;i++){
     const c=text[i];
-    if(quoted){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++;}else{quoted=false;afterQuote=true;}}else{cell+=c;if(c==='\n')line++;}continue;}
+    if(quoted){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++;}else{quoted=false;afterQuote=true;}}else{cell+=c;if(c==='\n'||(c==='\r'&&text[i+1]!=='\n'))line++;}continue;}
     if(c==='"'){if(cell!=='')return {rows,error:'Unexpected quote in an unquoted field.'};quoted=true;continue;}
     if(c===delimiter){cells.push(cell);cell='';afterQuote=false;continue;}
     if(c==='\r'||c==='\n'){if(c==='\r'&&text[i+1]==='\n')i++;end();line++;start=line;continue;}
@@ -42,12 +43,15 @@ export function reviewHoldingsCsv(text:string, overrides?:Partial<Record<Holding
   if(chosen.p.error)return {...result,error:chosen.p.error};
   const all=chosen.p.rows;if(!all.length)return {...result,error:'The file is empty.'};
   result.headers=[...all[0].cells];
+  if(all.some(entry=>entry.cells.length>HOLDINGS_MAX_COLUMNS))return {...result,error:`Too many columns (limit ${HOLDINGS_MAX_COLUMNS}). Source text is retained unchanged. Export fewer columns for this review; nothing was imported.`};
   if(!delimiterOverride&&scores[0].score===scores[1].score)return {...result,error:'Delimiter is ambiguous. Select comma, tab or semicolon.'};
   if(all.length-1>HOLDINGS_MAX_ROWS)return {...result,error:'Too many rows (limit 4000).'};
   for(const field of HOLDING_FIELDS){
     const matches=result.headers.flatMap((h,i)=>ALIASES[field].includes(key(h))?[i]:[]);
     if(matches.length===1)result.mapping[field]=matches[0];
-    if(matches.length>1)result.issues.push(`Multiple columns match ${field}; choose the intended column.`);
+    const explicitIndex=overrides?.[field];
+    const explicitValid=typeof explicitIndex==='number'&&Number.isInteger(explicitIndex)&&explicitIndex>=0&&explicitIndex<result.headers.length;
+    if(matches.length>1&&!explicitValid)result.issues.push(`Multiple columns match ${field}; choose the intended column.`);
     if(overrides&&Object.prototype.hasOwnProperty.call(overrides,field)){
       const index=overrides[field];
       if(index===null||index===undefined)delete result.mapping[field];
