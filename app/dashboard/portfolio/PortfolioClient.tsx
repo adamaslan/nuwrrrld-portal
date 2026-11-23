@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, prepareCsvSymbolPreview, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import HoldingsCsvReview from "./HoldingsCsvReview";
@@ -170,13 +170,16 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   const [csvBusy, setCsvBusy] = useState(false);
   const [csvMessage, setCsvMessage] = useState("");
 
-  async function postImport(tickers: string[], dryRun: boolean): Promise<ImportSummary | null> {
+  const csvSelection = useRef(0);
+
+  async function postImport(tickers: string[], dryRun: boolean, selection = csvSelection.current): Promise<ImportSummary | null> {
     const res = await fetch("/api/portfolio/watchlist/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tickers, dryRun }),
     });
     const payload = await res.json().catch(() => null);
+    if (selection !== csvSelection.current) return null;
     const error = getCsvImportResponseError(res.status, payload?.error);
     if (error) { setCsvMessage(error); return null; }
     if (!payload) { setCsvMessage("Import returned an unreadable response."); return null; }
@@ -184,8 +187,10 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
   }
 
   async function onCsvSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const selection = ++csvSelection.current;
     const file = e.target.files?.[0];
     e.target.value = "";
+    setCsvBusy(false);
     setCsvPreview(null);
     setCsvUnsupported(null);
     setCsvTickers(null);
@@ -193,7 +198,13 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     if (!file) return;
     const sizeError = getCsvFileSizeError(file.size);
     if (sizeError) { setCsvMessage(sizeError); return; }
-    const { tickers, error: csvError } = parseTickerCsvChecked(await file.text());
+    let source: string;
+    try { source = await file.text(); } catch {
+      if (selection === csvSelection.current) setCsvMessage("Could not read file. Nothing was saved.");
+      return;
+    }
+    if (selection !== csvSelection.current) return;
+    const { tickers, error: csvError } = parseTickerCsvChecked(source);
     if (csvError) { setCsvMessage(csvError); return; }
     if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
     const rowError = getCsvRowCountError(tickers.length);
@@ -206,12 +217,13 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     }
     setCsvBusy(true);
     try {
-      const preview = await postImport(prepared.tickers, true);
+      const preview = await postImport(prepared.tickers, true, selection);
+      if (selection !== csvSelection.current) return;
       if (preview) { setCsvTickers(prepared.tickers); setCsvPreview(preview); }
     } catch {
-      setCsvMessage("Network error — could not read file.");
+      if (selection === csvSelection.current) setCsvMessage("Network error — could not read file.");
     } finally {
-      setCsvBusy(false);
+      if (selection === csvSelection.current) setCsvBusy(false);
     }
   }
 
