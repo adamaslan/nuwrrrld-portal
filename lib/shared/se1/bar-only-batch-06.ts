@@ -177,7 +177,7 @@ export function reboundParticipationAsymmetry(members: readonly PhaseReturnMembe
   reboundComplete: boolean;
 }): { state: "computed" | "pending"; selloff_window: { start: string; end: string }; rebound_window: { start: string; end: string };
   common_members: number; down_phase_breadth: number | null; up_phase_breadth: number | null;
-  selloff_coverage: number; rebound_coverage: number } {
+  selloff_coverage: number | null; rebound_coverage: number | null } {
   for (const [key, value] of Object.entries({ selloffStart: options.selloffStart, selloffEnd: options.selloffEnd, reboundStart: options.reboundStart, reboundEnd: options.reboundEnd, cutoff: options.cutoff })) requireDate(value, key);
   if (options.selloffStart >= options.selloffEnd || options.selloffEnd >= options.reboundStart || options.reboundStart >= options.reboundEnd) throw new RangeError("phase dates must be ordered");
   if (new Set(members.map((item) => item.ticker)).size !== members.length) throw new RangeError("member tickers must be unique");
@@ -192,7 +192,7 @@ export function reboundParticipationAsymmetry(members: readonly PhaseReturnMembe
     rebound_window: { start: options.reboundStart, end: options.reboundEnd }, common_members: complete ? common.length : 0,
     down_phase_breadth: comparisonSet.length ? comparisonSet.filter((item) => item.selloffReturn! < 0).length / comparisonSet.length : null,
     up_phase_breadth: complete && common.length ? common.filter((item) => item.reboundReturn! > 0).length / common.length : null,
-    selloff_coverage: selloff.length / members.length, rebound_coverage: rebound.length / members.length,
+    selloff_coverage: members.length ? selloff.length / members.length : null, rebound_coverage: members.length ? rebound.length / members.length : null,
   };
 }
 
@@ -217,7 +217,7 @@ export function leadershipClusterConcentration(members: readonly RankedClusterMe
   const duplicates = new Set([...counts].filter(([, count]) => count > 1).map(([id]) => id));
   const eligible = members.filter((item) => !duplicates.has(item.canonicalId)).sort((a, b) => b.score - a.score || a.ticker.localeCompare(b.ticker));
   const top = eligible.slice(0, options.topN);
-  const cluster_counts: Record<string, number> = {};
+  const cluster_counts: Record<string, number> = Object.create(null);
   let unclassified_top_members = 0;
   for (const item of top) {
     if (item.industry === null || !item.industry.trim()) unclassified_top_members++;
@@ -297,10 +297,10 @@ export function eventWindowExclusionSensitivity(observations: readonly Technical
   ignored_future_known_events?: number; finding_changed?: boolean | null; sample_state?: "sufficient" | "insufficient" } {
   requireDate(options.cutoff, "cutoff");
   if (!Number.isInteger(options.minSampleSize) || options.minSampleSize < 1 || options.exclusionPolicy !== "known-at-cutoff-only") throw new RangeError("invalid event-window policy");
-  if (new Set(observations.map((item) => item.date)).size !== observations.length) throw new RangeError("setup dates must be unique");
+  if (new Set(observations.map((item) => parseIso(item.date))).size !== observations.length) throw new RangeError("setup dates must be unique");
   for (const item of observations) {
     requireDate(item.date, "setup date");
-    if (item.date > options.cutoff) throw new RangeError("setup observations cannot exceed cutoff");
+    if (parseIso(item.date)! > parseIso(options.cutoff)!) throw new RangeError("setup observations cannot exceed cutoff");
     if (item.triggered && !item.eligible) throw new RangeError("a triggered setup must be eligible");
   }
   for (const event of events) {
@@ -308,12 +308,12 @@ export function eventWindowExclusionSensitivity(observations: readonly Technical
     requireDate(event.knownAt, "knownAt");
     if (![event.beforeBars, event.afterBars].every((value) => Number.isInteger(value) && value >= 0)) throw new RangeError("event windows must use non-negative bar counts");
   }
-  const known = events.filter((event) => event.knownAt <= options.cutoff && event.eventDate <= options.cutoff);
+  const known = events.filter((event) => parseIso(event.knownAt)! <= parseIso(options.cutoff)! && parseIso(event.eventDate)! <= parseIso(options.cutoff)!);
   const ignored_future_known_events = events.length - known.length;
-  const dates = [...new Set(observations.map((item) => item.date))].sort();
+  const dates = observations.map((item) => item.date).sort((a, b) => parseIso(a)! - parseIso(b)!);
   const excludedDates = new Set<string>();
   for (const event of known) {
-    const index = dates.findIndex((date) => date >= event.eventDate);
+    const index = dates.findIndex((date) => parseIso(date)! >= parseIso(event.eventDate)!);
     if (index < 0) continue;
     for (let i = Math.max(0, index - event.beforeBars); i <= Math.min(dates.length - 1, index + event.afterBars); i++) excludedDates.add(dates[i]);
   }
@@ -334,4 +334,3 @@ export function eventWindowExclusionSensitivity(observations: readonly Technical
     ignored_future_known_events, finding_changed: baseline.triggered !== excluding_events.triggered, sample_state: "sufficient",
   };
 }
-
