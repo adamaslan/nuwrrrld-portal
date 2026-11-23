@@ -11,3 +11,13 @@ it('does not count a trailing expanded bar as current compression',()=>{
  const rows=[1,4,1,4].map((width,i)=>bar(i,100,width));
  expect(compressionDurationPercentile(rows,{cutoff:'2026-03-04',compressionWidth:.02,minCompletedRuns:1})).toMatchObject({status:'computed',current_run:0,percentile:0});
 });
+
+import {defensiveSectorRotation,horizonDisagreementAge} from '../lib/shared/se1/bar-only-batch-03';
+it('matches equivalent basket endpoints across offsets and excludes future index rows',()=>{
+ const members=['defensive','cyclical'].map((category,i)=>({ticker:'X'+i,category:category as 'defensive'|'cyclical',weight:1,basis:'total_return' as const,bars:[{date:'2026-03-01T11:00:00-05:00',close:100},{date:'2026-03-02T11:00:00-05:00',close:110-i*5}]}));
+ const index=[{date:'2026-03-01T16:00:00Z',close:100},{date:'2026-03-02T16:00:00Z',close:101},{date:'2026-03-02T12:00:00-05:00',close:NaN}];
+ expect(defensiveSectorRotation(members,index,{cutoff:'2026-03-02T16:00:00Z',indexWindow:2,nearHighRatio:.9})).toMatchObject({status:'computed',missing_legs:[],spread_pct:expect.closeTo(5)});
+});
+it('rejects equivalent oscillator duplicate instants',()=>{
+ expect(()=>horizonDisagreementAge([{date:'2026-03-01T16:00:00Z',price:100,oscillator:1},{date:'2026-03-01T11:00:00-05:00',price:101,oscillator:2}],{cutoff:'2026-03-02',pivotK:1,weaknessBuffer:.01})).toThrow(/unique/);
+});
