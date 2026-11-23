@@ -544,3 +544,5 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`
 
 **PR #375 (2026-11-14), scoped assessment.** Four se1 rows are now web-only: A2, A3, B2 and G3. The shared logic they call (`lib/shared/se1/ask.ts`, `dossiers.ts`, `explain.ts`) is not copied to `gcp3-mobile` and is not in the shared-drift gate. The historical headline and domain matrix are unchanged. This is not a fresh parity audit. Mobile port of these rows is still open, and the ledger lists it as `planned`.
+
+> ℹ️ **PR #413 (2026-11-20), scoped assessment.** Adds six portal-only `lib/shared/se1/bar-only-batch-0{1..6}.ts` modules carrying 36 S26 bar-only scans ([[concept-se1-bar-only-scan-batches]]). `gcp3-mobile` has no `lib/shared/se1/` directory, so none of these modules is in the shared-drift gate. No user-visible surface changed on either side. The historical headline and domain matrix are unchanged. This is not a fresh parity audit. No mobile port is queued.
