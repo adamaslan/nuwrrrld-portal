@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, prepareCsvSymbolPreview, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
+import HoldingsCsvReview from "./HoldingsCsvReview";
 import { consumeSSE } from "@/lib/shared/sse";
 
 interface SectorEntry {
@@ -320,6 +321,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
 
   return (
     <div className="port-body">
+      <HoldingsCsvReview />
       {/* Watchlist */}
       <div className="port-panel">
         <p className="port-panel-title">Watchlist</p>
