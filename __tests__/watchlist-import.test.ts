@@ -10,7 +10,7 @@ import {
   readJsonCapped,
   resolveAgainstUniverse,
 } from "@/lib/watchlist-import";
-import { MAX_CSV_IMPORT_ROWS, getCsvRowCountError, getCsvImportResponseError, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsv } from "@/lib/watchlist-csv";
+import { MAX_CSV_IMPORT_ROWS, getCsvRowCountError, getCsvImportResponseError, prepareCsvSymbolPreview, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsv } from "@/lib/watchlist-csv";
 
 const status = (fn: () => unknown) => {
   try {
@@ -163,5 +163,25 @@ describe("CSV import response errors", () => {
   });
   it.each([[401, "Sign in again"], [422, "watchlist size limit"], [429, "Too many imports"]])("maps status %i", (status, message) => {
     expect(getCsvImportResponseError(status as number)).toContain(message);
+  });
+});
+
+
+describe("transparent CSV symbol preflight", () => {
+  it("keeps supported rows and counts unsupported rows without converting contracts", () => {
+    const raw = [" AAPL ", "AAPL", "BRK.B", "XYZ   261218C00100000", "XYZ   261218C00100000", "ABC123456789"];
+    const p = prepareCsvSymbolPreview(raw);
+    expect(p).toEqual({tickers:["AAPL", "AAPL", "BRK.B"], inputRows:6, unsupportedRows:3, unsupportedUnique:2});
+    expect(raw[0]).toBe(" AAPL ");
+    expect(parseImportBody({tickers:p.tickers,dryRun:true}).dryRun).toBe(true);
+  });
+  it("never truncates or extracts an underlying symbol from unsupported inputs", () => {
+    const p = prepareCsvSymbolPreview(["XYZ   261218C00100000", "x".repeat(17), ""]);
+    expect(p.tickers).toEqual([]);
+    expect(p.unsupportedRows).toBe(3);
+  });
+  it("counts raw input before filtering so unsupported rows cannot bypass the row cap", () => {
+    const raw = Array(4001).fill("unsupported123");
+    expect(getCsvRowCountError(prepareCsvSymbolPreview(raw).inputRows)).toBe(CSV_TOO_MANY_ROWS_ERROR);
   });
 });
