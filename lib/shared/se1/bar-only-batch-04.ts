@@ -15,14 +15,23 @@ export interface DailyBar {
 }
 
 function visible(bars: readonly DailyBar[], cutoff: string): DailyBar[] {
-  if (parseIso(cutoff) === null) throw new RangeError("cutoff must be a valid ISO date");
-  for (const bar of bars) {
-    if (parseIso(bar.date) === null) throw new RangeError(`invalid bar date: ${bar.date}`);
+  const cutoffTime = parseIso(cutoff);
+  if (cutoffTime === null) throw new RangeError("cutoff must be a valid ISO date");
+  const seen = new Set<number>();
+  const dated = bars.map(bar => {
+    const timestamp = parseIso(bar.date);
+    if (timestamp === null) throw new RangeError(`invalid bar date: ${bar.date}`);
+    if (seen.has(timestamp)) throw new RangeError(`duplicate bar date: ${bar.date}`);
+    seen.add(timestamp);
+    return {bar, timestamp};
+  });
+  const observed = dated.filter(item => item.timestamp <= cutoffTime).sort((a, b) => a.timestamp - b.timestamp).map(item => item.bar);
+  for (const bar of observed) {
     for (const [field, value] of Object.entries(bar)) {
       if (field !== "date" && value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) throw new RangeError(`invalid ${field} on ${bar.date}`);
     }
   }
-  return bars.filter((bar) => bar.date <= cutoff).slice().sort((a, b) => a.date.localeCompare(b.date));
+  return observed;
 }
 
 function mean(values: readonly number[]): number {
@@ -290,4 +299,3 @@ export function squeezeReleaseAmbiguity(bars: readonly DailyBar[], options: { cu
       : close < prior_range.low ? "downward_exit" : "ambiguous_inside";
   return { status: "computed", state, bandwidth_expansion, prior_range, close };
 }
-
