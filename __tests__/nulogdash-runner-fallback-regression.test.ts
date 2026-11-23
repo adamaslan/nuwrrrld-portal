@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import vm from 'node:vm';
+import { readFileSync } from 'node:fs';
 import {readQualityEvidence,unrecoveredNewsAccuracyEvidence} from '../lib/nulogdash-quality.mjs';
-const runnerFunction = "function localQualityEvidence() {\n  if (!existsSync(QUALITY_FILE)) {\n    return readQualityEvidence(unrecoveredNewsAccuracyEvidence());\n  }\n  try {\n    return readQualityEvidence(JSON.parse(readFileSync(QUALITY_FILE, \"utf8\")));\n  } catch {\n    const quality = unrecoveredNewsAccuracyEvidence();\n    return readQualityEvidence({ ...quality, displayReason: \"Quality not recorded: the local quality-evidence artifact could not be read.\" });\n  }\n}\n";
+const runnerSource = readFileSync('scripts/nulogdash.mjs', 'utf8');
+const runnerFunction = runnerSource.match(/function localQualityEvidence\(\) \{[\s\S]*?\n\}/)?.[0];
+if (!runnerFunction) throw new Error('Runner quality boundary not found');
+
 describe('actual runner quality fallback boundary, offline only',()=>{
  for(const mode of ['absent','malformed','unreadable']) it(mode,()=>{
   const local = vm.runInNewContext('('+runnerFunction+')',{QUALITY_FILE:'synthetic-only',existsSync:()=>mode!=='absent',readFileSync:()=>{if(mode==='unreadable')throw Error('fixture');return '{';},readQualityEvidence,unrecoveredNewsAccuracyEvidence});
