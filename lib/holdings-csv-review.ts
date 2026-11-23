@@ -25,7 +25,7 @@ function tokenize(text:string, delimiter:string) {
     cell+=c;
   }
   if(quoted)return {rows,error:'A quoted field is not closed. Nothing was imported.'};
-  if(cell!==''||cells.length)end();
+  if(cell!==''||cells.length||afterQuote)end();
   return {rows,error:null};
 }
 function isoDate(v:string):boolean{
@@ -83,3 +83,6 @@ export function reviewHoldingsCsv(text:string, overrides?:Partial<Record<Holding
   result.issues.push('Review only. All rows and source values retained. No database, watchlist, AI or provider request. No aggregation, inferred currency, option multiplier or recalculated financial values.');
   return result;
 }
+
+/** Reject undecodable bytes rather than silently changing source identifiers or values. */
+export function decodeHoldingsCsv(bytes:ArrayBuffer):string{return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
