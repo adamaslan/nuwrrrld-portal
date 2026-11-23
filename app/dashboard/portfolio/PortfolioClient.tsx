@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, parseTickerCsvChecked } from "@/lib/watchlist-csv";
+import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, prepareCsvSymbolPreview, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
@@ -164,6 +164,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     rejectedSample: string[];
   }
   const [csvTickers, setCsvTickers] = useState<string[] | null>(null);
+  const [csvUnsupported, setCsvUnsupported] = useState<{ inputRows: number; unsupportedRows: number; unsupportedUnique: number } | null>(null);
   const [csvPreview, setCsvPreview] = useState<ImportSummary | null>(null);
   const [csvBusy, setCsvBusy] = useState(false);
   const [csvMessage, setCsvMessage] = useState("");
@@ -185,6 +186,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     const file = e.target.files?.[0];
     e.target.value = "";
     setCsvPreview(null);
+    setCsvUnsupported(null);
     setCsvTickers(null);
     setCsvMessage("");
     if (!file) return;
@@ -195,10 +197,16 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
     const rowError = getCsvRowCountError(tickers.length);
     if (rowError) { setCsvMessage(rowError); return; }
+    const prepared = prepareCsvSymbolPreview(tickers);
+    setCsvUnsupported(prepared);
+    if (prepared.tickers.length === 0) {
+      setCsvMessage("No supported stock/ETF symbol rows. Nothing was saved.");
+      return;
+    }
     setCsvBusy(true);
     try {
-      const preview = await postImport(tickers, true);
-      if (preview) { setCsvTickers(tickers); setCsvPreview(preview); }
+      const preview = await postImport(prepared.tickers, true);
+      if (preview) { setCsvTickers(prepared.tickers); setCsvPreview(preview); }
     } catch {
       setCsvMessage("Network error — could not read file.");
     } finally {
@@ -217,6 +225,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       setCsvMessage(`Added ${done.added.length} ticker${done.added.length === 1 ? "" : "s"}.`);
       setCsvTickers(null);
       setCsvPreview(null);
+      setCsvUnsupported(null);
     } catch {
       setCsvMessage("Network error — import not completed.");
     } finally {
@@ -334,6 +343,11 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
             <input type="file" accept=".csv,text/csv" onChange={onCsvSelected} disabled={csvBusy} hidden />
           </label>
         </div>
+        {csvUnsupported && csvUnsupported.unsupportedRows > 0 && (
+          <p className="port-watch-empty" role="status">
+            {csvUnsupported.inputRows} input rows. {csvUnsupported.unsupportedRows} unsupported rows ({csvUnsupported.unsupportedUnique} distinct values) are excluded from this symbol-only preview. Option contracts and other unsupported values are not converted into stock symbols. No holdings have been imported.
+          </p>
+        )}
         {csvPreview && (
           <div>
             <p className="port-watch-empty">Symbols only. Quantities, purchase dates, cost basis and market values are not imported. Existing watchlist entries are kept.</p>
@@ -343,7 +357,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
               {csvPreview.rejectedSample.length > 0 && ` (e.g. ${csvPreview.rejectedSample.slice(0, 5).join(", ")})`}
             </p>
             <button className="port-watch-btn" onClick={confirmCsvImport} disabled={csvBusy || csvPreview.added.length === 0}>
-              Confirm import
+              Confirm symbols-only import
             </button>
           </div>
         )}
@@ -524,4 +538,4 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       )}
     </div>
   );
-                }
+}
