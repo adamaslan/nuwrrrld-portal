@@ -255,6 +255,7 @@ export function compressionDurationPercentile(bars: readonly DailyBar[], options
   const compressed = series.map((bar) => bar.close !== null && bar.close > 0 && bar.high !== null && bar.low !== null
     ? (bar.high - bar.low) / bar.close <= options.compressionWidth : null);
   if (compressed.at(-1) === null) return { status: "unavailable", reason: "missing current range", current_run: 0, completed_run_lengths: [], sample_size: 0 };
+  if (compressed.at(-1) === false) return { status: "computed", current_run: 0, completed_run_lengths: [], sample_size: 0, percentile: 0 };
   let start = compressed.length - 1;
   while (start > 0 && compressed[start - 1] === true) start--;
   if (compressed[start] !== true) return { status: "computed", current_run: 0, completed_run_lengths: [], sample_size: 0, percentile: 0 };
