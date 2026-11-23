@@ -3,7 +3,13 @@
  * re-validates every value (lib/watchlist-import.ts), so nothing here is a
  * security boundary.
  */
-export const MAX_CSV_FILE_BYTES = 64 * 1024;
+// 1 MB upload allowance, measured in bytes before reading the file.
+export const MAX_CSV_FILE_BYTES = 1024 * 1024;
+export const CSV_FILE_TOO_LARGE_ERROR = "File too large (max 1 MB).";
+
+export function getCsvFileSizeError(size: number): string | null {
+  return size > MAX_CSV_FILE_BYTES ? CSV_FILE_TOO_LARGE_ERROR : null;
+}
 const HEADER_NAMES = ["ticker", "symbol"];
 
 /**
