@@ -102,3 +102,14 @@ export const CSV_TOO_MANY_ROWS_ERROR = `Too many rows (limit ${MAX_CSV_IMPORT_RO
 export function getCsvRowCountError(count: number): string | null {
   return count > MAX_CSV_IMPORT_ROWS ? CSV_TOO_MANY_ROWS_ERROR : null;
 }
+
+/** Safe, actionable import errors. Never echo arbitrary server response text. */
+export function getCsvImportResponseError(status: number, code?: string): string | null {
+  if (status >= 200 && status < 300) return null;
+  if (status === 401) return "Sign in again before importing your CSV.";
+  if (status === 403) return "Import blocked by a security check. Your watchlist was not changed. Contact support.";
+  if (status === 413) return code === "too_many_rows" ? CSV_TOO_MANY_ROWS_ERROR : "Import request is too large. Try a smaller CSV.";
+  if (status === 422) return "That import would exceed the watchlist size limit.";
+  if (status === 429) return "Too many imports. Try again in a while.";
+  return "Import failed. Check your watchlist before trying again.";
+}

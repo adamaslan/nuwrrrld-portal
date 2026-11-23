@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { getCsvFileSizeError, getCsvRowCountError, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsvChecked } from "@/lib/watchlist-csv";
+import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
@@ -174,11 +174,11 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tickers, dryRun }),
     });
-    if (res.status === 429) { setCsvMessage("Too many imports — try again in a while."); return null; }
-    if (res.status === 422) { setCsvMessage("That import would exceed the watchlist size limit."); return null; }
-    if (res.status === 413) { setCsvMessage(CSV_TOO_MANY_ROWS_ERROR); return null; }
-    if (!res.ok) { setCsvMessage("Import failed."); return null; }
-    return await res.json() as ImportSummary;
+    const payload = await res.json().catch(() => null);
+    const error = getCsvImportResponseError(res.status, payload?.error);
+    if (error) { setCsvMessage(error); return null; }
+    if (!payload) { setCsvMessage("Import returned an unreadable response."); return null; }
+    return payload as ImportSummary;
   }
 
   async function onCsvSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -336,6 +336,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
         </div>
         {csvPreview && (
           <div>
+            <p className="port-watch-empty">Symbols only. Quantities, purchase dates, cost basis and market values are not imported. Existing watchlist entries are kept.</p>
             <p className="port-watch-empty">
               Will add {csvPreview.added.length} · {csvPreview.skipped.already_present} already on your list ·{" "}
               {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} skipped
@@ -523,4 +524,4 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       )}
     </div>
   );
-}
+                }

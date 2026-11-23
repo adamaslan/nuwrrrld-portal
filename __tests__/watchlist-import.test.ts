@@ -10,7 +10,7 @@ import {
   readJsonCapped,
   resolveAgainstUniverse,
 } from "@/lib/watchlist-import";
-import { MAX_CSV_IMPORT_ROWS, getCsvRowCountError, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsv } from "@/lib/watchlist-csv";
+import { MAX_CSV_IMPORT_ROWS, getCsvRowCountError, getCsvImportResponseError, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsv } from "@/lib/watchlist-csv";
 
 const status = (fn: () => unknown) => {
   try {
@@ -146,5 +146,22 @@ describe("4000-row portfolio CSV allowance", () => {
   });
   it("retains a finite request cap", async () => {
     await expect(readJsonCapped(streamOf("x".repeat(512 * 1024 + 1)))).rejects.toMatchObject({ status: 413 });
+  });
+});
+
+
+describe("CSV import response errors", () => {
+  it("distinguishes security failures and row/body limits without echoing server text", () => {
+    expect(getCsvImportResponseError(403, "origin_not_allowed")).toContain("security check");
+    expect(getCsvImportResponseError(413, "too_many_rows")).toBe("Too many rows (limit 4000).");
+    expect(getCsvImportResponseError(413, "body_too_large")).toContain("request is too large");
+    expect(getCsvImportResponseError(413)).not.toContain("rows");
+    expect(getCsvImportResponseError(503, "private backend detail")).not.toContain("private backend detail");
+  });
+  it.each([200, 201])("accepts success status %i", status => {
+    expect(getCsvImportResponseError(status)).toBeNull();
+  });
+  it.each([[401, "Sign in again"], [422, "watchlist size limit"], [429, "Too many imports"]])("maps status %i", (status, message) => {
+    expect(getCsvImportResponseError(status as number)).toContain(message);
   });
 });
