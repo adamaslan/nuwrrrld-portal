@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { getCsvFileSizeError, parseTickerCsvChecked } from "@/lib/watchlist-csv";
+import { getCsvFileSizeError, getCsvRowCountError, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
@@ -176,7 +176,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     });
     if (res.status === 429) { setCsvMessage("Too many imports — try again in a while."); return null; }
     if (res.status === 422) { setCsvMessage("That import would exceed the watchlist size limit."); return null; }
-    if (res.status === 413) { setCsvMessage("Too many rows (limit 500)."); return null; }
+    if (res.status === 413) { setCsvMessage(CSV_TOO_MANY_ROWS_ERROR); return null; }
     if (!res.ok) { setCsvMessage("Import failed."); return null; }
     return await res.json() as ImportSummary;
   }
@@ -193,7 +193,8 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     const { tickers, error: csvError } = parseTickerCsvChecked(await file.text());
     if (csvError) { setCsvMessage(csvError); return; }
     if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
-    if (tickers.length > 500) { setCsvMessage("Too many rows (limit 500)."); return; }
+    const rowError = getCsvRowCountError(tickers.length);
+    if (rowError) { setCsvMessage(rowError); return; }
     setCsvBusy(true);
     try {
       const preview = await postImport(tickers, true);

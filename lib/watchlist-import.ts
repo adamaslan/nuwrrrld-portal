@@ -5,10 +5,12 @@
  * never sees a file. Everything here treats that array as hostile input. See
  * docs/watchlist-csv-upload-plan.md for the threat model.
  */
+import { MAX_CSV_IMPORT_ROWS } from "@/lib/watchlist-csv";
 import { normalizeTicker, isCryptoShaped } from "@/lib/shared/signal-policy";
 
-export const MAX_IMPORT_BODY_BYTES = 32_768;
-export const MAX_IMPORT_ROWS = 500;
+// Bounded JSON envelope for 4000 entries, including escaped 16-character raw values.
+export const MAX_IMPORT_BODY_BYTES = 512 * 1024;
+export const MAX_IMPORT_ROWS = MAX_CSV_IMPORT_ROWS;
 export const MAX_WATCHLIST_SIZE = 1_500;
 export const MAX_RAW_TICKER_LENGTH = 16;
 export const IMPORT_RATE_LIMIT = 5;
