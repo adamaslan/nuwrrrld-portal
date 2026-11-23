@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { MAX_CSV_FILE_BYTES, parseTickerCsvChecked } from "@/lib/watchlist-csv";
+import { getCsvFileSizeError, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
 import { consumeSSE } from "@/lib/shared/sse";
 
@@ -188,7 +188,8 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     setCsvTickers(null);
     setCsvMessage("");
     if (!file) return;
-    if (file.size > MAX_CSV_FILE_BYTES) { setCsvMessage("File too large (max 64 KB)."); return; }
+    const sizeError = getCsvFileSizeError(file.size);
+    if (sizeError) { setCsvMessage(sizeError); return; }
     const { tickers, error: csvError } = parseTickerCsvChecked(await file.text());
     if (csvError) { setCsvMessage(csvError); return; }
     if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
