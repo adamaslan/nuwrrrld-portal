@@ -1,4 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node node_modules/next/dist/bin/next build"
+  "buildCommand": "node node_modules/next/dist/bin/next build",
+  "git": {
+    "deploymentEnabled": {
+      "feat/scan-encyclopedia-20261121": false
+    }
+  }
 }
