@@ -2,10 +2,13 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { NulogdashRun } from "./nulogdash";
+import { readQualityEvidence } from "./nulogdash-quality.mjs";
 
 const text = z.string().min(1).max(2048);
 const strings = z.array(z.string().max(4096)).max(1000);
 const reportSchema = z.object({
+  artifactVersion: z.literal("nulogdash-run/v2").optional(),
+  syntheticFixture: z.boolean().optional(),
   runId: text, runAt: z.string().datetime({ offset: true }),
   gitSha: text, branch: text, baseUrl: z.string().url(), tiers: strings,
   results: z.array(z.object({
@@ -17,6 +20,8 @@ const reportSchema = z.object({
   })).max(10000),
   excluded: z.array(z.object({ feature: text, path: text, reason: text })).max(10000),
   driftWarnings: strings,
+  transportOutcome: z.object({ pass: z.number().int().nonnegative(), fail: z.number().int().nonnegative(), blocked: z.number().int().nonnegative(), not_run: z.number().int().nonnegative() }).optional(),
+  qualityEvaluation: z.unknown().optional(),
 }).superRefine((run, ctx) => {
   const keys = run.results.map(row => `${row.tier}:${row.feature}`);
   if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "Duplicate result identity" });
@@ -38,7 +43,8 @@ export function loadLatestReport(path = join(process.cwd(), ".nulogdash", "lates
     try { parsed = JSON.parse(raw); } catch { return { status: "unavailable", reason: "invalid" }; }
     const result = reportSchema.safeParse(parsed);
     if (!result.success) return { status: "unavailable", reason: "invalid" };
-    return { status: "ready", run: result.data };
+    const run = result.data as unknown as NulogdashRun;
+    return { status: "ready", run: { ...run, qualityEvaluation: readQualityEvidence(run.qualityEvaluation) } };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "missing" };
     return { status: "unavailable", reason: "read_failed" };

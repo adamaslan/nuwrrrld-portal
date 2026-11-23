@@ -22,11 +22,25 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { resolveSessionAuth } from "./lib/nulogdash-auth.mjs";
+import { readQualityEvidence, unrecoveredNewsAccuracyEvidence } from "../lib/nulogdash-quality.mjs";
 
 const ROOT = process.cwd();
 const INVENTORY_FILE = join(ROOT, "docs", "nulogdash-inventory.json");
 const RUNS_DIR = join(ROOT, ".nulogdash", "runs");
 const LATEST_FILE = join(ROOT, ".nulogdash", "latest.json");
+const QUALITY_FILE = join(ROOT, ".nulogdash", "quality-evidence.json");
+
+function localQualityEvidence() {
+  if (!existsSync(QUALITY_FILE)) {
+    return readQualityEvidence(unrecoveredNewsAccuracyEvidence());
+  }
+  try {
+    return readQualityEvidence(JSON.parse(readFileSync(QUALITY_FILE, "utf8")));
+  } catch {
+    const quality = unrecoveredNewsAccuracyEvidence();
+    return readQualityEvidence({ ...quality, displayReason: "Quality not recorded: the local quality-evidence artifact could not be read." });
+  }
+}
 
 // `??` only guards against undefined — an env var set to an empty string
 // (NULOGDASH_BASE_URL= with nothing after it, a common .env.local state) would
@@ -404,6 +418,7 @@ async function main() {
   } catch { /* not fatal — git may be unavailable in some run contexts */ }
 
   const run = {
+    artifactVersion: "nulogdash-run/v2",
     runId: `${Date.now()}`,
     runAt: new Date().toISOString(),
     gitSha,
@@ -413,6 +428,13 @@ async function main() {
     results,
     excluded: inventory.excluded,
     driftWarnings: inventory.driftWarnings,
+    transportOutcome: results.reduce((counts, result) => {
+      counts[result.status] = (counts[result.status] ?? 0) + 1;
+      return counts;
+    }, { pass: 0, fail: 0, blocked: 0, not_run: 0 }),
+    // A route probe has no workload-quality semantics. Read only an optional,
+    // retained local artifact; never infer quality from HTTP or job success.
+    qualityEvaluation: localQualityEvidence(),
   };
 
   mkdirSync(RUNS_DIR, { recursive: true });

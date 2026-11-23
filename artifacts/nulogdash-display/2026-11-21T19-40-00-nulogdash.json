@@ -1,0 +1,357 @@
+{
+  "artifactVersion": "nulogdash-run/v2",
+  "syntheticFixture": true,
+  "runId": "synthetic-quality-display-fixture",
+  "runAt": "2026-11-21T19:40:00.000Z",
+  "gitSha": "fixture",
+  "branch": "local-fixture",
+  "baseUrl": "http://127.0.0.1:3000",
+  "tiers": [
+    "api"
+  ],
+  "results": [
+    {
+      "feature": "health",
+      "label": "Health endpoint",
+      "entrypoints": [
+        "GET /api/health"
+      ],
+      "tier": "api",
+      "dependencies": [],
+      "latencyMs": 24,
+      "status": "pass",
+      "reason": null
+    },
+    {
+      "feature": "news-eval",
+      "label": "News evaluator result",
+      "entrypoints": [
+        "local captured evidence"
+      ],
+      "tier": "api",
+      "dependencies": [],
+      "latencyMs": null,
+      "status": "blocked",
+      "reason": "Quality rows not recovered from local retained evidence."
+    }
+  ],
+  "excluded": [],
+  "driftWarnings": [],
+  "transportOutcome": {
+    "pass": 1,
+    "fail": 0,
+    "blocked": 1,
+    "not_run": 0
+  },
+  "qualityEvaluation": {
+    "schemaVersion": "nulogdash-quality/v1",
+    "source": {
+      "name": "news_accuracy_eval",
+      "version": null,
+      "runId": null,
+      "evaluatorVersion": null
+    },
+    "cutoffAt": null,
+    "evidenceScope": "GCP9/25 is an attributed offline captured-data checkpoint, not deployed parity. The stale NWF4 catalog is historical relative to known NWF5; deployed source version and schedules are unverified. News jobs ran; numeric quality values and workload denominators were not recovered. A pipeline status of ok can accompany zero output rows. The current deltaIC field is source-reported SQL NULL.",
+    "workload": {
+      "eligible": null,
+      "attempted": null,
+      "useful": null,
+      "skipped": null,
+      "deferred": null,
+      "errors": null,
+      "items": [],
+      "verdict": "missing",
+      "reason": "Workload denominators or return counts were not recorded."
+    },
+    "metrics": [
+      {
+        "id": "coverage",
+        "label": "Coverage",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Descriptive metric: share of active tickers with a non-null score per session; no threshold specified."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "hit_rate",
+        "label": "Hit rate",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Report with a Wilson 95% confidence interval; no threshold specified."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "hit_rate_lo",
+        "label": "Hit rate CI lower",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Lower bound of the Wilson 95% interval; requires recovered labeled outcomes."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "hit_rate_hi",
+        "label": "Hit rate CI upper",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Upper bound of the Wilson 95% interval; requires recovered labeled outcomes."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "rank_ic",
+        "label": "Rank IC",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": ">=",
+          "value": 0.02,
+          "rationale": "Specified 5-session, 250-session ensemble gate; also requires at least 120 sessions and 5,000 scored pairs."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "ic_tstat",
+        "label": "IC t-stat",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": ">=",
+          "value": 2,
+          "rationale": "Specified non-overlapping 5-session, 250-session ensemble gate."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "icir",
+        "label": "ICIR",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Consistency metric; no threshold specified."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "decile_spread",
+        "label": "Decile spread",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Top-decile minus bottom-decile abnormal return; no numeric threshold specified."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "monotonicity",
+        "label": "Decile monotonicity",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": ">=",
+          "value": 0.6,
+          "rationale": "Specified 5-session, 250-session ensemble gate."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "brier",
+        "label": "Brier score",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": null,
+          "value": null,
+          "rationale": "Compare with the documented 0.25 baseline; no pass threshold specified."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "delta_ic_h5",
+        "label": "ΔIC (5-session)",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": ">=",
+          "value": 0.005,
+          "rationale": "Specified incremental-value gate at the candidate weight on the 250-session ensemble window."
+        },
+        "valueState": "null",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "delta_ic_h1",
+        "label": "ΔIC (1-session)",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": ">=",
+          "value": 0,
+          "rationale": "Specified cross-horizon guard for the candidate weight."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      },
+      {
+        "id": "delta_ic_h20",
+        "label": "ΔIC (20-session)",
+        "observed": null,
+        "eligibleDenominator": null,
+        "measuredDenominator": null,
+        "dimensions": {
+          "horizonDays": null,
+          "windowSessions": null,
+          "sliceKind": null,
+          "sliceValue": null,
+          "scorerVersion": null
+        },
+        "target": {
+          "operator": ">=",
+          "value": 0,
+          "rationale": "Specified cross-horizon guard for the candidate weight."
+        },
+        "valueState": "missing",
+        "verdict": "missing",
+        "reason": "Metric value, provenance, or denominator was not recorded."
+      }
+    ],
+    "displayReason": "News quality results were not recovered. An operational job status does not establish measured quality."
+  }
+}

@@ -24,6 +24,7 @@
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { readQualityEvidence } from "../lib/nulogdash-quality.mjs";
 
 const ROOT = process.cwd();
 
@@ -44,6 +45,7 @@ if (!existsSync(srcFile)) {
   process.exit(1);
 }
 const run = JSON.parse(readFileSync(srcFile, "utf8"));
+const quality = readQualityEvidence(run.qualityEvaluation);
 
 // ── shaping ─────────────────────────────────────────────────────────────────
 const STATUS_ORDER = { fail: 0, blocked: 1, not_run: 2, pass: 3 };
@@ -52,11 +54,9 @@ const results = [...run.results].sort(
 );
 const counts = results.reduce((acc, r) => { acc[r.status] = (acc[r.status] ?? 0) + 1; return acc; }, {});
 const total = results.length;
-// A failed feature still ran — it's distinct from blocked/not_run, which
-// never got the chance to. Excluding fail understated coverage whenever any
-// feature legitimately failed.
-const exercised = (counts.pass ?? 0) + (counts.fail ?? 0);
-const notExercised = (counts.blocked ?? 0) + (counts.not_run ?? 0);
+// Accepted-response coverage excludes failed, blocked, and unrun probes.
+const exercised = counts.pass ?? 0;
+const notExercised = (counts.fail ?? 0) + (counts.blocked ?? 0) + (counts.not_run ?? 0);
 const coverage = total ? Math.round((exercised / total) * 100) : 0;
 
 // Group blocked/not_run by their cause so N identical rows read as one root
@@ -77,6 +77,44 @@ const slowest = latencies.length ? Math.max(...latencies) : null;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const cls = { pass: "ok", fail: "err", blocked: "warn", not_run: "muted" };
 const ms = (v) => (typeof v === "number" ? `${v.toLocaleString()}ms` : "—");
+const displayValue = (v) => (v === null || v === undefined ? "Not recorded" : String(v));
+const verdictLabel = (v) => ({
+  measured: "Measured", meets_target: "Meets target", misses_target: "Misses target",
+  insufficient: "Insufficient evidence", blocked: "Blocked", missing: "Not recorded",
+}[v] ?? "Not recorded");
+const metricDimensions = (dimensions) => {
+  if (!dimensions) return "Horizon, window, slice, and scorer version not recorded.";
+  const parts = [
+    dimensions.horizonDays == null ? null : `${dimensions.horizonDays}-session horizon`,
+    dimensions.windowSessions == null ? null : `${dimensions.windowSessions}-session window`,
+    dimensions.sliceKind && dimensions.sliceValue ? `${dimensions.sliceKind}: ${dimensions.sliceValue}` : null,
+    dimensions.scorerVersion,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Horizon, window, slice, and scorer version not recorded.";
+};
+const qualityRows = quality.metrics.map((metric) => `<tr>
+  <td>${esc(metric.label)}<small>${esc(metricDimensions(metric.dimensions))}</small></td><td>${esc(metric.valueState === "null" ? "NULL" : displayValue(metric.observed))}</td>
+  <td>${esc(displayValue(metric.measuredDenominator))} / ${esc(displayValue(metric.eligibleDenominator))}</td>
+  <td>${metric.target?.value == null ? "No numeric target specified" : `${esc(metric.target.operator === ">=" ? "≥" : "≤")} ${esc(metric.target.value)}`}<small>${esc(metric.target?.rationale)}</small></td>
+  <td><span class="quality-state quality-${esc(metric.verdict)}">${esc(verdictLabel(metric.verdict))}</span>${metric.reason ? `<small>${esc(metric.reason)}</small>` : ""}</td>
+</tr>`).join("\n");
+const qualityPanel = `<section class="quality-panel" aria-labelledby="quality-title">
+  <h2 id="quality-title">Quality evidence</h2>
+  ${quality.displayReason ? `<p class="quality-warning">${esc(quality.displayReason)}</p>` : ""}
+  <dl class="quality-meta">
+    <div><dt>Source</dt><dd>${esc(quality.source.name ?? "Not recorded")}</dd></div>
+    <div><dt>Source version</dt><dd>${esc(quality.source.version ?? "Not recorded")}</dd></div>
+    <div><dt>Source run</dt><dd>${esc(quality.source.runId ?? "Not recorded")}</dd></div>
+    <div><dt>Evaluator</dt><dd>${esc(quality.source.evaluatorVersion ?? "Not recorded")}</dd></div>
+    <div><dt>Cutoff</dt><dd>${esc(quality.cutoffAt ?? "Not recorded")}</dd></div>
+  </dl>
+  <p class="quality-scope">${esc(quality.evidenceScope)}</p>
+  <div class="quality-workload"><strong>Useful workload coverage</strong><span>${esc(verdictLabel(quality.workload.verdict))}</span>
+    <span>${esc(displayValue(quality.workload.useful))} useful / ${esc(displayValue(quality.workload.eligible))} eligible</span>
+    <span>${esc(displayValue(quality.workload.attempted))} attempted · ${esc(displayValue(quality.workload.skipped))} skipped · ${esc(displayValue(quality.workload.deferred))} deferred · ${esc(displayValue(quality.workload.errors))} errors</span>
+    ${quality.workload.reason ? `<small>${esc(quality.workload.reason)}</small>` : ""}</div>
+  ${qualityRows ? `<p class="quality-scroll-hint">Swipe or scroll the metrics table horizontally to see targets and evidence status.</p><div class="scroll" role="region" aria-label="Quality metrics, horizontally scrollable" tabindex="0"><table><thead><tr><th>Metric / dimensions</th><th>Observed</th><th>Measured / eligible</th><th>Target and rationale</th><th>Evidence status</th></tr></thead><tbody>${qualityRows}</tbody></table></div>` : `<p class="muted">No quality metrics were recorded.</p>`}
+</section>`;
 
 const featureRow = (r) => `<tr class="${r.status === "fail" ? "err" : r.status === "blocked" ? "warn" : ""}">
   <td><span class="badge ${cls[r.status]}">${esc(r.status)}</span></td>
@@ -215,6 +253,22 @@ const html = `<!doctype html>
   .toolbar button.chip.active { color: var(--ink); border-color: var(--accent); background: var(--panel2); }
   .rowcount { color: var(--muted); font-size: 11.5px; margin: 0 0 8px; }
   tr.hide { display: none; }
+  .quality-panel { margin: 26px 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .quality-panel h2 { margin-top: 0; }
+  .quality-warning { color: var(--warn); font-weight: 600; }
+  .fixture-banner { border: 1px solid var(--warn); border-radius: 8px; padding: 9px 12px; color: var(--warn); font-weight: 600; margin: 12px 0; }
+  .quality-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .quality-meta dt { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+  .quality-meta dd { margin: 3px 0; overflow-wrap: anywhere; }
+  .quality-scope, .quality-workload { color: var(--muted); font-size: 12px; }
+  .quality-workload { display: flex; flex-wrap: wrap; gap: 8px 14px; border-block: 1px solid var(--line); padding: 10px 0; margin: 12px 0; }
+  .quality-panel td small { display:block; color:var(--muted); margin-top:4px; max-width:42ch; }
+  .quality-scroll-hint { display:none; color:var(--muted); font-size:11px; }
+  .quality-state { font-weight:600; white-space:nowrap; }
+  .quality-missing, .quality-insufficient { color:var(--warn); }
+  .quality-blocked, .quality-misses_target { color:var(--err); }
+  .quality-meets_target { color:var(--ok); }
+  @media (max-width: 640px) { body { padding: 20px 12px 48px; } .quality-panel { padding: 12px; } .quality-workload { flex-direction:column; } .quality-scroll-hint { display:block; } }
 </style>
 </head>
 <body>
@@ -222,19 +276,20 @@ const html = `<!doctype html>
   <p class="eyebrow">nulogdash &middot; tier ${esc((run.tiers ?? ["api"]).join(", "))} &middot; run ${esc(run.runId)}</p>
   <h1>Feature sweep — ${esc(run.runAt)}</h1>
   <p class="sub">
-    Every feature in <code>docs/nulogdash-inventory.json</code> fired against <code>${esc(run.baseUrl)}</code>
+    Feature probes from <code>docs/nulogdash-inventory.json</code> ran against <code>${esc(run.baseUrl)}</code>
     on branch <code>${esc(run.branch)}</code> at <code>${esc(run.gitSha)}</code>.
-    <b>${exercised} of ${total}</b> features were exercised end-to-end; <b>${notExercised}</b> were not.
+    <b>${exercised} of ${total}</b> endpoint probes returned an accepted response; <b>${notExercised}</b> failed, were blocked, or were not run. These are operational probe results, not workload-quality measurements.
     A <span class="badge warn">blocked</span> feature is one whose dependency was unmet, not one that failed —
     the distinction is the point of this sweep.
   </p>
+  ${run.syntheticFixture ? `<p class="fixture-banner">Synthetic display fixture — not production data.</p>` : ""}
 
   <div class="cards">
-    <div class="card"><div class="k">Pass</div><div class="v ok">${counts.pass ?? 0}</div><div class="note">ran, 2xx</div></div>
-    <div class="card"><div class="k">Fail</div><div class="v err">${counts.fail ?? 0}</div><div class="note">ran, non-2xx or threw</div></div>
+    <div class="card"><div class="k">Accepted endpoint responses</div><div class="v ok">${counts.pass ?? 0}</div><div class="note">probe matched its accepted response contract</div></div>
+    <div class="card"><div class="k">Endpoint probe failures</div><div class="v err">${counts.fail ?? 0}</div><div class="note">non-accepted response or exception</div></div>
     <div class="card"><div class="k">Blocked</div><div class="v warn">${counts.blocked ?? 0}</div><div class="note">dependency unmet</div></div>
     <div class="card"><div class="k">Not run</div><div class="v">${counts.not_run ?? 0}</div><div class="note">excluded by design</div></div>
-    <div class="card"><div class="k">Coverage</div><div class="v ${coverage >= 80 ? "ok" : coverage >= 40 ? "warn" : "err"}">${coverage}%</div><div class="note">${exercised}/${total} exercised</div></div>
+    <div class="card"><div class="k">Endpoint response coverage</div><div class="v">${coverage}%</div><div class="note">${exercised}/${total} probes returned accepted responses</div></div>
     <div class="card"><div class="k">Slowest</div><div class="v">${slowest !== null ? slowest.toLocaleString() : "—"}</div><div class="note">ms, of ${latencies.length} timed</div></div>
   </div>
 
@@ -242,6 +297,8 @@ const html = `<!doctype html>
     ${["pass", "fail", "blocked", "not_run"].map((s) => (counts[s] ? `<span class="${s}" style="flex:${counts[s]}"></span>` : "")).join("")}
   </div>
   <div class="barkey">pass ${counts.pass ?? 0} &middot; fail ${counts.fail ?? 0} &middot; blocked ${counts.blocked ?? 0} &middot; not_run ${counts.not_run ?? 0}</div>
+
+  ${qualityPanel}
 
   <div class="charts">
     <div class="chartbox">

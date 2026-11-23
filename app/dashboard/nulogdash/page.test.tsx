@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
-import { MfaNotice, StatusBadge, FeatureRow } from "./ReportComponents";
+import { MfaNotice, StatusBadge, FeatureRow, QualityEvidencePanel } from "./ReportComponents";
 import type { FeatureResult } from "@/lib/nulogdash";
+import { unrecoveredNewsAccuracyEvidence, evaluateQualityEvidence } from "@/lib/nulogdash-quality.mjs";
 
 function feature(overrides: Partial<FeatureResult> = {}): FeatureResult {
   return {
@@ -122,5 +123,25 @@ describe("FeatureRow", () => {
       </table>,
     );
     expect(container.querySelector("tr")).toHaveClass("nld-row--blocked");
+  });
+});
+
+describe("QualityEvidencePanel", () => {
+  it("renders missing quality separately from successful operational probes", () => {
+    const quality = evaluateQualityEvidence(unrecoveredNewsAccuracyEvidence());
+    render(<QualityEvidencePanel quality={quality} />);
+    expect(screen.getByRole("heading", { name: /quality evidence/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/not recorded/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/not deployed parity/i)).toBeInTheDocument();
+    expect(screen.getByText("Hit rate")).toBeInTheDocument();
+    expect(screen.getAllByText("Not recorded").length).toBeGreaterThan(1);
+    expect(screen.getByRole("region", { name: /quality metrics/i })).toBeInTheDocument();
+    expect(screen.getByText(/scroll the metrics table horizontally/i)).toBeInTheDocument();
+  });
+
+  it("has no accessibility violations", async () => {
+    const quality = evaluateQualityEvidence(unrecoveredNewsAccuracyEvidence());
+    const { container } = render(<QualityEvidencePanel quality={quality} />);
+    expect(await axe(container)).toHaveNoViolations();
   });
 });
