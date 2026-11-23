@@ -180,6 +180,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     });
     const payload = await res.json().catch(() => null);
     if (selection !== csvSelection.current) return null;
+    if (!dryRun && res.status >= 500) { setCsvMessage("Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again."); return null; }
     const error = getCsvImportResponseError(res.status, payload?.error);
     if (error) { setCsvMessage(error); return null; }
     if (!payload) { setCsvMessage(dryRun ? "Preview returned an unreadable response. Nothing was saved." : "Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again."); return null; }
