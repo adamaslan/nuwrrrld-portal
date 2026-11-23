@@ -409,7 +409,11 @@ def seed(instruments_json: str = "[]") -> dict:
 
 @app.function(image=py_image, secrets=[aws_secret], timeout=300)
 def provision_dynamo() -> list[str]:
-    """Create the nwf_* tables if missing (free tier: provisioned <= 25 RCU / 25 WCU in total)."""
+    """Create the nwf_* tables if missing (free tier: provisioned <= 25 RCU / 25 WCU in total).
+
+    Sizes come from dynamo.CAPACITY: pipeline 4/4, live 6/5, cache 2/2, locks 1/1. With the
+    other nwf_* tables already in the account, that is 25/25, the free-tier ceiling.
+    """
     from nuwrrrld import dynamo
     return dynamo.Dynamo().ensure_tables()
 

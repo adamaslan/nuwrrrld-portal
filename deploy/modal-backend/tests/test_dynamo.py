@@ -47,8 +47,10 @@ def test_tables_created_idempotently_within_free_tier(ddb):
     assert names == {dynamo.TABLE_PIPELINE, dynamo.TABLE_LIVE, dynamo.TABLE_CACHE, dynamo.TABLE_LOCKS}
     assert all(n.startswith("nwf_") for n in names)                             # IAM is scoped to table/nwf_*
     assert sum(r for r, w in dynamo.CAPACITY.values()) <= 25 and sum(w for r, w in dynamo.CAPACITY.values()) <= 25
-    prov = ddb.resource.meta.client.describe_table(TableName=dynamo.TABLE_PIPELINE)["Table"]["ProvisionedThroughput"]
-    assert prov["ReadCapacityUnits"] == 10 and prov["WriteCapacityUnits"] == 12
+    sizes = {n: ddb.resource.meta.client.describe_table(TableName=n)["Table"]["ProvisionedThroughput"] for n in names}
+    assert sizes[dynamo.TABLE_PIPELINE]["ReadCapacityUnits"] == 4 and sizes[dynamo.TABLE_PIPELINE]["WriteCapacityUnits"] == 4
+    assert sizes[dynamo.TABLE_CACHE]["ReadCapacityUnits"] == 2 and sizes[dynamo.TABLE_CACHE]["WriteCapacityUnits"] == 2
+    assert sizes[dynamo.TABLE_LOCKS]["ReadCapacityUnits"] == 1 and sizes[dynamo.TABLE_LOCKS]["WriteCapacityUnits"] == 1
 
 
 def test_to_ddb_handles_db_types():
