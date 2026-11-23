@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UNTERMINATED_QUOTE_ERROR, parseTickerCsv, parseTickerCsvChecked } from "@/lib/watchlist-csv";
+import { MAX_CSV_FILE_BYTES, CSV_FILE_TOO_LARGE_ERROR, getCsvFileSizeError, UNTERMINATED_QUOTE_ERROR, parseTickerCsv, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 
 describe("parseTickerCsv", () => {
   it("reads a one-column list with no header", () => {
@@ -74,5 +74,29 @@ describe("malformed and legacy input", () => {
 
   it("returns a header-only file as no tickers without an error", () => {
     expect(parseTickerCsvChecked("ticker\n")).toEqual({ tickers: [], error: null });
+  });
+});
+
+
+describe("portfolio CSV file-size allowance", () => {
+  it("uses the requested 1 MB byte limit", () => {
+    expect(MAX_CSV_FILE_BYTES).toBe(1024 * 1024);
+  });
+
+  it("accepts files above the old 64 KB limit and through exactly 1 MB", () => {
+    for (const size of [0, 64 * 1024 + 1, MAX_CSV_FILE_BYTES - 1, MAX_CSV_FILE_BYTES]) {
+      expect(getCsvFileSizeError(size)).toBeNull();
+    }
+  });
+
+  it("rejects one byte above 1 MB with the matching user-facing error", () => {
+    expect(getCsvFileSizeError(MAX_CSV_FILE_BYTES + 1)).toBe(CSV_FILE_TOO_LARGE_ERROR);
+    expect(CSV_FILE_TOO_LARGE_ERROR).toBe("File too large (max 1 MB).");
+  });
+
+  it("parses a CSV larger than the old allowance without changing ticker extraction", () => {
+    const text = 'ticker,note\nAAPL,"' + 'x'.repeat(70 * 1024) + '"';
+    expect(getCsvFileSizeError(new TextEncoder().encode(text).length)).toBeNull();
+    expect(parseTickerCsvChecked(text)).toEqual({ tickers: ["AAPL"], error: null });
   });
 });
