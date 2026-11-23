@@ -345,13 +345,13 @@ export function transitionAfterLongAverageReclaim(bars: readonly DailyBar[], opt
     for (let j = i + 1; j < series.length; j++) {
       const sma = smaAt(series, j, options.longWindow);
       if (sma !== null && series[j].close !== null && series[j].close! < sma) { failed = true; break; }
-      const pivot = futurePivots.find((index) => index === j && series[index].close! > priorLow);
+      const pivot = futurePivots.find((index) => index + options.pivotK === j && series[index].close! > priorLow);
       if (pivot !== undefined) { higherLow = pivot; break; }
     }
     if (higherLow !== undefined) state = "higher_low_confirmed";
     else if (failed) state = "failed_reclaim";
     const reclaimClose = series[i].close!;
-    const lows = series.slice(i, (higherLow ?? series.length - 1) + 1).flatMap((item) => item.low === null ? [] : [item.low]);
+    const lows = series.slice(i, (higherLow === undefined ? series.length - 1 : higherLow + options.pivotK) + 1).flatMap((item) => item.low === null ? [] : [item.low]);
     const minLow = lows.length ? Math.min(...lows) : reclaimClose;
     events.push({
       reclaim_date: series[i].date, state,
