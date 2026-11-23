@@ -1,3 +1,5 @@
+import { normalizeTicker } from "@/lib/shared/signal-policy";
+
 /**
  * Browser-side CSV → candidate ticker strings. Convenience only: the server
  * re-validates every value (lib/watchlist-import.ts), so nothing here is a
@@ -112,4 +114,17 @@ export function getCsvImportResponseError(status: number, code?: string): string
   if (status === 422) return "That import would exceed the watchlist size limit.";
   if (status === 429) return "Too many imports. Try again in a while.";
   return "Import failed. Check your watchlist before trying again.";
+}
+
+/** Preview unsupported rows without converting option contracts into stock symbols. */
+export function prepareCsvSymbolPreview(raw: readonly string[]) {
+  const tickers: string[] = [];
+  const unsupported = new Set<string>();
+  let unsupportedRows = 0;
+  for (const value of raw) {
+    const ticker = normalizeTicker(value);
+    if (ticker) tickers.push(ticker);
+    else { unsupportedRows += 1; unsupported.add(value.trim().toUpperCase()); }
+  }
+  return { tickers, inputRows: raw.length, unsupportedRows, unsupportedUnique: unsupported.size };
 }
