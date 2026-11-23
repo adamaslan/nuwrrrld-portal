@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, parseTickerCsvChecked } from "@/lib/watchlist-csv";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { getCsvFileSizeError, getCsvRowCountError, getCsvImportResponseError, prepareCsvSymbolPreview, parseTickerCsvChecked } from "@/lib/watchlist-csv";
 import { isPortfolioHealth, type WatchlistItem, type PortfolioHealth, type OptimizerSuggestion } from "@/lib/portfolio";
+import HoldingsCsvReview from "./HoldingsCsvReview";
 import { consumeSSE } from "@/lib/shared/sse";
 
 interface SectorEntry {
@@ -164,45 +165,66 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
     rejectedSample: string[];
   }
   const [csvTickers, setCsvTickers] = useState<string[] | null>(null);
+  const [csvUnsupported, setCsvUnsupported] = useState<{ inputRows: number; unsupportedRows: number; unsupportedUnique: number } | null>(null);
   const [csvPreview, setCsvPreview] = useState<ImportSummary | null>(null);
   const [csvBusy, setCsvBusy] = useState(false);
   const [csvMessage, setCsvMessage] = useState("");
 
-  async function postImport(tickers: string[], dryRun: boolean): Promise<ImportSummary | null> {
+  const csvSelection = useRef(0);
+
+  async function postImport(tickers: string[], dryRun: boolean, selection = csvSelection.current): Promise<ImportSummary | null> {
     const res = await fetch("/api/portfolio/watchlist/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tickers, dryRun }),
     });
     const payload = await res.json().catch(() => null);
+    if (selection !== csvSelection.current) return null;
+    if (!dryRun && res.status >= 500) { setCsvMessage("Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again."); return null; }
     const error = getCsvImportResponseError(res.status, payload?.error);
     if (error) { setCsvMessage(error); return null; }
-    if (!payload) { setCsvMessage("Import returned an unreadable response."); return null; }
+    if (!payload) { setCsvMessage(dryRun ? "Preview returned an unreadable response. Nothing was saved." : "Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again."); return null; }
     return payload as ImportSummary;
   }
 
   async function onCsvSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const selection = ++csvSelection.current;
     const file = e.target.files?.[0];
     e.target.value = "";
+    setCsvBusy(false);
     setCsvPreview(null);
+    setCsvUnsupported(null);
     setCsvTickers(null);
     setCsvMessage("");
     if (!file) return;
     const sizeError = getCsvFileSizeError(file.size);
     if (sizeError) { setCsvMessage(sizeError); return; }
-    const { tickers, error: csvError } = parseTickerCsvChecked(await file.text());
+    let source: string;
+    try { source = await file.text(); } catch {
+      if (selection === csvSelection.current) setCsvMessage("Could not read file. Nothing was saved.");
+      return;
+    }
+    if (selection !== csvSelection.current) return;
+    const { tickers, error: csvError } = parseTickerCsvChecked(source);
     if (csvError) { setCsvMessage(csvError); return; }
     if (tickers.length === 0) { setCsvMessage("No tickers found in that file."); return; }
     const rowError = getCsvRowCountError(tickers.length);
     if (rowError) { setCsvMessage(rowError); return; }
+    const prepared = prepareCsvSymbolPreview(tickers);
+    setCsvUnsupported(prepared);
+    if (prepared.tickers.length === 0) {
+      setCsvMessage("No supported stock/ETF symbol rows. Nothing was saved.");
+      return;
+    }
     setCsvBusy(true);
     try {
-      const preview = await postImport(tickers, true);
-      if (preview) { setCsvTickers(tickers); setCsvPreview(preview); }
+      const preview = await postImport(prepared.tickers, true, selection);
+      if (selection !== csvSelection.current) return;
+      if (preview) { setCsvTickers(prepared.tickers); setCsvPreview(preview); }
     } catch {
-      setCsvMessage("Network error — could not read file.");
+      if (selection === csvSelection.current) setCsvMessage("Network error — could not read file.");
     } finally {
-      setCsvBusy(false);
+      if (selection === csvSelection.current) setCsvBusy(false);
     }
   }
 
@@ -217,8 +239,9 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       setCsvMessage(`Added ${done.added.length} ticker${done.added.length === 1 ? "" : "s"}.`);
       setCsvTickers(null);
       setCsvPreview(null);
+      setCsvUnsupported(null);
     } catch {
-      setCsvMessage("Network error — import not completed.");
+      setCsvMessage("Import result unknown. The server may have saved these tickers. Reload your watchlist before trying again.");
     } finally {
       setCsvBusy(false);
     }
@@ -311,6 +334,7 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
 
   return (
     <div className="port-body">
+      <HoldingsCsvReview />
       {/* Watchlist */}
       <div className="port-panel">
         <p className="port-panel-title">Watchlist</p>
@@ -334,16 +358,21 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
             <input type="file" accept=".csv,text/csv" onChange={onCsvSelected} disabled={csvBusy} hidden />
           </label>
         </div>
+        {csvUnsupported && csvUnsupported.unsupportedRows > 0 && (
+          <p className="port-watch-empty" role="status">
+            {csvUnsupported.inputRows} input rows. {csvUnsupported.unsupportedRows} unsupported rows ({csvUnsupported.unsupportedUnique} distinct values) are excluded from this symbol-only preview. Option contracts and other unsupported values are not converted into stock symbols. No holdings have been imported.
+          </p>
+        )}
         {csvPreview && (
           <div>
             <p className="port-watch-empty">Symbols only. Quantities, purchase dates, cost basis and market values are not imported. Existing watchlist entries are kept.</p>
             <p className="port-watch-empty">
               Will add {csvPreview.added.length} · {csvPreview.skipped.already_present} already on your list ·{" "}
-              {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} skipped
+              {csvPreview.skipped.unknown_symbol + csvPreview.skipped.invalid + csvPreview.skipped.crypto_unsupported} server-rejected symbols (unsupported input rows are counted above)
               {csvPreview.rejectedSample.length > 0 && ` (e.g. ${csvPreview.rejectedSample.slice(0, 5).join(", ")})`}
             </p>
             <button className="port-watch-btn" onClick={confirmCsvImport} disabled={csvBusy || csvPreview.added.length === 0}>
-              Confirm import
+              Confirm symbols-only import
             </button>
           </div>
         )}
@@ -524,4 +553,4 @@ export function PortfolioClient({ initialWatchlist, gainers, losers }: Props) {
       )}
     </div>
   );
-                }
+}
