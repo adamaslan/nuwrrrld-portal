@@ -15,9 +15,12 @@ name: Track Followed Tickers (daily)
 
 on:
   schedule:
-    # 4:30 PM New York time — post-close backup
-    - cron: '30 16 * * 1-5'
-      timezone: America/New_York
+    # 21:30 UTC = 4:30 PM New York (EST) / 5:30 PM (EDT) — after the 4:00 PM ET
+    # close in both DST halves. GitHub cron is UTC-only; a `timezone:` key is
+    # ignored, and schedule deliveries can arrive hours late, so the declared
+    # time must already be post-close (delays then only push later into the
+    # evening, never before the close).
+    - cron: '30 21 * * 1-5'
   workflow_dispatch:
     inputs:
       skip_market_check:
@@ -83,7 +86,7 @@ jobs:
           fi
           if [[ "$EVENT_NAME" == "schedule" ]]; then
             case "$FIRED_CRON" in
-              '30 16 * * 1-5') ;;
+              '30 21 * * 1-5') ;;
               *)
                 echo "is_trading_day=false" >> "$GITHUB_OUTPUT"
                 echo "Unexpected cron entry — skipping."
