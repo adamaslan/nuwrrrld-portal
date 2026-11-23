@@ -95,3 +95,10 @@ export function parseTickerCsvChecked(text: string): TickerCsvResult {
 export function parseTickerCsv(text: string): string[] {
   return parseTickerCsvChecked(text).tickers;
 }
+
+// Shared client/server row allowance. This is not the separate unique-watchlist cap.
+export const MAX_CSV_IMPORT_ROWS = 4000;
+export const CSV_TOO_MANY_ROWS_ERROR = `Too many rows (limit ${MAX_CSV_IMPORT_ROWS}).`;
+export function getCsvRowCountError(count: number): string | null {
+  return count > MAX_CSV_IMPORT_ROWS ? CSV_TOO_MANY_ROWS_ERROR : null;
+}
