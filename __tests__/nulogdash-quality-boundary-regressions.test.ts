@@ -34,3 +34,20 @@ describe('quality evidence read boundary', () => {
     expect(evaluateQualityEvidence(input).workload.verdict).not.toBe('measured');
   });
 });
+
+
+describe('malformed report normalization', () => {
+  it.each(['__proto__', 'constructor', 'toString'])('blocks an inherited item status %s', status => {
+    const input = fixture(); input.workload.useful = 0; input.workload.items[0].status = status;
+    expect(evaluateQualityEvidence(input).workload.verdict).toBe('blocked');
+    expect(evaluateQualityEvidence(input).metrics[0].verdict).toBe('blocked');
+  });
+  it.each([{}, [], 42, true])('does not restore an unsafe display reason %s', displayReason => {
+    const input = { ...fixture(), schemaVersion: 'nulogdash-quality/v1', displayReason };
+    expect(readQualityEvidence(input).displayReason).toBeNull();
+  });
+  it('preserves an ordinary string display reason', () => {
+    const input = { ...fixture(), schemaVersion: 'nulogdash-quality/v1', displayReason: 'Synthetic report note' };
+    expect(readQualityEvidence(input).displayReason).toBe('Synthetic report note');
+  });
+});
