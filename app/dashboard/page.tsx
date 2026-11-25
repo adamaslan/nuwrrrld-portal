@@ -9,6 +9,7 @@ import { DashboardCockpit } from "./DashboardCockpit";
 import { HealthBanner } from "./HealthBanner";
 import type { IndexChip, MoverChip } from "./DashboardCockpit";
 import { flagLive } from "@/lib/flags";
+import { NWF2_MESSAGE, nwf2Withheld } from "@/lib/nwf2";
 import "./dashboard.css";
 
 interface IndexEntry {
@@ -92,8 +93,8 @@ export default async function Dashboard({
           <Link href="/dashboard/holdfold">Hold/Fold</Link>
           <Link href="/dashboard/nuai">Nu AI</Link>
           <Link href="/dashboard/portfolio">Portfolio</Link>
-          <Link href="/dashboard/followed-tickers">Followed</Link>
-          <Link href="/dashboard/council/portfolios">Paper</Link>
+          <Link href="/dashboard/followed-tickers" title={NWF2_MESSAGE} style={nwf2Withheld("followed-tickers") ? { opacity: 0.5 } : undefined}>Followed{nwf2Withheld("followed-tickers") ? " · NWF 2.0" : ""}</Link>
+          <Link href="/dashboard/council/portfolios" title={NWF2_MESSAGE} style={nwf2Withheld("paper-portfolios") ? { opacity: 0.5 } : undefined}>Paper{nwf2Withheld("paper-portfolios") ? " · NWF 2.0" : ""}</Link>
           <Link href="/dashboard/share">Share</Link>
           <Link href="/dashboard/billing">Billing</Link>
           <Link href="/dashboard/beta">Founders</Link>
@@ -174,19 +175,19 @@ export default async function Dashboard({
           <Link href="/dashboard/followed-tickers" className="tool tool--link">
             <div className="tool-head">
               <h2>Followed Tickers</h2>
-              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
+              {nwf2Withheld("followed-tickers") ? <span className="pill soon">NWF 2.0</span> : isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
             </div>
             <p>The app&apos;s 10 strongest bull and bear calls each month, frozen and scored against real prices across seven horizons — with an LLM grading the reasoning.</p>
-            <span className="tool-cta">See the track record →</span>
+            <span className="tool-cta">{nwf2Withheld("followed-tickers") ? `${NWF2_MESSAGE} →` : "See the track record →"}</span>
           </Link>
 
           <Link href="/dashboard/council/portfolios" className="tool tool--link">
             <div className="tool-head">
               <h2>Paper Portfolios</h2>
-              {isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
+              {nwf2Withheld("paper-portfolios") ? <span className="pill soon">NWF 2.0</span> : isPro ? <span className="pill live">Live</span> : <span className="pill soon">Pro</span>}
             </div>
             <p>Eight simulated $10,000 accounts — one per AI council seat plus two baselines — trading the same rules, ranked by return, Sharpe and drawdown.</p>
-            <span className="tool-cta">See the leaderboard →</span>
+            <span className="tool-cta">{nwf2Withheld("paper-portfolios") ? `${NWF2_MESSAGE} →` : "See the leaderboard →"}</span>
           </Link>
         </div>
 
