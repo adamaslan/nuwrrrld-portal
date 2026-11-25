@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { NWF2_MESSAGE, nwf2Withheld } from "@/lib/nwf2";
 import "../landing-pages.css";
 import "../landing.css";
 import { PreLoginNav, PreLoginFooter } from "@/components/landing/PreLoginShell";
@@ -26,7 +27,7 @@ export default function Page() {
             <article className="feature-card" key={c.title}><h2>{c.title}</h2><p>{c.body}</p></article>
           ))}
         </section>
-        <section className="landing-cta-block"><h2>Inspect the record yourself</h2><p>Pro access is required in the app. No real orders are placed by paper portfolios.</p><Link className="hero-cta" href="/dashboard/council/portfolios">Open Paper Portfolios →</Link><p><Link className="feature-more" href="/track-record">Explore top performers and track record →</Link></p></section>
+        <section className="landing-cta-block"><h2>Inspect the record yourself</h2><p>Pro access is required in the app. No real orders are placed by paper portfolios.</p><Link className="hero-cta" href="/dashboard/council/portfolios">{nwf2Withheld("paper-portfolios") ? NWF2_MESSAGE : "Open Paper Portfolios"} →</Link><p><Link className="feature-more" href="/track-record">Explore top performers and track record →</Link></p></section>
         <p className="hero-note">For research and education, not investment advice. Past or simulated performance does not guarantee future results.</p>
       </main>
       <PreLoginFooter />
