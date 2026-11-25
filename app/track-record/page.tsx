@@ -16,7 +16,8 @@ export const revalidate = 3600;
 export const metadata: Metadata = {"title": "Top performers need a record | NuWrrrld Financial", "description": "A confident call is a claim. A recorded outcome gives you something to check. Follow simulated portfolio leaders and the app's strongest monthly stock calls as two different kinds of evidence.", "alternates": {"canonical": "/track-record"}};
 
 export default async function Page() {
-  const { record, status } = await getPublicTrackRecord();
+  const withheld = nwf2Withheld("followed-tickers") && nwf2Withheld("paper-portfolios");
+  const { record, status } = withheld ? { record: null, status: "empty" as const } : await getPublicTrackRecord();
   return (
     <div className="nwf-landing">
       <PreLoginNav />
@@ -24,15 +25,19 @@ export default async function Page() {
         <section className="landing-hero">
           <h1>{"Top performers need a record"}</h1>
           <p className="landing-sub">{"A confident call is a claim. A recorded outcome gives you something to check. Follow simulated portfolio leaders and the app's strongest monthly stock calls as two different kinds of evidence."}</p>
-          <Link href="/pricing" className="hero-cta">See Pro access →</Link>
+          {withheld ? (
+            <p className="hero-note" data-testid="nwf2-coming">Coming in NWF 2.0. {NWF2_MESSAGE}.</p>
+          ) : (
+            <Link href="/pricing" className="hero-cta">See Pro access →</Link>
+          )}
         </section>
 
-        <RecordedOutcomes record={record} status={status} />
+        {!withheld && <RecordedOutcomes record={record} status={status} />}
 
         <ProductExample kind="record" />
         <TwoAudiences title="Understand the record before following the rank" beginner={{"heading": "Two ways to see what happened", "paragraphs": ["The paper leaderboard compares AI-managed practice portfolios. Followed Tickers tracks the app's strongest bullish and bearish calls from each monthly group.", "A top-ranked book is a simulated result. A strongest call is selected for conviction, not because it is known to become a winner. Neither promises what happens next."]}} trader={{"heading": "Separate portfolio results from pick outcomes", "paragraphs": ["The paper leaderboard shows recorded portfolio values and returns, with positions and orders behind each book. Followed Tickers freezes ten bullish and ten bearish calls per monthly cohort and scores realized price outcomes across seven horizons.", "Reasoning grades are separate from price outcomes. Small unresolved samples and unavailable measurements should stay visible as gaps. Benchmark-relative paper metrics are currently withheld."]}} />
         <section className="landing-features">
-          {[{"title": "Paper-book leaderboard", "body": "Compare recorded results from simulated strategies. Inspect the holdings and orders behind the rank rather than treating rank as a recommendation."}, {"title": "Frozen monthly picks", "body": "Followed Tickers keeps the original monthly group fixed so later outcomes do not quietly replace the original calls."}, {"title": "Limits matter", "body": "Historical or simulated results are not future returns. Both signed-in track-record surfaces require Pro access."}].map(c => (
+          {[{"title": "Paper-book leaderboard", "body": "Compare recorded results from simulated strategies. Inspect the holdings and orders behind the rank rather than treating rank as a recommendation."}, {"title": "Frozen monthly picks", "body": "Followed Tickers keeps the original monthly group fixed so later outcomes do not quietly replace the original calls."}, {"title": "Limits matter", "body": "Historical or simulated results are not future returns. " + (withheld ? "Both track-record surfaces are coming in NWF 2.0." : "Both signed-in track-record surfaces require Pro access.")}].map(c => (
             <article className="feature-card" key={c.title}><h2>{c.title}</h2><p>{c.body}</p></article>
           ))}
         </section>
@@ -43,3 +48,4 @@ export default async function Page() {
     </div>
   );
 }
+
