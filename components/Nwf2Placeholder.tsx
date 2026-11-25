@@ -7,6 +7,7 @@ export default function Nwf2Placeholder({ title, back = "/dashboard", backLabel 
   return (
     <main
       style={{
+        width: "100%",
         maxWidth: 960,
         margin: "0 auto",
         padding: "2.5rem 1.5rem 4rem",
