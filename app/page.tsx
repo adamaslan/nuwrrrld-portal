@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { adaptLiveSignals } from "@/lib/digest";
 import { flagLive } from "@/lib/flags";
+import { NWF2_MESSAGE, nwf2Withheld } from "@/lib/nwf2";
 import { getAggregateTrackRecord } from "@/lib/track-record";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Reveal } from "@/components/landing/Reveal";
@@ -177,8 +178,17 @@ async function LandingContent() {
             </Reveal>
             <Reveal as="article" className="surface wide">
               <h3>Check what happened</h3>
-              <p>Follow AI-managed paper portfolios, compare their holdings in the arena, and review frozen monthly stock calls as recorded outcomes arrive.</p>
-              <ul className="feature-list"><li>New to markets: learn from simulated strategies without placing a trade through the app.</li><li>Trade actively: separate paper-book construction from individual call outcomes. Neither guarantees future returns.</li></ul>
+              {nwf2Withheld("paper-portfolios") && nwf2Withheld("followed-tickers") ? (
+                <>
+                  <p>Coming in NWF 2.0: AI-managed paper portfolios, an arena to compare their holdings, and frozen monthly stock calls reviewed as recorded outcomes. {NWF2_MESSAGE}.</p>
+                  <ul className="feature-list"><li>New to markets: learn from simulated strategies without placing a trade through the app.</li><li>Trade actively: separate paper-book construction from individual call outcomes. Neither guarantees future returns.</li></ul>
+                </>
+              ) : (
+                <>
+                  <p>Follow AI-managed paper portfolios, compare their holdings in the arena, and review frozen monthly stock calls as recorded outcomes arrive.</p>
+                  <ul className="feature-list"><li>New to markets: learn from simulated strategies without placing a trade through the app.</li><li>Trade actively: separate paper-book construction from individual call outcomes. Neither guarantees future returns.</li></ul>
+                </>
+              )}
               <Link className="feature-more" href="/track-record">Explore the track record →</Link>
             </Reveal>
           </div>
@@ -394,11 +404,11 @@ async function LandingContent() {
               { name: "Portfolio health", tag: "In the app",
                 b: "Your holdings get an A-to-F health grade, with plain-English reasons and the fixes that would help most.",
                 t: "Concentration, sector balance, momentum and volatility regime - with the factor behind every suggested fix." },
-              { name: "Paper trading", tag: "Pro · Simulated", href: "/paper-trading",
-                b: "Watch AI-managed practice portfolios use simulated money. Follow their holdings and trades without risking your savings.",
+              { name: "Paper trading", tag: nwf2Withheld("paper-portfolios") ? "NWF 2.0" : "Pro · Simulated", href: "/paper-trading",
+                b: (nwf2Withheld("paper-portfolios") ? "Coming in NWF 2.0. " : "") + "Watch AI-managed practice portfolios use simulated money. Follow their holdings and trades without risking your savings.",
                 t: "Six council-seat books and two controls, with holdings, order history, portfolio value and drawdown. These are simulated strategies, not a personal trade-entry tool." },
-              { name: "Top performers and track record", tag: "Pro", href: "/track-record",
-                b: "See which simulated AI portfolios lead, and follow the app's strongest monthly stock calls as their results come in.",
+              { name: "Top performers and track record", tag: nwf2Withheld("paper-portfolios") && nwf2Withheld("followed-tickers") ? "NWF 2.0" : "Pro", href: "/track-record",
+                b: (nwf2Withheld("paper-portfolios") && nwf2Withheld("followed-tickers") ? "Coming in NWF 2.0. " : "") + "See which simulated AI portfolios lead, and follow the app's strongest monthly stock calls as their results come in.",
                 t: "Two distinct views: a paper-book leaderboard, and frozen bullish/bearish monthly picks scored across seven horizons. Strongest calls are not guaranteed winners." },
               { name: "Web and mobile", tag: "One account",
                 b: "One account across the web and the mobile app.",
@@ -453,3 +463,4 @@ async function LandingContent() {
     </div>
   );
 }
+

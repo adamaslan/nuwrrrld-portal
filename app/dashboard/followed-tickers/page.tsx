@@ -8,6 +8,8 @@ import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import { getViewData } from "@/lib/followed-tickers-db";
 import { buildFollowedTickersView } from "@/lib/shared/followed-tickers-view";
 import { FollowedTickersClient } from "./FollowedTickersClient";
+import Nwf2Placeholder from "@/components/Nwf2Placeholder";
+import { nwf2Withheld } from "@/lib/nwf2";
 import "./followed-tickers.css";
 
 export const metadata: Metadata = {
@@ -26,6 +28,10 @@ export default async function FollowedTickersPage() {
 
   if (!hasEntitlement("pro_signals", tier)) {
     redirect("/pricing?source=followed-tickers");
+  }
+
+  if (nwf2Withheld("followed-tickers")) {
+    return <Nwf2Placeholder title="Followed Tickers" />;
   }
 
   // Server-render the first paint from the same pure builder the API uses, so

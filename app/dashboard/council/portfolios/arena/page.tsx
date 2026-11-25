@@ -8,6 +8,8 @@ import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import { loadArena } from "@/lib/paper-arena";
 import type { ArenaVM } from "@/lib/shared/paper-arena-view";
 import { PaperArenaClient } from "./PaperArenaClient";
+import Nwf2Placeholder from "@/components/Nwf2Placeholder";
+import { nwf2Withheld } from "@/lib/nwf2";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "../paper-portfolios.css";
 import "./arena.css";
@@ -28,6 +30,10 @@ export default async function PaperArenaPage() {
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
   const tier = await resolveTierWithPendingBeta(status, user);
   if (!hasEntitlement(REQUIRED_ENTITLEMENT, tier)) redirect("/pricing?source=paper-arena");
+
+  if (nwf2Withheld("paper-portfolios")) {
+    return <Nwf2Placeholder title="Paper Account Arena" back="/dashboard" />;
+  }
 
   let initial: ArenaVM | null = null;
   try {
