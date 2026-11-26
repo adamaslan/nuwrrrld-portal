@@ -32,6 +32,16 @@ export interface CouncilResponse {
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 
+/** Playwright's local development webServer forwards stderr in CI. Never
+ * promote diagnostics to production errors, even if the build/runtime also
+ * carries CI=true. The repository's webServer runs npm run dev, not next start.
+ * Strict CI parsing avoids treating the string "false" as enabled. */
+function logAttemptDiagnostic(line: string): void {
+  if (process.env.CI === "true" && process.env.NODE_ENV !== "production") console.error(line);
+  else console.info(line);
+}
+
+
 // Free-tier model fallback chain — tried in order on 402 / 429 / 5xx.
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
@@ -485,7 +495,7 @@ export async function fetchWithModelFallbackChecked(
       if (scan.sawDone && !sawContent) { streamEnded = true; break; }
     }
 
-    console.info(
+    logAttemptDiagnostic(
       `[openrouter] health-ai attempt model=${model} status=200 sawContent=${sawContent} ` +
       `parsedLines=${parsedLines} emptyLines=${emptyLines} sawDone=${sawDone} streamEnded=${streamEnded}`,
     );
@@ -631,8 +641,21 @@ async function runSeatWithFallback(
   const attempts: CouncilAttempt[] = [];
   for (const [index, model] of modelChain.entries()) {
     const isPrimary = index === 0;
+    // Per-attempt diagnostics: seat, model, outcome classification, latency
+    // ONLY - never prompts, completions, headers, keys, or error strings
+    // (an exception message can embed the request URL, which carries the
+    // key). A skipped primary was previously invisible unless it 404'd, so a
+    // 429 / empty / timeout on the primary read exactly like a healthy
+    // fallback save in CI logs (2026-11-02, PR #334: five primaries silently
+    // skipped, cause unclassifiable from the logs).
+    const attemptStart = Date.now();
+    const logAttempt = (classification: string) =>
+      logAttemptDiagnostic(
+        `[openrouter] seat=${seat} model=${model} outcome=${classification} latencyMs=${Date.now() - attemptStart}`,
+      );
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), MODEL_ATTEMPT_TIMEOUT_MS);
+    let receivedResponse = false;
     try {
       const attemptResult = await traceCouncilAttempt(
         {
@@ -656,6 +679,7 @@ async function runSeatWithFallback(
               ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
             }),
           });
+          receivedResponse = true;
           if (!res.ok) {
             await res.body?.cancel().catch(() => {});
             return { status: res.status };
@@ -684,9 +708,11 @@ async function runSeatWithFallback(
         // instead, the same way fetchWithModelFallbackChecked already does
         // for the streaming path.
         anyEmptyModel = true;
+        logAttempt("empty-completion");
         continue;
       }
       attempts.push({ model, status: lastStatus });
+      logAttempt(`http-${lastStatus}`);
       if (!isRetryableStatus(lastStatus, isPrimary)) break;
       if (isPrimary && isRetiredModelStatus(lastStatus)) {
         // Loud, because nothing else surfaces it: the seat still answers via
@@ -700,8 +726,12 @@ async function runSeatWithFallback(
       }
     } catch (err) {
       // Timeout (AbortError from our own ctrl) → try next model; other errors propagate.
-      if (err instanceof Error && err.name !== 'AbortError') throw err;
+      if (err instanceof Error && err.name !== 'AbortError') {
+        logAttempt(receivedResponse ? "response-error" : "network-error");
+        throw err;
+      }
       attempts.push({ model, status: "timeout" });
+      logAttempt("abort-timeout");
     } finally {
       clearTimeout(timer);
     }
