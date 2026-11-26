@@ -11,6 +11,7 @@
  */
 
 import { STRUCTURED_VERDICT_INSTRUCTIONS } from './council-verdict';
+import { traceCouncilAttempt, traceCouncilRun } from './langsmith-council-trace';
 
 export type CouncilSeat = 'T1' | 'T2' | 'RISK' | 'MACRO' | 'QUANT' | 'CHAIR';
 
@@ -45,9 +46,10 @@ function logAttemptDiagnostic(line: string): void {
 // Every entry must be truly free-tier (:free suffix, confirmed $0 quota).
 // Maintained by scripts/refresh-free-models.mjs (weekly GitHub Action).
 export const FREE_MODEL_CHAIN = [
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  'dots-studio/dots-3-note-preview:free',
-  'nvidia/nemotron-3.5-lightning:free',
+  'liquid/lfm-3-1.7b:free',
+  'baidu/ernie-5.5-flash-preview:free',
 ] as const;
 
 // Seat primary models; falls back through FREE_MODEL_CHAIN on failure. All
@@ -66,9 +68,9 @@ export const FREE_MODEL_CHAIN = [
 //      synthesis, the smallest on QUANT, which is reduced to classification.
 //   2. Vendors are spread deliberately. FREE_MODEL_CHAIN is all-nvidia, so it
 //      has nominal depth 4 and real depth 1 against an account-tier failure —
-//      the failure that actually happens. Seats drawing from thinkingmachines,
-//      google, inclusionai, liquid and nvidia mean a single vendor outage
-//      degrades some seats rather than every one at once.
+//      the failure that actually happens. Seats drawing from google, baidu,
+//      dots-studio, liquid and nvidia mean a single vendor outage degrades
+//      some seats rather than every one at once.
 //
 // 2026-09-07 refresh (docs/free-model-rotation-status.md, P1 + P2):
 //   - RISK was 'z-ai/glm-5.2:free', which no longer exists — z-ai retired its
@@ -106,15 +108,38 @@ export const FREE_MODEL_CHAIN = [
 // 2026-10-02: inclusionai's Ling 3.0 Flash Fin and nex-agi's n2.5-mini now 404.
 //   T1 moved to qwen/qwen3.8-27b:free and RISK to poolside/laguna-xs-2.1:free
 //   (both probed 200 with content; RISK's xs id intermittently 429s and then
-//   falls through to the chain). T2 and RISK now share a vendor, so the spread
-//   is five vendors (qwen, poolside, dots-studio, liquid, nvidia) not six.
-const SEAT_MODELS: Record<CouncilSeat, string> = {
+//   falls through to the chain). T2 and RISK shared a vendor at that point;
+//   see the 2026-11-02 note below for the current picks and their vendors.
+export const SEAT_MODELS: Record<CouncilSeat, string> = {
   // 2026-10-08: qwen/qwen3.8-27b:free was withdrawn (404 "unavailable for free";
   // only the paid slug remains). It was also FREE_MODEL_CHAIN's head, and the
   // plain walks broke on its 404, so brief + health-ai failed outright.
   T1: 'nvidia/nemotron-3.5-lightning:free',
-  T2: 'poolside/laguna-s-2.1:free',
-  RISK: 'poolside/laguna-xs-2.1:free',
+  // 2026-11-02: both poolside/laguna ids 404 — retired from the free catalog
+  // (confirmed by the model-chain live job on #333: seats fell through to
+  // FREE_MODEL_CHAIN with "likely retired from the catalog"; still absent from
+  // the 2026-11-12 catalog snapshot). The first replacements picked
+  // (thinkingmachines/inkling*) were withdrawn: those ids are gated to
+  // agentic harnesses for this account (the 2026-09-11 note above), their
+  // provider terms don't cover this traffic, and they are no longer in the
+  // catalog at all (2026-11-12 snapshot). Current picks, from the live catalog
+  // and the provider data-policy table:
+  //   T2: google/gemma-4-31b-it:free — the only non-nvidia, non-gated $0
+  //     general-chat id with a recent successful live probe under this key
+  //     (200 after one 429 retry in the 2026-11-09 refresh run, #350). 262k
+  //     context. Google free ids have a 429 history here; a 429 primary
+  //     degrades to the chain and the seat live test now fails loudly on that.
+  //   RISK: baidu/ernie-5.5-flash-preview:free — catalog-$0 today, 1M context,
+  //     does-not-train per the current provider table, and a new vendor so the
+  //     two seats don't both sit on Google. UNPROBED as of 2026-11-12: if the
+  //     seat live test shows it falling through, google/gemma-4-26b-a4b-it:free
+  //     is a manual fallback candidate, not an automatic retry. Verify current
+  //     account reachability and provider terms before reassigning the seat.
+  // __tests__/live/model-chain.live.test.ts probes every seat, but enforces
+  // primary serving with production-shaped options only for T2 and RISK.
+  // Catalog presence alone was never sufficient (2026-09-11 note).
+  T2: 'google/gemma-4-31b-it:free',
+  RISK: 'baidu/ernie-5.5-flash-preview:free',
   MACRO: 'dots-studio/dots-3-note-preview:free',
   // 'nvidia/nemotron-nano-9b-v2:free' was retired from the catalog (404 on
   // every call, confirmed 2026-09-02 via scripts/refresh-free-models.mjs's
@@ -593,7 +618,7 @@ export class CouncilUnavailableError extends Error {
   }
 }
 
-export async function runSeat(
+async function runSeatWithFallback(
   seat: CouncilSeat,
   messages: CouncilMessage[],
   apiKey: string,
@@ -632,26 +657,42 @@ export async function runSeat(
     const timer = setTimeout(() => ctrl.abort(), MODEL_ATTEMPT_TIMEOUT_MS);
     let receivedResponse = false;
     try {
-      const res = await fetch(`${OR_BASE}/chat/completions`, {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://financial.nuwrrrld.com',
-          'X-Title': 'NuWrrrld Financial AI Council',
+      const attemptResult = await traceCouncilAttempt(
+        {
+          seat,
+          model,
+          attempt: index + 1,
+          primary: isPrimary,
+          answerOnly: options.answerOnly === true,
         },
-        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature,
-          ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
-        }),
-      });
-      lastStatus = res.status;
-      receivedResponse = true;
-      if (res.ok) {
-        const data = await res.json();
+        async () => {
+          const res = await fetch(`${OR_BASE}/chat/completions`, {
+            method: 'POST',
+            signal: ctrl.signal,
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://financial.nuwrrrld.com',
+              'X-Title': 'NuWrrrld Financial AI Council',
+            },
+            body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature,
+              ...(options.answerOnly && OPTIONAL_REASONING_MODELS.has(model) ? { reasoning: { enabled: false } } : {}),
+            }),
+          });
+          receivedResponse = true;
+          if (!res.ok) {
+            await res.body?.cancel().catch(() => {});
+            return { status: res.status };
+          }
+          return { status: res.status, data: await res.json() };
+        },
+      );
+      lastStatus = attemptResult.status;
+      const data = attemptResult.data as any;
+      if (lastStatus >= 200 && lastStatus < 300) {
         const choice = data.choices?.[0];
         const reasoningTokens = data.usage?.completion_tokens_details?.reasoning_tokens;
-        attempts.push({ model, status: res.status,
+        attempts.push({ model, status: lastStatus,
           ...(typeof choice?.finish_reason === "string" ? { finishReason: choice.finish_reason.slice(0, 32) } : {}),
           ...(typeof reasoningTokens === "number" && Number.isFinite(reasoningTokens) ? { reasoningTokens } : {}),
         });
@@ -670,16 +711,15 @@ export async function runSeat(
         logAttempt("empty-completion");
         continue;
       }
-      attempts.push({ model, status: res.status });
-      await res.body?.cancel().catch(() => {});
-      logAttempt(`http-${res.status}`);
-      if (!isRetryableStatus(res.status, isPrimary)) break;
-      if (isPrimary && isRetiredModelStatus(res.status)) {
+      attempts.push({ model, status: lastStatus });
+      logAttempt(`http-${lastStatus}`);
+      if (!isRetryableStatus(lastStatus, isPrimary)) break;
+      if (isPrimary && isRetiredModelStatus(lastStatus)) {
         // Loud, because nothing else surfaces it: the seat still answers via
         // the chain, so a rotted SEAT_MODELS entry is otherwise invisible
         // until someone audits the catalog by hand.
         console.warn(
-          `[openrouter] seat=${seat} primary model ${model} returned ${res.status} — ` +
+          `[openrouter] seat=${seat} primary model ${model} returned ${lastStatus} — ` +
           `likely retired from the catalog. Falling through to FREE_MODEL_CHAIN. ` +
           `Update SEAT_MODELS (see scripts/refresh-free-models.mjs).`,
         );
@@ -699,6 +739,20 @@ export async function runSeat(
   // anyEmptyModel is not proof every provider was empty: a chain can mix
   // empty200, retired404, rate429 and timeouts. Never claim more than observed.
   throw new CouncilUnavailableError(anyEmptyModel ? "council_no_content" : "council_provider_unavailable", seat, lastStatus, attempts);
+}
+
+export async function runSeat(
+  seat: CouncilSeat,
+  messages: CouncilMessage[],
+  apiKey: string,
+  maxTokens = 1200,
+  temperature = 0.4,
+  modelOverride?: string,
+  options: { answerOnly?: boolean } = {},
+): Promise<CouncilResponse> {
+  return traceCouncilRun(seat, () =>
+    runSeatWithFallback(seat, messages, apiKey, maxTokens, temperature, modelOverride, options),
+  );
 }
 
 /** System prompt for a seat — exported so the deliberation route can compose rounds. */
