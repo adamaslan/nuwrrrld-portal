@@ -7,6 +7,26 @@ sources: [../../lib, ../../lib/shared, ../../app/api, ../../app/dashboard, gcp3-
 
 # Concept — Mobile ⇄ Web Parity (% Synced)
 
+## Portal PR #415 — nulogdash quality evidence, 2026-11-21
+
+This adds a versioned evidence reader and quality panel to the portal's
+admin-only Nulogdash sweep/report. It changes no mobile client, shared module,
+or cross-surface API contract. The feature-domain and single-source
+denominators remain unchanged; the historical ~62% blended headline and domain
+matrix remain as recorded. This is a scoped assessment, not a fresh parity
+audit. Actual news-quality values and workload denominators were not recovered.
+See [[entity-nulogdash]] and [[concept-sync-requirements]].
+
+## Portal PRs #400/#401 LangSmith assessment — November 16, 2026
+
+The Council's per-attempt trace adapter and synthetic evaluator are portal-side
+operational tooling. They add no mobile client, shared module, route contract,
+or user-facing feature domain. The mobile Council continues to call its backend
+service and does not receive a LangSmith key. No matrix row or denominator
+changes; the historical ≈76% feature-domain, ≈40% single-source, and ≈62%
+blended figures remain unchanged. This is a scoped assessment, not a fresh
+parity audit.
+
 ## Portal PR #378 Judge-simulation assessment - November 14, 2026
 
 The deterministic Judge simulator is a portal-only library addition with no
@@ -524,3 +544,5 @@ Legend: ✅ synced · 🟡 partial · 🔴 divergent · ⬅️ portal-only · �
 - `gcp3-mobile/docs/wiki-mobile/concept-backend-is-source-of-truth.md`
 
 **PR #375 (2026-11-14), scoped assessment.** Four se1 rows are now web-only: A2, A3, B2 and G3. The shared logic they call (`lib/shared/se1/ask.ts`, `dossiers.ts`, `explain.ts`) is not copied to `gcp3-mobile` and is not in the shared-drift gate. The historical headline and domain matrix are unchanged. This is not a fresh parity audit. Mobile port of these rows is still open, and the ledger lists it as `planned`.
+
+> ℹ️ **PR #413 (2026-11-20), scoped assessment.** Adds six portal-only `lib/shared/se1/bar-only-batch-0{1..6}.ts` modules carrying 36 S26 bar-only scans ([[concept-se1-bar-only-scan-batches]]). `gcp3-mobile` has no `lib/shared/se1/` directory, so none of these modules is in the shared-drift gate. No user-visible surface changed on either side. The historical headline and domain matrix are unchanged. This is not a fresh parity audit. No mobile port is queued.

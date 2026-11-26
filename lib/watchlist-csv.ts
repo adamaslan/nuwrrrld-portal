@@ -1,9 +1,17 @@
+import { normalizeTicker } from "@/lib/shared/signal-policy";
+
 /**
  * Browser-side CSV → candidate ticker strings. Convenience only: the server
  * re-validates every value (lib/watchlist-import.ts), so nothing here is a
  * security boundary.
  */
-export const MAX_CSV_FILE_BYTES = 64 * 1024;
+// 1 MB upload allowance, measured in bytes before reading the file.
+export const MAX_CSV_FILE_BYTES = 1024 * 1024;
+export const CSV_FILE_TOO_LARGE_ERROR = "File too large (max 1 MB).";
+
+export function getCsvFileSizeError(size: number): string | null {
+  return size > MAX_CSV_FILE_BYTES ? CSV_FILE_TOO_LARGE_ERROR : null;
+}
 const HEADER_NAMES = ["ticker", "symbol"];
 
 /**
@@ -88,4 +96,35 @@ export function parseTickerCsvChecked(text: string): TickerCsvResult {
 /** Tickers only; a malformed file yields [] (fail closed). Use parseTickerCsvChecked for the reason. */
 export function parseTickerCsv(text: string): string[] {
   return parseTickerCsvChecked(text).tickers;
+}
+
+// Shared client/server row allowance. This is not the separate unique-watchlist cap.
+export const MAX_CSV_IMPORT_ROWS = 4000;
+export const CSV_TOO_MANY_ROWS_ERROR = `Too many rows (limit ${MAX_CSV_IMPORT_ROWS}).`;
+export function getCsvRowCountError(count: number): string | null {
+  return count > MAX_CSV_IMPORT_ROWS ? CSV_TOO_MANY_ROWS_ERROR : null;
+}
+
+/** Safe, actionable import errors. Never echo arbitrary server response text. */
+export function getCsvImportResponseError(status: number, code?: string): string | null {
+  if (status >= 200 && status < 300) return null;
+  if (status === 401) return "Sign in again before importing your CSV.";
+  if (status === 403) return "Import blocked by a security check. Your watchlist was not changed. Contact support.";
+  if (status === 413) return code === "too_many_rows" ? CSV_TOO_MANY_ROWS_ERROR : "Import request is too large. Try a smaller CSV.";
+  if (status === 422) return "That import would exceed the watchlist size limit.";
+  if (status === 429) return "Too many imports. Try again in a while.";
+  return "Import failed. Check your watchlist before trying again.";
+}
+
+/** Preview unsupported rows without converting option contracts into stock symbols. */
+export function prepareCsvSymbolPreview(raw: readonly string[]) {
+  const tickers: string[] = [];
+  const unsupported = new Set<string>();
+  let unsupportedRows = 0;
+  for (const value of raw) {
+    const ticker = normalizeTicker(value);
+    if (ticker) tickers.push(ticker);
+    else { unsupportedRows += 1; unsupported.add(value.trim().toUpperCase()); }
+  }
+  return { tickers, inputRows: raw.length, unsupportedRows, unsupportedUnique: unsupported.size };
 }

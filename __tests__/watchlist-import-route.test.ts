@@ -52,9 +52,17 @@ describe("POST /api/portfolio/watchlist/import", () => {
     expect((await POST(req("x", { "content-type": "text/plain" }))).status).toBe(415);
   });
 
-  it("413 on a streamed body over 32 KB even with a lying Content-Length", async () => {
-    const big = JSON.stringify({ tickers: ["A"], pad: "x".repeat(40_000) });
+  it("accepts a body above the old 32 KB cap within the 512 KB allowance", async () => {
+    const medium = JSON.stringify({ tickers: ["AAPL"], pad: "x".repeat(40_000) });
+    expect((await POST(req(medium, { "content-length": "10" }))).status).toBe(201);
+    expect(store.addManyToWatchlist).toHaveBeenCalledWith("user_1", ["AAPL"], 1500);
+  });
+
+  it("413 above 512 KB despite a lying Content-Length, without writes", async () => {
+    const big = JSON.stringify({ tickers: ["AAPL"], pad: "x".repeat(512 * 1024 + 1) });
     expect((await POST(req(big, { "content-length": "10" }))).status).toBe(413);
+    expect(store.addManyToWatchlist).not.toHaveBeenCalled();
+    expect(enqueueMany).not.toHaveBeenCalled();
   });
 
   it("429 with Retry-After on the 6th call", async () => {

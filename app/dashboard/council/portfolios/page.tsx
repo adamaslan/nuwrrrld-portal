@@ -4,11 +4,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { resolveTier } from "@/lib/subscription-admin";
+import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import { listAccounts, getLatestRun, getLatestRunAnySlot, getNavSeries, type NavPoint } from "@/lib/paper-db";
 import { PAPER_ACCOUNTS, type PaperAccount } from "@/lib/shared/paper-policy";
 import { buildLeaderboardView, RUN_LOOKUP_FAILED, type AccountMetrics, type LatestRunSummary } from "@/lib/shared/paper-view";
 import { PaperPortfoliosClient } from "./PaperPortfoliosClient";
+import Nwf2Placeholder from "@/components/Nwf2Placeholder";
+import { nwf2Withheld } from "@/lib/nwf2";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import "./paper-portfolios.css";
 
@@ -32,10 +34,14 @@ export default async function PaperPortfoliosPage() {
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = resolveTier(status, user);
+  const tier = await resolveTierWithPendingBeta(status, user);
 
   if (!hasEntitlement(REQUIRED_ENTITLEMENT, tier)) {
     redirect("/pricing?source=paper-portfolios");
+  }
+
+  if (nwf2Withheld("paper-portfolios")) {
+    return <Nwf2Placeholder title="Council Paper Portfolios" />;
   }
 
   const accounts = await listAccounts();

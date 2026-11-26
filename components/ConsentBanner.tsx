@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { needsPrompt, CONSENT_VERSION, type ConsentRecord } from "@/lib/shared/consent";
 import ConsentPreferences from "./ConsentPreferences";
 import "./consent.css";
@@ -14,6 +14,20 @@ export default function ConsentBanner() {
   // anyway — the user believed they had chosen while no cookie or audit row was
   // written. Keep the banner up and say so instead.
   const [saveError, setSaveError] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const [bannerHeight, setBannerHeight] = useState(0);
+
+  useEffect(() => {
+    if (!ready || !showBanner || !bannerRef.current) return;
+    const banner = bannerRef.current;
+    // The banner stays fixed, but must not cover the last page content. Measure
+    // wrapping, privacy-note and save-error states rather than guessing a height.
+    const measure = () => setBannerHeight(Math.ceil(banner.getBoundingClientRect().height));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(banner);
+    return () => observer.disconnect();
+  }, [ready, showBanner]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,7 +182,9 @@ export default function ConsentBanner() {
   return (
     <>
       {showBanner && (
-        <div className="consent-banner">
+        <>
+        <div className="consent-banner-space" aria-hidden="true" style={{ height: bannerHeight, flexShrink: 0 }} />
+        <div className="consent-banner" ref={bannerRef}>
           <div className="consent-banner-inner">
             {gpcActive ? (
               <>
@@ -218,6 +234,7 @@ export default function ConsentBanner() {
             )}
           </div>
         </div>
+        </>
       )}
 
       <ConsentPreferences

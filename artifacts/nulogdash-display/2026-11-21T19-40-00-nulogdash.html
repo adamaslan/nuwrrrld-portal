@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nulogdash sweep — 2026-11-21T19:40:00.000Z</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+  :root {
+    --bg: #f6f8fa; --panel: #ffffff; --panel2: #eef1f5; --line: #dde3ea;
+    --ink: #1b2027; --muted: #5c6773; --accent: #2563eb;
+    --ok: #15803d; --warn: #b45309; --err: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1116; --panel: #161b22; --panel2: #1c232c; --line: #2a323d;
+      --ink: #e6edf3; --muted: #8b98a5; --accent: #58a6ff;
+      --ok: #3fb950; --warn: #d29922; --err: #f85149;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1116; --panel: #161b22; --panel2: #1c232c; --line: #2a323d;
+    --ink: #e6edf3; --muted: #8b98a5; --accent: #58a6ff;
+    --ok: #3fb950; --warn: #d29922; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 14px; line-height: 1.55; padding: 40px 20px 72px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 8px;
+  }
+  h1 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 26px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.5px;
+  }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 13px; max-width: 78ch; }
+  .sub code, footer code, td.feats code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    background: var(--panel2); padding: 1.5px 5px; border-radius: 4px; font-size: 12px;
+  }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card .k { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; }
+  .card .v {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 24px; font-weight: 500; margin-top: 6px; font-variant-numeric: tabular-nums;
+  }
+  .v.ok { color: var(--ok); } .v.warn { color: var(--warn); } .v.err { color: var(--err); }
+  .card .note { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  .bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; margin: 20px 0 4px; border: 1px solid var(--line); }
+  .bar span { display: block; }
+  .bar .pass { background: var(--ok); } .bar .fail { background: var(--err); }
+  .bar .blocked { background: var(--warn); } .bar .not_run { background: var(--muted); }
+  .barkey { color: var(--muted); font-size: 11.5px; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  h2 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); font-weight: 600;
+    margin: 34px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  h2 + p { color: var(--muted); font-size: 12.5px; margin: -4px 0 12px; max-width: 78ch; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 600; background: var(--panel2); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.subj { font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600; color: var(--accent); white-space: nowrap; }
+  td.ep { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
+  td.why { color: var(--muted); font-size: 12.5px; min-width: 26ch; }
+  td.feats { font-size: 12px; line-height: 2; }
+  .muted { color: var(--muted); }
+  tr.err td { background: color-mix(in srgb, var(--err) 8%, transparent); }
+  tr.warn td { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); }
+  .badge.err { color: var(--err); } .badge.muted { color: var(--muted); }
+  footer { color: var(--muted); font-size: 12px; margin-top: 34px; line-height: 1.85; }
+
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0 4px; }
+  @media (max-width: 720px) { .charts { grid-template-columns: 1fr; } }
+  .chartbox { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .chartbox .ck { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 10px; }
+  .chartbox canvas { max-height: 220px; }
+  .chart-fallback { color: var(--muted); font-size: 12px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+  .toolbar input[type="search"] {
+    flex: 1; min-width: 180px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 7px 11px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
+  }
+  .toolbar input[type="search"]::placeholder { color: var(--muted); }
+  .toolbar button.chip {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; padding: 5px 12px; cursor: pointer;
+  }
+  .toolbar button.chip.active { color: var(--ink); border-color: var(--accent); background: var(--panel2); }
+  .rowcount { color: var(--muted); font-size: 11.5px; margin: 0 0 8px; }
+  tr.hide { display: none; }
+  .quality-panel { margin: 26px 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .quality-panel h2 { margin-top: 0; }
+  .quality-warning { color: var(--warn); font-weight: 600; }
+  .fixture-banner { border: 1px solid var(--warn); border-radius: 8px; padding: 9px 12px; color: var(--warn); font-weight: 600; margin: 12px 0; }
+  .quality-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .quality-meta dt { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+  .quality-meta dd { margin: 3px 0; overflow-wrap: anywhere; }
+  .quality-scope, .quality-workload { color: var(--muted); font-size: 12px; }
+  .quality-workload { display: flex; flex-wrap: wrap; gap: 8px 14px; border-block: 1px solid var(--line); padding: 10px 0; margin: 12px 0; }
+  .quality-panel td small { display:block; color:var(--muted); margin-top:4px; max-width:42ch; }
+  .quality-scroll-hint { display:none; color:var(--muted); font-size:11px; }
+  .quality-state { font-weight:600; white-space:nowrap; }
+  .quality-missing, .quality-insufficient { color:var(--warn); }
+  .quality-blocked, .quality-misses_target { color:var(--err); }
+  .quality-meets_target { color:var(--ok); }
+  @media (max-width: 640px) { body { padding: 20px 12px 48px; } .quality-panel { padding: 12px; } .quality-workload { flex-direction:column; } .quality-scroll-hint { display:block; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">nulogdash &middot; tier api &middot; run synthetic-quality-display-fixture</p>
+  <h1>Feature sweep — 2026-11-21T19:40:00.000Z</h1>
+  <p class="sub">
+    Feature probes from <code>docs/nulogdash-inventory.json</code> ran against <code>http://127.0.0.1:3000</code>
+    on branch <code>local-fixture</code> at <code>fixture</code>.
+    <b>1 of 2</b> endpoint probes returned an accepted response; <b>1</b> were blocked or not run. These are operational probe results, not workload-quality measurements.
+    A <span class="badge warn">blocked</span> feature is one whose dependency was unmet, not one that failed —
+    the distinction is the point of this sweep.
+  </p>
+  <p class="fixture-banner">Synthetic display fixture — not production data.</p>
+
+  <div class="cards">
+    <div class="card"><div class="k">Accepted endpoint responses</div><div class="v ok">1</div><div class="note">probe matched its accepted response contract</div></div>
+    <div class="card"><div class="k">Endpoint probe failures</div><div class="v err">0</div><div class="note">non-accepted response or exception</div></div>
+    <div class="card"><div class="k">Blocked</div><div class="v warn">1</div><div class="note">dependency unmet</div></div>
+    <div class="card"><div class="k">Not run</div><div class="v">0</div><div class="note">excluded by design</div></div>
+    <div class="card"><div class="k">Endpoint response coverage</div><div class="v">50%</div><div class="note">1/2 probes returned accepted responses</div></div>
+    <div class="card"><div class="k">Slowest</div><div class="v">24</div><div class="note">ms, of 1 timed</div></div>
+  </div>
+
+  <div class="bar">
+    <span class="pass" style="flex:1"></span><span class="blocked" style="flex:1"></span>
+  </div>
+  <div class="barkey">pass 1 &middot; fail 0 &middot; blocked 1 &middot; not_run 0</div>
+
+  <section class="quality-panel" aria-labelledby="quality-title">
+  <h2 id="quality-title">Quality evidence</h2>
+  <p class="quality-warning">News quality results were not recovered. An operational job status does not establish measured quality.</p>
+  <dl class="quality-meta">
+    <div><dt>Source</dt><dd>news_accuracy_eval</dd></div>
+    <div><dt>Source version</dt><dd>Not recorded</dd></div>
+    <div><dt>Source run</dt><dd>Not recorded</dd></div>
+    <div><dt>Evaluator</dt><dd>Not recorded</dd></div>
+    <div><dt>Cutoff</dt><dd>Not recorded</dd></div>
+  </dl>
+  <p class="quality-scope">GCP9/25 is an attributed offline captured-data checkpoint, not deployed parity. The stale NWF4 catalog is historical relative to known NWF5; deployed source version and schedules are unverified. News jobs ran; numeric quality values and workload denominators were not recovered. A pipeline status of ok can accompany zero output rows. The current deltaIC field is source-reported SQL NULL.</p>
+  <div class="quality-workload"><strong>Useful workload coverage</strong><span>Not recorded</span>
+    <span>Not recorded useful / Not recorded eligible</span>
+    <span>Not recorded attempted · Not recorded skipped · Not recorded deferred · Not recorded errors</span>
+    <small>Workload denominators or return counts were not recorded.</small></div>
+  <p class="quality-scroll-hint">Swipe or scroll the metrics table horizontally to see targets and evidence status.</p><div class="scroll" role="region" aria-label="Quality metrics, horizontally scrollable" tabindex="0"><table><thead><tr><th>Metric / dimensions</th><th>Observed</th><th>Measured / eligible</th><th>Target and rationale</th><th>Evidence status</th></tr></thead><tbody><tr>
+  <td>Coverage<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Descriptive metric: share of active tickers with a non-null score per session; no threshold specified.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Hit rate<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Report with a Wilson 95% confidence interval; no threshold specified.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Hit rate CI lower<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Lower bound of the Wilson 95% interval; requires recovered labeled outcomes.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Hit rate CI upper<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Upper bound of the Wilson 95% interval; requires recovered labeled outcomes.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Rank IC<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>≥ 0.02<small>Specified 5-session, 250-session ensemble gate; also requires at least 120 sessions and 5,000 scored pairs.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>IC t-stat<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>≥ 2<small>Specified non-overlapping 5-session, 250-session ensemble gate.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>ICIR<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Consistency metric; no threshold specified.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Decile spread<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Top-decile minus bottom-decile abnormal return; no numeric threshold specified.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Decile monotonicity<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>≥ 0.6<small>Specified 5-session, 250-session ensemble gate.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>Brier score<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>No numeric target specified<small>Compare with the documented 0.25 baseline; no pass threshold specified.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>ΔIC (5-session)<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>NULL</td>
+  <td>Not recorded / Not recorded</td>
+  <td>≥ 0.005<small>Specified incremental-value gate at the candidate weight on the 250-session ensemble window.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>ΔIC (1-session)<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>≥ 0<small>Specified cross-horizon guard for the candidate weight.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr>
+<tr>
+  <td>ΔIC (20-session)<small>Horizon, window, slice, and scorer version not recorded.</small></td><td>Not recorded</td>
+  <td>Not recorded / Not recorded</td>
+  <td>≥ 0<small>Specified cross-horizon guard for the candidate weight.</small></td>
+  <td><span class="quality-state quality-missing">Not recorded</span><small>Metric value, provenance, or denominator was not recorded.</small></td>
+</tr></tbody></table></div>
+</section>
+
+  <div class="charts">
+    <div class="chartbox">
+      <div class="ck">Status breakdown</div>
+      <canvas id="statusChart" role="img" aria-label="Donut chart of feature status counts"></canvas>
+      <div id="statusFallback" class="chart-fallback" style="display:none">Chart.js failed to load — see the cards above for exact counts.</div>
+    </div>
+    <div class="chartbox">
+      <div class="ck">Top blockers by feature count</div>
+      <canvas id="blockerChart" role="img" aria-label="Bar chart of blocker causes ranked by affected feature count"></canvas>
+      <div id="blockerFallback" class="chart-fallback" style="display:none">Chart.js failed to load — see the table below for exact counts.</div>
+    </div>
+  </div>
+
+  <h2>Inventory drift</h2><p>None — <code>docs/nulogdash-inventory.json</code> matches the routes under <code>app/api/**</code>.</p>
+
+  <h2>Why 1 features were not exercised</h2>
+  <p>Grouped by cause, largest first. One row here is one thing to fix; the feature list is what unblocks when it is.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Status</th><th class="n">Features</th><th>Cause</th><th>Affected</th></tr></thead>
+    <tbody><tr>
+  <td><span class="badge warn">blocked</span></td>
+  <td class="n">1</td>
+  <td class="why">Quality rows not recovered from local retained evidence.</td>
+  <td class="feats"><code>news-eval</code></td>
+</tr></tbody>
+  </table></div>
+
+  <h2>Every feature (2)</h2>
+  <p>Failures first, then blocked, then excluded, then passing. Reasons are redacted and truncated at write time by <code>scripts/nulogdash.mjs</code>.</p>
+  <div class="toolbar">
+    <input type="search" id="featureFilter" placeholder="Filter by feature, entrypoint, or reason&hellip;" autocomplete="off">
+    <button class="chip active" data-status="all">all 2</button>
+    <button class="chip" data-status="pass">pass 1</button>
+    <button class="chip" data-status="fail">fail 0</button>
+    <button class="chip" data-status="blocked">blocked 1</button>
+    <button class="chip" data-status="not_run">not_run 0</button>
+  </div>
+  <p class="rowcount" id="rowcount"></p>
+  <div class="scroll"><table>
+    <thead><tr><th>Status</th><th>Feature</th><th>Entrypoint</th><th>Depends on</th><th class="n">Latency</th><th>Reason</th></tr></thead>
+    <tbody id="featureBody"><tr data-status="blocked" data-search="news-eval local captured evidence quality rows not recovered from local retained evidence." class="warn">
+  <td><span class="badge warn">blocked</span></td>
+  <td class="subj">news-eval</td>
+  <td class="ep">local captured evidence</td>
+  <td><span class="muted">—</span></td>
+  <td class="n">—</td>
+  <td class="why">Quality rows not recovered from local retained evidence.</td>
+</tr>
+<tr data-status="pass" data-search="health get /api/health " class="">
+  <td><span class="badge ok">pass</span></td>
+  <td class="subj">health</td>
+  <td class="ep">GET /api/health</td>
+  <td><span class="muted">—</span></td>
+  <td class="n">24ms</td>
+  <td class="why"><span class="muted">—</span></td>
+</tr></tbody>
+  </table></div>
+
+  <footer>
+    Generated by <code>scripts/nulogdash-report.mjs</code> from <code>.nulogdash/runs/synthetic-quality-display-fixture.json</code>.
+    Read-only: no database write, no model call, no request to the dev server.<br>
+    Re-run the sweep with <code>npm run nulogdash</code>, then <code>npm run nulogdash:report</code>.
+    The live matrix is at <code>http://127.0.0.1:3000/dashboard/nulogdash</code>.
+  </footer>
+</div>
+<script>
+(function () {
+  var DATA = {"status":{"labels":["pass","fail","blocked","not_run"],"counts":[1,0,1,0]},"blockers":{"labels":["Quality rows not recovered from local retained evidence."],"counts":[1]}};
+  var STATUS_COLOR = { pass: "#15803d", fail: "#b91c1c", blocked: "#b45309", not_run: "#5c6773" };
+  var isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  var gridColor = isDark ? "#2a323d" : "#dde3ea";
+  var textColor = isDark ? "#8b98a5" : "#5c6773";
+
+  function renderCharts() {
+    if (typeof Chart === "undefined") {
+      var sf = document.getElementById("statusFallback"); if (sf) sf.style.display = "block";
+      var bf = document.getElementById("blockerFallback"); if (bf) bf.style.display = "block";
+      return;
+    }
+    var statusCanvas = document.getElementById("statusChart");
+    if (statusCanvas && DATA.status.counts.some(function (n) { return n > 0; })) {
+      new Chart(statusCanvas, {
+        type: "doughnut",
+        data: {
+          labels: DATA.status.labels,
+          datasets: [{ data: DATA.status.counts, backgroundColor: DATA.status.labels.map(function (s) { return STATUS_COLOR[s]; }), borderWidth: 0 }],
+        },
+        options: {
+          plugins: { legend: { position: "bottom", labels: { color: textColor, font: { size: 11 }, boxWidth: 10 } } },
+          cutout: "62%",
+        },
+      });
+    }
+    var blockerCanvas = document.getElementById("blockerChart");
+    if (blockerCanvas && DATA.blockers.counts.length) {
+      new Chart(blockerCanvas, {
+        type: "bar",
+        data: {
+          labels: DATA.blockers.labels.map(function (l) { return l.length > 34 ? l.slice(0, 33) + "…" : l; }),
+          datasets: [{ data: DATA.blockers.counts, backgroundColor: "#b45309", borderRadius: 4, maxBarThickness: 18 }],
+        },
+        options: {
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor, font: { size: 10.5 } }, grid: { display: false } },
+          },
+        },
+      });
+    } else if (blockerCanvas) {
+      var bf2 = document.getElementById("blockerFallback"); if (bf2) { bf2.textContent = "No blockers to chart — every feature ran."; bf2.style.display = "block"; }
+    }
+  }
+
+  function initFilter() {
+    var input = document.getElementById("featureFilter");
+    var rows = Array.prototype.slice.call(document.querySelectorAll("#featureBody tr"));
+    var chips = Array.prototype.slice.call(document.querySelectorAll(".toolbar button.chip"));
+    var rowcount = document.getElementById("rowcount");
+    var activeStatus = "all";
+
+    function apply() {
+      var q = (input.value || "").trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (tr) {
+        var matchesStatus = activeStatus === "all" || tr.getAttribute("data-status") === activeStatus;
+        var matchesQuery = !q || (tr.getAttribute("data-search") || "").indexOf(q) !== -1;
+        var visible = matchesStatus && matchesQuery;
+        tr.classList.toggle("hide", !visible);
+        if (visible) shown++;
+      });
+      rowcount.textContent = "Showing " + shown + " of " + rows.length + " features.";
+    }
+
+    if (input) input.addEventListener("input", apply);
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chips.forEach(function (c) { c.classList.remove("active"); });
+        chip.classList.add("active");
+        activeStatus = chip.getAttribute("data-status");
+        apply();
+      });
+    });
+    apply();
+  }
+
+  renderCharts();
+  initFilter();
+})();
+</script>
+</body>
+</html>

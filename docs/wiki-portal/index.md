@@ -1,6 +1,18 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-11-02 (PR #309 slot 2 Terraform review; parity unchanged)_
+_Last updated: 2026-11-21 (Nulogdash quality evidence reader; historical mobile parity unchanged)_
+
+**PR #415 scope:** Nulogdash now reads a versioned quality artifact separately
+from operational probe results and labels absent numeric evidence as
+unrecorded. This is portal-only admin reporting; it adds no mobile client,
+shared module, or parity-matrix domain. See [[entity-nulogdash]],
+[[concept-mobile-web-parity]], and [[concept-sync-requirements]].
+
+**PRs #400/#401 scope:** add opt-in, content-free LangSmith attempt traces and a
+synthetic fallback evaluator in the portal only. No mobile client or shared
+module changed; the parity matrix and historical denominators are unchanged.
+See [[entity-ai-council]], [[decision-langsmith-council-tracing]],
+[[concept-ai-run-privacy]], and [[concept-mobile-web-parity]].
 
 **PR #304 scope:** live grounding extraction failures now fail the scheduled
 workflow, including partial failures, so issue recovery cannot infer a clean
@@ -88,7 +100,9 @@ One page per named component. These are the hubs — everything links to entitie
 
 Cross-cutting patterns and design choices.
 
+- [[concept-ai-run-privacy]] — content-free metadata boundary for external model-call traces
 - [[concept-small-model-prompting]] — the prompt contract every seat follows (write for the worst free model)
+- [[concept-scan-expansion-s26]] — S26 scan and X26 AI-feature proposal catalog; every row SPEC/E0, nothing built or run
 - [[concept-unvalidated-recommendation-surface]] — the app emits BUY/HOLD/SELL from four booleans with no backtest, no fundamentals, and no risk model; the vocabulary of rigor exists where the capability does not
 - [[concept-verdict-repair-loop]] — deterministic validators turned into a mechanical re-prompt
 - [[concept-graceful-degradation]] — every dependency degrades to honest-lesser rather than failing
@@ -116,6 +130,7 @@ Cross-cutting patterns and design choices.
 Recorded design decisions — the *why* behind the architecture.
 
 - [[decision-paper-arena-settle-metrics]] — reuse validated settle metrics and batch fallback reads for the arena; keep per-account failure isolation
+- [[decision-langsmith-council-tracing]] — content-free traces require explicit opt-in and endpoint selection
 - [[decision-paper-slots-run-until-next-slot]] — a paper trading slot runs from its nominal start until the next slot begins, so late cron queues still trade; the 30-minute cap was not a price-freshness constraint because prices refresh in the same job before the POST
 - [[decision-four-field-verdict-scaffold]] — 4 verdict fields, not 6 (small models drop later directives)
 - [[decision-split-chair-synthesis-and-verdict]] — CHAIR calls twice: prose synthesis, then a 3× JSON verdict vote
@@ -128,6 +143,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-no-shared-alpaca-budget]] — Alpaca requests are paced or counted per pipeline; no AWS-backed shared budget
+- [[decision-dynamo-capacity-fit-free-tier]] — the four `nwf_*` tables are sized to the always-free 25 RCU / 25 WCU with no headroom (pipeline 4/4, cache 2/2, locks 1/1); 34/34 as coded would have billed
 - [[decision-dark-launch-flags]] — wrong-number surfaces hide behind constant flags that all start `off`; promotion is a reviewed code change
 - [[decision-second-analyze-backend]] — `/api/analyze` calls holdemfoldem-api (a second Cloud Run service), not gcp3-backend — and why that's a deliberate first step, not the end state
 - [[decision-exact-offset-and-fresh-price-for-followed-tickers]] — benchmark horizons exit on their own trading-day offset (a missing close voids, never borrows a later one); prices must be dated on or after a freshness bound and record their source
@@ -187,3 +203,4 @@ The 2026-07-15 chain-of-thought leak remains documented as context inside [[deci
 
 - [[concept-se1-evidence-surfaces]]: evidence badge, provenance footer, scan pages, gap list, scan graph, and llms.txt; every finding carries its evidence level and source, and missing provenance fails closed.
 - [[decision-se1-pure-logic-before-results-store]]: pure logic and catalog pages ship before the se1 results store; no live results are wired yet.
+- [[concept-se1-bar-only-scan-batches]]: six bar-only batch modules carrying 36 S26 scans (PR #413); static test count only, no build or real-data run recorded.

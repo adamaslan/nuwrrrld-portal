@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ImportHttpError,
   MAX_IMPORT_ROWS,
+  MAX_WATCHLIST_SIZE,
   checkRequestOrigin,
   classifyFormat,
   isJsonContentType,
@@ -9,7 +10,7 @@ import {
   readJsonCapped,
   resolveAgainstUniverse,
 } from "@/lib/watchlist-import";
-import { parseTickerCsv } from "@/lib/watchlist-csv";
+import { MAX_CSV_IMPORT_ROWS, getCsvRowCountError, getCsvImportResponseError, prepareCsvSymbolPreview, CSV_TOO_MANY_ROWS_ERROR, parseTickerCsv } from "@/lib/watchlist-csv";
 
 const status = (fn: () => unknown) => {
   try {
@@ -118,5 +119,69 @@ describe("parseTickerCsv", () => {
   });
   it("returns [] for empty input", () => {
     expect(parseTickerCsv("")).toEqual([]);
+  });
+});
+
+
+describe("4000-row portfolio CSV allowance", () => {
+  it("shares the 4000-row limit across client and server without widening watchlist capacity", () => {
+    expect(MAX_CSV_IMPORT_ROWS).toBe(4000);
+    expect(MAX_IMPORT_ROWS).toBe(MAX_CSV_IMPORT_ROWS);
+    expect(MAX_WATCHLIST_SIZE).toBe(1500);
+    expect(CSV_TOO_MANY_ROWS_ERROR).toBe("Too many rows (limit 4000).");
+  });
+  it.each([501, 3999, 4000])("accepts %i raw rows through both guards", (count) => {
+    const tickers = Array.from({ length: count }, () => "AAPL");
+    expect(getCsvRowCountError(count)).toBeNull();
+    expect(parseImportBody({ tickers }).tickers).toHaveLength(count);
+  });
+  it("rejects 4001 before processing", () => {
+    expect(getCsvRowCountError(4001)).toBe(CSV_TOO_MANY_ROWS_ERROR);
+    expect(status(() => parseImportBody({ tickers: Array(4001).fill("AAPL") }))).toBe(413);
+  });
+  it("reads 4000 escaped maximum-length raw entries within the bounded request envelope", async () => {
+    const tickers = Array(4000).fill("\\".repeat(16));
+    const body = JSON.stringify({ tickers, dryRun: true });
+    expect(parseImportBody(await readJsonCapped(streamOf(body))).tickers).toHaveLength(4000);
+  });
+  it("retains a finite request cap", async () => {
+    await expect(readJsonCapped(streamOf("x".repeat(512 * 1024 + 1)))).rejects.toMatchObject({ status: 413 });
+  });
+});
+
+
+describe("CSV import response errors", () => {
+  it("distinguishes security failures and row/body limits without echoing server text", () => {
+    expect(getCsvImportResponseError(403, "origin_not_allowed")).toContain("security check");
+    expect(getCsvImportResponseError(413, "too_many_rows")).toBe("Too many rows (limit 4000).");
+    expect(getCsvImportResponseError(413, "body_too_large")).toContain("request is too large");
+    expect(getCsvImportResponseError(413)).not.toContain("rows");
+    expect(getCsvImportResponseError(503, "private backend detail")).not.toContain("private backend detail");
+  });
+  it.each([200, 201])("accepts success status %i", status => {
+    expect(getCsvImportResponseError(status)).toBeNull();
+  });
+  it.each([[401, "Sign in again"], [422, "watchlist size limit"], [429, "Too many imports"]])("maps status %i", (status, message) => {
+    expect(getCsvImportResponseError(status as number)).toContain(message);
+  });
+});
+
+
+describe("transparent CSV symbol preflight", () => {
+  it("keeps supported rows and counts unsupported rows without converting contracts", () => {
+    const raw = [" AAPL ", "AAPL", "BRK.B", "XYZ   261218C00100000", "XYZ   261218C00100000", "ABC123456789"];
+    const p = prepareCsvSymbolPreview(raw);
+    expect(p).toEqual({tickers:["AAPL", "AAPL", "BRK.B"], inputRows:6, unsupportedRows:3, unsupportedUnique:2});
+    expect(raw[0]).toBe(" AAPL ");
+    expect(parseImportBody({tickers:p.tickers,dryRun:true}).dryRun).toBe(true);
+  });
+  it("never truncates or extracts an underlying symbol from unsupported inputs", () => {
+    const p = prepareCsvSymbolPreview(["XYZ   261218C00100000", "x".repeat(17), ""]);
+    expect(p.tickers).toEqual([]);
+    expect(p.unsupportedRows).toBe(3);
+  });
+  it("counts raw input before filtering so unsupported rows cannot bypass the row cap", () => {
+    const raw = Array(4001).fill("unsupported123");
+    expect(getCsvRowCountError(prepareCsvSymbolPreview(raw).inputRows)).toBe(CSV_TOO_MANY_ROWS_ERROR);
   });
 });

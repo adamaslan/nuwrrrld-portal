@@ -7,6 +7,24 @@ sources: [../../lib, ../../lib/shared, gcp3-mobile/lib, gcp3-mobile/screens, ../
 
 # Concept — What Each Surface Needs to Sync
 
+## Portal PR #415 — Nulogdash quality evidence
+
+The versioned quality evaluator and report reader are portal admin tooling;
+they do not alter a mobile client, shared business logic, or a user-facing
+cross-surface contract. No mobile port or shared-module de-drift task is owed.
+The operational/job, useful-workload, and measured-quality distinction is
+portal-local. Reassess if a mobile surface begins consuming the same evidence
+artifact or evaluator.
+
+## Portal PRs #400/#401 — LangSmith Council diagnostics
+
+No mobile port or shared-module change is owed for this portal-only trace and
+synthetic evaluation tooling. Keep LangSmith credentials on the server and do
+not add the SDK to a client bundle. The feature-domain matrix, code-identical
+module set, and historical headline remain unchanged. Reassess only if mobile
+starts sending Council requests through this portal path or adopts a shared
+server-side tracing contract.
+
 ## Portal PR #378 — Judge simulation
 
 The deterministic rubric approximation lives in portal-only `lib/judge-sim.ts`

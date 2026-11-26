@@ -1,3 +1,4 @@
+import { formatComputedAt, outlookLabel } from "@/lib/shared/stored-card-honesty";
 import { getTickerVerdict } from "../stored-signals";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
@@ -5,7 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { hasEntitlement } from "@/lib/subscription";
 import type { SubscriptionStatus } from "@/lib/subscription";
-import { resolveTier } from "@/lib/subscription-admin";
+import { resolveTierWithPendingBeta } from "@/lib/subscription-admin-server";
 import type { HoldFoldVerdict } from "@/app/api/holdfold/route";
 import { TrackRecordBadge } from "@/components/TrackRecordBadge";
 import DisclaimerModal from "@/components/DisclaimerModal";
@@ -48,7 +49,7 @@ export default async function TickerDetailPage(
 
   const user = await currentUser();
   const status = (user?.publicMetadata?.subscription_status as SubscriptionStatus) ?? "free";
-  const tier = resolveTier(status, user);
+  const tier = await resolveTierWithPendingBeta(status, user);
 
   if (!hasEntitlement("nu_ai", tier)) {
     redirect("/pricing?source=holdfold");
@@ -129,7 +130,7 @@ export default async function TickerDetailPage(
 
         {v.aiOutlook && (
           <div className="hf-outlook">
-            <p className="hf-section-label">AI OUTLOOK</p>
+            <p className="hf-section-label">{outlookLabel(v.outlookSource)}</p>
             <p className="hf-outlook-text">{v.aiOutlook}</p>
           </div>
         )}
@@ -147,7 +148,7 @@ export default async function TickerDetailPage(
           </Link>
           <p className="hf-updated" style={{ margin: 0 }}>
             <span className="hf-updated-dot" />
-            {new Date(v.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+            Market bar {v.barDate ?? "unknown"} · Calculated {formatComputedAt(v.updatedAt)}
           </p>
         </div>
       </div>

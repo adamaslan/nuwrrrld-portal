@@ -1,0 +1,46 @@
+{
+  "datasetName": "nuwrrrld-council-fallback-contract-v1",
+  "description": "Synthetic Council fallback sequences for empty completions and provider failures. Contains no prompts, completions, tickers, or production traces.",
+  "examples": [
+    {
+      "fixtureKey": "empty-primary-then-answer",
+      "inputs": {
+        "attempts": [
+          { "http_status": 200, "finish_reason": "length", "reasoning_tokens": 1140, "content_length": 0, "has_content": false },
+          { "http_status": 200, "finish_reason": "stop", "reasoning_tokens": 0, "content_length": 48, "has_content": true }
+        ]
+      },
+      "outputs": { "has_usable_answer": true, "empty_completion_count": 1, "attempt_count": 2 }
+    },
+    {
+      "fixtureKey": "all-completions-empty",
+      "inputs": {
+        "attempts": [
+          { "http_status": 200, "finish_reason": "length", "reasoning_tokens": 1180, "content_length": 0, "has_content": false },
+          { "http_status": 200, "finish_reason": "length", "reasoning_tokens": 1190, "content_length": 0, "has_content": false }
+        ]
+      },
+      "outputs": { "has_usable_answer": false, "empty_completion_count": 2, "attempt_count": 2 }
+    },
+    {
+      "fixtureKey": "retired-primary-then-answer",
+      "inputs": {
+        "attempts": [
+          { "http_status": 404, "has_content": false },
+          { "http_status": 200, "finish_reason": "stop", "reasoning_tokens": 0, "content_length": 32, "has_content": true }
+        ]
+      },
+      "outputs": { "has_usable_answer": true, "empty_completion_count": 0, "attempt_count": 2 }
+    },
+    {
+      "fixtureKey": "provider-chain-unavailable",
+      "inputs": {
+        "attempts": [
+          { "http_status": 503, "has_content": false },
+          { "http_status": 429, "has_content": false }
+        ]
+      },
+      "outputs": { "has_usable_answer": false, "empty_completion_count": 0, "attempt_count": 2 }
+    }
+  ]
+}

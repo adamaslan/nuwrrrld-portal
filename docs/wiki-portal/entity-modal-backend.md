@@ -28,12 +28,13 @@ Status at ingest: **written and tested, never deployed.** The suite passes again
 - **Default-argument `time.sleep` is invisible to test patches.** Entry points bound the real sleep at import, so a test that patched `time.sleep` still waited minutes. Now resolved at call time. The same trap is worth checking in any new polling code here.
 - **Watchdog no-op assertions removed.** The former `or True` checks in `tests/test_ops.py` are gone; assertions now verify expected alert emission and deduplication (`tests/test_ops.py:62-68`). The session summary's stale line reference was corrected in PR #332.
 - Entrypoints that pass a date to a helper must pass their own `today`; one helper read the real clock instead.
+- **DynamoDB is at the always-free ceiling (25 RCU / 25 WCU, no headroom).** Adding a table or raising any size needs an equal reduction elsewhere first. `nwf_pipeline_data` is 4/4 and `nwf_locks` is 1/1. See [[decision-dynamo-capacity-fit-free-tier]].
 
 ## Open questions
 
 > ❓ Open question: council strategies are still the spec's placeholders, so every real session ends "consensus: flat" and no orders are created until real strategies are registered.
 
-> ❓ Open question: should the DynamoDB mirror stay write-only, or become a read path for anything? It is unmeasured against the free-tier write cap, and a large backfill will throttle it.
+> ❓ Open question: should the DynamoDB mirror stay write-only, or become a read path for anything? Its sizes now fit the always-free pool on paper ([[decision-dynamo-capacity-fit-free-tier]]), but its real write rate is still unmeasured, and a large backfill will throttle it at 4 WCU.
 
 > ❓ Open question: the evening stages are fixed cron slots that poll each other. Chaining them on success and starting ingest earlier is proposed but unmeasured. Alpaca SIP bar finality timing needs a live check first.
 
@@ -43,3 +44,4 @@ Status at ingest: **written and tested, never deployed.** The suite passes again
 
 - [[concept-signal-engine-host-parity]] — a second engine host means a fourth place the signal rules could drift; the backend's rule engine has no parity test against the existing three yet
 - [[decision-modal-backend-skip-before-claim]]
+- [[decision-dynamo-capacity-fit-free-tier]] — why the four tables are sized to 25 / 25 and nothing above it

@@ -2,7 +2,7 @@
 date: 2026-10-12
 type: entity
 tags: [council, llm, deliberation, openrouter]
-sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285]
+sources: [../../app/api/council/deliberate/route.ts, ../../app/api/council/route.ts, ../../app/api/council/sample/route.ts, ../../app/dashboard/holdfold/council-sample.ts, ../../app/api/council/public/route.ts, ../../app/page.tsx, ../../lib/openrouter.ts, ../../lib/langsmith-council-trace.ts, ../../fixtures/langsmith/council-fallback-contract-v1.json, ../../scripts/council-langsmith-eval.mjs, ../../lib/council-verdict.ts, ../../lib/council-critique.ts, ../../lib/council-validate.ts, PR#37, PR#97, PR#110, PR#285, PR#400, PR#401]
 ---
 
 # Entity: AI Council (`app/api/council/*` + `lib/openrouter.ts`)
@@ -39,6 +39,27 @@ Six seats, each a distinct system prompt in `SEAT_SYSTEM` (`lib/openrouter.ts`):
 3. **Round 2** — diff-shaped critique ([[concept-small-model-prompting]] §8): `computeDisagreements()` finds who actually disagrees with the majority *in code*; only those seats get a `DECIDER / IF_RIGHT / CHANGE_MY_MIND` arbitration prompt. Agreeing seats skip round 2 entirely.
 4. **Synthesis** — CHAIR does one prose-only call (best free model), then the verdict is a **separate** call ([[decision-split-chair-synthesis-and-verdict]]) run 3× on `SMALLEST_MODEL`, majority-voting `direction` and taking the *minimum* confidence.
 5. **Persist** — session, messages, verdict → Neon (`lib/council-db.ts`), non-fatal if unavailable.
+
+## Optional LangSmith attempt traces
+
+`lib/openrouter.ts` wraps each `runSeat` model request with
+`lib/langsmith-council-trace.ts`. Tracing is disabled unless an explicit
+`NWF_LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY`, and `LANGSMITH_API_URL` are
+all configured. The endpoint is explicit so a hosted service is not selected
+implicitly. Traces keep seat/model/attempt metadata and bounded response
+diagnostics; prompts, completions, tickers, caller IDs, and provider error text
+are filtered. Existing Council records remain authoritative.
+
+This wiring has not been exercised against a LangSmith endpoint. The owner must
+choose the hosting/retention policy and review the sanitized payload before
+enabling it on real traffic. See [[decision-langsmith-council-tracing]] and
+[[concept-ai-run-privacy]].
+
+`fixtures/langsmith/council-fallback-contract-v1.json` adds synthetic fallback
+sequences for a local deterministic evaluator and an explicitly invoked
+LangSmith dataset/experiment command. The fixture uses no Nov 10 prompt,
+completion, or production trace; it checks status and visible-content counts
+only.
 
 ## The landing sample (PR #97)
 
@@ -120,6 +141,8 @@ Two things observed live during this work remain open, not yet fixed (see [[enti
 - [[decision-four-field-verdict-scaffold]] — why 4 fields, not 6
 - [[concept-composited-contrast]] — why the landing debate's seat labels were invisible
 - [[decision-split-chair-synthesis-and-verdict]] — why the verdict is a separate call
+- [[decision-langsmith-council-tracing]] — why external traces are opt-in and content-free
+- [[concept-ai-run-privacy]] — operational metadata boundary for model-call traces
 - `gcp3-mobile/docs/wiki-mobile/entity-council-composer.md` — the mobile council this was ported from
 - `../moo-council-simulation-todo.md` — the MOO ETF simulation build-out this PR shipped step 1 of
 - [[entity-openrouter-client]] failures #8, #9 — the two production defects this PR's simulation run found and fixed

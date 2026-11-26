@@ -71,6 +71,23 @@ function firstFreeModelFromChain() {
 }
 
 const COMPILE_MODEL = process.env.COMPILE_MODEL ?? firstFreeModelFromChain();
+
+/** Reuse the council's explicit capability allowlist, not a guess based on an
+ * ID containing "reasoning". Unknown/mandatory-reasoning models keep their
+ * default behavior. A missing/unreadable policy never forces a disable flag.
+ */
+function supportsOptionalReasoning(model) {
+  try {
+    const src = readFileSync(join(repoRoot, "lib/openrouter.ts"), "utf8");
+    const block = /const OPTIONAL_REASONING_MODELS\s*=\s*new Set(?:<[^>]+>)?\s*\(\s*\[([\s\S]*?)\]/.exec(src)?.[1];
+    return block ? [...block.matchAll(/['"]([^'"]+)['"]/g)].some((match) => match[1] === model) : false;
+  } catch {
+    return false;
+  }
+}
+
+const ANSWER_ONLY = supportsOptionalReasoning(COMPILE_MODEL);
+const EXTRACT_MAX_TOKENS = 2048;
 const MAX_EXPANDED_ROWS_PER_RULE = 24; // guards against a Cartesian blow-up on under-constrained rules
 const DRY_RUN = process.argv.includes("--dry-run");
 const FORCE = process.argv.includes("--force");
@@ -211,6 +228,7 @@ function extractionPrompt(chunk) {
 async function extractRules(apiKey, chunk) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), EXTRACT_TIMEOUT_MS);
+  let phase = "waiting for response";
   try {
     const res = await fetch(`${OR_BASE}/chat/completions`, {
       method: "POST",
@@ -224,6 +242,11 @@ async function extractRules(apiKey, chunk) {
       body: JSON.stringify({
         model: COMPILE_MODEL,
         temperature: 0,
+        // This is JSON extraction, not open-ended reasoning. Keep one request
+        // per chunk and the existing timeout/call budget, but bound output and
+        // opt out of hidden reasoning only for known optional-reasoning IDs.
+        max_tokens: EXTRACT_MAX_TOKENS,
+        ...(ANSWER_ONLY ? { reasoning: { enabled: false } } : {}),
         messages: [{ role: "user", content: extractionPrompt(chunk) }],
       }),
     });
@@ -242,7 +265,15 @@ async function extractRules(apiKey, chunk) {
       extractFailures++;
       return [];
     }
+    phase = "reading response body";
     const data = await res.json();
+    // A capped response must not make an incomplete extraction look cached,
+    // even if its visible prefix happens to contain a parseable JSON array.
+    if (data?.choices?.[0]?.finish_reason === "length") {
+      console.warn(`  extract reached output limit for ${chunk.chunkId}`);
+      extractFailures++;
+      return [];
+    }
     // A 2xx carrying nothing usable is a failure, not an empty result. Only a
     // well-formed `[]` means "this chunk genuinely had no extractable rule";
     // missing content, no array delimiters, or a non-array payload all mean the
@@ -273,7 +304,11 @@ async function extractRules(apiKey, chunk) {
     // A dead model id is fatal for the whole run, not survivable per-chunk;
     // let it out past the per-chunk tolerance so the process exits non-zero.
     if (err instanceof Error && err.message.includes("returned 404")) throw err;
-    console.warn(`  extract error for ${chunk.chunkId}: ${err.message}`);
+    if (controller.signal.aborted) {
+      console.warn(`  extract timed out after ${EXTRACT_TIMEOUT_MS}ms (${phase}) for ${chunk.chunkId}`);
+    } else {
+      console.warn(`  extract error for ${chunk.chunkId}: ${err.message}`);
+    }
     extractFailures++;
     return [];
   } finally {

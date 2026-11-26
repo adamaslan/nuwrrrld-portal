@@ -57,6 +57,8 @@ describe("getTickerVerdict", () => {
     const v = await getTickerVerdict("stx");
     expect(v?.ticker).toBe("STX");
     expect(v?.verdict).toBe("FOLD EM");
+    expect(v?.outlookSource).toBe("upstream-signal");
+    expect(v?.barDate).toBeNull();
     expect(mocks.getCard).not.toHaveBeenCalled();
   });
 
@@ -69,6 +71,8 @@ describe("getTickerVerdict", () => {
     expect(mocks.getCard).toHaveBeenCalledWith("STX", "t1");
     expect(v?.ticker).toBe("STX");
     expect(v?.verdict).toBe("HOLD EM");
+    expect(v?.outlookSource).toBe("stored-card");
+    expect(v?.barDate).toBe("2026-10-29");
     expect(v?.confidenceLabel).toBe("HIGH");
     expect(v?.updatedAt).toBe("2026-10-30T02:00:00.000Z");
   });

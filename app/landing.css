@@ -1524,3 +1524,42 @@ body:has(.nwf-landing) {
     transform: none;
   }
 }
+
+/* Clerk public auth surface restyle. No grayscale filter here: it would
+   strip the standard color from provider sign-in logos (Google's branding
+   guidelines require the standard-color "G" and tie compliance to OAuth app
+   verification), and a CSS filter on the root cannot be undone per-child.
+   Square borders and token colors below carry the monochrome system. */
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) {
+  color: var(--text);
+}
+/* Provider icons (span.cl-providerIcon__*) are functional sign-in marks
+   rendered as CSS background images - the universal removal must not strip
+   them (deployed preview showed the Google "G" missing). Decorative gradient
+   removal still applies to every other descendant. */
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root),
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *:not([class*="cl-providerIcon"]),
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *:not([class*="cl-providerIcon"])::before,
+.nwf-landing .public-auth :is(.cl-signIn-root, .cl-signUp-root) *:not([class*="cl-providerIcon"])::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+.nwf-landing .public-auth .cl-cardBox {
+  border: var(--bw-standard) solid var(--line-strong);
+}
+.nwf-landing .public-auth .cl-card {
+  background: var(--bg);
+}
+.nwf-landing .public-auth :is(.cl-formFieldInput, .cl-socialButtonsBlockButton) {
+  border: var(--bw-supporting) solid var(--line-strong);
+}
+.nwf-landing .public-auth .cl-formButtonPrimary {
+  border: var(--bw-standard) solid var(--line-strong);
+  background: var(--fill-strong);
+  color: var(--bg);
+}
+.nwf-landing .public-auth .cl-formButtonPrimary:hover {
+  background: var(--bg);
+  color: var(--text);
+}

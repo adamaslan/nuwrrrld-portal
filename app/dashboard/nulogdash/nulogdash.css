@@ -53,6 +53,31 @@
 .nld-reason summary { color: var(--text-dim); font-size: .8rem; }
 .nld-reason p { margin: .35rem 0 0; font-size: .8rem; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
 
+.nld-quality { border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; background: var(--surface); }
+.nld-quality-note { margin: 0 0 .8rem; color: #f59e0b; font-weight: 600; }
+.nld-quality-scope { color: var(--text-dim); font-size: .82rem; }
+.nld-quality-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: .5rem .8rem; margin: .8rem 0; }
+.nld-quality-meta div { min-width: 0; }
+.nld-quality-meta dt { color: var(--text-dim); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+.nld-quality-meta dd { margin: .15rem 0 0; color: var(--text); font-size: .78rem; overflow-wrap: anywhere; }
+.nld-quality-workload { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: baseline; border-block: 1px solid var(--border); padding: .7rem 0; font-size: .8rem; }
+.nld-quality-workload strong { color: var(--text); }
+.nld-quality-workload span, .nld-quality-workload p { color: var(--text-dim); margin: 0; }
+.nld-quality-scroll { overflow-x: auto; margin-top: .8rem; }
+.nld-quality-scroll-hint { display: none; color: var(--text-dim); font-size: .72rem; }
+.nld-quality-table { min-width: 720px; }
+.nld-quality-table small { display: block; margin-top: .2rem; color: var(--text-dim); font-size: .72rem; max-width: 46ch; }
+.nld-quality-verdict { display: inline-block; font-size: .72rem; font-weight: 600; color: var(--text-dim); }
+.nld-quality-verdict--meets_target { color: var(--bull, #22c55e); }
+.nld-quality-verdict--misses_target, .nld-quality-verdict--blocked { color: var(--bear, #ef4444); }
+.nld-quality-verdict--insufficient, .nld-quality-verdict--missing { color: #f59e0b; }
+@media (max-width: 640px) {
+  .nld-quality { padding: .85rem; }
+  .nld-quality-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nld-quality-workload { align-items: flex-start; flex-direction: column; }
+  .nld-quality-scroll-hint { display: block; }
+}
+
 /* ── pipeline runs (/dashboard/nulogdash/pipelines) ─────────────────────── */
 
 /* Tab strip between the feature sweep and the pipeline-run log. Only two
@@ -170,3 +195,15 @@
 .nld-result { margin: .4rem 0 0; font-size: .8rem; flex-basis: 100%; }
 .nld-result--ok { color: var(--text); }
 .nld-result--err { color: var(--text); font-weight: 600; text-decoration: underline; }
+
+/* A batch subject can be an entire ticker universe. Keep the other item
+   columns reachable without discarding any subject text. The labelled,
+   focusable region scrolls with keyboard or touch when its text is long. */
+.nld-item-subject {
+  width: min(18rem, 40vw);
+  max-height: 8rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.nld-item-subject:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }

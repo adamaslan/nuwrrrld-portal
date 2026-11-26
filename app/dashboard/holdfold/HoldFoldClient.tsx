@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { formatComputedAt } from "@/lib/shared/stored-card-honesty";
+
+import { useRef, useState } from "react";
 import Link from "next/link";
 import type { HoldFoldPayload, HoldFoldVerdict } from "@/app/api/holdfold/route";
 import { buildCouncilPrompt, type CouncilSeat } from "@/lib/shared/prompts";
@@ -153,6 +155,9 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
           <WatchlistButton ticker={v.ticker} />
         </div>
         <p className="hf-detail-industry">{v.industry}</p>
+        <p className="hf-detail-dates">
+          Market bar {v.barDate ?? "unknown"} · Calculated {formatComputedAt(v.updatedAt)}
+        </p>
       </div>
 
       <div className="hf-detail-conf">
@@ -182,7 +187,7 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
 
       {v.aiOutlook && (
         <div className="hf-outlook">
-          <p className="hf-section-label">AI OUTLOOK</p>
+          <p className="hf-section-label">STORED SIGNAL SUMMARY</p>
           <p className="hf-outlook-text">{v.aiOutlook}</p>
         </div>
       )}
@@ -205,6 +210,8 @@ function VerdictDetail({ v, onClose }: { v: HoldFoldVerdict; onClose: () => void
 }
 
 export function HoldFoldClient({ data }: Props) {
+  const selectedRow = useRef<HTMLButtonElement | null>(null);
+  const searchInput = useRef<HTMLInputElement | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<HoldFoldVerdict | null>(null);
   const [filter, setFilter] = useState<"all" | "HOLD EM" | "FOLD EM" | "NEUTRAL">("all");
@@ -219,6 +226,7 @@ export function HoldFoldClient({ data }: Props) {
     <div className="hf-body">
       <div className="hf-controls">
         <input
+          ref={searchInput}
           className="hf-search"
           type="text"
           placeholder="Search ticker or industry…"
@@ -239,6 +247,19 @@ export function HoldFoldClient({ data }: Props) {
       </div>
 
       <div className="hf-layout">
+        {/* Detail precedes the list in DOM so keyboard focus reaches the
+            selected verdict (and its Close control) before the long ticker
+            list - matching the narrow-screen visual order. Desktop restores
+            list-left/detail-right with explicit grid placement in CSS. */}
+        {selected && (
+          <VerdictDetail v={selected} onClose={() => {
+            setSelected(null);
+            // Close removes the focused control. Return to its ticker, or
+            // search if filtering has removed that ticker from the list.
+            if (selectedRow.current?.isConnected) selectedRow.current.focus();
+            else searchInput.current?.focus();
+          }} />
+        )}
         <div className="hf-list">
           {filtered.length === 0 && <p className="hf-no-results">No tickers match your search.</p>}
           {filtered.map(v => {
@@ -248,7 +269,10 @@ export function HoldFoldClient({ data }: Props) {
               <button
                 key={v.ticker}
                 className={`hf-row ${verdictCls}${isActive ? " hf-row--active" : ""}`}
-                onClick={() => setSelected(isActive ? null : v)}
+                onClick={event => {
+                  selectedRow.current = event.currentTarget;
+                  setSelected(isActive ? null : v);
+                }}
               >
                 <span className="hf-row-ticker">{v.ticker}</span>
                 <span className="hf-row-industry">{v.industry}</span>
@@ -259,9 +283,6 @@ export function HoldFoldClient({ data }: Props) {
           })}
         </div>
 
-        {selected && (
-          <VerdictDetail v={selected} onClose={() => setSelected(null)} />
-        )}
       </div>
     </div>
   );
