@@ -63,7 +63,7 @@ export function numericCrossCheck(verdict: StructuredVerdict, brief: string): Re
 export function tradeLogicSanity(verdict: StructuredVerdict): RepairFlag[] {
   // Read one complete price token. A comma-grouped price must not become its
   // leading group (1,000 -> 1), and malformed separators must not be truncated.
-  const price = String.raw`(-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+))(?![\d.,])`;
+  const price = String.raw`(-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+))(?![\d.]|,\d)`;
   const match = verdict.execution.match(
     new RegExp(String.raw`entry\s*\$?${price}.*?stop\s*\$?${price}.*?target\s*\$?${price}`, "i"),
   );
