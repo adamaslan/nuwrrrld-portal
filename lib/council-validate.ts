@@ -61,15 +61,18 @@ export function numericCrossCheck(verdict: StructuredVerdict, brief: string): Re
 
 /** Parses "entry X / stop Y / target Z" and checks ordering against the call's direction. */
 export function tradeLogicSanity(verdict: StructuredVerdict): RepairFlag[] {
+  // Read one complete price token. A comma-grouped price must not become its
+  // leading group (1,000 -> 1), and malformed separators must not be truncated.
+  const price = String.raw`(-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+))(?![\d.,])`;
   const match = verdict.execution.match(
-    /entry\s*\$?(-?[\d.]+).*?stop\s*\$?(-?[\d.]+).*?target\s*\$?(-?[\d.]+)/i,
+    new RegExp(String.raw`entry\s*\$?${price}.*?stop\s*\$?${price}.*?target\s*\$?${price}`, "i"),
   );
   if (!match) return []; // "n/a" or unparseable — nothing to check
 
   const [, entryStr, stopStr, targetStr] = match;
-  const entry = Number(entryStr);
-  const stop = Number(stopStr);
-  const target = Number(targetStr);
+  const entry = Number(entryStr.replace(/,/g, ""));
+  const stop = Number(stopStr.replace(/,/g, ""));
+  const target = Number(targetStr.replace(/,/g, ""));
   if ([entry, stop, target].some(Number.isNaN)) return [];
 
   const direction = directionFromOutlook(verdict.outlook);
