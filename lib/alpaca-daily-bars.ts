@@ -56,12 +56,11 @@ export async function fetchAlpacaDailyBars(
 
   const bySymbol = new Map(tickers.map((t) => [toAlpacaSymbol(t), t]));
   const symbols = [...bySymbol.keys()];
-  // `end` must be at least 15 minutes old for SIP; midnight after endDate is
-  // usually in the future, so clamp it to now minus the delay.
-  const endOfDay = new Date(`${endDate}T23:59:59Z`).getTime();
-  const end = new Date(Math.min(endOfDay, Date.now() - SIP_DELAY_MS)).toISOString();
-
   try {
+    // `end` must be at least 15 minutes old for SIP; midnight after endDate is
+    // usually in the future, so clamp it to now minus the delay.
+    const endOfDay = new Date(`${endDate}T23:59:59Z`).getTime();
+    const end = new Date(Math.min(endOfDay, Date.now() - SIP_DELAY_MS)).toISOString();
     for (let i = 0; i < symbols.length; i += SYMBOLS_PER_REQUEST) {
       const chunk = symbols.slice(i, i + SYMBOLS_PER_REQUEST);
       let pageToken: string | null = null;
