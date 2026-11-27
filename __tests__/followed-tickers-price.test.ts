@@ -104,6 +104,29 @@ describe("resolveFollowedPrice", () => {
     await expect(resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).resolves.toBeNull();
   });
 
+  it.each([NaN, Infinity, -1, 0])("skips invalid Alpaca price %s for a valid daily close", async (price) => {
+    mockAlpaca.mockResolvedValue({ price, tradedAt: TRADED_THU });
+    mockBar.mockResolvedValue({ barDate: "2026-06-02", close: 208.5 });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toEqual({ price: 208.5, source: "daily_bars", asOf: "2026-06-02" });
+  });
+
+  it("skips an infinite live price for the next valid rung", async () => {
+    mockLive.mockResolvedValue({ ticker: "AAPL", price: Infinity, volume: null, tradedAt: TRADED_THU, updatedAt: TRADED_THU });
+    mockAlpaca.mockResolvedValue({ price: 211, tradedAt: TRADED_THU });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toEqual({ price: 211, source: "alpaca_iex", asOf: "2026-06-03" });
+  });
+
+  it.each([NaN, Infinity, -1, 0])("skips invalid SIP close %s for a valid daily close", async (close) => {
+    mockSip.mockResolvedValue(new Map([["AAPL", [{ date: "2026-06-02", close }]]]));
+    mockBar.mockResolvedValue({ barDate: "2026-06-02", close: 208.5 });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toEqual({ price: 208.5, source: "daily_bars", asOf: "2026-06-02" });
+  });
+
+  it("returns null for an infinite terminal daily close", async () => {
+    mockBar.mockResolvedValue({ barDate: "2026-06-02", close: Infinity });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toBeNull();
+  });
+
   it("returns null only when every source is empty or stale", async () => {
     expect(await resolveFollowedPrice("ZZZZ", { freshSince: FRESH_SINCE })).toBeNull();
   });
