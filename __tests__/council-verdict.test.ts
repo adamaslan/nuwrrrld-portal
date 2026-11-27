@@ -21,6 +21,19 @@ describe("parseStructuredVerdict — 4-field scaffold", () => {
     expect(verdict?.execution).toContain("target 195.00");
   });
 
+  it("keeps field-label words inside an evidence quote in the BECAUSE field", () => {
+    const because = '[C1] says "INVALIDATION: a close below support invalidates this rule"';
+    const raw = [
+      "OUTLOOK: bullish",
+      `BECAUSE: ${because}`,
+      "INVALIDATION: close below 182.50",
+      "EXECUTION: entry 185 / stop 182.50 / target 195",
+    ].join("\n");
+    const parsed = parseStructuredVerdict(raw);
+    expect(parsed?.because).toBe(because);
+    expect(parsed?.invalidation).toBe("close below 182.50");
+  });
+
   it("returns null when a required field is missing", () => {
     const raw = ["OUTLOOK: bullish", "BECAUSE: [C1] says \"x\""].join("\n");
     expect(parseStructuredVerdict(raw)).toBeNull();
