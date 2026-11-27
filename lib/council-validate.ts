@@ -15,7 +15,7 @@
 import type { StructuredVerdict } from "@/lib/council-verdict";
 import { directionFromOutlook } from "@/lib/council-verdict";
 
-const NUMBER_RE = /-?(?:\d+(?:\.\d+)?|\.\d+)/g;
+const NUMBER_RE = /-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?/gi;
 const NUMERIC_TOLERANCE = 0.01; // ±1%
 
 function extractNumbers(text: string): number[] {
