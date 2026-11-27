@@ -92,7 +92,9 @@ export async function fetchAlpacaDailyBars(
           for (const b of bars) {
             if (!b || typeof b.t !== "string" || !Number.isFinite(Date.parse(b.t)) ||
               typeof b.c !== "number" || !Number.isFinite(b.c) || b.c <= 0) continue;
-            rows.push({ date: b.t.slice(0, 10), close: b.c });
+            const date = b.t.slice(0, 10);
+            if (date < startDate || date > endDate) continue;
+            rows.push({ date, close: b.c });
           }
           out.set(ticker, rows);
         }
