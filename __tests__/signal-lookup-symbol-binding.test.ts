@@ -30,6 +30,28 @@ describe("fetchTickerEntry symbol binding", () => {
     expect(mocks.sql).toHaveBeenCalledTimes(1);
   });
 
+  it.each([null, [], "bad-cache", 42])("recovers from invalid cached payload %j through the live backend", async (payload) => {
+    const expected = { ai_action: "BUY", confluence_score: 72 };
+    mocks.sql.mockResolvedValue([{ payload, generated_at: new Date().toISOString() }]);
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ symbols: { AAPL: expected } }) });
+    expect(await fetchTickerEntry("AAPL")).toEqual(expected);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([null, [], "bad-cache", 42])("does not serve invalid stale cache %j during an outage", async (payload) => {
+    mocks.sql.mockResolvedValue([{ payload, generated_at: "2020-01-01T00:00:00Z" }]);
+    mocks.fetch.mockRejectedValue(new Error("offline fixture"));
+    expect(await fetchTickerEntry("AAPL")).toBeNull();
+    expect(mocks.sql).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a valid fresh cache entry without a live fetch", async () => {
+    const payload = { ai_action: "HOLD", confluence_score: 50 };
+    mocks.sql.mockResolvedValue([{ payload, generated_at: new Date().toISOString() }]);
+    expect(await fetchTickerEntry("AAPL")).toEqual(payload);
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
   it("returns and caches the exact requested key even when another key appears first", async () => {
     const expected = { ai_action: "HOLD", confluence_score: 35 };
     mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ symbols: { MSFT: { ai_action: "BUY" }, AAPL: expected } }) });
