@@ -110,6 +110,23 @@ describe("tradeLogicSanity", () => {
     expect(flags[0].message).toContain("target < entry < stop");
   });
 
+  it("checks full grouped prices instead of accepting truncated prefixes", () => {
+    expect(tradeLogicSanity(verdict({ execution: "entry 1,000 / stop 0.5 / target 900" }))).toHaveLength(1);
+    expect(tradeLogicSanity(verdict({ execution: "entry $1,000.25 / stop $900.50 / target $1,100.75" }))).toEqual([]);
+    expect(tradeLogicSanity(verdict({ outlook: "bearish", execution: "entry 1,000 / stop 1,100 / target 900" }))).toEqual([]);
+    expect(tradeLogicSanity(verdict({ outlook: "bearish", execution: "entry 1,000 / stop 900 / target 1,100" }))).toHaveLength(1);
+  });
+
+  it("preserves comma-delimited fields and trailing decimal points", () => {
+    expect(tradeLogicSanity(verdict({ execution: "entry 100, stop 110, target 90" }))).toHaveLength(1);
+    expect(tradeLogicSanity(verdict({ execution: "entry 100. / stop 110. / target 90." }))).toHaveLength(1);
+  });
+
+  it("preserves leading-dot decimal prices", () => {
+    expect(tradeLogicSanity(verdict({ execution: "entry .75 / stop .5 / target .9" }))).toEqual([]);
+    expect(tradeLogicSanity(verdict({ execution: "entry .75 / stop .9 / target .5" }))).toHaveLength(1);
+  });
+
   it("skips neutral calls and unparseable execution fields", () => {
     expect(tradeLogicSanity(verdict({ outlook: "neutral" }))).toEqual([]);
     expect(tradeLogicSanity(verdict({ execution: "entry n/a / stop n/a / target n/a" }))).toEqual([]);
