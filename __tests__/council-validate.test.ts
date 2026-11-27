@@ -5,7 +5,7 @@ import {
   tradeLogicSanity,
   validateStructuredVerdict,
 } from "@/lib/council-validate";
-import type { StructuredVerdict } from "@/lib/council-verdict";
+import { parseStructuredVerdict, type StructuredVerdict } from "@/lib/council-verdict";
 
 const BRIEF = [
   "QUESTION: should I trade AAPL",
@@ -156,6 +156,23 @@ describe("tradeLogicSanity", () => {
     ["bullish", "entry 7.5e-1 / stop .5 / target .9", 0],
   ] as const)("checks full scientific prices for %s: %s", (outlook, execution, count) => {
     expect(tradeLogicSanity(verdict({ outlook, execution }))).toHaveLength(count);
+  });
+
+  it.each([
+    ["bullish", "entry 100\nstop 110\ntarget 120", 1],
+    ["bearish", "entry 100\r\nstop 90\r\ntarget 80", 1],
+    ["bullish", "entry 100\nstop 90\ntarget 120", 0],
+    ["bearish", "entry 100\nstop 110\ntarget 80", 0],
+  ] as const)("checks multiline %s prices: %s", (outlook, execution, count) => {
+    expect(tradeLogicSanity(verdict({ outlook, execution }))).toHaveLength(count);
+  });
+
+  it("checks multiline execution through the actual structured parser", () => {
+    const parsed = parseStructuredVerdict("OUTLOOK: bullish\nBECAUSE: levels 100 110 120\nINVALIDATION: below 110\nEXECUTION: entry 100\nstop 110\ntarget 120");
+    expect(parsed).not.toBeNull();
+    expect(validateStructuredVerdict(parsed!, "levels 100 110 120")).toEqual([
+      expect.objectContaining({ field: "EXECUTION", message: expect.stringContaining("stop < entry < target") }),
+    ]);
   });
 
   it("skips neutral calls and unparseable execution fields", () => {
