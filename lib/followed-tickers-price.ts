@@ -107,7 +107,7 @@ export async function resolveFollowedPrice(
   // close, so it is only a close once the session has ended.
   const now = new Date();
   const sessionOpenToday = nyMinutesOf(now) < NY_CLOSE_MINUTES;
-  const completedBars = (sipBars.get(ticker) ?? []).filter((b) => Number.isFinite(b.close) && b.close > 0 && !(sessionOpenToday && b.date === nyDateOf(now)));
+  const completedBars = (sipBars.get(ticker) ?? []).filter((b) => Number.isFinite(b.close) && b.close > 0 && b.date >= freshSince && !(sessionOpenToday && b.date === nyDateOf(now)));
   const sipBar = closedOn ? completedBars.find((b) => b.date === closedOn) : completedBars.at(-1);
   if (sipBar) return { price: sipBar.close, source: "alpaca_daily_bar", asOf: sipBar.date };
   console.warn(`[followed-price] ${ticker}: no Alpaca SIP daily bar in the window; falling back`);
