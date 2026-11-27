@@ -87,10 +87,11 @@ export async function fetchAlpacaDailyBars(
         const body = (await res.json()) as BarsResponse;
         for (const [symbol, bars] of Object.entries(body.bars ?? {})) {
           const ticker = bySymbol.get(symbol);
-          if (!ticker || !bars) continue;
+          if (!ticker || !Array.isArray(bars)) continue;
           const rows = out.get(ticker) ?? [];
           for (const b of bars) {
-            if (!b.t || !b.c || b.c <= 0) continue;
+            if (!b || typeof b.t !== "string" || !Number.isFinite(Date.parse(b.t)) ||
+              typeof b.c !== "number" || !Number.isFinite(b.c) || b.c <= 0) continue;
             rows.push({ date: b.t.slice(0, 10), close: b.c });
           }
           out.set(ticker, rows);
