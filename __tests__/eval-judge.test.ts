@@ -75,6 +75,14 @@ describe("parseJudgeResponse", () => {
     expect(r!.total).toBe(2);
   });
 
+  it.each(["GROUNDING: 0", "GROUNDING: 2", "GROUNDING: 3"])(
+    "rejects repeated criterion instead of replacing its score: %s",
+    (duplicate) => {
+      const raw = ["GROUNDING: 2", "FALSIFIABILITY: 2", "CONSISTENCY: 2", "SPECIFICITY: 2", "CALIBRATION: 2", duplicate].join("\n");
+      expect(parseJudgeResponse(raw)).toBeNull();
+    },
+  );
+
   it("returns null when a criterion is missing", () => {
     const raw = ["GROUNDING: 2", "FALSIFIABILITY: 2", "CONSISTENCY: 2", "SPECIFICITY: 2"].join("\n");
     expect(parseJudgeResponse(raw)).toBeNull();

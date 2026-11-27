@@ -110,10 +110,15 @@ const LINE_RE = /^([A-Z]+)\s*:\s*([012])\s*(?:[—–-]\s*(.*))?$/;
 export function parseJudgeResponse(raw: string): JudgeResult | null {
   const found = new Map<Criterion, { score: CriterionScore; why: string }>();
   for (const line of raw.split("\n")) {
-    const m = line.trim().match(LINE_RE);
-    if (!m) continue;
-    const key = m[1].toLowerCase() as Criterion;
+    const trimmed = line.trim();
+    const label = trimmed.match(/^([A-Z]+)\s*:/);
+    if (!label) continue;
+    const key = label[1].toLowerCase() as Criterion;
     if (!JUDGE_CRITERIA.includes(key)) continue;
+    const m = trimmed.match(LINE_RE);
+    // A known criterion must occur exactly once with a valid score. Ignoring
+    // malformed repeats or taking the last score would hide an ambiguous grade.
+    if (!m || found.has(key)) return null;
     found.set(key, { score: Number(m[2]) as CriterionScore, why: (m[3] ?? "").trim() });
   }
 
