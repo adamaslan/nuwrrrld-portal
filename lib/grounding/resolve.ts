@@ -82,7 +82,7 @@ async function resolveTier0(
     // a second query per row (that N+1 pattern was flagged in PR #37 review).
     const validRows = rows.filter((row) => {
       const chunkTraderFilter = row.trader_filter as string | null;
-      return !(traderFilter && chunkTraderFilter && chunkTraderFilter !== traderFilter);
+      return !(traderFilter && chunkTraderFilter && chunkTraderFilter !== "ALL" && chunkTraderFilter !== traderFilter);
     });
     if (validRows.length < TIER0_MIN_RULES) return null;
 
