@@ -81,6 +81,17 @@ describe("numericCrossCheck", () => {
     expect(numericCrossCheck(negative, "return -75")).toHaveLength(1);
   });
 
+  it("grounds scientific notation as one value, not mantissa and exponent fragments", () => {
+    const scientific = verdict({ because: "volume 1e3", invalidation: "n/a", execution: "n/a" });
+    expect(numericCrossCheck(scientific, "volume 1000")).toEqual([]);
+    expect(numericCrossCheck(verdict({ because: "volume 1000", invalidation: "n/a", execution: "n/a" }), "volume 1e3")).toEqual([]);
+    expect(numericCrossCheck(verdict({ because: "return -7.5e-1", invalidation: "n/a", execution: "n/a" }), "return -0.75")).toEqual([]);
+  });
+
+  it("does not ground a scientific value from its separate mantissa and exponent", () => {
+    expect(numericCrossCheck(verdict({ because: "volume 1e3", invalidation: "n/a", execution: "n/a" }), "values 1 and 3")).toHaveLength(1);
+  });
+
   it("does not flag the id inside [C1] as an invented number", () => {
     const groundedOnly = verdict({
       because: '[C1] says "RSI 28.40 with rising volume signals a bounce"',
