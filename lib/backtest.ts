@@ -33,9 +33,11 @@ function isBacktestBucket(value: unknown): value is BacktestBucket {
   const b = value as Record<string, unknown>;
   return (
     typeof b.key === "string" &&
-    typeof b.hits === "number" &&
-    typeof b.total === "number" &&
-    typeof b.hit_rate === "number"
+    typeof b.hits === "number" && Number.isInteger(b.hits) && b.hits >= 0 &&
+    typeof b.total === "number" && Number.isInteger(b.total) && b.total >= 0 &&
+    b.hits <= b.total &&
+    typeof b.hit_rate === "number" && Number.isFinite(b.hit_rate) &&
+    b.hit_rate >= 0 && b.hit_rate <= 1
   );
 }
 
