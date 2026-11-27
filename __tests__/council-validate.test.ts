@@ -92,6 +92,18 @@ describe("numericCrossCheck", () => {
     expect(numericCrossCheck(verdict({ because: "volume 1e3", invalidation: "n/a", execution: "n/a" }), "values 1 and 3")).toHaveLength(1);
   });
 
+  it.each([
+    [0.005, 0.01, 1],
+    [-0.005, -0.01, 1],
+    [0.009, 0.01, 1],
+    [0.001, 0, 1],
+    [0.01005, 0.01, 0],
+    [-0.01005, -0.01, 0],
+    [0, 0, 0],
+  ])("uses relative one-percent tolerance for %s against %s", (candidate, grounded, count) => {
+    expect(numericCrossCheck(verdict({ because: `return ${candidate}`, invalidation: "n/a", execution: "n/a" }), `return ${grounded}`)).toHaveLength(count);
+  });
+
   it("does not flag the id inside [C1] as an invented number", () => {
     const groundedOnly = verdict({
       because: '[C1] says "RSI 28.40 with rising volume signals a bounce"',
