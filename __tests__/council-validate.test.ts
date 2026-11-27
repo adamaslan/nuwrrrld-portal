@@ -148,6 +148,16 @@ describe("tradeLogicSanity", () => {
     expect(tradeLogicSanity(verdict({ execution: "entry .75 / stop .9 / target .5" }))).toHaveLength(1);
   });
 
+  it.each([
+    ["bullish", "entry 1e3 / stop 0.5 / target 900", 1],
+    ["bullish", "entry 1e3 / stop 900 / target 1.1e3", 0],
+    ["bearish", "entry 1E+3 / stop 1.1e3 / target 900", 0],
+    ["bearish", "entry 1e3 / stop 900 / target 1.1e3", 1],
+    ["bullish", "entry 7.5e-1 / stop .5 / target .9", 0],
+  ] as const)("checks full scientific prices for %s: %s", (outlook, execution, count) => {
+    expect(tradeLogicSanity(verdict({ outlook, execution }))).toHaveLength(count);
+  });
+
   it("skips neutral calls and unparseable execution fields", () => {
     expect(tradeLogicSanity(verdict({ outlook: "neutral" }))).toEqual([]);
     expect(tradeLogicSanity(verdict({ execution: "entry n/a / stop n/a / target n/a" }))).toEqual([]);
