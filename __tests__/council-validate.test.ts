@@ -71,6 +71,16 @@ describe("numericCrossCheck", () => {
     expect(numericCrossCheck(grounded, briefWithLargeNumber)).toEqual([]);
   });
 
+  it("compares leading-dot fractions by numeric value, not their digit suffix", () => {
+    const fractional = verdict({ because: "probability .75", invalidation: "n/a", execution: "n/a" });
+    expect(numericCrossCheck(fractional, "probability 0.75")).toEqual([]);
+    expect(numericCrossCheck(fractional, "probability 75")).toHaveLength(1);
+    expect(numericCrossCheck(verdict({ because: "probability 0.75", invalidation: "n/a", execution: "n/a" }), "probability .75")).toEqual([]);
+    const negative = verdict({ because: "return -.75", invalidation: "n/a", execution: "n/a" });
+    expect(numericCrossCheck(negative, "return -0.75")).toEqual([]);
+    expect(numericCrossCheck(negative, "return -75")).toHaveLength(1);
+  });
+
   it("does not flag the id inside [C1] as an invented number", () => {
     const groundedOnly = verdict({
       because: '[C1] says "RSI 28.40 with rising volume signals a bounce"',
