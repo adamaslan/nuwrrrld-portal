@@ -127,6 +127,22 @@ describe("resolveFollowedPrice", () => {
     expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toBeNull();
   });
 
+  it("rejects a SIP close older than freshSince and uses a valid daily close", async () => {
+    mockSip.mockResolvedValue(new Map([["AAPL", [{ date: "2026-05-29", close: 199 }]]]));
+    mockBar.mockResolvedValue({ barDate: "2026-06-02", close: 208.5 });
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toEqual({ price: 208.5, source: "daily_bars", asOf: "2026-06-02" });
+  });
+
+  it("returns null when SIP only supplies a stale close and no other price exists", async () => {
+    mockSip.mockResolvedValue(new Map([["AAPL", [{ date: "2026-05-29", close: 199 }]]]));
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toBeNull();
+  });
+
+  it("accepts a SIP close on the inclusive freshSince boundary", async () => {
+    mockSip.mockResolvedValue(new Map([["AAPL", [{ date: FRESH_SINCE, close: 200 }]]]));
+    expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toEqual({ price: 200, source: "alpaca_daily_bar", asOf: FRESH_SINCE });
+  });
+
   it("returns null only when every source is empty or stale", async () => {
     expect(await resolveFollowedPrice("ZZZZ", { freshSince: FRESH_SINCE })).toBeNull();
   });
