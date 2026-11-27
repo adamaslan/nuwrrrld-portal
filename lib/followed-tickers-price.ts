@@ -80,8 +80,8 @@ export async function resolveFollowedPrice(
   const live = await getLivePrice(ticker);
   if (live && live.price > 0) {
     const tradedAt = new Date(live.tradedAt);
-    const asOf = nyDateOf(tradedAt);
-    if (asOf >= freshSince && (!closedOn || tradedAfterCloseOn(tradedAt, closedOn))) {
+    const asOf = Number.isFinite(tradedAt.getTime()) ? nyDateOf(tradedAt) : null;
+    if (asOf !== null && asOf >= freshSince && (!closedOn || tradedAfterCloseOn(tradedAt, closedOn))) {
       return { price: live.price, source: "live_prices", asOf };
     }
     console.warn(`[followed-price] ${ticker}: live_prices traded ${live.tradedAt}, outside the window; falling back`);
@@ -92,8 +92,8 @@ export async function resolveFollowedPrice(
   const alpaca = await fetchAlpacaLatestTrade(ticker);
   if (alpaca) {
     const tradedAt = new Date(alpaca.tradedAt);
-    const asOf = nyDateOf(tradedAt);
-    if (asOf >= freshSince && (!closedOn || tradedAfterCloseOn(tradedAt, closedOn))) {
+    const asOf = Number.isFinite(tradedAt.getTime()) ? nyDateOf(tradedAt) : null;
+    if (asOf !== null && asOf >= freshSince && (!closedOn || tradedAfterCloseOn(tradedAt, closedOn))) {
       return { price: alpaca.price, source: "alpaca_iex", asOf };
     }
     console.warn(`[followed-price] ${ticker}: Alpaca trade ${alpaca.tradedAt}, outside the window; falling back`);
