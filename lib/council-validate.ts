@@ -65,7 +65,7 @@ export function tradeLogicSanity(verdict: StructuredVerdict): RepairFlag[] {
   // leading group (1,000 -> 1), and malformed separators must not be truncated.
   const price = String.raw`(-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(?![\d.e]|,\d)`;
   const match = verdict.execution.match(
-    new RegExp(String.raw`entry\s*\$?${price}.*?stop\s*\$?${price}.*?target\s*\$?${price}`, "i"),
+    new RegExp(String.raw`entry\s*\$?${price}.*?stop\s*\$?${price}.*?target\s*\$?${price}`, "is"),
   );
   if (!match) return []; // "n/a" or unparseable — nothing to check
 
