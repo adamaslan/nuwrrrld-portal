@@ -30,7 +30,8 @@ function extractNumbers(text: string): number[] {
 
 function numberGroundedIn(candidate: number, groundedNumbers: number[]): boolean {
   return groundedNumbers.some((g) => {
-    const denom = Math.max(Math.abs(g), 1);
+    if (g === 0) return candidate === 0;
+    const denom = Math.abs(g);
     return Math.abs(candidate - g) / denom <= NUMERIC_TOLERANCE;
   });
 }
