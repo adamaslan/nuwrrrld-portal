@@ -41,9 +41,13 @@ async function readCachedEntry(ticker: string): Promise<CacheReadResult> {
       SELECT payload, generated_at FROM signal_cache WHERE ticker = ${ticker} LIMIT 1
     `;
     if (!rows.length) return { outcome: "miss" };
+    const payload = rows[0].payload;
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+      return { outcome: "miss" };
+    }
     return {
       outcome: "hit",
-      entry: { payload: rows[0].payload as Record<string, unknown>, generatedAt: rows[0].generated_at as string },
+      entry: { payload: payload as Record<string, unknown>, generatedAt: rows[0].generated_at as string },
     };
   } catch (err) {
     // Distinct from a cold miss — the cache is unreachable/un-migrated, which is
