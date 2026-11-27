@@ -87,6 +87,23 @@ describe("resolveFollowedPrice", () => {
     expect(await resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).toBeNull();
   });
 
+  it("skips an invalid live timestamp and uses the next valid rung", async () => {
+    mockLive.mockResolvedValue({ ticker: "AAPL", price: 210, volume: null, tradedAt: "not-a-date", updatedAt: TRADED_THU });
+    mockAlpaca.mockResolvedValue({ price: 211, tradedAt: TRADED_THU });
+    await expect(resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).resolves.toEqual({ price: 211, source: "alpaca_iex", asOf: "2026-06-03" });
+  });
+
+  it("skips an invalid Alpaca timestamp and uses the valid daily close", async () => {
+    mockAlpaca.mockResolvedValue({ price: 211, tradedAt: "not-a-date" });
+    mockBar.mockResolvedValue({ barDate: "2026-06-02", close: 208.5 });
+    await expect(resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).resolves.toEqual({ price: 208.5, source: "daily_bars", asOf: "2026-06-02" });
+  });
+
+  it("returns null instead of throwing when timestamps are invalid and no fallback exists", async () => {
+    mockAlpaca.mockResolvedValue({ price: 211, tradedAt: "not-a-date" });
+    await expect(resolveFollowedPrice("AAPL", { freshSince: FRESH_SINCE })).resolves.toBeNull();
+  });
+
   it("returns null only when every source is empty or stale", async () => {
     expect(await resolveFollowedPrice("ZZZZ", { freshSince: FRESH_SINCE })).toBeNull();
   });
