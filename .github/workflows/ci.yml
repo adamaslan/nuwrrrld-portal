@@ -108,6 +108,27 @@ jobs:
           MOBILE_ROOT: ../gcp3-mobile
         run: node scripts/check-shared-drift.mjs
 
+  drift-pair-tests:
+    # Staged helper tests only. Offline, no secrets, read-only token, no
+    # counterpart code execution. The shared-drift-check job above is unchanged.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Offline resolver and comparator controls
+        run: |
+          node --test scripts/drift-pair/resolve-pair.test.mjs
+          node --test scripts/drift-pair/comparator-controls.test.mjs
+          node --test scripts/drift-pair/activation.test.mjs
+
   modal-python:
     # Relevant tests and real app build run locally before publication.
     if: github.event_name == 'workflow_dispatch' && inputs.run_local_suites
