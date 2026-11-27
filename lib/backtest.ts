@@ -64,7 +64,7 @@ export async function fetchBacktest(symbol: string): Promise<BacktestResult | nu
     );
     if (!res.ok) return null;
     const data: unknown = await res.json();
-    if (!isBacktestResult(data)) return null;
+    if (!isBacktestResult(data) || data.symbol !== symbol) return null;
     return data;
   } catch {
     return null;
