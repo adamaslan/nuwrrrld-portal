@@ -49,7 +49,8 @@ export function isCryptoShaped(input: unknown): boolean {
 export function isCacheFresh(generatedAt: string | Date, maxAgeMinutes: number, now: Date = new Date()): boolean {
   const gen = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
   if (Number.isNaN(gen.getTime())) return false;
-  return now.getTime() - gen.getTime() <= maxAgeMinutes * 60_000;
+  const ageMs = now.getTime() - gen.getTime();
+  return ageMs >= 0 && ageMs <= maxAgeMinutes * 60_000;
 }
 
 /** Has this row's failure count stayed under the cap? */
