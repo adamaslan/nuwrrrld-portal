@@ -52,6 +52,12 @@ describe("isCacheFresh", () => {
     expect(isCacheFresh(new Date("2026-07-24T11:55:00Z"), 15, now)).toBe(true);
   });
 
+  it("does not let a future timestamp suppress refresh", () => {
+    expect(isCacheFresh("2026-07-25T12:00:00Z", 15, now)).toBe(false);
+    expect(isCacheFresh(new Date("2026-07-24T12:00:00.001Z"), 15, now)).toBe(false);
+    expect(isCacheFresh(now, 15, now)).toBe(true);
+  });
+
   it("treats an unparseable timestamp as not fresh", () => {
     expect(isCacheFresh("not-a-date", 15, now)).toBe(false);
   });
