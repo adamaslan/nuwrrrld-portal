@@ -52,6 +52,20 @@ describe("fetchTickerEntry symbol binding", () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
+  it.each([[], "bad-live", 42, true])("does not return or cache invalid requested live entry %j", async (payload) => {
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ symbols: { AAPL: payload } }) });
+    expect(await fetchTickerEntry("AAPL")).toBeNull();
+    expect(mocks.sql).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([[], "bad-live", 42, true])("retains valid stale data instead of invalid live entry %j", async (payload) => {
+    const stale = { ai_action: "HOLD", confluence_score: 35 };
+    mocks.sql.mockResolvedValue([{ payload: stale, generated_at: "2020-01-01T00:00:00Z" }]);
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ symbols: { AAPL: payload } }) });
+    expect(await fetchTickerEntry("AAPL")).toEqual(stale);
+    expect(mocks.sql).toHaveBeenCalledTimes(1);
+  });
+
   it("returns and caches the exact requested key even when another key appears first", async () => {
     const expected = { ai_action: "HOLD", confluence_score: 35 };
     mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ symbols: { MSFT: { ai_action: "BUY" }, AAPL: expected } }) });

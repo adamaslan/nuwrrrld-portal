@@ -71,7 +71,8 @@ async function fetchTickerEntryLive(ticker: string): Promise<Record<string, unkn
     if (!res.ok) return null;
     const data = (await res.json()) as { symbols?: Record<string, Record<string, unknown>> };
     // A different symbol is not grounding for this ticker and must not warm its cache.
-    return data.symbols?.[ticker] ?? null;
+    const entry = data.symbols?.[ticker];
+    return entry !== null && typeof entry === "object" && !Array.isArray(entry) ? entry : null;
   } catch {
     return null;
   } finally {
