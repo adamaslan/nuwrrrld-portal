@@ -9,6 +9,9 @@ import { buildNavSeriesView, type NavSeriesPointVM } from "@/lib/shared/paper-vi
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<PaperAccount, { data: NavSeriesPointVM[]; expiresAt: number }>();
+// Share a cold read only within this process and account. Separate serverless
+// instances still have independent caches; failed work must never be retained.
+const inFlight = new Map<PaperAccount, Promise<NavSeriesPointVM[]>>();
 
 function isValidAccount(value: string): value is PaperAccount {
   return (PAPER_ACCOUNTS as string[]).includes(value);
@@ -27,9 +30,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ account
   }
 
   try {
-    const points = await getNavSeries(account, 400);
-    const series = buildNavSeriesView(account === "equal" || account === "spy" ? points.filter((p) => p.positionsN > 0) : points);
-    cache.set(account, { data: series, expiresAt: Date.now() + CACHE_TTL_MS });
+    let pending = inFlight.get(account);
+    if (!pending) {
+      pending = (async () => {
+        const points = await getNavSeries(account, 400);
+        const series = buildNavSeriesView(account === "equal" || account === "spy" ? points.filter((p) => p.positionsN > 0) : points);
+        cache.set(account, { data: series, expiresAt: Date.now() + CACHE_TTL_MS });
+        return series;
+      })();
+      inFlight.set(account, pending);
+    }
+    let series: NavSeriesPointVM[];
+    try {
+      series = await pending;
+    } finally {
+      // Identity check prevents old waiters from clearing newer work.
+      if (inFlight.get(account) === pending) inFlight.delete(account);
+    }
     return NextResponse.json({ account, series });
   } catch (err) {
     console.error(`[paper/${account}/nav] error`, err);
