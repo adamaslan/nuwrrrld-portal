@@ -70,8 +70,10 @@ export function parseStructuredVerdict(raw: string): StructuredVerdict | null {
   for (let i = 0; i < FIELD_DEFS.length; i++) {
     const { key, label } = FIELD_DEFS[i];
     const nextLabels = FIELD_DEFS.slice(i + 1).map((f) => f.label).join("|");
-    const stopPattern = nextLabels ? `(?:${nextLabels})\\s*:|$` : "$";
-    const re = new RegExp(`${label}\\s*:\\s*([\\s\\S]*?)(?=\\s*(?:${stopPattern}))`, "i");
+    // Labels delimit fields only at the start of a line, never inside a quote.
+    const endOfInput = "(?![\\s\\S])";
+    const stopPattern = nextLabels ? `^[ \t]*(?:${nextLabels})[ \t]*:|${endOfInput}` : endOfInput;
+    const re = new RegExp(`^[ \t]*${label}[ \t]*:[ \t]*([\\s\\S]*?)(?=${stopPattern})`, "im");
     const match = cleaned.match(re);
     const value = match?.[1]?.trim();
     if (value) values[key] = value;
