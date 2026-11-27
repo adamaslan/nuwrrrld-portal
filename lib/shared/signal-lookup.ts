@@ -109,15 +109,19 @@ export async function fetchTickerEntry(ticker: string): Promise<Record<string, u
 /** Human-readable REAL DATA brief for one ticker entry — null when there's nothing worth grounding on. */
 export function formatTickerBrief(entry: Record<string, unknown>): string | null {
   const lines: string[] = [];
-  if (entry.ai_action) lines.push(`Action: ${entry.ai_action}`);
-  if (typeof entry.confluence_score === "number") lines.push(`Confluence score: ${entry.confluence_score}`);
-  if (entry.ai_summary) lines.push(`Summary: ${entry.ai_summary}`);
+  const hasText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+  if (hasText(entry.ai_action)) lines.push(`Action: ${entry.ai_action}`);
+  if (typeof entry.confluence_score === "number" && Number.isFinite(entry.confluence_score)) lines.push(`Confluence score: ${entry.confluence_score}`);
+  if (hasText(entry.ai_summary)) lines.push(`Summary: ${entry.ai_summary}`);
   // Guard against non-object/null entries in an externally-supplied array
   // (flagged in PR #37 review) — a malformed element would otherwise throw
   // on `s.detail` and crash the whole signal fetch.
   const signals = Array.isArray(entry.signals) ? (entry.signals as Record<string, unknown>[]) : [];
   const reasons = signals
-    .map((s) => (s && typeof s === "object" ? String(s.detail ?? s.signal ?? "") : ""))
+    .map((s) => {
+      if (!s || typeof s !== "object" || Array.isArray(s)) return "";
+      return hasText(s.detail) ? s.detail : hasText(s.signal) ? s.signal : "";
+    })
     .filter(Boolean)
     .slice(0, 6);
   if (reasons.length) lines.push(`Signals:\n- ${reasons.join("\n- ")}`);
