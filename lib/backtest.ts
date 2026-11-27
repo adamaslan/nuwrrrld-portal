@@ -44,7 +44,10 @@ function isBacktestBucket(value: unknown): value is BacktestBucket {
 function isBacktestResult(value: unknown): value is BacktestResult {
   if (!value || typeof value !== "object") return false;
   const r = value as Record<string, unknown>;
-  return Array.isArray(r.by_category) && r.by_category.every(isBacktestBucket)
+  return typeof r.period === "string" && r.period.trim().length > 0
+    && typeof r.horizon_days === "number" && Number.isInteger(r.horizon_days) && r.horizon_days > 0
+    && typeof r.bars_scanned === "number" && Number.isInteger(r.bars_scanned) && r.bars_scanned >= 0
+    && Array.isArray(r.by_category) && r.by_category.every(isBacktestBucket)
     && Array.isArray(r.by_strength) && r.by_strength.every(isBacktestBucket);
 }
 
