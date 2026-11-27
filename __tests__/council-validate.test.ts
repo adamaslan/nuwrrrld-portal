@@ -117,6 +117,11 @@ describe("tradeLogicSanity", () => {
     expect(tradeLogicSanity(verdict({ outlook: "bearish", execution: "entry 1,000 / stop 900 / target 1,100" }))).toHaveLength(1);
   });
 
+  it("preserves comma-delimited fields and trailing decimal points", () => {
+    expect(tradeLogicSanity(verdict({ execution: "entry 100, stop 110, target 90" }))).toHaveLength(1);
+    expect(tradeLogicSanity(verdict({ execution: "entry 100. / stop 110. / target 90." }))).toHaveLength(1);
+  });
+
   it("preserves leading-dot decimal prices", () => {
     expect(tradeLogicSanity(verdict({ execution: "entry .75 / stop .5 / target .9" }))).toEqual([]);
     expect(tradeLogicSanity(verdict({ execution: "entry .75 / stop .9 / target .5" }))).toHaveLength(1);
