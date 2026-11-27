@@ -1,7 +1,6 @@
 import type { CatalogEntry } from "@/lib/nulogdash-catalog";
 import { formatRunTimeET } from "@/lib/format-time";
 import type { PipelineRunRow } from "@/lib/pipeline-run-log-db";
-import { summarizeOutcomes } from "@/lib/pipeline-run-log-db";
 
 /** Run evidence line. A catalog entry with no `pipeline` writes no
  * pipeline_run_log row, so the honest answer is to say so rather than
@@ -13,7 +12,7 @@ function EvidenceLine({ entry, latestRun }: { entry: CatalogEntry; latestRun: Pi
   if (!latestRun) {
     return <span className="nld-card-sub">No run recorded in pipeline_run_log yet.</span>;
   }
-  const outcomes = summarizeOutcomes(latestRun.items);
+  const outcomes = latestRun.outcomes;
   return (
     <span className="nld-card-sub">
       Last recorded {formatRunTimeET(latestRun.runAt)} ·{" "}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatRunTimeET } from "@/lib/format-time";
-import { summarizeOutcomes, type PipelineName, type PipelineRunRow } from "@/lib/pipeline-run-log-db";
+import type { PipelineName, PipelineRunRow } from "@/lib/pipeline-run-log-db";
 
 /** Human labels for the pipelines this page knows how to render.
  * Partial rather than a full `Record<PipelineName, string>`: `PipelineName`
@@ -23,7 +23,7 @@ export function RunModeBadge({ dryRun }: { dryRun: boolean }) {
 }
 
 export function RunRow({ run }: { run: PipelineRunRow }) {
-  const outcomes = summarizeOutcomes(run.items);
+  const outcomes = run.outcomes;
   return (
     <tr className="nld-row">
       <td>
