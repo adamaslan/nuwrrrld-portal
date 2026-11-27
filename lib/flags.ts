@@ -17,6 +17,7 @@ export const FLAG_NAMES = [
   "holdfold_top_movers",
   "news_vote",
   "council_public_demo",
+  "scan_ai_assist",
 ] as const;
 
 export type FlagName = (typeof FLAG_NAMES)[number];
@@ -28,6 +29,7 @@ const FLAG_MODES: Record<FlagName, FlagMode> = {
   holdfold_top_movers: "off",
   news_vote: "off",
   council_public_demo: "off",
+  scan_ai_assist: "off",
 };
 
 export function flagMode(name: FlagName): FlagMode {
