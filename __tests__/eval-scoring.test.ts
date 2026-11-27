@@ -174,6 +174,19 @@ describe("computeBaselines", () => {
     expect(computeBaselines(withVoids).alwaysLongPct).toBeCloseTo(100);
   });
 
+  it.each([-0.2, 1.2])("excludes an impossible probability prior %s from the baseline", (backtestPrior) => {
+    expect(computeBaselines(rows.map((r) => ({ ...r, backtestPrior }))).backtestPriorPct).toBeNull();
+  });
+
+  it("does not count invalid priors toward the minimum sample", () => {
+    const mixed = rows.slice(0, MIN_RESOLVED_FOR_RATE).map((r, i) => ({ ...r, backtestPrior: i === 0 ? 2 : 0.6 }));
+    expect(computeBaselines(mixed).backtestPriorPct).toBeNull();
+  });
+
+  it.each([0, 1])("keeps the valid boundary probability %s", (backtestPrior) => {
+    expect(computeBaselines(rows.map((r) => ({ ...r, backtestPrior }))).backtestPriorPct).toBe(backtestPrior * 100);
+  });
+
   it("no priors present → backtestPriorPct is null", () => {
     const noPriors = rows.map((r) => ({ ...r, backtestPrior: null }));
     expect(computeBaselines(noPriors).backtestPriorPct).toBeNull();

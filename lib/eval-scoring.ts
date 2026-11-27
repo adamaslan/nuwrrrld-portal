@@ -223,7 +223,7 @@ export function computeBaselines(rows: readonly BaselineInput[]): Baselines {
 
   const priors = live
     .map((r) => r.backtestPrior)
-    .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
+    .filter((p): p is number => typeof p === "number" && Number.isFinite(p) && p >= 0 && p <= 1);
 
   return {
     coinFlipPct: 50,
