@@ -78,7 +78,7 @@ export async function resolveFollowedPrice(
   const { freshSince, closedOn } = window;
 
   const live = await getLivePrice(ticker);
-  if (live && live.price > 0) {
+  if (live && Number.isFinite(live.price) && live.price > 0) {
     const tradedAt = new Date(live.tradedAt);
     const asOf = Number.isFinite(tradedAt.getTime()) ? nyDateOf(tradedAt) : null;
     if (asOf !== null && asOf >= freshSince && (!closedOn || tradedAfterCloseOn(tradedAt, closedOn))) {
@@ -90,7 +90,7 @@ export async function resolveFollowedPrice(
   }
 
   const alpaca = await fetchAlpacaLatestTrade(ticker);
-  if (alpaca) {
+  if (alpaca && Number.isFinite(alpaca.price) && alpaca.price > 0) {
     const tradedAt = new Date(alpaca.tradedAt);
     const asOf = Number.isFinite(tradedAt.getTime()) ? nyDateOf(tradedAt) : null;
     if (asOf !== null && asOf >= freshSince && (!closedOn || tradedAfterCloseOn(tradedAt, closedOn))) {
@@ -107,7 +107,7 @@ export async function resolveFollowedPrice(
   // close, so it is only a close once the session has ended.
   const now = new Date();
   const sessionOpenToday = nyMinutesOf(now) < NY_CLOSE_MINUTES;
-  const completedBars = (sipBars.get(ticker) ?? []).filter((b) => !(sessionOpenToday && b.date === nyDateOf(now)));
+  const completedBars = (sipBars.get(ticker) ?? []).filter((b) => Number.isFinite(b.close) && b.close > 0 && !(sessionOpenToday && b.date === nyDateOf(now)));
   const sipBar = closedOn ? completedBars.find((b) => b.date === closedOn) : completedBars.at(-1);
   if (sipBar) return { price: sipBar.close, source: "alpaca_daily_bar", asOf: sipBar.date };
   console.warn(`[followed-price] ${ticker}: no Alpaca SIP daily bar in the window; falling back`);
@@ -115,7 +115,7 @@ export async function resolveFollowedPrice(
   // A daily bar is a completed session. For a closed-day window it must be that day's bar.
   const bar = await getLatestDailyBar(ticker);
   const barInWindow = closedOn ? bar?.barDate === closedOn : bar && bar.barDate >= freshSince;
-  if (bar && bar.close > 0 && barInWindow) {
+  if (bar && Number.isFinite(bar.close) && bar.close > 0 && barInWindow) {
     console.warn(`[followed-price] ${ticker}: using daily_bars close from ${bar.barDate}`);
     return { price: bar.close, source: "daily_bars", asOf: bar.barDate };
   }
