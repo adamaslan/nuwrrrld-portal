@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ sql: vi.fn(), fetch: vi.fn() }));
 vi.mock("@/lib/db", () => ({ default: mocks.sql }));
-import { fetchTickerEntry } from "@/lib/shared/signal-lookup";
+import { fetchTickerEntry, formatTickerBrief } from "@/lib/shared/signal-lookup";
 
 describe("fetchTickerEntry symbol binding", () => {
   beforeEach(() => {
@@ -72,5 +72,26 @@ describe("fetchTickerEntry symbol binding", () => {
     expect(await fetchTickerEntry(" aapl ")).toEqual(expected);
     expect(mocks.sql).toHaveBeenCalledTimes(2);
     expect(mocks.sql.mock.calls[1][1]).toBe("AAPL");
+  });
+});
+
+
+describe("formatTickerBrief shape checks", () => {
+  it.each([
+    { ai_action: { label: "BUY" } },
+    { ai_summary: ["unstructured", "values"] },
+    { confluence_score: Number.NaN },
+    { confluence_score: Number.POSITIVE_INFINITY },
+    { signals: [{ detail: { score: 72 } }] },
+  ])("does not invent grounding text from malformed fields %j", (entry) => {
+    expect(formatTickerBrief(entry)).toBeNull();
+  });
+
+  it("retains valid grounding while ignoring malformed fields and using a valid signal fallback", () => {
+    expect(formatTickerBrief({ ai_action: "HOLD", confluence_score: 0, ai_summary: {}, signals: [null, [], { detail: {}, signal: "RSI 28.4" }, { detail: "Volume rising" }] })).toBe("Action: HOLD\nConfluence score: 0\nSignals:\n- RSI 28.4\n- Volume rising");
+  });
+
+  it("preserves complete valid brief output", () => {
+    expect(formatTickerBrief({ ai_action: "BUY", confluence_score: 72, ai_summary: "Trend up", signals: [{ detail: "RSI 28.4" }, { signal: "MACD rising" }] })).toBe("Action: BUY\nConfluence score: 72\nSummary: Trend up\nSignals:\n- RSI 28.4\n- MACD rising");
   });
 });
