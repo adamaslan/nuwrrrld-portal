@@ -69,6 +69,23 @@ describe("listPipelineRuns query", () => {
     expect(run.outcomes).toEqual({ ok: 2, empty: 0, fail: 1, skip: 1 });
   });
 
+  it("preserves outcome counts from legacy string-encoded arrays", async () => {
+    query.run.mockResolvedValueOnce([baseRow({
+      outcome_counts: null,
+      legacy_items: JSON.stringify(ITEMS),
+    })]);
+    const [run] = await listPipelineRuns(50);
+    expect(run.outcomes).toEqual({ ok: 2, empty: 0, fail: 1, skip: 1 });
+    expect(run.items).toEqual([]);
+  });
+
+  it("ignores malformed legacy strings without hiding database errors", async () => {
+    query.run.mockResolvedValueOnce([baseRow({ outcome_counts: null, legacy_items: "not JSON" })]);
+    const [run] = await listPipelineRuns(50);
+    expect(run.outcomes).toEqual({ ok: 0, empty: 0, fail: 0, skip: 0 });
+    expect(run.items).toEqual([]);
+  });
+
   it("propagates a database error instead of returning an empty list", async () => {
     query.run.mockRejectedValueOnce(new Error("connection refused"));
     await expect(listPipelineRuns(50)).rejects.toThrow("connection refused");
