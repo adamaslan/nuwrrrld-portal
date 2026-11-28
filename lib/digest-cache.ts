@@ -26,10 +26,11 @@ const GLOBAL_CACHE_TTL_MS = 60 * 60 * 1000;
 // Step 4's stale Neon row, remembered in-process so the degraded path doesn't
 // re-read the full payload on every request. Digests are pushed only from local
 // scripts, so past the 15 min Neon window every signals page load, digest API
-// call and Nu AI message used to land here. Only a real row is kept (never a
-// miss or a failed read), and it is always served marked degraded. Steps 2 and
-// 3 still run first on every request, so a fresh row is never hidden; kept
-// under the 15 min Neon window so a newer stale row can't be either.
+// call and Nu AI message used to land here. Only a populated row is kept
+// (never an empty digest, a miss or a failed read), and it is always served
+// marked degraded. Steps 2 and 3 run before it whenever this request gets past
+// the L1 caches above, so the memo itself never hides a fresh row; kept under
+// the 15 min Neon window so a newer stale row can't stay hidden for long.
 const DEGRADED_MEMO_TTL_MS = 5 * 60 * 1000;
 export const degradedDigestMemo: { digest: DigestPayload | null; expiresAt: number } = {
   digest: null,
@@ -41,7 +42,9 @@ async function lastKnownDurableDigest(): Promise<DigestPayload | null> {
     return degradedDigestMemo.digest;
   }
   const digest = await getLatestDigestAnyAge();
-  if (digest) {
+  // An empty digest is valid and is still served, but it is not remembered: a
+  // populated row written next must not wait out the memo window.
+  if (digest && Array.isArray(digest.signals) && digest.signals.length > 0) {
     degradedDigestMemo.digest = digest;
     degradedDigestMemo.expiresAt = Date.now() + DEGRADED_MEMO_TTL_MS;
   }

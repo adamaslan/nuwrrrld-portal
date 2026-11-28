@@ -45,7 +45,8 @@ vi.mock("@/lib/db", () => ({
       return record("global-fresh", newestGlobal().filter((r) => Date.now() - Date.parse(r.generated_at) < ttlMs));
     }
     if (text.includes("FROM signal_digest_cache")) {
-      return record("global-any-age", newestGlobal());
+      // getLatestDigestAnyAge selects payload only.
+      return record("global-any-age", newestGlobal().map(({ payload }) => ({ payload })));
     }
     if (text.includes("INSERT INTO signal_digest_cache")) {
       return record("global-write", []);
@@ -149,15 +150,67 @@ describe("getOrFetchDigest — degraded fallback is not re-read on every request
     expect(payloadReads()).toHaveLength(2);
   });
 
-  it("never caches a failed read: a database outage is retried on the next request", async () => {
-    const { getOrFetchDigest } = await load();
+  it("does not remember a failed read: the outage result and the retry are separate outcomes", async () => {
+    const { getOrFetchDigest, degradedDigestMemo } = await load();
     db.failing = true;
+    // Outage: every read throws, nothing is served and nothing is memoized.
     expect(await getOrFetchDigest("user_a")).toBeNull();
+    expect(degradedDigestMemo.digest).toBeNull();
+    expect(payloadReads()).toHaveLength(0);
 
+    // Retry: the next request reads Neon again and serves the populated row.
     db.failing = false;
     const next = await getOrFetchDigest("user_a");
     expect(next?.periodLabel).toBe("Signals for 2026-11-26");
+    expect(next?.degraded).toBe(true);
     expect(payloadReads()).toHaveLength(1);
+  });
+
+  it("does not remember an empty digest: a populated row written next is served on the next request", async () => {
+    const empty = { ...digest("empty push", "2026-11-26T22:00:00Z"), signals: [] };
+    db.global = [{ payload: empty, generated_at: "2026-11-26T22:00:00Z" }];
+    const { getOrFetchDigest, degradedDigestMemo } = await load();
+
+    const first = await getOrFetchDigest("user_a");
+    expect(first?.periodLabel).toBe("empty push");
+    expect(first?.degraded).toBe(true);
+    expect(degradedDigestMemo.digest).toBeNull();
+
+    db.global.push({ payload: digest("Signals for 2026-11-26 late", "2026-11-26T23:00:00Z"), generated_at: "2026-11-26T23:00:00Z" });
+    vi.advanceTimersByTime(30_000);
+    expect((await getOrFetchDigest("user_a"))?.periodLabel).toBe("Signals for 2026-11-26 late");
+    expect(payloadReads()).toHaveLength(2);
+  });
+
+  it("does not remember a zero-row result: a populated row written next is served on the next request", async () => {
+    db.global = [];
+    const { getOrFetchDigest, degradedDigestMemo } = await load();
+
+    expect(await getOrFetchDigest("user_a")).toBeNull();
+    expect(degradedDigestMemo.digest).toBeNull();
+
+    db.global.push({ payload: digest("Signals for 2026-11-26", "2026-11-26T21:05:00Z"), generated_at: "2026-11-26T21:05:00Z" });
+    vi.advanceTimersByTime(30_000);
+    expect((await getOrFetchDigest("user_a"))?.periodLabel).toBe("Signals for 2026-11-26");
+    expect(payloadReads()).toHaveLength(2);
+  });
+
+  it("documents existing behaviour: a warm global L1 keeps serving its copy past a newer push", async () => {
+    // Predates the memo: step 2's in-process global copy lives for 1 h and is
+    // returned before the Neon fresh-row check runs.
+    const firstAt = new Date(START - 60_000).toISOString();
+    db.global = [{ payload: digest("pushed 14:59", firstAt), generated_at: firstAt }];
+    const { getOrFetchDigest } = await load();
+    expect((await getOrFetchDigest(null))?.periodLabel).toBe("pushed 14:59");
+
+    vi.advanceTimersByTime(20 * 60_000);
+    const secondAt = new Date().toISOString();
+    db.global.push({ payload: digest("pushed 15:20", secondAt), generated_at: secondAt });
+
+    const warm = await getOrFetchDigest(null);
+    expect(warm?.periodLabel).toBe("pushed 14:59");
+    expect(warm?.degraded).toBeUndefined();
+    expect(db.log.filter((q) => q.kind === "global-fresh")).toHaveLength(1);
   });
 
   it("keeps per-user rows per user: one user's cached row is never served to another", async () => {
