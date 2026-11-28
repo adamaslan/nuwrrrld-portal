@@ -102,10 +102,15 @@ when a local script pushes one, so most requests are past the 15-minute window. 
 degraded read then ran on every signals page load, digest API call and Nu AI message.
 Each of those read the whole stale payload again, because nothing remembered it
 between requests. The fix keeps that row in process memory for 5 minutes. It holds
-only a real row, never a miss or a failed read, and serves it marked degraded. The
-fresh-row check and the live fetch still run first on every request, so a new push is
-picked up on the next request. The window is shorter than Neon's 15-minute freshness
-window, so the memo can't hide a newer stale row for long either. The digest is
+only a populated row, never an empty digest, a miss or a failed read, and serves it
+marked degraded. The memo sits after the fresh-row check and the live fetch, so it never
+hides a fresh row by itself. What still can is older: the in-process per-user copy (up to
+15 minutes) and global copy (up to 1 hour) return before the fresh-row check, so a new
+push reaches a warm instance only once those expire. That trade was left alone, because
+checking Neon on every warm hit would add the reads this change removes. The memo
+window is shorter than Neon's 15-minute freshness window, so it can't hide a newer
+stale row for long. Concurrent cold requests can each start their own read; the
+one-read figure holds for sequential requests on a warm instance. The digest is
 global, with no per-user data in it, so the memo can't leak between users. Per-user
 rows keep their own cache. The rule this adds: a degrade path that runs on almost
 every request is effectively the main path, so budget its reads like one.
