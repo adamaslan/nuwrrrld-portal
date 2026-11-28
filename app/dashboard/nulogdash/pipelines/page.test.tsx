@@ -28,6 +28,7 @@ function run(overrides: Partial<PipelineRunRow> = {}): PipelineRunRow {
       { subject: "AAPL", model: null, outcome: "skip" },
       { subject: "MSFT", model: null, outcome: "skip" },
     ],
+    outcomes: { ok: 0, empty: 0, fail: 0, skip: 2 },
     summary: { selection: "watchlist" },
     host: null,
     status: null,
@@ -61,12 +62,8 @@ describe("RunRow", () => {
     );
   });
 
-  it("summarizes outcomes from the run's items", () => {
-    table(<RunRow run={run({ items: [
-      { subject: "A", model: "m", outcome: "ok" },
-      { subject: "B", model: "m", outcome: "fail" },
-      { subject: "C", model: null, outcome: "skip" },
-    ] })} />);
+  it("renders the run's outcome counts", () => {
+    table(<RunRow run={run({ outcomes: { ok: 1, empty: 0, fail: 1, skip: 1 } })} />);
     expect(screen.getByText(/1 ok · 0 empty · 1 fail · 1 skip/)).toBeInTheDocument();
   });
 

@@ -199,7 +199,10 @@ export interface PipelineRunRow {
   itemsTotal: number;
   itemsAi: number;
   models: Record<string, PerModelStats>;
+  /** Full per-item array. Empty on the runs list, which reads `outcomes` instead. */
   items: RunItem[];
+  /** Per-outcome counts. Computed in SQL on the list, from `items` on one run. */
+  outcomes: Record<RunItemOutcome, number>;
   summary: Record<string, unknown>;
   host: string | null;
   status: string | null;
@@ -221,6 +224,15 @@ function parseJson<T>(value: unknown, fallback: T): T {
 }
 
 function toRow(r: Record<string, unknown>): PipelineRunRow {
+  const items = parseJson<RunItem[]>(r.items, []);
+  // Older/parity writers may store an array as a JSON string. Only those
+  // exceptional rows transfer their payload; normal jsonb arrays stay compact.
+  const legacyItems = parseJson<unknown>(r.legacy_items, []);
+  const legacyOutcomes = Array.isArray(legacyItems)
+    ? summarizeOutcomes(legacyItems.filter(
+        (item): item is RunItem => item != null && typeof item === "object",
+      ))
+    : { ok: 0, empty: 0, fail: 0, skip: 0 };
   return {
     id: String(r.id),
     pipeline: r.pipeline as PipelineName,
@@ -230,7 +242,13 @@ function toRow(r: Record<string, unknown>): PipelineRunRow {
     itemsTotal: Number(r.items_total ?? 0),
     itemsAi: Number(r.items_ai ?? 0),
     models: parseJson<Record<string, PerModelStats>>(r.models, {}),
-    items: parseJson<RunItem[]>(r.items, []),
+    items,
+    outcomes:
+      r.legacy_items != null
+        ? legacyOutcomes
+        : r.outcome_counts === undefined
+          ? summarizeOutcomes(items)
+          : outcomesFromCounts(r.outcome_counts),
     summary: parseJson<Record<string, unknown>>(r.summary, {}),
     host: (r.host as string | null) ?? null,
     status: (r.status as string | null) ?? null,
@@ -238,14 +256,25 @@ function toRow(r: Record<string, unknown>): PipelineRunRow {
   };
 }
 
-/** Most recent runs across all three pipelines, newest first. */
+/** Most recent runs across all three pipelines, newest first.
+ *  Does not transfer each run's `items` array: the list only shows outcome
+ *  counts, which are counted in SQL. Errors propagate; they are not an empty list. */
 export async function listPipelineRuns(limit = 50): Promise<PipelineRunRow[]> {
   // Clamped because `limit` is reachable from a query string; an unbounded
   // value would let one request pull the whole audit table into memory.
   const n = Math.min(Math.max(Math.trunc(limit) || 0, 1), 200);
   const rows = (await sql`
-    SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, items, summary,
-           host, status, coverage
+    SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, summary,
+           host, status, coverage,
+           CASE WHEN jsonb_typeof(items) = 'string'
+                THEN items #>> '{}' ELSE NULL END AS legacy_items,
+           (SELECT jsonb_object_agg(o.outcome, o.n)
+              FROM (SELECT it->>'outcome' AS outcome, count(*)::int AS n
+                      FROM jsonb_array_elements(
+                             CASE WHEN jsonb_typeof(items) = 'array' THEN items ELSE '[]'::jsonb END
+                           ) AS it
+                     WHERE jsonb_typeof(it) = 'object' AND it->>'outcome' IS NOT NULL
+                     GROUP BY 1) o) AS outcome_counts
     FROM pipeline_run_log ORDER BY run_at DESC LIMIT ${n}
   `) as Record<string, unknown>[];
   return rows.map(toRow);
@@ -269,6 +298,20 @@ export function summarizeOutcomes(items: RunItem[]): Record<RunItemOutcome, numb
   const acc: Record<RunItemOutcome, number> = { ok: 0, empty: 0, fail: 0, skip: 0 };
   for (const it of items) {
     if (it.outcome in acc) acc[it.outcome] += 1;
+  }
+  return acc;
+}
+
+/** Outcome counts from the SQL `jsonb_object_agg` payload (a string on the
+ *  SQLite parity path). Unknown keys are dropped and a missing outcome is zero,
+ *  so the result matches `summarizeOutcomes` on the same items. */
+export function outcomesFromCounts(raw: unknown): Record<RunItemOutcome, number> {
+  const counts = parseJson<unknown>(raw, null);
+  const acc: Record<RunItemOutcome, number> = { ok: 0, empty: 0, fail: 0, skip: 0 };
+  if (counts == null || typeof counts !== "object" || Array.isArray(counts)) return acc;
+  for (const key of Object.keys(acc) as RunItemOutcome[]) {
+    const n = Number((counts as Record<string, unknown>)[key] ?? 0);
+    acc[key] = Number.isFinite(n) ? n : 0;
   }
   return acc;
 }
