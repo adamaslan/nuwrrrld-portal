@@ -112,17 +112,13 @@ describe("email routes", () => {
     expect(JSON.parse(emailCall[1].body).subject).toBe("Your weekly signal digest");
     expect(emailCall[1].headers["Idempotency-Key"]).toMatch(/^email_[a-f0-9]{64}$/);
   });
-  it("digest: Resend changed-payload idempotency conflict is treated as already sent", async () => {
+  it("digest: Resend changed-payload idempotency conflict is treated as already sent from its name", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({
         ok: false,
         status: 409,
-        text: async () => JSON.stringify({
-          name: "invalid_idempotent_request",
-          statusCode: 409,
-          message: "This idempotency key has been used with a different body.",
-        }),
+        text: async () => JSON.stringify({ name: "invalid_idempotent_request" }),
       });
     vi.stubGlobal("fetch", fetchMock);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -136,17 +132,39 @@ describe("email routes", () => {
     warn.mockRestore();
   });
   it.each([
-    { name: "concurrent_idempotent_requests", status: 409, statusCode: 409 },
-    { name: "resource_locked", status: 409, statusCode: 409 },
-    { name: "rate_limit_exceeded", status: 429, statusCode: 429 },
-  ])("digest: Resend $name remains a provider failure", async ({ name, status, statusCode }) => {
+    { name: "concurrent_idempotent_requests", status: 409 },
+    { name: "resource_locked", status: 409 },
+    { name: "rate_limit_exceeded", status: 429 },
+  ])("digest: Resend $name remains a provider failure", async ({ name, status }) => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({
         ok: false,
         status,
-        text: async () => JSON.stringify({ name, statusCode, message: "Request failed." }),
+        text: async () => JSON.stringify({ name }),
       });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await digest(req("/api/retention/digest-email", { userId: "u1" }));
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "email failed" });
+  });
+  it("digest: unparseable Resend 409 remains a provider failure", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false, status: 409, text: async () => "not-json" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await digest(req("/api/retention/digest-email", { userId: "u1" }));
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "email failed" });
+  });
+  it("digest: Resend 409 without an error name remains a provider failure", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false, status: 409, text: async () => JSON.stringify({ message: "Request failed." }) });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await digest(req("/api/retention/digest-email", { userId: "u1" }));

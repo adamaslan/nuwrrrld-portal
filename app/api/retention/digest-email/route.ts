@@ -18,10 +18,8 @@ const MCP_URL = process.env.MCP_BACKEND_URL;
 function isResendIdempotentPayloadConflict(status: number, errorText: string): boolean {
   if (status !== 409) return false;
   try {
-    const error = JSON.parse(errorText) as { name?: unknown; statusCode?: unknown; message?: unknown };
-    return error.name === "invalid_idempotent_request"
-      && error.statusCode === status
-      && typeof error.message === "string";
+    const error = JSON.parse(errorText) as { name?: unknown };
+    return error.name === "invalid_idempotent_request";
   } catch {
     return false;
   }
