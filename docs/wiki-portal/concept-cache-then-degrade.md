@@ -2,7 +2,7 @@
 date: 2026-10-12
 type: concept
 tags: [cache, resilience, neon, cold-start, failure-policy]
-sources: [../../lib/holdfold-cache-db.ts, ../../lib/watchlist-store.ts, ../../lib/backtest.ts, ../../lib/shared/signal-lookup.ts, ../../app/dashboard/page.tsx]
+sources: [../../lib/holdfold-cache-db.ts, ../../lib/digest-cache.ts, ../../lib/watchlist-store.ts, ../../lib/backtest.ts, ../../lib/shared/signal-lookup.ts, ../../app/dashboard/page.tsx]
 ---
 
 # Concept — Cache, Then Degrade (and the Two Failure Policies)
@@ -96,6 +96,19 @@ outage right after a cold start produced an empty page while Neon still held a d
 The last resort now reads the newest durable row of any age and marks it degraded. The
 rule it illustrates: a degrade path must read from the same durable layer the
 freshness-gated path does, only without the age gate, or "degrade" quietly means "nothing".
+
+**Follow-up (2026-11-27): the last resort has a cost, too.** Digests reach Neon only
+when a local script pushes one, so most requests are past the 15-minute window. The
+degraded read then ran on every signals page load, digest API call and Nu AI message.
+Each of those read the whole stale payload again, because nothing remembered it
+between requests. The fix keeps that row in process memory for 5 minutes. It holds
+only a real row, never a miss or a failed read, and serves it marked degraded. The
+fresh-row check and the live fetch still run first on every request, so a new push is
+picked up on the next request. The window is shorter than Neon's 15-minute freshness
+window, so the memo can't hide a newer stale row for long either. The digest is
+global, with no per-user data in it, so the memo can't leak between users. Per-user
+rows keep their own cache. The rule this adds: a degrade path that runs on almost
+every request is effectively the main path, so budget its reads like one.
 
 ## See also
 
