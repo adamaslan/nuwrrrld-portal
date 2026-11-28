@@ -33,6 +33,13 @@ makes no repeat-safety claim for that fallback.
 - A provider timeout or connection error can leave delivery status unknown.
 - Provider idempotency retention is time-limited and does not replace durable
   send-state storage.
+- Keys use the UTC calendar day; a retry after midnight gets a new key and can
+  send again even if the prior day's key is still within the provider's 24-hour
+  retention window.
+- A same-day manual rerun for the same recipient and message kind reuses its
+  key. Resend deduplicates an identical payload and reports a changed payload
+  as `invalid_idempotent_request`; the digest route treats that specific 409 as
+  already sent and returns a skipped result.
 - Brevo's single-send path does not document repeat-safe idempotency.
 
 ## Open questions

@@ -78,7 +78,7 @@ describe("email idempotency keys", () => {
   });
 });
 
-describe("routes keep their pre-adapter behavior", () => {
+describe("email routes", () => {
   it("trial nudge: same subject/from/recipient, 10s bound, counter increments only on ok", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true }); vi.stubGlobal("fetch", fetchMock);
@@ -112,6 +112,29 @@ describe("routes keep their pre-adapter behavior", () => {
     expect(JSON.parse(emailCall[1].body).subject).toBe("Your weekly signal digest");
     expect(emailCall[1].headers["Idempotency-Key"]).toMatch(/^email_[a-f0-9]{64}$/);
   });
+  it("digest: Resend changed-payload idempotency conflict is treated as already sent", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: async () => JSON.stringify({
+          name: "invalid_idempotent_request",
+          statusCode: 409,
+          message: "This idempotency key has been used with a different body.",
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await digest(req("/api/retention/digest-email", { userId: "u1" }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sent: false, skipped: "already sent for this idempotency key" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls.flat().join(" ")).not.toContain("test@example.test");
+    warn.mockRestore();
+  });
   it("launch reminder: one send per recipient, failure counted and logged", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     const fetchMock = vi.fn()
@@ -134,5 +157,23 @@ describe("routes keep their pre-adapter behavior", () => {
     expect(timeoutSpy).toHaveBeenNthCalledWith(1, 10_000);
     expect(timeoutSpy).toHaveBeenNthCalledWith(2, 10_000);
     err.mockRestore(); log.mockRestore();
+  });
+  it("trial nudge through Brevo sends without an idempotency key", async () => {
+    vi.stubEnv("ALERT_EMAIL_PROVIDER", "brevo");
+    vi.stubEnv("BREVO_API_KEY", "brevo-test-key");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 201 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await nudge(req("/api/retention/trial-nudge", { userId: "u1" }));
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.brevo.com/v3/smtp/email");
+    expect(fetchMock.mock.calls[0][1].headers["Idempotency-Key"]).toBeUndefined();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      subject: "Your free trial ends in 48 hours",
+      to: [{ email: "test@example.test" }],
+    });
+    expect(mocks.updateMetadata).toHaveBeenCalledTimes(1);
   });
 });
