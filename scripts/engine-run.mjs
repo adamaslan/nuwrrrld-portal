@@ -5,6 +5,11 @@
  *
  *   node scripts/engine-run.mjs                    # shadow mode
  *   node scripts/engine-run.mjs --mode=live --feed=iex --limit=400
+ *   node scripts/engine-run.mjs --force            # recompute even if bars are unchanged
+ *
+ * Shadow runs ask the route to skip the structure recompute when a finished run
+ * already computed from the bars stored now (status=unchanged). Labeling runs
+ * either way, since later bars can make older hits labelable.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -45,6 +50,7 @@ const LIMIT = Number(flag("limit") ?? 400);
 if (!["shadow", "live"].includes(MODE)) fail("--mode must be shadow or live");
 if (!["iex", "sip"].includes(FEED)) fail("--feed must be iex or sip");
 if (!Number.isInteger(LIMIT) || LIMIT < 1) fail("--limit must be a positive integer");
+const FORCE = process.argv.includes("--force");
 const MAX_LABEL_ROUNDS = 200;
 
 async function call(path, body) {
@@ -61,8 +67,14 @@ async function main() {
   const runId = `engine-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   const total = { written: 0, skipped: 0, failed: 0, degraded: 0, hits: 0 };
   let offset = 0;
+  let coveredBy = null;
   while (offset !== null) {
-    const out = await call("/api/pipeline/engine-run", { runId, mode: MODE, feed: FEED, offset, limit: LIMIT });
+    const out = await call("/api/pipeline/engine-run", { runId, mode: MODE, feed: FEED, offset, limit: LIMIT, skipIfUnchanged: !FORCE });
+    if (out.status === "unchanged") {
+      coveredBy = out.coveredBy;
+      console.log(`[skip] bars unchanged since finished run ${out.coveredBy} (bar_date ${out.barDate}); structure not recomputed`);
+      break;
+    }
     for (const k of Object.keys(total)) total[k] += out[k] ?? 0;
     console.log(`[chunk] offset=${offset} processed=${out.processed} written=${out.written} skipped=${out.skipped} failed=${out.failed} hits=${out.hits}`);
     offset = out.nextOffset;
@@ -76,7 +88,8 @@ async function main() {
     if (out.diagnostics) labelDiag = out.diagnostics;
     if (!out.remaining) break;
   }
-  console.log(`[done] runId=${runId} mode=${MODE} written=${total.written} skipped=${total.skipped} failed=${total.failed} degraded=${total.degraded} hits=${total.hits} labeled=${labeled}`);
+  const status = coveredBy ? `unchanged coveredBy=${coveredBy}` : "computed";
+  console.log(`[done] runId=${runId} status=${status} mode=${MODE} written=${total.written} skipped=${total.skipped} failed=${total.failed} degraded=${total.degraded} hits=${total.hits} labeled=${labeled}`);
   if (labeled === 0 && labelDiag) {
     console.log(
       `[label] labeled=0 — unlabeled directional hits=${labelDiag.unlabeledDirectional} ` +
@@ -84,7 +97,7 @@ async function main() {
         `non_directional=${labelDiag.unlabeledNonDirectional} by_feed=${JSON.stringify(labelDiag.byFeed)}`,
     );
   }
-  if (total.written === 0) fail("wrote no structure rows — are daily_bars populated for this feed?");
+  if (total.written === 0 && !coveredBy) fail("wrote no structure rows — are daily_bars populated for this feed?");
 }
 
 main().catch((e) => fail(e.message));

@@ -6,6 +6,10 @@
  * mode=shadow (default) writes only engine_* tables. mode=live also folds the
  * fib ladder into ticker_cards.numerics and is refused (403) unless
  * ENGINE_LIVE_ENABLED=true. Never calls a model.
+ *
+ * skipIfUnchanged=true on the first shadow chunk (offset 0, no asOf) answers
+ * status "unchanged" without reading bars when a finished run already computed
+ * from the bars stored now (coveringRun). Anything else recomputes.
  * Auth: Bearer PORTAL_PUSH_SECRET.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -14,8 +18,10 @@ import { snapshotFrame } from "@/lib/engine/snapshot";
 import {
   bumpRun,
   countEngineTickers,
+  coveringRun,
   listEngineTickers,
   loadSeries,
+  markRunComplete,
   mergeCardFibNumerics,
   startRun,
   writeHits,
@@ -49,6 +55,7 @@ export async function POST(req: NextRequest) {
     offset?: number;
     limit?: number;
     asOf?: string;
+    skipIfUnchanged?: boolean;
   };
   // Live mode writes user-facing card numerics, so it stays off until the
   // promotion checklist is approved. Separate from ENGINE_LADDER_ENABLED.
@@ -63,6 +70,26 @@ export async function POST(req: NextRequest) {
   const asOf = isIsoDate(body.asOf) ? body.asOf : new Date().toISOString().slice(0, 10);
 
   try {
+    if (body.skipIfUnchanged === true && mode === "shadow" && offset === 0 && body.asOf === undefined) {
+      const covered = await coveringRun(feed, ENGINE_CODE_VERSION);
+      if (covered) {
+        return NextResponse.json({
+          ok: true,
+          status: "unchanged",
+          runId,
+          mode,
+          coveredBy: covered.id,
+          barDate: covered.barDate,
+          processed: 0,
+          written: 0,
+          skipped: 0,
+          failed: 0,
+          degraded: 0,
+          hits: 0,
+          nextOffset: null,
+        });
+      }
+    }
     const [tickers, total] = await Promise.all([listEngineTickers(offset, limit), countEngineTickers()]);
     await startRun(runId, { codeVersion: ENGINE_CODE_VERSION, mode, feed });
     const series = await loadSeries(tickers, feed, BARS_PER_TICKER);
@@ -101,8 +128,10 @@ export async function POST(req: NextRequest) {
     await bumpRun(runId, { ok: snapshots.length, skipped, failed, degraded, hits: hits.length, barDate: latestBar });
 
     const next = offset + tickers.length;
+    if (next >= total) await markRunComplete(runId);
     return NextResponse.json({
       ok: true,
+      status: "computed",
       runId,
       mode,
       processed: tickers.length,
