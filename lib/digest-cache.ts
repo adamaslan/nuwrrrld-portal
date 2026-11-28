@@ -23,6 +23,34 @@ const userCache = new Map<string, { digest: DigestPayload; expiresAt: number }>(
 // Global cache freshness window before a live fetch is attempted.
 const GLOBAL_CACHE_TTL_MS = 60 * 60 * 1000;
 
+// Step 4's stale Neon row, remembered in-process so the degraded path doesn't
+// re-read the full payload on every request. Digests are pushed only from local
+// scripts, so past the 15 min Neon window every signals page load, digest API
+// call and Nu AI message used to land here. Only a populated row is kept
+// (never an empty digest, a miss or a failed read), and it is always served
+// marked degraded. Steps 2 and 3 run before it whenever this request gets past
+// the L1 caches above, so the memo itself never hides a fresh row; kept under
+// the 15 min Neon window so a newer stale row can't stay hidden for long.
+const DEGRADED_MEMO_TTL_MS = 5 * 60 * 1000;
+export const degradedDigestMemo: { digest: DigestPayload | null; expiresAt: number } = {
+  digest: null,
+  expiresAt: 0,
+};
+
+async function lastKnownDurableDigest(): Promise<DigestPayload | null> {
+  if (degradedDigestMemo.digest && degradedDigestMemo.expiresAt > Date.now()) {
+    return degradedDigestMemo.digest;
+  }
+  const digest = await getLatestDigestAnyAge();
+  // An empty digest is valid and is still served, but it is not remembered: a
+  // populated row written next must not wait out the memo window.
+  if (digest && Array.isArray(digest.signals) && digest.signals.length > 0) {
+    degradedDigestMemo.digest = digest;
+    degradedDigestMemo.expiresAt = Date.now() + DEGRADED_MEMO_TTL_MS;
+  }
+  return digest;
+}
+
 async function fetchLiveSignals(): Promise<unknown> {
   const mcpUrl = process.env.MCP_BACKEND_URL;
   if (!mcpUrl) return null;
@@ -101,6 +129,6 @@ export async function getOrFetchDigest(
 
   // 4. Graceful degradation: last-known global, however stale. The in-memory copy is
   // empty after a cold start, so fall through to the newest durable row.
-  const lastKnown = globalDigestCache.digest ?? (await getLatestDigestAnyAge());
+  const lastKnown = globalDigestCache.digest ?? (await lastKnownDurableDigest());
   return lastKnown ? { ...lastKnown, degraded: true } : null;
 }
