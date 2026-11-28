@@ -20,6 +20,13 @@
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --tables=ticker_universe,ticker_cards
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --exclude=corpus_chunks,grounding_pack
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --chunk=5000
+ *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --incremental-base=backups/prev.sqlite
+ *
+ * --incremental-base (opt-in; the scheduled workflow does not pass it) reads
+ * daily_bars rows changed since the given backup instead of the whole table,
+ * and every other table in full. See scripts/backup-incremental.mjs for which
+ * tables qualify and why, and scripts/backup-restore.mjs to rebuild a full
+ * snapshot from full + incrementals.
  *
  * Tables are read in keyset-paginated chunks over their PRIMARY KEY (see
  * scripts/backup-pagination.mjs): Neon's serverless HTTP driver buffers each
@@ -36,7 +43,15 @@ import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { neon } from "@neondatabase/serverless";
-import { fetchTableChunks, DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
+import { DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
+import {
+  BACKUP_FORMAT_VERSION,
+  exportTable,
+  planIncremental,
+  readMeta,
+  schemaSha256,
+  writeManifest,
+} from "./backup-incremental.mjs";
 
 function parseArgs(argv) {
   const out = {};
@@ -107,25 +122,30 @@ const schemaSql = readFileSync(schemaPath, "utf8");
 
 const includeFilter = typeof args.tables === "string" ? new Set(args.tables.split(",")) : null;
 const excludeFilter = typeof args.exclude === "string" ? new Set(args.exclude.split(",")) : new Set();
+const filtered = includeFilter !== null || excludeFilter.size > 0;
+const schemaSha = schemaSha256(schemaSql);
 
-/** Coerce one Postgres value into a SQLite-storable primitive, using the
- * column's Postgres data_type (from information_schema) to decide how. */
-function coerce(value, pgType) {
-  if (value === null || value === undefined) return null;
-  if (pgType === "ARRAY" || pgType === "jsonb" || pgType === "json") {
-    return JSON.stringify(value);
+// Incremental mode: anchor the delta on the base backup's own metadata, never
+// on a clock guess, so a failed night can't silently open a gap.
+let incremental = null;
+if (args["incremental-base"] !== undefined) {
+  if (typeof args["incremental-base"] !== "string" || !existsSync(args["incremental-base"])) {
+    console.error(`✖ --incremental-base must name an existing backup file`);
+    process.exit(1);
   }
-  if (pgType === "boolean") return value ? 1 : 0;
-  if (value instanceof Date) return value.toISOString();
-  if (pgType === "integer" || pgType === "bigint" || pgType === "smallint") {
-    return typeof value === "bigint" ? Number(value) : value;
+  if (filtered) {
+    console.error("✖ --incremental-base cannot be combined with --tables/--exclude (restore needs every table)");
+    process.exit(1);
   }
-  if (pgType === "numeric" || pgType === "real" || pgType === "double precision") {
-    return typeof value === "string" ? Number(value) : value;
+  const baseDb = new DatabaseSync(args["incremental-base"], { readOnly: true });
+  try {
+    incremental = planIncremental(readMeta(baseDb), schemaSha);
+  } catch (err) {
+    console.error(`✖ ${err.message}`);
+    process.exit(1);
+  } finally {
+    baseDb.close();
   }
-  // text, uuid, character varying, date-as-string, inet, tsvector (skipped
-  // entirely — see schema.sqlite.sql), and anything else: pass through.
-  return value;
 }
 
 async function getTables() {
@@ -167,6 +187,13 @@ async function getPrimaryKeyColumns(table) {
 
 async function main() {
   console.log(`Backing up ${url.replace(/:\/\/.*@/, "://***@")} -> ${outPath}\n`);
+  if (incremental) {
+    console.log(`Incremental: daily_bars rows changed since ${incremental.since} (base captured ${incremental.baseCapturedAt})\n`);
+  }
+  // Database clock, read before any table, so the next incremental's overlap
+  // window is measured on the same clock that stamps fetched_at.
+  const [{ now: capturedNow }] = await sql`SELECT now() AS now`;
+  const capturedAt = new Date(capturedNow).toISOString();
 
   db = new DatabaseSync(outPath);
   db.exec("PRAGMA journal_mode = WAL;");
@@ -187,6 +214,7 @@ async function main() {
   allTables = allTables.filter((t) => !excludeFilter.has(t));
 
   const summary = [];
+  const manifest = [];
   const started = Date.now();
 
   for (const table of allTables) {
@@ -220,11 +248,9 @@ async function main() {
       );
     }
     const pgColumns = allPgColumns.filter((c) => sqliteColNames.has(c.column_name));
-    const colNames = pgColumns.map((c) => c.column_name);
-    const selectList = colNames.map((c) => `"${c}"`).join(", ");
     // NOTE: each chunk is read in its own implicit transaction, so a
     // snapshot taken while the DB is being written can be mixed-time across
-    // (and now within) tables. `PRAGMA foreign_key_check` below catches
+    // (and within) tables. `PRAGMA foreign_key_check` below catches
     // cross-table FK inconsistency but not all skew. A single read-only
     // RepeatableRead transaction for every read would fix it, but neon()'s
     // HTTP `sql.transaction()` takes a static query list and can't
@@ -239,35 +265,23 @@ async function main() {
       throw new Error(`--chunk must be a positive integer, got "${args.chunk}"`);
     }
 
-    const placeholders = colNames.map(() => "?").join(", ");
-    const insert = db.prepare(
-      `INSERT INTO "${table}" (${colNames.map((c) => `"${c}"`).join(", ")}) VALUES (${placeholders})`,
-    );
-    let rowCount = 0;
-    db.exec("BEGIN");
+    let entry;
     try {
-      const chunks = fetchTableChunks((text, params) => sql.query(text, params), {
+      entry = await exportTable((text, params) => sql.query(text, params), db, {
         table,
-        selectList,
-        selectColumns: colNames,
+        pgColumns,
         pkColumns,
         chunkRows,
+        since: incremental?.since ?? null,
       });
-      for await (const rows of chunks) {
-        for (const row of rows) {
-          const values = pgColumns.map((c) => coerce(row[c.column_name], c.data_type));
-          insert.run(...values);
-        }
-        rowCount += rows.length;
-      }
-      db.exec("COMMIT");
     } catch (err) {
-      db.exec("ROLLBACK");
       throw new Error(`Failed backing up "${table}": ${err.message}`);
     }
-
+    const rowCount = entry.rows;
+    manifest.push(entry);
     summary.push({ table, rows: rowCount });
-    console.log(`  ✓ ${table.padEnd(32)} ${String(rowCount).padStart(6)} rows`);
+    const tag = entry.mode === "delta" ? ` (delta; ${entry.sourceCount} live)` : "";
+    console.log(`  ✓ ${table.padEnd(32)} ${String(rowCount).padStart(6)} rows${tag}`);
   }
 
   // Re-enable and verify: a real FK violation in the exported data (not just
@@ -283,6 +297,18 @@ async function main() {
     );
   }
 
+  writeManifest(
+    db,
+    {
+      kind: incremental ? "incremental" : "full",
+      captured_at: capturedAt,
+      format_version: BACKUP_FORMAT_VERSION,
+      schema_sha256: schemaSha,
+      filtered: filtered ? "1" : "0",
+      ...(incremental ? { since: incremental.since, base_captured_at: incremental.baseCapturedAt } : {}),
+    },
+    manifest,
+  );
   db.close();
 
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
