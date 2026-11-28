@@ -2,7 +2,7 @@
 date: 2026-09-11
 type: entity
 tags: [nulogdash, admin, testing, coverage, clerk, mfa, inventory, sweep]
-sources: [../../scripts/nulogdash-inventory.mjs, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../lib/nulogdash-report.ts, ../../lib/nulogdash-quality.mjs, ../../lib/format-time.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118, PR#328, PR#415]
+sources: [../../scripts/nulogdash-inventory.mjs, ../../lib/pipeline-run-log-db.ts, ../../scripts/nulogdash.mjs, ../../scripts/nulogdash-merge-e2e.mjs, ../../app/dashboard/nulogdash, ../../lib/nulogdash.ts, ../../lib/nulogdash-report.ts, ../../lib/nulogdash-quality.mjs, ../../lib/format-time.ts, ../../e2e/frontend/nulogdash-admin.spec.ts, ../nulogdash-dashboard-plan.md, ../../scripts/lib/nulogdash-auth.mjs, ../../scripts/nulogdash-fixture.mjs, PR#118, PR#328, PR#415]
 ---
 
 # Entity — nulogdash (admin console + feature sweep)
@@ -76,6 +76,12 @@ what sits behind the second gate.
   Run timestamps across the pipeline list, summary cards, and detail view use
   `lib/format-time.ts`: they display in `America/New_York` with an EST/EDT label;
   invalid timestamps display as unknown (PR #328).
+  The run list no longer reads each run's `items` array. `listPipelineRuns`
+  counts outcomes in SQL (`outcome_counts`) and returns `items: []`. The detail
+  view (`getPipelineRun`) still reads the full run. Replayed on the real
+  2026-11-25 backup rows, the default 50-row list response dropped from about
+  389 KB to about 22 KB, with matching outcome counts. That is a local estimate,
+  not billed Neon transfer.
 - `e2e/frontend/nulogdash-admin.spec.ts` — the browser-level proof that both
   gates are actually *reached* (added PR #118, see below).
 - `/nulogdash` — the Claude Code command wrapper ([[entity-dev-command-suite]]).
