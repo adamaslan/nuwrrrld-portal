@@ -196,36 +196,22 @@ describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, 
   });
 });
 
-describe.skipIf(!PORT)("coveringRun watermark against local Postgres", { timeout: 60_000 }, () => {
+describe.skipIf(!PORT)("change-only bar upserts against local Postgres", { timeout: 60_000 }, () => {
   let db: typeof import("@/lib/engine-db");
-  // Own feed and code version so other tests' bars and runs never match.
+  // Own feed so other tests' bars never match.
   const FEED = "zzf" as unknown as import("@/lib/shared/engine-bars").BarFeed;
-  const CV = "zz-engine@1";
   const meta = { feed: FEED, adjustment: "split" as const, source: "test" };
   const tick = () => new Promise((r) => setTimeout(r, 15));
   const bars = (closeShift = 0) => Array.from({ length: 5 }, (_, i) => ({
     ticker: "ZZW", barDate: `2026-11-${String(17 + i).padStart(2, "0")}`,
     open: 10 + i, high: 12 + i, low: 9 + i, close: 11 + i + closeShift, volume: 1000,
   }));
-  const activeCount = () => (run("SELECT count(*)::int AS n FROM ticker_universe WHERE active") as Array<{ n: number }>)[0].n;
-  /** A run row as engine-run's chunks leave it: started now, bumped per chunk. */
-  async function finishRun(id: string, opts: { codeVersion?: string; mode?: "shadow" | "live"; covered?: number; failed?: number; complete?: boolean } = {}) {
-    await db.startRun(id, { codeVersion: opts.codeVersion ?? CV, mode: opts.mode ?? "shadow", feed: FEED });
-    const n = opts.covered ?? activeCount();
-    const failed = opts.failed ?? 0;
-    await db.bumpRun(id, { ok: n - failed - 1, skipped: 1, failed, degraded: 0, hits: 3, barDate: "2026-11-21" });
-    if (opts.complete !== false) await db.markRunComplete(id);
-  }
   const fetchedAt = () => (run("SELECT extract(epoch FROM max(fetched_at))::float8 AS ts FROM daily_bars WHERE feed = 'zzf'") as Array<{ ts: number }>)[0].ts;
 
   beforeAll(async () => {
     db = await import("@/lib/engine-db");
     run("DELETE FROM daily_bars WHERE feed = 'zzf'");
-    run("DELETE FROM engine_runs WHERE id LIKE 'zzw-%'");
-    run("DELETE FROM ticker_universe WHERE ticker IN ('ZZW2', 'ZZW3')");
-    run("INSERT INTO ticker_universe (ticker, universe, active) VALUES ('ZZW','stock',true) ON CONFLICT (ticker) DO UPDATE SET active = true");
   });
-  const reset = () => run("DELETE FROM engine_runs WHERE id LIKE 'zzw-%'");
 
   it("an unchanged refetch leaves fetched_at alone; a changed value or new bar moves it", async () => {
     await db.upsertBars(bars(), meta);
@@ -241,8 +227,8 @@ describe.skipIf(!PORT)("coveringRun watermark against local Postgres", { timeout
   });
 
   // Every non-key column upsertBars writes must count as a change, or a revised
-  // bar would keep its old fetched_at and both coveringRun and the backup delta
-  // (which reads fetched_at) would miss it.
+  // bar would keep its old fetched_at and the backup delta (which reads
+  // fetched_at) would miss it.
   it.each([
     ["open", { open: 50 }, {}],
     ["high", { high: 50 }, {}],
@@ -276,98 +262,5 @@ describe.skipIf(!PORT)("coveringRun watermark against local Postgres", { timeout
     const shown = out.stdout.split("\n").filter((l) => /^\d|^\d+min$/.test(l));
     expect(shown).toEqual(["0", "5min", "0"]);
     run("DELETE FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-11'");
-  });
-
-  it("fails open with no run, then covers once a finished run started after the newest bar change", async () => {
-    reset();
-    await tick();
-    expect(await db.coveringRun(FEED, CV)).toBeNull(); // no earlier run
-    await finishRun("zzw-a");
-    expect(await db.coveringRun(FEED, CV)).toEqual({ id: "zzw-a", barDate: "2026-11-21" });
-  });
-
-  it("late midday cron: an identical refetch after a finished run still counts as covered", async () => {
-    reset();
-    await tick();
-    await finishRun("zzw-a");
-    await tick();
-    await db.upsertBars(bars(), meta);
-    expect((await db.coveringRun(FEED, CV))?.id).toBe("zzw-a");
-  });
-
-  it("a new or revised bar after the run means recompute (late data)", async () => {
-    reset();
-    await tick();
-    await finishRun("zzw-a");
-    await tick();
-    await db.upsertBars([{ ...bars()[4], barDate: "2026-11-24" }], meta);
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    await tick();
-    await finishRun("zzw-b");
-    expect((await db.coveringRun(FEED, CV))?.id).toBe("zzw-b");
-    await tick();
-    await db.upsertBars([{ ...bars()[2], volume: 1234 }], meta); // revised older bar inside the overlap
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-  });
-
-  it("a partial run, a run with failed tickers, or a ticker-count mismatch means recompute", async () => {
-    reset();
-    await tick();
-    const n = activeCount();
-    await finishRun("zzw-partial", { covered: n - 1, complete: false }); // a chunk never reported back
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    await finishRun("zzw-short", { covered: n - 1 }); // last chunk called alone: complete, but short
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    run("UPDATE ticker_universe SET active = false WHERE ticker = 'ZZW'"); // count now matches the short runs
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    run("UPDATE ticker_universe SET active = true WHERE ticker = 'ZZW'");
-    await db.startRun("zzw-started", { codeVersion: CV, mode: "shadow", feed: FEED }); // died before any chunk
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    await finishRun("zzw-failed", { failed: 1 });
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    await finishRun("zzw-full");
-    expect((await db.coveringRun(FEED, CV))?.id).toBe("zzw-full");
-    run("UPDATE ticker_universe SET active = false WHERE ticker = 'ZZW'"); // universe shrank
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    run("UPDATE ticker_universe SET active = true WHERE ticker = 'ZZW'");
-    expect((await db.coveringRun(FEED, CV))?.id).toBe("zzw-full"); // same active set as the run
-    run("INSERT INTO ticker_universe (ticker, universe, active) VALUES ('ZZW2','stock',true) ON CONFLICT (ticker) DO NOTHING");
-    run("UPDATE ticker_universe SET active = false WHERE ticker = 'ZZW'"); // swap: same count, different set
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    run("DELETE FROM ticker_universe WHERE ticker = 'ZZW2'");
-    run("UPDATE ticker_universe SET active = true WHERE ticker = 'ZZW'");
-  });
-
-  it("a universe change mid-run never lets that run become complete", async () => {
-    reset();
-    await tick();
-    await db.startRun("zzw-mid", { codeVersion: CV, mode: "shadow", feed: FEED });
-    run("INSERT INTO ticker_universe (ticker, universe, active) VALUES ('ZZW3','stock',true) ON CONFLICT (ticker) DO NOTHING");
-    await db.bumpRun("zzw-mid", { ok: activeCount(), skipped: 0, failed: 0, degraded: 0, hits: 0, barDate: "2026-11-21" });
-    await db.markRunComplete("zzw-mid");
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    run("DELETE FROM ticker_universe WHERE ticker = 'ZZW3'");
-  });
-
-  it("a different code version or a live run never covers a shadow run", async () => {
-    reset();
-    await tick();
-    await finishRun("zzw-old", { codeVersion: "zz-engine@0" });
-    await finishRun("zzw-live", { mode: "live" });
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-  });
-
-  it("overlapping runs: an unfinished run never covers, and bars written after a run started void it", async () => {
-    reset();
-    await tick();
-    await db.startRun("zzw-a", { codeVersion: CV, mode: "shadow", feed: FEED });
-    await db.bumpRun("zzw-a", { ok: 1, skipped: 0, failed: 0, degraded: 0, hits: 0, barDate: "2026-11-21" });
-    // Run B starts while A has reported only one chunk.
-    expect(await db.coveringRun(FEED, CV)).toBeNull();
-    await tick();
-    await db.upsertBars([{ ...bars()[4], barDate: "2026-11-25" }], meta); // bars land mid-run
-    await db.bumpRun("zzw-a", { ok: activeCount() - 1, skipped: 0, failed: 0, degraded: 0, hits: 0, barDate: "2026-11-21" });
-    await db.markRunComplete("zzw-a");
-    expect(await db.coveringRun(FEED, CV)).toBeNull(); // A finished, but started before the change
   });
 });

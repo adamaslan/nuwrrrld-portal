@@ -18,8 +18,8 @@ export interface StoredSeries {
 /**
  * Inserts new bars and rewrites a stored bar only when its values changed, so
  * `fetched_at` is the time the row's content last changed. engine-bars refetches
- * a trailing overlap every run; an unchanged refetch must not look like new data
- * to coveringRun(). Returns the number of rows accepted, changed or not.
+ * a trailing overlap every run; an unchanged refetch is not a change. Returns the
+ * number of rows accepted, changed or not.
  */
 export async function upsertBars(
   rows: readonly BarRow[],
@@ -97,59 +97,11 @@ export async function startRun(
   id: string,
   meta: { codeVersion: string; mode: "shadow" | "live"; feed: BarFeed },
 ): Promise<void> {
-  // detail.universe fingerprints the active set the run's offsets page over;
-  // markRunComplete and coveringRun compare against it.
   await sql`
-    INSERT INTO engine_runs (id, code_version, mode, feed, detail)
-    VALUES (${id}::text, ${meta.codeVersion}::text, ${meta.mode}::text, ${meta.feed}::text,
-      jsonb_build_object('universe',
-        (SELECT md5(coalesce(string_agg(ticker, ',' ORDER BY ticker), '')) FROM ticker_universe WHERE active)))
+    INSERT INTO engine_runs (id, code_version, mode, feed)
+    VALUES (${id}::text, ${meta.codeVersion}::text, ${meta.mode}::text, ${meta.feed}::text)
     ON CONFLICT (id) DO NOTHING
   `;
-}
-
-/**
- * Called after the last chunk. Marks the run complete only if the active set is
- * still the one it started paging over; a mid-run universe change can shift
- * offsets and skip or repeat tickers, so such a run never becomes complete.
- */
-export async function markRunComplete(id: string): Promise<void> {
-  await sql`
-    UPDATE engine_runs SET detail = detail || '{"complete": true}'::jsonb, updated_at = now()
-    WHERE id = ${id} AND detail->>'universe' =
-      (SELECT md5(coalesce(string_agg(ticker, ',' ORDER BY ticker), '')) FROM ticker_universe WHERE active)
-  `;
-}
-
-export interface CoveringRun {
-  id: string;
-  barDate: string;
-}
-
-/**
- * The newest finished shadow run that already computed from the bars stored now,
- * or null when a recompute is needed. Fails open: a run only counts when it has
- * the same code version and feed, was marked complete over the same active set
- * as now, reported every active ticker with no failures, and started after the
- * newest bar change.
- * Assumes daily_bars writes are not concurrent with the run (engine-nightly's
- * concurrency group runs the bar fetch, then the engine, one workflow at a time).
- */
-export async function coveringRun(feed: BarFeed, codeVersion: string): Promise<CoveringRun | null> {
-  const rows = await sql`
-    SELECT r.id, r.bar_date::text AS bar_date FROM engine_runs r
-    WHERE r.mode = 'shadow' AND r.feed = ${feed} AND r.code_version = ${codeVersion}
-      AND r.bar_date IS NOT NULL AND r.tickers_failed = 0
-      AND r.tickers_ok + r.tickers_skipped + r.tickers_failed =
-          (SELECT count(*) FROM ticker_universe WHERE active)
-      AND r.started_at > (SELECT max(fetched_at) FROM daily_bars WHERE feed = ${feed})
-      AND r.detail->>'complete' = 'true'
-      AND r.detail->>'universe' =
-          (SELECT md5(coalesce(string_agg(ticker, ',' ORDER BY ticker), '')) FROM ticker_universe WHERE active)
-    ORDER BY r.started_at DESC LIMIT 1
-  `;
-  const r = rows[0];
-  return r ? { id: r.id as string, barDate: r.bar_date as string } : null;
 }
 
 export interface RunDelta {
