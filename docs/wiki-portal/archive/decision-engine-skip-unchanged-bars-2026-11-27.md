@@ -1,4 +1,12 @@
 ---
+ARCHIVED: 2026-11-28
+REASON: Superseded by decision-engine-gate-on-skipped-hydration.md before merge.
+  Codex review of PR #459 at 9264bde found false skips in this covering-run
+  watermark (duplicate or missing pages and universe races, cross-feed and
+  in-flight writers, late-visible bar commits, effective date). The design was
+  removed from the PR; only the change-only bar upsert survived.
+---
+---
 date: 2026-11-27
 type: decision
 tags: [engine, neon, transfer, watermark, scheduled-jobs, daily-bars]
