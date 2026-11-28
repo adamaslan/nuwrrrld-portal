@@ -27,9 +27,11 @@ describe("getOrFetchDigest — durable stale fallback", () => {
     vi.resetAllMocks();
     getLatestDigest.mockResolvedValue(null); // past the 15 min TTL
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("backend down")));
-    const { globalDigestCache } = await import("@/lib/digest-cache");
+    const { globalDigestCache, degradedDigestMemo } = await import("@/lib/digest-cache");
     globalDigestCache.digest = null; // simulate a cold serverless instance
     globalDigestCache.pushedAt = 0;
+    degradedDigestMemo.digest = null;
+    degradedDigestMemo.expiresAt = 0;
   });
 
   it("serves the newest Neon row, marked degraded, when the live backend is down on a cold start", async () => {
