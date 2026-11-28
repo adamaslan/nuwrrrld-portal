@@ -15,12 +15,22 @@ export interface StoredSeries {
   bars: Bar[];
 }
 
+/**
+ * Inserts new bars and rewrites a stored bar only when its values changed, so
+ * `fetched_at` is the time the row's content last changed. engine-bars refetches
+ * a trailing overlap every run; an unchanged refetch is not a change. Returns the
+ * number of rows accepted, changed or not.
+ */
 export async function upsertBars(
   rows: readonly BarRow[],
   meta: { feed: BarFeed; adjustment: BarAdjustment; source: string },
 ): Promise<number> {
   if (rows.length === 0) return 0;
-  await sql`
+  // SET LOCAL caps this one statement (observed runs take seconds) and ends with
+  // the transaction; a timeout rolls the whole batch back and the caller fails.
+  await sql.transaction([
+    sql`SET LOCAL statement_timeout = '5min'`,
+    sql`
     INSERT INTO daily_bars (ticker, bar_date, open, high, low, close, volume, feed, adjustment, source)
     SELECT t, d::date, o, h, l, c, v, ${meta.feed}::text, ${meta.adjustment}::text, ${meta.source}::text
     FROM unnest(
@@ -33,7 +43,12 @@ export async function upsertBars(
       open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close,
       volume = EXCLUDED.volume, adjustment = EXCLUDED.adjustment, source = EXCLUDED.source,
       fetched_at = now()
-  `;
+    WHERE (daily_bars.open, daily_bars.high, daily_bars.low, daily_bars.close, daily_bars.volume,
+           daily_bars.adjustment, daily_bars.source)
+      IS DISTINCT FROM (EXCLUDED.open, EXCLUDED.high, EXCLUDED.low, EXCLUDED.close, EXCLUDED.volume,
+                        EXCLUDED.adjustment, EXCLUDED.source)
+  `,
+  ]);
   return rows.length;
 }
 

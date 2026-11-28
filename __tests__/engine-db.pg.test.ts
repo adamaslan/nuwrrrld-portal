@@ -31,10 +31,22 @@ function run(query: string): unknown[] {
   return /^\s*select/i.test(query) ? JSON.parse(out.stdout.trim().split("\n")[0]) : [];
 }
 
-vi.mock("@/lib/db", () => ({
-  default: (strings: TemplateStringsArray, ...values: unknown[]) =>
-    Promise.resolve(run(strings.reduce((acc, s, i) => acc + s + (i < values.length ? literal(values[i]) : ""), ""))),
-}));
+/** Statements of the last sql.transaction, so a test can replay them in one session. */
+const lastTransaction: string[] = [];
+
+vi.mock("@/lib/db", () => {
+  // Lazy like Neon's queries: runs when awaited, or as part of sql.transaction.
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.reduce((acc, s, i) => acc + s + (i < values.length ? literal(values[i]) : ""), "");
+    return { text, then: (ok: (v: unknown) => unknown, err: (e: unknown) => unknown) => Promise.resolve().then(() => run(text)).then(ok, err) };
+  };
+  tag.transaction = async (queries: Array<{ text: string }>) => {
+    lastTransaction.splice(0, lastTransaction.length, ...queries.map((q) => q.text));
+    run(`BEGIN;\n${queries.map((q) => `${q.text};`).join("\n")}\nCOMMIT;`);
+    return queries.map(() => []);
+  };
+  return { default: tag };
+});
 
 describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, () => {
   let db: typeof import("@/lib/engine-db");
@@ -181,5 +193,74 @@ describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, 
     expect(all).not.toContain("ZZC");
     const idx = all.indexOf("ZZA");
     expect(await db.listEngineTickers(idx, 2)).toEqual(all.slice(idx, idx + 2));
+  });
+});
+
+describe.skipIf(!PORT)("change-only bar upserts against local Postgres", { timeout: 60_000 }, () => {
+  let db: typeof import("@/lib/engine-db");
+  // Own feed so other tests' bars never match.
+  const FEED = "zzf" as unknown as import("@/lib/shared/engine-bars").BarFeed;
+  const meta = { feed: FEED, adjustment: "split" as const, source: "test" };
+  const tick = () => new Promise((r) => setTimeout(r, 15));
+  const bars = (closeShift = 0) => Array.from({ length: 5 }, (_, i) => ({
+    ticker: "ZZW", barDate: `2026-11-${String(17 + i).padStart(2, "0")}`,
+    open: 10 + i, high: 12 + i, low: 9 + i, close: 11 + i + closeShift, volume: 1000,
+  }));
+  const fetchedAt = () => (run("SELECT extract(epoch FROM max(fetched_at))::float8 AS ts FROM daily_bars WHERE feed = 'zzf'") as Array<{ ts: number }>)[0].ts;
+
+  beforeAll(async () => {
+    db = await import("@/lib/engine-db");
+    run("DELETE FROM daily_bars WHERE feed = 'zzf'");
+  });
+
+  it("an unchanged refetch leaves fetched_at alone; a changed value or new bar moves it", async () => {
+    await db.upsertBars(bars(), meta);
+    const first = fetchedAt();
+    await tick();
+    await db.upsertBars(bars(), meta); // engine-bars refetches its trailing overlap every run
+    expect(fetchedAt()).toBe(first);
+    await tick();
+    await db.upsertBars([{ ...bars()[4], close: 99 }], meta);
+    expect(fetchedAt() > first).toBe(true);
+    expect((await db.loadSeries(["ZZW"], FEED, 300))[0].bars[4].close).toBe(99);
+    await db.upsertBars(bars(), meta); // restore
+  });
+
+  // Every non-key column upsertBars writes must count as a change, or a revised
+  // bar would keep its old fetched_at and the backup delta (which reads
+  // fetched_at) would miss it.
+  it.each([
+    ["open", { open: 50 }, {}],
+    ["high", { high: 50 }, {}],
+    ["low", { low: 1 }, {}],
+    ["close", { close: 50 }, {}],
+    ["volume", { volume: 7 }, {}],
+    ["adjustment", {}, { adjustment: "raw" as const }],
+    ["source", {}, { source: "test-revised" }],
+  ])("a change to %s alone moves fetched_at and is stored", async (column, rowChange, metaChange) => {
+    const base = { ...bars()[0], barDate: "2026-11-10" };
+    await db.upsertBars([base], meta);
+    const before = (run("SELECT extract(epoch FROM fetched_at)::float8 AS ts FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-10'") as Array<{ ts: number }>)[0].ts;
+    await tick();
+    await db.upsertBars([{ ...base, ...rowChange }], { ...meta, ...metaChange });
+    const after = (run(`SELECT extract(epoch FROM fetched_at)::float8 AS ts, ${column} AS v FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-10'`) as Array<{ ts: number; v: unknown }>)[0];
+    expect(after.ts).toBeGreaterThan(before);
+    expect(after.v).toBe({ ...rowChange, ...metaChange }[column as never]);
+    run("DELETE FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-10'");
+  });
+
+  it("bounds each bar upsert with a transaction-local statement_timeout that does not outlive it", async () => {
+    await db.upsertBars([{ ...bars()[0], barDate: "2026-11-11" }], meta);
+    expect(lastTransaction[0]).toMatch(/^SET LOCAL statement_timeout = '5min'$/);
+    expect(lastTransaction[1]).toMatch(/^\s*INSERT INTO daily_bars/);
+    // Replay the same statements in one session: 5min inside, the server default after COMMIT.
+    const out = spawnSync(PSQL, ["-h", "localhost", "-p", PORT!, "-U", "postgres", "-At", "-v", "ON_ERROR_STOP=1", "-f", "-"], {
+      encoding: "utf8",
+      input: `SHOW statement_timeout;\nBEGIN;\n${lastTransaction[0]};\nSHOW statement_timeout;\n${lastTransaction[1]};\nCOMMIT;\nSHOW statement_timeout;\n`,
+    });
+    expect(out.status).toBe(0);
+    const shown = out.stdout.split("\n").filter((l) => /^\d|^\d+min$/.test(l));
+    expect(shown).toEqual(["0", "5min", "0"]);
+    run("DELETE FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-11'");
   });
 });
