@@ -1,6 +1,6 @@
 --- a/.github/workflows/engine-nightly.yml
 +++ b/.github/workflows/engine-nightly.yml
-@@ -45,16 +45,73 @@
+@@ -45,16 +45,74 @@
      if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
      runs-on: ubuntu-latest
      timeout-minutes: 60
@@ -60,6 +60,7 @@
 +        env:
 +          GATE_EVENT: ${{ github.event_name }}
 +          GATE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
++          GATE_ENGINE_ATTEMPT: ${{ github.run_attempt }}
 +          GATE_ARTIFACT_COUNT: ${{ steps.inputs.outputs.artifact_count }}
 +          GATE_LOG_PATH: gate/hydrate.log
 +          GATE_PREV_RUNS: ${{ steps.inputs.outputs.runs }}
@@ -74,7 +75,7 @@
          env:
            PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
            PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
-@@ -78,7 +135,8 @@
+@@ -78,7 +136,8 @@
            node scripts/engine-bars.mjs "${args[@]}" 2>&1 | tee bars.log
  
        - name: Run the engine (shadow)
@@ -84,7 +85,7 @@
          env:
            PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
            PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
-@@ -118,7 +176,7 @@
+@@ -118,7 +177,7 @@
    notify:
      name: Failure or recovery notification
      needs: [engine]

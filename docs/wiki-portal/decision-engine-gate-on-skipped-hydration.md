@@ -18,7 +18,8 @@ earlier engine runs:
     `status=skipped … written=0 … total=0`, the same shape
     `hydrate-universe.yml`'s Summarize step already accepts as a clock-gate
     skip;
-  - that run was attempt 1 and has exactly one `hydrate-log` artifact;
+  - that run was attempt 1 and has exactly one `hydrate-log` artifact, and this
+    engine run is itself attempt 1 (a retry always computes);
   - the preceding automated engine-nightly run **that actually computed**
     completed with `success` and its "Run the engine (shadow)" step succeeded.
     Runs are listed with `--event workflow_run` on the default branch, so a

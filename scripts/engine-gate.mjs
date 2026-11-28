@@ -9,6 +9,7 @@
  * the engine as before. Inputs (env), all supplied by the workflow:
  *   GATE_EVENT           github.event_name
  *   GATE_RUN_ATTEMPT     github.event.workflow_run.run_attempt
+ *   GATE_ENGINE_ATTEMPT  github.run_attempt (this engine run; a retry always computes)
  *   GATE_ARTIFACT_COUNT  hydrate-log artifacts on the triggering run
  *   GATE_LOG_PATH        downloaded hydrate.log (may be missing)
  *   GATE_PREV_RUNS       JSON, newest first: the engine-nightly runs triggered by
@@ -54,15 +55,17 @@ export function pickEvidenceRun(runs) {
 }
 
 /**
- * @param {{ event?: string, runAttempt?: string, artifactCount?: string, logText?: string | null,
+ * @param {{ event?: string, runAttempt?: string, engineAttempt?: string, artifactCount?: string, logText?: string | null,
  *           previousRuns?: Array<{ status?: string, conclusion?: string, compute?: string }> }} input
  * @returns {{ skip: boolean, reason: string }}
  */
-export function engineGate({ event, runAttempt, artifactCount, logText, previousRuns }) {
+export function engineGate({ event, runAttempt, engineAttempt, artifactCount, logText, previousRuns }) {
   const run = (reason) => ({ skip: false, reason });
   if (event !== "workflow_run") return run(`trigger is ${event || "unknown"}, not workflow_run`);
   // A re-run attempt can leave the artifact from another attempt; only the first is unambiguous.
   if (runAttempt !== "1") return run(`triggering hydration attempt is ${runAttempt || "unknown"}, not 1`);
+  // A retry of this engine run may follow a failed compute that history cannot see.
+  if (engineAttempt !== "1") return run(`engine run attempt is ${engineAttempt || "unknown"}, not 1`);
   if (artifactCount !== "1") return run(`found ${artifactCount || "no"} hydrate-log artifacts, need exactly 1`);
   // A green run is not proof of a compute: a gate skip is green with the engine step skipped.
   // Require the preceding eligible run that actually computed to have succeeded; a failed,
@@ -97,6 +100,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const result = engineGate({
     event: env.GATE_EVENT,
     runAttempt: env.GATE_RUN_ATTEMPT,
+    engineAttempt: env.GATE_ENGINE_ATTEMPT,
     artifactCount: env.GATE_ARTIFACT_COUNT,
     logText,
     previousRuns,

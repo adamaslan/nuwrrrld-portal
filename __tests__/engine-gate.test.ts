@@ -16,7 +16,7 @@ const WROTE_LOG = "[start] …\n[done] status=partial written=1992 calc-errors=0
 const computed = { status: "completed", conclusion: "success", compute: "success" };
 const gateSkip = { status: "completed", conclusion: "success", compute: "skipped" };
 
-const ok = { event: "workflow_run", runAttempt: "1", artifactCount: "1", logText: SKIPPED_LOG, previousRuns: [computed] };
+const ok = { event: "workflow_run", runAttempt: "1", engineAttempt: "1", artifactCount: "1", logText: SKIPPED_LOG, previousRuns: [computed] };
 
 describe("engineGate", () => {
   it("skips only when the triggering hydration explicitly did nothing and the last engine run succeeded", () => {
@@ -28,6 +28,8 @@ describe("engineGate", () => {
     ["a manual dispatch", { event: "workflow_dispatch" }],
     ["a re-run attempt of hydration", { runAttempt: "2" }],
     ["an unknown attempt", { runAttempt: undefined }],
+    ["a retry of the engine run itself", { engineAttempt: "2" }],
+    ["an unknown engine attempt", { engineAttempt: undefined }],
     ["a missing artifact", { artifactCount: "0" }],
     ["two artifacts", { artifactCount: "2" }],
     ["an unreadable log", { logText: null }],
@@ -93,7 +95,7 @@ describe("scripts/engine-gate.mjs CLI", () => {
       encoding: "utf8",
       env: {
         ...process.env, GITHUB_OUTPUT: out, GITHUB_STEP_SUMMARY: summary,
-        GATE_EVENT: "workflow_run", GATE_RUN_ATTEMPT: "1", GATE_ARTIFACT_COUNT: "1", GATE_LOG_PATH: log,
+        GATE_EVENT: "workflow_run", GATE_RUN_ATTEMPT: "1", GATE_ENGINE_ATTEMPT: "1", GATE_ARTIFACT_COUNT: "1", GATE_LOG_PATH: log,
         GATE_PREV_RUNS: JSON.stringify([computed]), ...env,
       },
     });
@@ -123,6 +125,10 @@ describe("scripts/engine-gate.mjs CLI", () => {
     const failed = { status: "completed", conclusion: "failure", compute: "failure" };
     const r = runCli({ GATE_PREV_RUNS: JSON.stringify([gateSkip, gateSkip, failed]) });
     expect(r.output).toContain("skip=false\n");
+  });
+
+  it("fails open on an engine retry", () => {
+    expect(runCli({ GATE_ENGINE_ATTEMPT: "2" }).output).toContain("skip=false\n");
   });
 
   it("fails open on unparseable run history", () => {
@@ -161,6 +167,7 @@ describe("staged workflow patch (docs/staged/engine-nightly-gate.patch)", () => 
   it("lists only automated runs, so a manual dry run is never compute evidence", () => {
     expect(patch).toContain("--event workflow_run");
     expect(patch).toContain("GATE_PREV_RUNS");
+    expect(patch).toContain("GATE_ENGINE_ATTEMPT: ${{ github.run_attempt }}");
   });
 
   it("emits a recovery notification only when the engine step succeeded", () => {
