@@ -9,10 +9,21 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { adaptLiveSignals } from "@/lib/digest";
 import type { EmailProvider } from "@/lib/notify/email";
+import { emailIdempotencyKey } from "@/lib/notify/idempotency";
 import { selectEmailProvider } from "@/lib/notify/select";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
 const MCP_URL = process.env.MCP_BACKEND_URL;
+
+function isResendIdempotentPayloadConflict(status: number, errorText: string): boolean {
+  if (status !== 409) return false;
+  try {
+    const error = JSON.parse(errorText) as { name?: unknown };
+    return error.name === "invalid_idempotent_request";
+  } catch {
+    return false;
+  }
+}
 
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -87,8 +98,19 @@ ${signalHtml}
       to: [verifiedEmail],
       subject: "Your weekly signal digest",
       html,
-    });
-    if (!res.ok) return NextResponse.json({ error: "email failed" }, { status: 502 });
+    }, provider.supportsIdempotencyKey ? {
+      idempotencyKey: emailIdempotencyKey(verifiedEmail, "digest"),
+    } : undefined);
+    if (!res.ok) {
+      if (provider.name === "resend" && res.status === 409) {
+        const errorText = await res.errorText().catch(() => "");
+        if (isResendIdempotentPayloadConflict(res.status, errorText)) {
+          console.warn("[digest-email] duplicate send skipped after Resend idempotency conflict");
+          return NextResponse.json({ sent: false, skipped: "already sent for this idempotency key" });
+        }
+      }
+      return NextResponse.json({ error: "email failed" }, { status: 502 });
+    }
   } catch {
     return NextResponse.json({ error: "network error sending email" }, { status: 502 });
   }
