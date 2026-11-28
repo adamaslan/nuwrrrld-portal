@@ -11,6 +11,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 vi.mock("@/lib/http-auth", () => ({ bearerTokenMatches: () => true }));
 import { createResendProvider } from "@/lib/notify/email";
+import { emailIdempotencyKey } from "@/lib/notify/idempotency";
 import { POST as digest } from "@/app/api/retention/digest-email/route";
 import { POST as nudge } from "@/app/api/retention/trial-nudge/route";
 import { POST as remind } from "@/app/api/launch/remind/route";
@@ -65,6 +66,18 @@ describe("createResendProvider", () => {
   });
 });
 
+describe("email idempotency keys", () => {
+  it("is stable for normalized recipient, kind, and UTC date, and varies by send identity", () => {
+    const date = new Date("2026-11-28T23:59:00-05:00");
+    const key = emailIdempotencyKey(" Test@Example.test ", "digest", date);
+    expect(key).toMatch(/^email_[a-f0-9]{64}$/);
+    expect(emailIdempotencyKey("test@example.test", "digest", date)).toBe(key);
+    expect(emailIdempotencyKey("test@example.test", "trial-nudge", date)).not.toBe(key);
+    expect(emailIdempotencyKey("test@example.test", "digest", new Date("2026-11-30T00:00:00Z"))).not.toBe(key);
+    expect(key).not.toContain("test@example.test");
+  });
+});
+
 describe("routes keep their pre-adapter behavior", () => {
   it("trial nudge: same subject/from/recipient, 10s bound, counter increments only on ok", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
@@ -76,7 +89,7 @@ describe("routes keep their pre-adapter behavior", () => {
     const body = JSON.parse(init.body);
     expect(body.from).toBe(FROM); expect(body.to).toEqual(["test@example.test"]);
     expect(body.subject).toBe("Your free trial ends in 48 hours");
-    expect(init.headers["Idempotency-Key"]).toBeUndefined();
+    expect(init.headers["Idempotency-Key"]).toMatch(/^email_[a-f0-9]{64}$/);
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(timeoutSpy).toHaveBeenCalledWith(10_000);
     expect(mocks.updateMetadata).toHaveBeenCalledTimes(1);
@@ -97,6 +110,7 @@ describe("routes keep their pre-adapter behavior", () => {
     const emailCall = fetchMock.mock.calls.find(c => c[0] === "https://api.resend.com/emails")!;
     expect(emailCall[1].signal).toBeUndefined();
     expect(JSON.parse(emailCall[1].body).subject).toBe("Your weekly signal digest");
+    expect(emailCall[1].headers["Idempotency-Key"]).toMatch(/^email_[a-f0-9]{64}$/);
   });
   it("launch reminder: one send per recipient, failure counted and logged", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
@@ -110,6 +124,11 @@ describe("routes keep their pre-adapter behavior", () => {
     expect(await res.json()).toEqual({ sent: 1, failed: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).to).toEqual(["b@x.test"]);
+    const firstKey = fetchMock.mock.calls[0][1].headers["Idempotency-Key"];
+    const secondKey = fetchMock.mock.calls[1][1].headers["Idempotency-Key"];
+    expect(firstKey).toMatch(/^email_[a-f0-9]{64}$/);
+    expect(secondKey).toMatch(/^email_[a-f0-9]{64}$/);
+    expect(firstKey).not.toBe(secondKey);
     expect(err).toHaveBeenCalledWith("Resend error for", "b@x.test", "daily_quota_exceeded");
     expect(timeoutSpy).toHaveBeenCalledTimes(2);
     expect(timeoutSpy).toHaveBeenNthCalledWith(1, 10_000);

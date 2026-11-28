@@ -1,7 +1,7 @@
 /**
  * Email provider seam. Step 1 only: a thin wrapper around the exact Resend
- * request the routes already made inline. No retries, no failover, no
- * idempotency key unless a caller passes one explicitly (none do today).
+ * request the routes already made inline. No retries or failover; callers
+ * pass provider-supported idempotency keys explicitly.
  *
  * Network errors (timeout, DNS) are NOT caught here: each route keeps its own
  * existing handling, so route behavior is unchanged.
@@ -18,7 +18,7 @@ export interface EmailSendOptions {
   /** Per-request abort bound. Omit for no bound (digest-email today). */
   timeoutMs?: number;
   /**
-   * Optional provider idempotency key. Not passed by any route in this step.
+   * Optional provider idempotency key for providers that document support.
    * Provider-side dedup is time-limited (Resend: 24h) and is not a durable
    * guarantee; callers must not treat it as one.
    */

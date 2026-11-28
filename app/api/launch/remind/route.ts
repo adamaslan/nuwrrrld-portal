@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import type { EmailProvider } from "@/lib/notify/email";
+import { emailIdempotencyKey } from "@/lib/notify/idempotency";
 import { selectEmailProvider } from "@/lib/notify/select";
 
 const PH_URL = "https://www.producthunt.com/posts/nuwrrrld-financial";
@@ -52,7 +53,12 @@ export async function POST(req: NextRequest) {
         to: [address],
         subject: "We launched today — upvote us on Product Hunt?",
         html,
-      }, { timeoutMs: 10_000 });
+      }, {
+        timeoutMs: 10_000,
+        ...(provider.supportsIdempotencyKey
+          ? { idempotencyKey: emailIdempotencyKey(address, "launch-remind") }
+          : {}),
+      });
     } catch {
       // A timeout or connection failure does not prove the provider rejected
       // the message. Stop and identify the uncertain and unattempted entries.

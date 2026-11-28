@@ -9,6 +9,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { bearerTokenMatches } from "@/lib/http-auth";
 import { adaptLiveSignals } from "@/lib/digest";
 import type { EmailProvider } from "@/lib/notify/email";
+import { emailIdempotencyKey } from "@/lib/notify/idempotency";
 import { selectEmailProvider } from "@/lib/notify/select";
 
 const SITE_URL = "https://financial.nuwrrrld.com";
@@ -87,7 +88,9 @@ ${signalHtml}
       to: [verifiedEmail],
       subject: "Your weekly signal digest",
       html,
-    });
+    }, provider.supportsIdempotencyKey ? {
+      idempotencyKey: emailIdempotencyKey(verifiedEmail, "digest"),
+    } : undefined);
     if (!res.ok) return NextResponse.json({ error: "email failed" }, { status: 502 });
   } catch {
     return NextResponse.json({ error: "network error sending email" }, { status: 502 });
