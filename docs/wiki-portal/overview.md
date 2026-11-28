@@ -82,9 +82,10 @@ CI (GitHub Actions, weekly)
 - ⚠️ **Production checkout was silently broken** — [[incident-2026-07-27-stripe-checkout-invalid-header]]; code-side fix shipped (PR #45), two manual dashboard steps still outstanding as of this ingest.
 - ⚠️ **`lib/subscription.ts` newly drifted from mobile** — PR #45 added `parseSubscriptionMetadata()` to the portal copy only, breaking a previously byte-identical shared module ([[concept-mobile-web-parity]]).
 
-**Not yet documented in this wiki** (awaits future ingest):
+**Partly documented in this wiki** (awaits further ingest):
 
-- `/api/retention/*`, `/api/nuai` — engagement internals
+- `/api/retention/*` — email delivery retry behavior is documented in [[entity-notification-delivery]]; remaining engagement internals still need coverage
+- `/api/nuai` — assistant internals
 
 ## See also
 

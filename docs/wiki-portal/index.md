@@ -1,6 +1,12 @@
 # Wiki Index — nuwrrrld-portal
 
-_Last updated: 2026-11-21 (Nulogdash quality evidence reader; historical mobile parity unchanged)_
+_Last updated: 2026-11-28 (email notification retry behavior; portal-only, no parity shift)_
+
+**PR #460 scope:** digest, trial-nudge, and launch-reminder sends now derive
+provider-supported repeat keys from recipient, message kind, and UTC date.
+Resend deduplicates within its 24-hour key window; Brevo single-send has no
+documented repeat-safe key. This is server-side delivery behavior and adds no
+mobile feature or shared module. See [[entity-notification-delivery]].
 
 **PR #415 scope:** Nulogdash now reads a versioned quality artifact separately
 from operational probe results and labels absent numeric evidence as
@@ -85,6 +91,9 @@ One page per named component. These are the hubs — everything links to entitie
 - [[entity-clerk]] — Clerk identity layer itself: dev/prod instances, `middleware.ts` route protection, free-plan constraints (no MFA, no satellite domains)
 - [[entity-disclaimer-system]] — hash-derived disclaimer text + Neon-backed acknowledgement gating `/verdict`, `/signals`, `/portfolio-intelligence`, `/dashboard/holdfold/[ticker]`; `lib/disclaimer.ts`, `lib/disclaimer-db.ts`
 - [[entity-consent-system]] — cookie/tracking consent (`nu_consent` cookie, `consent_records`), express ToS/Privacy consent at sign-up (`legal_consent_events`), and data-subject-rights endpoints (`/api/privacy/{export,profile,delete}`); `lib/shared/consent.ts`, `lib/consent-db.ts`, `app/api/consent`, PR #77
+
+**Engagement / Notifications**
+- [[entity-notification-delivery]] — provider-scoped repeat keys for digest, trial-nudge, and launch-reminder email routes; Resend's 24-hour dedup window and Brevo's unsupported single-send path
 
 **Dev Tooling / Workflow**
 - [[entity-new-pipeline-infrastructure]] — historical single-slot `nwf-new-*` Terraform proposal from PR #292; never applied and superseded by the per-slot implementation
