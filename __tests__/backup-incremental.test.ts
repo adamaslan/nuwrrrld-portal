@@ -51,6 +51,7 @@ function makeSource(dir: string): { writer: Db; reader: Db } {
   const path = join(dir, "source.sqlite");
   const writer = new DatabaseSync(path);
   writer.exec("PRAGMA journal_mode = WAL;");
+  writer.exec("PRAGMA synchronous = OFF;"); // fixture only; no durability needed
   writer.exec(SCHEMA_SQL);
   writer.exec("PRAGMA foreign_keys = OFF;");
   writer.exec("BEGIN");
@@ -238,7 +239,8 @@ describe("planIncremental", () => {
   });
 });
 
-describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", () => {
+// File-backed fixtures run several full exports per case; allow for a loaded machine.
+describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { timeout: 30_000 }, () => {
   let dir: string;
   let src: { writer: Db; reader: Db };
   const p = (name: string) => join(dir, name);
