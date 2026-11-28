@@ -49,6 +49,8 @@ import {
   PG_CAPTURE_SQL,
   captureToMeta,
   completeInventory,
+  dataTables,
+  provenAbsentTables,
   createStaging,
   discardStaging,
   exportTable,
@@ -227,6 +229,19 @@ async function main() {
   if (includeFilter) allTables = allTables.filter((t) => includeFilter.has(t));
   allTables = allTables.filter((t) => !excludeFilter.has(t));
   const excludedTables = new Set(sourceTables.filter((t) => !allTables.includes(t)));
+  // information_schema hides tables this role cannot access, so "not listed"
+  // is not "absent": confirm against pg_class, which every role can read.
+  const provenAbsent = await provenAbsentTables({
+    mirrorTables: dataTables(db),
+    sourceTables,
+    excluded: excludedTables,
+    baseCaptured: incremental?.capturedTables ?? new Set(),
+    existsInSource: async (t) =>
+      (await sql`
+        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relname = ${t} AND c.relkind IN ('r', 'p')
+      `).length > 0,
+  });
 
   const summary = [];
   const manifest = [];
@@ -333,7 +348,7 @@ async function main() {
     },
     // One entry per data table in the file, including tables the source DB
     // lacks ("absent") and tables a filter skipped ("excluded").
-    completeInventory(db, manifest, excludedTables),
+    completeInventory(db, manifest, excludedTables, provenAbsent),
   );
   // Self-check before publishing: the file must be what its metadata claims.
   // Filtered (--tables/--exclude) backups are valid files but never chain

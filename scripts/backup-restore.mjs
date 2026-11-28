@@ -63,6 +63,13 @@ export function validateChain(links) {
     if (Object.keys(link.manifest).sort().join(",") !== baseTables) {
       throw new Error(`${link.path}: covers a different set of tables than ${base.path}`);
     }
+    // A table the base captured can never become "absent": restore would
+    // replace its rows with an empty table.
+    for (const [table, entry] of Object.entries(link.manifest)) {
+      if (entry.mode === "absent" && base.manifest[table]?.mode !== "absent") {
+        throw new Error(`${link.path}: "${table}" is marked absent but ${base.path} captured it; take a full backup`);
+      }
+    }
   }
   for (let i = 1; i < links.length; i++) {
     const prev = links[i - 1];

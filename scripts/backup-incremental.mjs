@@ -69,14 +69,17 @@ export const MANIFEST_TABLE = "_backup_manifest";
 
 /**
  * Database clock plus the oldest open transaction this role can see, and how
- * many client sessions it cannot see into. One row.
+ * many client sessions it cannot see into. One row. For a session the role
+ * may not inspect, PostgreSQL reports pid but leaves backend_type, state and
+ * xact_start NULL, so a NULL backend_type counts as a possible client.
  */
 export const PG_CAPTURE_SQL = `
   SELECT now() AS now,
     (SELECT min(xact_start) FROM pg_stat_activity
       WHERE xact_start IS NOT NULL AND pid <> pg_backend_pid()) AS oldest_open_xact_at,
     (SELECT count(*) FROM pg_stat_activity
-      WHERE backend_type = 'client backend' AND state IS NULL AND pid <> pg_backend_pid())::int AS invisible_sessions`;
+      WHERE (backend_type IS NULL OR backend_type = 'client backend')
+        AND state IS NULL AND pid <> pg_backend_pid())::int AS invisible_sessions`;
 
 const quoteIdent = (name) => `"${String(name).replace(/"/g, '""')}"`;
 const toIso = (v) => (v === null || v === undefined ? null : new Date(v).toISOString());
@@ -105,21 +108,53 @@ export const MANIFEST_MODES = Object.freeze(["full", "delta", "absent", "exclude
 /** Every data table in a backup file (metadata and sqlite_* excluded). */
 export function dataTables(db) {
   return db
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN (?, ?) AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN (?, ?) AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name")
     .all(META_TABLE, MANIFEST_TABLE)
     .map((r) => r.name);
 }
 
 /**
+ * Decide which mirror tables the source really lacks. information_schema
+ * omits tables the role cannot access, so a table missing from discovery is
+ * not evidence of absence. A table is "proven absent" only when pg_class
+ * (readable by every role) has no ordinary table of that name, and never when
+ * the previous backup captured it: that disappearance is a permissions or
+ * schema problem to fix, not rows to restore as zero.
+ *
+ * @param {{ mirrorTables: string[], sourceTables: string[], excluded: Set<string>, baseCaptured: Set<string>, existsInSource: (table: string) => Promise<boolean> }} args
+ * @returns {Promise<Set<string>>}
+ */
+export async function provenAbsentTables({ mirrorTables, sourceTables, excluded, baseCaptured, existsInSource }) {
+  const discovered = new Set(sourceTables);
+  const absent = new Set();
+  for (const t of mirrorTables) {
+    if (discovered.has(t) || excluded.has(t)) continue;
+    if (baseCaptured.has(t)) {
+      throw new Error(`"${t}" was captured by the previous backup but is missing from source discovery; check the backup role's privileges (not recording it as absent)`);
+    }
+    if (await existsInSource(t)) {
+      throw new Error(`"${t}" exists in pg_class but is hidden from information_schema discovery; check the backup role's privileges (not recording it as absent)`);
+    }
+    absent.add(t);
+  }
+  return absent;
+}
+
+/**
  * Add an explicit entry for every data table the export did not read, so the
- * manifest is the file's exact inventory.
+ * manifest is the file's exact inventory. A table is recorded `absent` only
+ * when `provenAbsent` names it (see provenAbsentTables); an unexplained gap
+ * throws rather than becoming a zero-row table.
  *
  * @param {{ prepare(sql: string): any }} db
  * @param {{ table: string, mode: string, rows: number }[]} entries
  * @param {Set<string>} excluded  Tables skipped by --tables/--exclude.
+ * @param {Set<string>} provenAbsent  Tables with independent evidence of absence.
  */
-export function completeInventory(db, entries, excluded) {
+export function completeInventory(db, entries, excluded, provenAbsent) {
   const seen = new Set(entries.map((e) => e.table));
+  const unexplained = dataTables(db).filter((t) => !seen.has(t) && !excluded.has(t) && !provenAbsent.has(t));
+  if (unexplained.length) throw new Error(`table(s) ${unexplained.join(", ")} not proven absent from the source and not read`);
   const added = dataTables(db)
     .filter((t) => !seen.has(t))
     .map((t) => ({
@@ -264,7 +299,7 @@ export function validateArtifact(db, label = "backup") {
 /**
  * Decide where an incremental starts from a VALIDATED base (validateArtifact).
  *
- * @returns {{ since: string, baseCapturedAt: string }}
+ * @returns {{ since: string, baseCapturedAt: string, capturedTables: Set<string> }}
  */
 export function planIncremental(base, currentSchemaSha) {
   const { meta } = base;
@@ -275,7 +310,10 @@ export function planIncremental(base, currentSchemaSha) {
   let sinceMs = capturedMs - OVERLAP_MS;
   const oldestOpen = meta.oldest_open_xact_at ? Date.parse(meta.oldest_open_xact_at) : NaN;
   if (Number.isFinite(oldestOpen) && oldestOpen < sinceMs) sinceMs = oldestOpen;
-  return { since: new Date(sinceMs).toISOString(), baseCapturedAt: new Date(capturedMs).toISOString() };
+  const capturedTables = new Set(
+    Object.entries(base.manifest ?? {}).filter(([, e]) => e.mode === "full" || e.mode === "delta").map(([table]) => table),
+  );
+  return { since: new Date(sinceMs).toISOString(), baseCapturedAt: new Date(capturedMs).toISOString(), capturedTables };
 }
 
 /**

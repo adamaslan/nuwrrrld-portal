@@ -7,8 +7,11 @@ import {
   BACKUP_FORMAT_VERSION,
   INCREMENTAL_TABLES,
   OVERLAP_MS,
+  PG_CAPTURE_SQL,
   captureToMeta,
   completeInventory,
+  dataTables,
+  provenAbsentTables,
   createStaging,
   discardStaging,
   exportTable,
@@ -216,7 +219,7 @@ async function backup(
       filtered: "0",
       ...(plan ? { since: plan.since, base_captured_at: plan.baseCapturedAt } : {}),
     },
-    completeInventory(db, entries, new Set()),
+    completeInventory(db, entries, new Set(), new Set(dataTables(db).filter((t) => !(TABLES as readonly string[]).includes(t)))),
   );
   try {
     validateArtifact(db, staging.path);
@@ -689,4 +692,108 @@ describe("daily_bars write-path invariants behind the delta watermark", () => {
       .filter((f) => /(DELETE\s+FROM|TRUNCATE(\s+TABLE)?)\s+daily_bars\b/i.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
   }, 30_000);
+});
+
+describe.skipIf(!sqlite)("PG_CAPTURE_SQL against PostgreSQL's pg_stat_activity row shapes (review r3 #1)", () => {
+  // Run the production statement itself over a SQLite table shaped like
+  // pg_stat_activity. Only the three Postgres-only tokens are rewritten.
+  const OBSERVER = 100;
+  const capture = (rows: [number, string | null, string | null, string | null][]) => {
+    const db = new DatabaseSync(":memory:");
+    db.exec("CREATE TABLE pg_stat_activity (pid INTEGER, backend_type TEXT, state TEXT, xact_start TEXT)");
+    const ins = db.prepare("INSERT INTO pg_stat_activity VALUES (?, ?, ?, ?)");
+    for (const r of rows) ins.run(...r);
+    const sqliteSql = PG_CAPTURE_SQL.replaceAll("pg_backend_pid()", String(OBSERVER)).replaceAll("::int", "").replace("now()", "'t'");
+    const row = db.prepare(sqliteSql).get() as { invisible_sessions: number };
+    db.close();
+    return Number(row.invisible_sessions);
+  };
+
+  it("counts a session the role cannot inspect (backend_type, state, xact_start all NULL)", () => {
+    expect(capture([[7, null, null, null]])).toBe(1);
+    // and it flows to the label: one such session makes the bound overlap-only
+    expect(captureToMeta({ now: iso(T0), oldest_open_xact_at: null, invisible_sessions: 1 }).late_commit_bound).toBe("overlap-only");
+  });
+  it("still counts a visible client backend with no state", () => {
+    expect(capture([[8, "client backend", null, null]])).toBe(1);
+  });
+  it("does not count visible sessions, background workers, or the observer itself", () => {
+    expect(
+      capture([
+        [1, "client backend", "idle", null],
+        [2, "client backend", "active", iso(T0)],
+        [3, "autovacuum worker", null, null],
+        [4, "checkpointer", null, null],
+        [OBSERVER, null, null, null],
+        [OBSERVER, "client backend", null, null],
+      ]),
+    ).toBe(0);
+  });
+});
+
+describe.skipIf(!sqlite)("backup inventory classification (review r3 #2, #3)", () => {
+  const tableDb = (names: string[]) => {
+    const db = new DatabaseSync(":memory:");
+    for (const n of names) db.exec(`CREATE TABLE "${n}" (id INTEGER PRIMARY KEY)`);
+    return db;
+  };
+
+  it("dataTables excludes SQLite internals by literal prefix, not by LIKE wildcard", () => {
+    const db = tableDb(["sqliteX", "normal"]);
+    db.exec("CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT)"); // creates sqlite_sequence
+    db.prepare("INSERT INTO t DEFAULT VALUES").run();
+    expect(dataTables(db)).toEqual(["normal", "sqliteX", "t"]);
+    db.close();
+  });
+
+  it("completeInventory refuses a table nobody proved absent, instead of recording it as absent", () => {
+    const db = tableDb(["daily_bars", "gone"]);
+    db.exec("INSERT INTO daily_bars VALUES (1)");
+    const entries = [{ table: "daily_bars", mode: "full" as const, rows: 1 }];
+    expect(() => completeInventory(db, entries, new Set(), new Set())).toThrow(/gone.*not proven absent|not proven absent.*gone/);
+    const done = completeInventory(db, entries, new Set(), new Set(["gone"]));
+    expect(done.find((e) => e.table === "gone")).toMatchObject({ mode: "absent", rows: 0 });
+    const filtered = completeInventory(db, entries, new Set(["gone"]), new Set());
+    expect(filtered.find((e) => e.table === "gone")).toMatchObject({ mode: "excluded" });
+    db.close();
+  });
+
+  const lookup = (present: string[]) => async (t: string) => present.includes(t);
+  it("a table hidden from information_schema discovery but still in pg_class fails closed", async () => {
+    await expect(
+      provenAbsentTables({ mirrorTables: ["daily_bars", "news_articles"], sourceTables: ["news_articles"], excluded: new Set(), baseCaptured: new Set(), existsInSource: lookup(["daily_bars"]) }),
+    ).rejects.toThrow(/daily_bars.*pg_class/);
+  });
+  it("a table the base captured that vanishes from discovery fails closed even if pg_class shows nothing", async () => {
+    await expect(
+      provenAbsentTables({ mirrorTables: ["daily_bars"], sourceTables: [], excluded: new Set(), baseCaptured: new Set(["daily_bars"]), existsInSource: lookup([]) }),
+    ).rejects.toThrow(/daily_bars.*previous backup/);
+  });
+  it("returns only tables with independent evidence, and skips excluded and discovered ones", async () => {
+    const out = await provenAbsentTables({
+      mirrorTables: ["a", "b", "c", "d"],
+      sourceTables: ["a"],
+      excluded: new Set(["b"]),
+      baseCaptured: new Set(["a"]),
+      existsInSource: lookup([]),
+    });
+    expect([...out].sort()).toEqual(["c", "d"]);
+  });
+
+  it("planIncremental reports the tables the base actually captured", () => {
+    const base = {
+      meta: { captured_at: iso(T0), schema_sha256: "s", oldest_open_xact_at: "" },
+      manifest: { a: { mode: "full" }, b: { mode: "delta" }, c: { mode: "absent" } },
+    };
+    expect([...(planIncremental(base as never, "s") as unknown as { capturedTables: Set<string> }).capturedTables].sort()).toEqual(["a", "b"]);
+  });
+
+  it("restore refuses a link that turns a previously captured table into 'absent' (would restore zero rows)", async () => {
+    const { validateChain } = await import("../scripts/backup-restore.mjs");
+    const meta = (kind: string, at: string, base?: string) => ({ kind, captured_at: at, base_captured_at: base, schema_sha256: "s", shape_sha256: "h" });
+    const mk = (path: string, m: ReturnType<typeof meta>, mode: string) => ({ path, meta: m, manifest: { daily_bars: { mode } } });
+    const base = mk("b0", meta("full", "t0"), "full");
+    expect(() => validateChain([base, mk("b1", meta("incremental", "t1", "t0"), "delta")])).not.toThrow();
+    expect(() => validateChain([base, mk("b1", meta("incremental", "t1", "t0"), "absent")])).toThrow(/daily_bars.*absent/);
+  });
 });

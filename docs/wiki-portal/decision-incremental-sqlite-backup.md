@@ -43,7 +43,9 @@ Every nightly backup re-read the whole database over Neon's HTTP driver. In Nove
   - tampered or partial files, including an abrupt kill while metadata is being written;
   - the no-overwrite publish.
 - Further regression tests from the second review cover two runs publishing to the same path, a writer that commits between the data snapshot and the activity sample, and an emptied table removed from the manifest.
-- Independent review: Codex (gpt-6.2-sol) asked for changes in two rounds; this page records the design after both sets of fixes.
+- A session the backup role is not allowed to inspect appears in `pg_stat_activity` with `backend_type`, `state` and `xact_start` all NULL, so the invisible-session count treats a NULL backend type as a possible client. A regression runs the production statement over that row shape.
+- A table missing from `information_schema` discovery is not evidence the table is gone, because the view omits tables the role cannot access. A table is recorded `absent` only when `pg_class` (readable by every role) has no ordinary table of that name. A table the previous backup captured that disappears from discovery fails the run, and a restore chain refuses a link that turns a captured table into `absent`. The manifest-inventory query also matches the `sqlite_` prefix literally instead of as a LIKE wildcard.
+- Independent review: Codex (gpt-6.2-sol) asked for changes in three rounds; this page records the design after all three sets of fixes.
 - Not validated: any run against production. The database is quota-restricted, and running an export there was not authorized.
 
 ## See also
