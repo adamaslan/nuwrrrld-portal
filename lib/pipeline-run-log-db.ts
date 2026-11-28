@@ -225,6 +225,14 @@ function parseJson<T>(value: unknown, fallback: T): T {
 
 function toRow(r: Record<string, unknown>): PipelineRunRow {
   const items = parseJson<RunItem[]>(r.items, []);
+  // Older/parity writers may store an array as a JSON string. Only those
+  // exceptional rows transfer their payload; normal jsonb arrays stay compact.
+  const legacyItems = parseJson<unknown>(r.legacy_items, []);
+  const legacyOutcomes = Array.isArray(legacyItems)
+    ? summarizeOutcomes(legacyItems.filter(
+        (item): item is RunItem => item != null && typeof item === "object",
+      ))
+    : { ok: 0, empty: 0, fail: 0, skip: 0 };
   return {
     id: String(r.id),
     pipeline: r.pipeline as PipelineName,
@@ -236,9 +244,11 @@ function toRow(r: Record<string, unknown>): PipelineRunRow {
     models: parseJson<Record<string, PerModelStats>>(r.models, {}),
     items,
     outcomes:
-      r.outcome_counts === undefined
-        ? summarizeOutcomes(items)
-        : outcomesFromCounts(r.outcome_counts),
+      r.legacy_items != null
+        ? legacyOutcomes
+        : r.outcome_counts === undefined
+          ? summarizeOutcomes(items)
+          : outcomesFromCounts(r.outcome_counts),
     summary: parseJson<Record<string, unknown>>(r.summary, {}),
     host: (r.host as string | null) ?? null,
     status: (r.status as string | null) ?? null,
@@ -256,6 +266,8 @@ export async function listPipelineRuns(limit = 50): Promise<PipelineRunRow[]> {
   const rows = (await sql`
     SELECT id, pipeline, run_at, dry_run, session, items_total, items_ai, models, summary,
            host, status, coverage,
+           CASE WHEN jsonb_typeof(items) = 'string'
+                THEN items #>> '{}' ELSE NULL END AS legacy_items,
            (SELECT jsonb_object_agg(o.outcome, o.n)
               FROM (SELECT it->>'outcome' AS outcome, count(*)::int AS n
                       FROM jsonb_array_elements(
