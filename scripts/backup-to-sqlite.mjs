@@ -39,16 +39,21 @@
  * snapshot (or fails if --out already exists), so a bad run can't destroy a
  * previous good backup.
  */
-import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { neon } from "@neondatabase/serverless";
 import { DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
 import {
   BACKUP_FORMAT_VERSION,
+  PG_CAPTURE_SQL,
+  captureToMeta,
+  discardPartial,
   exportTable,
+  partialPath,
   planIncremental,
-  readMeta,
+  publishPartial,
+  validateArtifact,
   schemaSha256,
   writeManifest,
 } from "./backup-incremental.mjs";
@@ -116,6 +121,7 @@ if (existsSync(outPath)) {
   process.exit(1);
 }
 mkdirSync(dirname(outPath), { recursive: true });
+const tmpPath = partialPath(outPath);
 
 const schemaPath = join(process.cwd(), "lib", "db", "schema.sqlite.sql");
 const schemaSql = readFileSync(schemaPath, "utf8");
@@ -139,7 +145,7 @@ if (args["incremental-base"] !== undefined) {
   }
   const baseDb = new DatabaseSync(args["incremental-base"], { readOnly: true });
   try {
-    incremental = planIncremental(readMeta(baseDb), schemaSha);
+    incremental = planIncremental(validateArtifact(baseDb, args["incremental-base"]), schemaSha);
   } catch (err) {
     console.error(`✖ ${err.message}`);
     process.exit(1);
@@ -190,12 +196,16 @@ async function main() {
   if (incremental) {
     console.log(`Incremental: daily_bars rows changed since ${incremental.since} (base captured ${incremental.baseCapturedAt})\n`);
   }
-  // Database clock, read before any table, so the next incremental's overlap
+  // Database clock (and oldest visible open transaction), read before any
+  // table, so a full backup anchors the next incremental on the same clock
+  // that stamps fetched_at. An incremental re-anchors on its delta snapshot.
   // window is measured on the same clock that stamps fetched_at.
-  const [{ now: capturedNow }] = await sql`SELECT now() AS now`;
-  const capturedAt = new Date(capturedNow).toISOString();
+  let capture = captureToMeta((await sql.query(PG_CAPTURE_SQL, []))[0]);
 
-  db = new DatabaseSync(outPath);
+  // Work in a private file; only a finished, validated backup is published
+  // to outPath (see publishPartial).
+  discardPartial(tmpPath);
+  db = new DatabaseSync(tmpPath);
   db.exec("PRAGMA journal_mode = WAL;");
   // Bulk-loading a full snapshot table-by-table (in information_schema's
   // alphabetical order, not dependency order — e.g. ticker_cards sorts before
@@ -273,11 +283,18 @@ async function main() {
         pkColumns,
         chunkRows,
         since: incremental?.since ?? null,
+        snapshot: (stmts) =>
+          sql.transaction(
+            stmts.map((q) => sql.query(q.text, q.params)),
+            { isolationLevel: "RepeatableRead", readOnly: true },
+          ),
       });
     } catch (err) {
       throw new Error(`Failed backing up "${table}": ${err.message}`);
     }
     const rowCount = entry.rows;
+    if (entry.capture) capture = captureToMeta(entry.capture);
+    delete entry.capture;
     manifest.push(entry);
     summary.push({ table, rows: rowCount });
     const tag = entry.mode === "delta" ? ` (delta; ${entry.sourceCount} live)` : "";
@@ -301,7 +318,7 @@ async function main() {
     db,
     {
       kind: incremental ? "incremental" : "full",
-      captured_at: capturedAt,
+      ...capture,
       format_version: BACKUP_FORMAT_VERSION,
       schema_sha256: schemaSha,
       filtered: filtered ? "1" : "0",
@@ -309,7 +326,12 @@ async function main() {
     },
     manifest,
   );
-  db.close();
+  // Self-check before publishing: the file must be what its metadata claims.
+  // Filtered (--tables/--exclude) backups are valid files but never chain
+  // anchors, so they skip the chain-level check.
+  if (!filtered) validateArtifact(db, tmpPath);
+  publishPartial(db, tmpPath, outPath);
+  db = null;
 
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
   const totalRows = summary.reduce((s, t) => s + t.rows, 0);
@@ -319,15 +341,13 @@ async function main() {
 
 main().catch((err) => {
   console.error("\n✖ Backup failed:", err.message);
-  // Don't leave a half-written snapshot behind: it would make the next run's
-  // `existsSync(outPath)` guard refuse to retry, and the documented path could
-  // look like a finished backup. `main()` only ever creates `outPath` fresh
-  // (it exits early if the path already existed), so removing it + its WAL/SHM
-  // sidecars here can't destroy a previous good backup.
+  // Only the private working file is removed. outPath is written solely by
+  // publishPartial's no-overwrite link, so a failure can neither leave a
+  // half-written file there nor destroy a previous good backup. A hard kill
+  // leaves at most `<out>.partial`, which never matches backups/*.sqlite and
+  // fails validateArtifact.
   try { db?.close(); } catch { /* already closed, or never opened */ }
-  for (const stale of [outPath, `${outPath}-wal`, `${outPath}-shm`]) {
-    try { if (existsSync(stale)) rmSync(stale); } catch { /* best-effort */ }
-  }
+  discardPartial(tmpPath);
   process.exit(1);
 });
 
