@@ -23,6 +23,15 @@ const db = vi.hoisted(() => ({
   markRunComplete: vi.fn(),
 }));
 vi.mock("@/lib/engine-db", () => db);
+const sqlCalls = vi.hoisted(() => ({ transactions: [] as string[][] }));
+vi.mock("@/lib/db", () => {
+  const tag = (strings: TemplateStringsArray) => ({ text: strings.join("?") });
+  tag.transaction = async (queries: Array<{ text: string }>) => {
+    sqlCalls.transactions.push(queries.map((q) => q.text));
+    return [];
+  };
+  return { default: tag };
+});
 vi.mock("@/lib/pipeline-auth", () => ({ requirePushSecret: () => null }));
 vi.mock("@/lib/shared/engine-ladder", () => ({ engineLiveEnabled: () => true }));
 
@@ -146,5 +155,17 @@ describe("scripts/engine-run.mjs", () => {
     );
     expect(code).toBe(1);
     expect(out).toContain("wrote no structure rows");
+  });
+});
+
+describe("upsertBars write bound", () => {
+  it("sends SET LOCAL statement_timeout and the upsert as one transaction", async () => {
+    const { upsertBars } = await vi.importActual<typeof import("@/lib/engine-db")>("@/lib/engine-db");
+    const row = { ticker: "AAA", barDate: "2026-11-25", open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 };
+    expect(await upsertBars([row], { feed: "sip", adjustment: "split", source: "alpaca" })).toBe(1);
+    const [tx] = sqlCalls.transactions;
+    expect(tx).toHaveLength(2);
+    expect(tx[0]).toBe("SET LOCAL statement_timeout = '5min'");
+    expect(tx[1]).toMatch(/INSERT INTO daily_bars[\s\S]*fetched_at = now\(\)[\s\S]*IS DISTINCT FROM/);
   });
 });

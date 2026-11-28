@@ -31,10 +31,22 @@ function run(query: string): unknown[] {
   return /^\s*select/i.test(query) ? JSON.parse(out.stdout.trim().split("\n")[0]) : [];
 }
 
-vi.mock("@/lib/db", () => ({
-  default: (strings: TemplateStringsArray, ...values: unknown[]) =>
-    Promise.resolve(run(strings.reduce((acc, s, i) => acc + s + (i < values.length ? literal(values[i]) : ""), ""))),
-}));
+/** Statements of the last sql.transaction, so a test can replay them in one session. */
+const lastTransaction: string[] = [];
+
+vi.mock("@/lib/db", () => {
+  // Lazy like Neon's queries: runs when awaited, or as part of sql.transaction.
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.reduce((acc, s, i) => acc + s + (i < values.length ? literal(values[i]) : ""), "");
+    return { text, then: (ok: (v: unknown) => unknown, err: (e: unknown) => unknown) => Promise.resolve().then(() => run(text)).then(ok, err) };
+  };
+  tag.transaction = async (queries: Array<{ text: string }>) => {
+    lastTransaction.splice(0, lastTransaction.length, ...queries.map((q) => q.text));
+    run(`BEGIN;\n${queries.map((q) => `${q.text};`).join("\n")}\nCOMMIT;`);
+    return queries.map(() => []);
+  };
+  return { default: tag };
+});
 
 describe.skipIf(!PORT)("engine-db against local Postgres", { timeout: 60_000 }, () => {
   let db: typeof import("@/lib/engine-db");
@@ -249,6 +261,21 @@ describe.skipIf(!PORT)("coveringRun watermark against local Postgres", { timeout
     expect(after.ts).toBeGreaterThan(before);
     expect(after.v).toBe({ ...rowChange, ...metaChange }[column as never]);
     run("DELETE FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-10'");
+  });
+
+  it("bounds each bar upsert with a transaction-local statement_timeout that does not outlive it", async () => {
+    await db.upsertBars([{ ...bars()[0], barDate: "2026-11-11" }], meta);
+    expect(lastTransaction[0]).toMatch(/^SET LOCAL statement_timeout = '5min'$/);
+    expect(lastTransaction[1]).toMatch(/^\s*INSERT INTO daily_bars/);
+    // Replay the same statements in one session: 5min inside, the server default after COMMIT.
+    const out = spawnSync(PSQL, ["-h", "localhost", "-p", PORT!, "-U", "postgres", "-At", "-v", "ON_ERROR_STOP=1", "-f", "-"], {
+      encoding: "utf8",
+      input: `SHOW statement_timeout;\nBEGIN;\n${lastTransaction[0]};\nSHOW statement_timeout;\n${lastTransaction[1]};\nCOMMIT;\nSHOW statement_timeout;\n`,
+    });
+    expect(out.status).toBe(0);
+    const shown = out.stdout.split("\n").filter((l) => /^\d|^\d+min$/.test(l));
+    expect(shown).toEqual(["0", "5min", "0"]);
+    run("DELETE FROM daily_bars WHERE feed = 'zzf' AND bar_date = '2026-11-11'");
   });
 
   it("fails open with no run, then covers once a finished run started after the newest bar change", async () => {

@@ -26,7 +26,11 @@ export async function upsertBars(
   meta: { feed: BarFeed; adjustment: BarAdjustment; source: string },
 ): Promise<number> {
   if (rows.length === 0) return 0;
-  await sql`
+  // SET LOCAL caps this one statement (observed runs take seconds) and ends with
+  // the transaction; a timeout rolls the whole batch back and the caller fails.
+  await sql.transaction([
+    sql`SET LOCAL statement_timeout = '5min'`,
+    sql`
     INSERT INTO daily_bars (ticker, bar_date, open, high, low, close, volume, feed, adjustment, source)
     SELECT t, d::date, o, h, l, c, v, ${meta.feed}::text, ${meta.adjustment}::text, ${meta.source}::text
     FROM unnest(
@@ -43,7 +47,8 @@ export async function upsertBars(
            daily_bars.adjustment, daily_bars.source)
       IS DISTINCT FROM (EXCLUDED.open, EXCLUDED.high, EXCLUDED.low, EXCLUDED.close, EXCLUDED.volume,
                         EXCLUDED.adjustment, EXCLUDED.source)
-  `;
+  `,
+  ]);
   return rows.length;
 }
 
