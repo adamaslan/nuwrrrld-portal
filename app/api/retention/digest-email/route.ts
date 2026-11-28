@@ -20,7 +20,7 @@ function isResendIdempotentPayloadConflict(status: number, errorText: string): b
   try {
     const error = JSON.parse(errorText) as { name?: unknown; statusCode?: unknown; message?: unknown };
     return error.name === "invalid_idempotent_request"
-      && error.statusCode === 409
+      && error.statusCode === status
       && typeof error.message === "string";
   } catch {
     return false;

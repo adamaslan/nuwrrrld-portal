@@ -135,6 +135,25 @@ describe("email routes", () => {
     expect(warn.mock.calls.flat().join(" ")).not.toContain("test@example.test");
     warn.mockRestore();
   });
+  it.each([
+    { name: "concurrent_idempotent_requests", status: 409, statusCode: 409 },
+    { name: "resource_locked", status: 409, statusCode: 409 },
+    { name: "rate_limit_exceeded", status: 429, statusCode: 429 },
+  ])("digest: Resend $name remains a provider failure", async ({ name, status, statusCode }) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: false,
+        status,
+        text: async () => JSON.stringify({ name, statusCode, message: "Request failed." }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await digest(req("/api/retention/digest-email", { userId: "u1" }));
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "email failed" });
+  });
   it("launch reminder: one send per recipient, failure counted and logged", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     const fetchMock = vi.fn()
