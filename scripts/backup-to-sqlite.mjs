@@ -20,6 +20,13 @@
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --tables=ticker_universe,ticker_cards
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --exclude=corpus_chunks,grounding_pack
  *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --chunk=5000
+ *   node --env-file=.env.local scripts/backup-to-sqlite.mjs --incremental-base=backups/prev.sqlite
+ *
+ * --incremental-base (opt-in; the scheduled workflow does not pass it) reads
+ * daily_bars rows changed since the given backup instead of the whole table,
+ * and every other table in full. See scripts/backup-incremental.mjs for which
+ * tables qualify and why, and scripts/backup-restore.mjs to rebuild a full
+ * snapshot from full + incrementals.
  *
  * Tables are read in keyset-paginated chunks over their PRIMARY KEY (see
  * scripts/backup-pagination.mjs): Neon's serverless HTTP driver buffers each
@@ -32,11 +39,28 @@
  * snapshot (or fails if --out already exists), so a bad run can't destroy a
  * previous good backup.
  */
-import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { neon } from "@neondatabase/serverless";
-import { fetchTableChunks, DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
+import { DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
+import {
+  BACKUP_FORMAT_VERSION,
+  PG_CAPTURE_SQL,
+  captureToMeta,
+  completeInventory,
+  dataTables,
+  provenAbsentTables,
+  createStaging,
+  discardStaging,
+  exportTable,
+  floorCaptures,
+  planIncremental,
+  publishStaged,
+  validateArtifact,
+  schemaSha256,
+  writeManifest,
+} from "./backup-incremental.mjs";
 
 function parseArgs(argv) {
   const out = {};
@@ -101,31 +125,38 @@ if (existsSync(outPath)) {
   process.exit(1);
 }
 mkdirSync(dirname(outPath), { recursive: true });
+// Created in main(); owned by this invocation only (see createStaging).
+let staging = null;
 
 const schemaPath = join(process.cwd(), "lib", "db", "schema.sqlite.sql");
 const schemaSql = readFileSync(schemaPath, "utf8");
 
 const includeFilter = typeof args.tables === "string" ? new Set(args.tables.split(",")) : null;
 const excludeFilter = typeof args.exclude === "string" ? new Set(args.exclude.split(",")) : new Set();
+const filtered = includeFilter !== null || excludeFilter.size > 0;
+const schemaSha = schemaSha256(schemaSql);
 
-/** Coerce one Postgres value into a SQLite-storable primitive, using the
- * column's Postgres data_type (from information_schema) to decide how. */
-function coerce(value, pgType) {
-  if (value === null || value === undefined) return null;
-  if (pgType === "ARRAY" || pgType === "jsonb" || pgType === "json") {
-    return JSON.stringify(value);
+// Incremental mode: anchor the delta on the base backup's own metadata, never
+// on a clock guess, so a failed night can't silently open a gap.
+let incremental = null;
+if (args["incremental-base"] !== undefined) {
+  if (typeof args["incremental-base"] !== "string" || !existsSync(args["incremental-base"])) {
+    console.error(`✖ --incremental-base must name an existing backup file`);
+    process.exit(1);
   }
-  if (pgType === "boolean") return value ? 1 : 0;
-  if (value instanceof Date) return value.toISOString();
-  if (pgType === "integer" || pgType === "bigint" || pgType === "smallint") {
-    return typeof value === "bigint" ? Number(value) : value;
+  if (filtered) {
+    console.error("✖ --incremental-base cannot be combined with --tables/--exclude (restore needs every table)");
+    process.exit(1);
   }
-  if (pgType === "numeric" || pgType === "real" || pgType === "double precision") {
-    return typeof value === "string" ? Number(value) : value;
+  const baseDb = new DatabaseSync(args["incremental-base"], { readOnly: true });
+  try {
+    incremental = planIncremental(validateArtifact(baseDb, args["incremental-base"]), schemaSha);
+  } catch (err) {
+    console.error(`✖ ${err.message}`);
+    process.exit(1);
+  } finally {
+    baseDb.close();
   }
-  // text, uuid, character varying, date-as-string, inet, tsvector (skipped
-  // entirely — see schema.sqlite.sql), and anything else: pass through.
-  return value;
 }
 
 async function getTables() {
@@ -167,8 +198,19 @@ async function getPrimaryKeyColumns(table) {
 
 async function main() {
   console.log(`Backing up ${url.replace(/:\/\/.*@/, "://***@")} -> ${outPath}\n`);
+  if (incremental) {
+    console.log(`Incremental: daily_bars rows changed since ${incremental.since} (base captured ${incremental.baseCapturedAt})\n`);
+  }
+  // Database clock (and oldest visible open transaction), read before any
+  // table, so a full backup anchors the next incremental on the same clock
+  // that stamps fetched_at. An incremental re-anchors on its delta snapshot.
+  // window is measured on the same clock that stamps fetched_at.
+  let capture = captureToMeta((await sql.query(PG_CAPTURE_SQL, []))[0]);
 
-  db = new DatabaseSync(outPath);
+  // Work in a private file; only a finished, validated backup is published
+  // to outPath (see publishPartial).
+  staging = createStaging(outPath);
+  db = new DatabaseSync(staging.path);
   db.exec("PRAGMA journal_mode = WAL;");
   // Bulk-loading a full snapshot table-by-table (in information_schema's
   // alphabetical order, not dependency order — e.g. ticker_cards sorts before
@@ -182,11 +224,34 @@ async function main() {
   // the load, then turn back on for the post-load PRAGMA foreign_key_check.
   db.exec("PRAGMA foreign_keys = OFF;");
 
-  let allTables = await getTables();
+  const sourceTables = await getTables();
+  let allTables = sourceTables;
   if (includeFilter) allTables = allTables.filter((t) => includeFilter.has(t));
   allTables = allTables.filter((t) => !excludeFilter.has(t));
+  // A table the user explicitly omitted is "excluded" whether or not discovery
+  // can see it: a permission-hidden table is absent from sourceTables, so
+  // deriving the set from discovery alone would send it to the catalog check.
+  const omittedByFilter = (t) => (includeFilter !== null && !includeFilter.has(t)) || excludeFilter.has(t);
+  const excludedTables = new Set([
+    ...sourceTables.filter((t) => !allTables.includes(t)),
+    ...dataTables(db).filter(omittedByFilter),
+  ]);
+  // information_schema hides tables this role cannot access, so "not listed"
+  // is not "absent": confirm against pg_class, which every role can read.
+  const provenAbsent = await provenAbsentTables({
+    mirrorTables: dataTables(db),
+    sourceTables,
+    excluded: excludedTables,
+    baseCaptured: incremental?.capturedTables ?? new Set(),
+    existsInSource: async (t) =>
+      (await sql`
+        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relname = ${t} AND c.relkind IN ('r', 'p')
+      `).length > 0,
+  });
 
   const summary = [];
+  const manifest = [];
   const started = Date.now();
 
   for (const table of allTables) {
@@ -220,11 +285,9 @@ async function main() {
       );
     }
     const pgColumns = allPgColumns.filter((c) => sqliteColNames.has(c.column_name));
-    const colNames = pgColumns.map((c) => c.column_name);
-    const selectList = colNames.map((c) => `"${c}"`).join(", ");
     // NOTE: each chunk is read in its own implicit transaction, so a
     // snapshot taken while the DB is being written can be mixed-time across
-    // (and now within) tables. `PRAGMA foreign_key_check` below catches
+    // (and within) tables. `PRAGMA foreign_key_check` below catches
     // cross-table FK inconsistency but not all skew. A single read-only
     // RepeatableRead transaction for every read would fix it, but neon()'s
     // HTTP `sql.transaction()` takes a static query list and can't
@@ -239,35 +302,32 @@ async function main() {
       throw new Error(`--chunk must be a positive integer, got "${args.chunk}"`);
     }
 
-    const placeholders = colNames.map(() => "?").join(", ");
-    const insert = db.prepare(
-      `INSERT INTO "${table}" (${colNames.map((c) => `"${c}"`).join(", ")}) VALUES (${placeholders})`,
-    );
-    let rowCount = 0;
-    db.exec("BEGIN");
+    let entry;
     try {
-      const chunks = fetchTableChunks((text, params) => sql.query(text, params), {
+      entry = await exportTable((text, params) => sql.query(text, params), db, {
         table,
-        selectList,
-        selectColumns: colNames,
+        pgColumns,
         pkColumns,
         chunkRows,
+        since: incremental?.since ?? null,
+        snapshot: (stmts) =>
+          sql.transaction(
+            stmts.map((q) => sql.query(q.text, q.params)),
+            { isolationLevel: "RepeatableRead", readOnly: true },
+          ),
       });
-      for await (const rows of chunks) {
-        for (const row of rows) {
-          const values = pgColumns.map((c) => coerce(row[c.column_name], c.data_type));
-          insert.run(...values);
-        }
-        rowCount += rows.length;
-      }
-      db.exec("COMMIT");
     } catch (err) {
-      db.exec("ROLLBACK");
       throw new Error(`Failed backing up "${table}": ${err.message}`);
     }
-
+    const rowCount = entry.rows;
+    // A delta re-anchors on its own snapshot; the run-start sample stays in
+    // the floor (floorCaptures never discards an earlier observation).
+    if (entry.capture) capture = floorCaptures(entry.capture, capture);
+    delete entry.capture;
+    manifest.push(entry);
     summary.push({ table, rows: rowCount });
-    console.log(`  ✓ ${table.padEnd(32)} ${String(rowCount).padStart(6)} rows`);
+    const tag = entry.mode === "delta" ? ` (delta; ${entry.sourceCount} live)` : "";
+    console.log(`  ✓ ${table.padEnd(32)} ${String(rowCount).padStart(6)} rows${tag}`);
   }
 
   // Re-enable and verify: a real FK violation in the exported data (not just
@@ -283,7 +343,28 @@ async function main() {
     );
   }
 
-  db.close();
+  writeManifest(
+    db,
+    {
+      kind: incremental ? "incremental" : "full",
+      ...capture,
+      format_version: BACKUP_FORMAT_VERSION,
+      schema_sha256: schemaSha,
+      filtered: filtered ? "1" : "0",
+      ...(incremental
+        ? { since: incremental.since, base_captured_at: incremental.baseCapturedAt, parent_artifact_id: incremental.parentArtifactId }
+        : {}),
+    },
+    // One entry per data table in the file, including tables the source DB
+    // lacks ("absent") and tables a filter skipped ("excluded").
+    completeInventory(db, manifest, excludedTables, provenAbsent),
+  );
+  // Self-check before publishing: the file must be what its metadata claims.
+  // Filtered (--tables/--exclude) backups are valid files but never chain
+  // anchors, so they skip the chain-level check.
+  if (!filtered) validateArtifact(db, staging.path);
+  publishStaged(db, staging, outPath);
+  db = null;
 
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
   const totalRows = summary.reduce((s, t) => s + t.rows, 0);
@@ -293,15 +374,13 @@ async function main() {
 
 main().catch((err) => {
   console.error("\n✖ Backup failed:", err.message);
-  // Don't leave a half-written snapshot behind: it would make the next run's
-  // `existsSync(outPath)` guard refuse to retry, and the documented path could
-  // look like a finished backup. `main()` only ever creates `outPath` fresh
-  // (it exits early if the path already existed), so removing it + its WAL/SHM
-  // sidecars here can't destroy a previous good backup.
+  // Only this run's staging directory is removed. outPath is written solely
+  // by publishStaged's no-overwrite link, so a failure can neither leave a
+  // half-written file there nor destroy a previous good backup. A hard kill
+  // leaves at most a dot-prefixed staging directory, which never matches
+  // backups/*.sqlite and whose file fails validateArtifact.
   try { db?.close(); } catch { /* already closed, or never opened */ }
-  for (const stale of [outPath, `${outPath}-wal`, `${outPath}-shm`]) {
-    try { if (existsSync(stale)) rmSync(stale); } catch { /* best-effort */ }
-  }
+  discardStaging(staging);
   process.exit(1);
 });
 

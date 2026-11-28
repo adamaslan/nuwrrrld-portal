@@ -141,6 +141,7 @@ Recorded design decisions — the *why* behind the architecture.
 - [[decision-verdict-pages-indexable-when-recorded]] — verdict pages are listed in the sitemap and indexable only for tickers with a recorded verdict; empty ones are noindex
 - [[decision-public-track-record-counts-only]] — the public /track-record page shows aggregate hit/miss/flat/unpriced counts per horizon and withholds the rate under 30 decisive calls; never a ticker or price
 - [[decision-precompute-ai-at-quota-reset]] — batch AI runs just after OpenRouter's UTC-midnight reset and is served from cache, so the daily allowance goes to interactive calls
+- [[decision-incremental-sqlite-backup]] — opt-in `--incremental-base` backups read only changed `daily_bars` rows (every other table stays full); a restore chain refuses gaps, schema changes and deletes
 - [[decision-pending-signals-queue]] — watchlist-add enqueues a `pending_signals` row instead of calling gcp3 inline
 - [[decision-no-shared-alpaca-budget]] — Alpaca requests are paced or counted per pipeline; no AWS-backed shared budget
 - [[decision-dynamo-capacity-fit-free-tier]] — the four `nwf_*` tables are sized to the always-free 25 RCU / 25 WCU with no headroom (pipeline 4/4, cache 2/2, locks 1/1); 34/34 as coded would have billed
