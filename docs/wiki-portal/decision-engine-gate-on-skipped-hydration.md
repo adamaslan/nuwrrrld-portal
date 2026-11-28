@@ -2,7 +2,7 @@
 date: 2026-11-28
 type: decision
 tags: [engine, neon, scheduled-jobs, hydration, daily-bars, gate]
-sources: [../../scripts/engine-gate.mjs, ../../lib/engine-db.ts, ../../.github/workflows/engine-nightly.yml, ../../.github/workflows/hydrate-universe.yml, ../../__tests__/engine-gate.test.ts, ../../__tests__/engine-db.pg.test.ts, PR#459]
+sources: [../../docs/staged/engine-nightly-gate.patch, ../../scripts/engine-gate.mjs, ../../lib/engine-db.ts, ../../.github/workflows/engine-nightly.yml, ../../.github/workflows/hydrate-universe.yml, ../../__tests__/engine-gate.test.ts, ../../__tests__/engine-db.pg.test.ts, PR#459]
 ---
 
 # Decision — Don't Start the Engine After a Hydration Run That Explicitly Did Nothing
@@ -19,7 +19,14 @@ earlier engine runs:
     `hydrate-universe.yml`'s Summarize step already accepts as a clock-gate
     skip;
   - that run was attempt 1 and has exactly one `hydrate-log` artifact;
-  - the previous engine-nightly run completed with `success`.
+  - the preceding automated engine-nightly run **that actually computed**
+    completed with `success` and its "Run the engine (shadow)" step succeeded.
+    Runs are listed with `--event workflow_run` on the default branch, so a
+    manual dispatch (including a green dry run) is never evidence; a green run
+    whose engine step was skipped is a gate skip and is passed over to the
+    compute behind it;
+  - the `[done]` marker is followed by whitespace, so `[done]status=…` is
+    malformed.
 - Any other input runs the engine as before, including a manual dispatch, a
   missing or unreadable log, a malformed or duplicated `[done]` line, a hydration
   that wrote or attempted anything, a re-run attempt, and a previous engine run
@@ -28,10 +35,14 @@ earlier engine runs:
   `### Engine nightly: not run (…)` summary line in that workflow run. That
   keeps it distinct from a computed run where NuLogDash's engine card already
   points (the platform execution history).
+- A gate skip must not read as recovery: the engine job exposes
+  `computed` (engine step outcome) and the notify job closes a failure issue
+  only when it is `true`.
 - Activation needs an `engine-nightly.yml` change: a step that reads the artifact
-  count and the previous run with the job token (`actions: read`), downloads the
+  count and the run history with the job token (`actions: read`), downloads the
   artifact for `workflow_run.id`, and runs the parser before `npm ci`. It is
-  **staged in the PR body as an owner decision, not committed.**
+  **staged as `docs/staged/engine-nightly-gate.patch` (not applied) for the
+  owner to decide.**
 
 Shipped alongside it: `upsertBars` rewrites a stored bar only when a non-key
 column changed, so `fetched_at` moves only on real changes. It still stamps the
@@ -85,7 +96,8 @@ gated trigger makes no portal or database calls at all.
 - On a skipped-hydration trigger, the day's bar is computed by the next
   hydration-triggered run, a few hours later in the observed runs. Engine output
   is shadow-only, so no user-facing freshness changes.
-- If the evening engine run fails, the next trigger always recomputes.
+- If the evening engine run fails, the next trigger always recomputes, even after
+  a later manual dry run or a chain of gate skips; neither counts as a compute.
 - Until the owner applies the staged YAML, the parser is inert and behavior is
   unchanged.
 - The change-only upsert stops restamping unchanged trailing-week refetches
@@ -94,7 +106,9 @@ gated trigger makes no portal or database calls at all.
 ## Validated by
 
 `__tests__/engine-gate.test.ts` covers the real `[done]` lines and every
-fail-open input, including the previous-run recovery case and re-run attempts.
+fail-open input, including a failed compute behind a dry run or consecutive gate
+skips, the glued `[done]status=…` marker, re-run attempts, and that the staged
+patch applies and gates recovery on a real compute.
 `__tests__/engine-db.pg.test.ts` covers the unchanged refetch, each column, and
 that the timeout doesn't leak past COMMIT. `__tests__/engine-db-upsert.test.ts`
 checks the transaction shape. The staged workflow passes actionlint 1.7.12.

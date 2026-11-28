@@ -1,0 +1,95 @@
+--- a/.github/workflows/engine-nightly.yml
++++ b/.github/workflows/engine-nightly.yml
+@@ -45,16 +45,73 @@
+     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+     runs-on: ubuntu-latest
+     timeout-minutes: 60
++    permissions:
++      contents: read
++      actions: read
++    outputs:
++      # Only a run whose engine step succeeded counts as recovered; a gate skip is green too.
++      computed: ${{ steps.engine.outcome == 'success' }}
+     steps:
+       - uses: actions/checkout@v4
+       - uses: actions/setup-node@v4
+         with:
+           node-version: '22'
+           cache: 'npm'
++
++      # Skip only when the hydration run that triggered this one explicitly did
++      # nothing ([done] status=skipped written=0 total=0) and the preceding
++      # automated run that actually computed succeeded. Gate skips are green but
++      # computed nothing, so they are passed over; manual dispatches (dry runs)
++      # are never listed. Every missing or ambiguous input runs the engine.
++      - name: Read the triggering hydration's artifact count and the engine run history
++        id: inputs
++        if: github.event_name == 'workflow_run'
++        continue-on-error: true
++        env:
++          GH_TOKEN: ${{ github.token }}
++          HYDRATION_RUN: ${{ github.event.workflow_run.id }}
++          THIS_RUN: ${{ github.run_id }}
++          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
++        run: |
++          set -euo pipefail
++          count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${HYDRATION_RUN}/artifacts?name=hydrate-log" -q '.total_count')
++          echo "artifact_count=${count}" >> "$GITHUB_OUTPUT"
++          runs='[]'
++          while read -r id status conclusion; do
++            compute=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/jobs" \
++              -q '[.jobs[] | select(.name == "engine") | .steps[] | select(.name == "Run the engine (shadow)") | .conclusion][0] // ""')
++            runs=$(jq -c --arg s "$status" --arg c "$conclusion" --arg k "$compute" '. + [{status: $s, conclusion: $c, compute: $k}]' <<<"$runs")
++            # Stop at the first run that is not a green gate skip; older ones cannot change the answer.
++            if [ "$status" != "completed" ] || [ "$conclusion" != "success" ] || [ "$compute" != "skipped" ]; then break; fi
++          done < <(gh run list -R "${GITHUB_REPOSITORY}" --workflow engine-nightly.yml --event workflow_run \
++            --branch "${DEFAULT_BRANCH}" --limit 20 --json databaseId,status,conclusion \
++            -q ".[] | select(.databaseId != ${THIS_RUN}) | \"\(.databaseId) \(.status) \(.conclusion)\"")
++          echo "runs=${runs}" >> "$GITHUB_OUTPUT"
++      - name: Download the triggering hydration log
++        if: github.event_name == 'workflow_run' && steps.inputs.outputs.artifact_count == '1'
++        continue-on-error: true
++        uses: actions/download-artifact@v4
++        with:
++          name: hydrate-log
++          path: gate
++          run-id: ${{ github.event.workflow_run.id }}
++          github-token: ${{ github.token }}
++      - name: Gate on the triggering hydration's outcome
++        id: gate
++        env:
++          GATE_EVENT: ${{ github.event_name }}
++          GATE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
++          GATE_ARTIFACT_COUNT: ${{ steps.inputs.outputs.artifact_count }}
++          GATE_LOG_PATH: gate/hydrate.log
++          GATE_PREV_RUNS: ${{ steps.inputs.outputs.runs }}
++        run: node scripts/engine-gate.mjs
++
+       - name: Install dependencies
++        if: steps.gate.outputs.skip != 'true'
+         run: npm ci
+ 
+       - name: Store daily bars
++        if: steps.gate.outputs.skip != 'true'
+         env:
+           PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+@@ -78,7 +135,8 @@
+           node scripts/engine-bars.mjs "${args[@]}" 2>&1 | tee bars.log
+ 
+       - name: Run the engine (shadow)
+-        if: github.event.inputs.dryRun != 'true'
++        id: engine
++        if: steps.gate.outputs.skip != 'true' && github.event.inputs.dryRun != 'true'
+         env:
+           PORTAL_URL: ${{ secrets.PORTAL_URL || 'https://financial.nuwrrrld.com' }}
+           PORTAL_PUSH_SECRET: ${{ secrets.PORTAL_PUSH_SECRET }}
+@@ -118,7 +176,7 @@
+   notify:
+     name: Failure or recovery notification
+     needs: [engine]
+-    if: always() && !cancelled() && github.event_name == 'workflow_run' && (failure() || (needs.engine.result == 'success'))
++    if: always() && !cancelled() && github.event_name == 'workflow_run' && (failure() || (needs.engine.result == 'success' && needs.engine.outputs.computed == 'true'))
+     runs-on: ubuntu-latest
+     timeout-minutes: 5
+     permissions:
