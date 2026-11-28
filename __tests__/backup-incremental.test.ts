@@ -179,7 +179,7 @@ async function backup(
   opts: ClockOpts & { base?: string; chunkRows?: number; afterStatement?: (i: number) => void },
 ) {
   const meter = newMeter();
-  let plan: { since: string; baseCapturedAt: string } | null = null;
+  let plan: { since: string; baseCapturedAt: string; parentArtifactId?: string } | null = null;
   if (opts.base) {
     const b = new DatabaseSync(opts.base, { readOnly: true });
     try {
@@ -217,7 +217,7 @@ async function backup(
       format_version: BACKUP_FORMAT_VERSION,
       schema_sha256: SCHEMA_SHA,
       filtered: "0",
-      ...(plan ? { since: plan.since, base_captured_at: plan.baseCapturedAt } : {}),
+      ...(plan ? { since: plan.since, base_captured_at: plan.baseCapturedAt, parent_artifact_id: plan.parentArtifactId } : {}),
     },
     completeInventory(db, entries, new Set(), new Set(dataTables(db).filter((t) => !(TABLES as readonly string[]).includes(t)))),
   );
@@ -568,6 +568,74 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
     discardStaging(staging);
   });
 
+  describe("artifact identity (review r5 #2, #3)", () => {
+    const closeT07 = (path: string) => {
+      const db = new DatabaseSync(path, { readOnly: true });
+      const row = db.prepare("SELECT close FROM daily_bars WHERE ticker = 'T07' AND bar_date = '2025-09-01'").get() as { close: number };
+      db.close();
+      return row.close;
+    };
+    const setClose = (v: number) =>
+      src.writer.prepare("UPDATE daily_bars SET close = ?, fetched_at = ? WHERE ticker = 'T07' AND bar_date = '2025-09-01'").run(v, iso(T0 - 3 * DAY)); // outside every delta window
+
+    it("a different full backup with the same normalised capture time cannot stand in for the parent", async () => {
+      // Raw .000123Z and .000456Z both become .000Z through a JS Date.
+      const norm = (raw: string) => captureToMeta({ now: raw, oldest_open_xact_at: null, invisible_sessions: 0 }).captured_at;
+      expect(norm("2026-11-01T12:00:00.000123Z")).toBe(norm("2026-11-01T12:00:00.000456Z"));
+
+      setClose(10);
+      await backup(src, p("a.sqlite"), { capturedAt: iso(T0) });
+      setClose(70);
+      await backup(src, p("b.sqlite"), { capturedAt: iso(T0) });
+      await backup(src, p("deltaOfA.sqlite"), { capturedAt: iso(T0 + DAY), base: p("a.sqlite") });
+      // The delta reads no change to this bar, so its parent decides the restored close.
+      await restore([p("a.sqlite"), p("deltaOfA.sqlite")], p("ok.sqlite"));
+      expect(closeT07(p("ok.sqlite"))).toBe(10);
+      await expect(restore([p("b.sqlite"), p("deltaOfA.sqlite")], p("bad.sqlite"))).rejects.toThrow(/artifact|parent/i);
+      expect(existsSync(p("bad.sqlite"))).toBe(false);
+    });
+
+    it("every backup gets a unique artifact_id even at an identical capture time", async () => {
+      await backup(src, p("a.sqlite"), { capturedAt: iso(T0) });
+      await backup(src, p("b.sqlite"), { capturedAt: iso(T0) });
+      const id = (f: string) => {
+        const db = new DatabaseSync(p(f), { readOnly: true });
+        try { return readMeta(db).artifact_id; } finally { db.close(); }
+      };
+      expect(id("a.sqlite")).toMatch(/^[0-9a-f-]{36}$/);
+      expect(id("a.sqlite")).not.toBe(id("b.sqlite"));
+    });
+
+    it("a format-3 artifact (written before the NULL-handling fixes) is rejected rather than trusted as observed", async () => {
+      await backup(src, p("old.sqlite"), { capturedAt: iso(T0) });
+      const db = new DatabaseSync(p("old.sqlite"));
+      db.prepare("UPDATE _backup_meta SET value = '3' WHERE key = 'format_version'").run();
+      db.prepare("DELETE FROM _backup_meta WHERE key = 'artifact_id'").run();
+      db.close();
+      const check = () => {
+        const d = new DatabaseSync(p("old.sqlite"), { readOnly: true });
+        try { return validateArtifact(d, "old"); } finally { d.close(); }
+      };
+      expect(check).toThrow(/unsupported or missing backup format 3/);
+      await expect(restore([p("old.sqlite")], p("r.sqlite"))).rejects.toThrow(/format 3/);
+    });
+  });
+
+  describe("restoreGuarantee labels observed only on positive proof (review r5 design guard)", () => {
+    const link = (bound: unknown, format: unknown = BACKUP_FORMAT_VERSION) => ({ meta: { late_commit_bound: bound, format_version: format } });
+    it.each([
+      ["observed", [link("observed"), link("observed")], "observed"],
+      ["overlap-only base", [link("overlap-only"), link("observed")], "overlap-only"],
+      ["missing bound on a base", [link(undefined), link("observed")], "overlap-only"],
+      ["unrecognised bound on a base", [link("mostly-observed"), link("observed")], "overlap-only"],
+      ["old format on a base", [link("observed", "3"), link("observed")], "overlap-only"],
+      ["no links at all", [], "overlap-only"],
+    ])("%s -> %s", async (_n, links, want) => {
+      const { restoreGuarantee } = await import("../scripts/backup-restore.mjs");
+      expect(restoreGuarantee(links as never)).toBe(want);
+    });
+  });
+
   describe("two invocations targeting the same output (review r2 #1)", () => {
     it("cannot publish each other's staged file: each owns a private staging directory", () => {
       const out = p("same.sqlite");
@@ -716,6 +784,27 @@ describe.skipIf(!sqlite)("PG_CAPTURE_SQL against PostgreSQL's pg_stat_activity r
   });
   it("still counts a visible client backend with no state", () => {
     expect(capture([[8, "client backend", null, null]])).toBe(1);
+  });
+  // PostgreSQL's documented pg_stat_activity.state values, plus NULL and an
+  // unknown future value. Only a state whose xact_start is trustworthy may
+  // count as observed (review r5 #1).
+  it.each([
+    ["active", "active", iso(T0), "observed"],
+    ["idle", "idle", null, "observed"],
+    ["idle in transaction", "idle in transaction", iso(T0), "observed"],
+    ["idle in transaction (aborted)", "idle in transaction (aborted)", iso(T0), "observed"],
+    ["fastpath function call", "fastpath function call", iso(T0), "observed"],
+    ["disabled (track_activities=off clears xact_start)", "disabled", null, "overlap-only"],
+    ["NULL (role cannot inspect)", null, null, "overlap-only"],
+    ["an unrecognised future state", "some future state", null, "overlap-only"],
+    ["active but no xact_start (inconsistent row)", "active", null, "overlap-only"],
+    ["idle in transaction but no xact_start", "idle in transaction", null, "overlap-only"],
+  ])("client backend in state %s -> %s", (_label, state, xact, bound) => {
+    const n = capture([[9, "client backend", state, xact]]);
+    expect(captureToMeta({ now: iso(T0), oldest_open_xact_at: null, invisible_sessions: n }).late_commit_bound).toBe(bound);
+  });
+  it.each([[undefined], [null], ["x"], [Number.NaN], [-1]])("captureToMeta never says observed for invisible_sessions=%s", (v) => {
+    expect(captureToMeta({ now: iso(T0), oldest_open_xact_at: null, invisible_sessions: v }).late_commit_bound).toBe("overlap-only");
   });
   it("does not count visible sessions, background workers, or the observer itself", () => {
     expect(

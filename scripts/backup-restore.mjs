@@ -12,7 +12,7 @@
  * than producing a quietly incomplete copy, when:
  *   - the first file is not a full backup;
  *   - a link is missing or out of order (each incremental names the
- *     captured_at of the backup it was based on);
+ *     artifact_id of the exact backup it was based on, and its captured_at);
  *   - lib/db/schema.sqlite.sql or the table layout changed in the chain;
  *   - the links do not cover the same set of tables;
  *   - a delta table's restored row count differs from the live count read in
@@ -82,6 +82,12 @@ export function validateChain(links) {
     if (link.meta.kind !== "incremental") {
       throw new Error(`${link.path}: expected an incremental backup after ${prev.path} (kind=${link.meta.kind})`);
     }
+    if (link.meta.parent_artifact_id !== prev.meta.artifact_id) {
+      throw new Error(
+        `${link.path}: names parent artifact ${link.meta.parent_artifact_id} but the previous file is ` +
+        `${prev.meta.artifact_id} — a different backup — a link is missing or out of order`,
+      );
+    }
     if (link.meta.base_captured_at !== prev.meta.captured_at) {
       throw new Error(
         `${link.path}: was based on the backup captured at ${link.meta.base_captured_at}, ` +
@@ -89,6 +95,20 @@ export function validateChain(links) {
       );
     }
   }
+}
+
+/**
+ * The late-commit guarantee of a restored chain. `observed` only when every
+ * base link positively proves it (current format, bound exactly "observed");
+ * anything missing, unrecognised or older downgrades to `overlap-only`.
+ * The final link is not a base, so its own bound does not matter.
+ */
+export function restoreGuarantee(links) {
+  if (!Array.isArray(links) || links.length === 0) return "overlap-only";
+  const proven = links
+    .slice(0, -1)
+    .every((l) => l?.meta?.format_version === BACKUP_FORMAT_VERSION && l.meta.late_commit_bound === "observed");
+  return proven ? "observed" : "overlap-only";
 }
 
 /**
@@ -151,9 +171,7 @@ export function restoreChain(paths, outPath) {
     }
 
     // Each delta's coverage depends on its BASE's late-commit bound.
-    const guarantee = links.slice(0, -1).some((l) => l.meta.late_commit_bound !== "observed")
-      ? "overlap-only"
-      : "observed";
+    const guarantee = restoreGuarantee(links);
     const last = links[links.length - 1];
     out.exec("BEGIN");
     out.exec(`DROP TABLE IF EXISTS ${META_TABLE}`);

@@ -351,7 +351,9 @@ async function main() {
       format_version: BACKUP_FORMAT_VERSION,
       schema_sha256: schemaSha,
       filtered: filtered ? "1" : "0",
-      ...(incremental ? { since: incremental.since, base_captured_at: incremental.baseCapturedAt } : {}),
+      ...(incremental
+        ? { since: incremental.since, base_captured_at: incremental.baseCapturedAt, parent_artifact_id: incremental.parentArtifactId }
+        : {}),
     },
     // One entry per data table in the file, including tables the source DB
     // lacks ("absent") and tables a filter skipped ("excluded").

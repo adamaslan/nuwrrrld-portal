@@ -51,12 +51,18 @@
  * a no-overwrite hard link. validateArtifact() re-derives the facts the
  * metadata claims before a file is used as a base or restored.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { linkSync, mkdtempSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fetchTableChunks, isResponseTooLargeError, DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
 
-export const BACKUP_FORMAT_VERSION = "3";
+/**
+ * Bumped to 4 for the activity-sampling and parent-identity fixes: a format-3
+ * file may carry an `observed` label produced by the older, weaker sampler
+ * (track_activities=off writers, NULL states) and has no artifact_id, so it is
+ * rejected (take a full backup) rather than trusted.
+ */
+export const BACKUP_FORMAT_VERSION = "4";
 
 /** table -> watermark column. See the header for why only daily_bars. */
 export const INCREMENTAL_TABLES = Object.freeze({ daily_bars: "fetched_at" });
@@ -68,10 +74,23 @@ export const META_TABLE = "_backup_meta";
 export const MANIFEST_TABLE = "_backup_manifest";
 
 /**
+ * pg_stat_activity.state values whose xact_start is trustworthy.
+ * `idle` has no transaction; the rest always carry an xact_start.
+ */
+const IDLE_STATE = "idle";
+const IN_XACT_STATES = ["active", "idle in transaction", "idle in transaction (aborted)", "fastpath function call"];
+const sqlList = (xs) => xs.map((x) => `'${x}'`).join(", ");
+
+/**
  * Database clock plus the oldest open transaction this role can see, and how
- * many client sessions it cannot see into. One row. For a session the role
- * may not inspect, PostgreSQL reports pid but leaves backend_type, state and
- * xact_start NULL, so a NULL backend_type counts as a possible client.
+ * many client sessions it cannot positively observe. One row.
+ *
+ * A client (or NULL-typed, uninspectable) session is observable only when its
+ * state is documented AND consistent with its xact_start: `idle` (no
+ * transaction), or a transaction state with a non-NULL xact_start. Everything
+ * else counts as invisible (COALESCE: a NULL state yields NULL, not false): state NULL (role cannot inspect), `disabled`
+ * (track_activities=off clears xact_start), a state this query does not know,
+ * or a transaction state whose xact_start is NULL.
  */
 export const PG_CAPTURE_SQL = `
   SELECT now() AS now,
@@ -79,7 +98,12 @@ export const PG_CAPTURE_SQL = `
       WHERE xact_start IS NOT NULL AND pid <> pg_backend_pid()) AS oldest_open_xact_at,
     (SELECT count(*) FROM pg_stat_activity
       WHERE (backend_type IS NULL OR backend_type = 'client backend')
-        AND state IS NULL AND pid <> pg_backend_pid())::int AS invisible_sessions`;
+        AND pid <> pg_backend_pid()
+        AND NOT COALESCE(
+          state = '${IDLE_STATE}'
+          OR (state IN (${sqlList(IN_XACT_STATES)}) AND xact_start IS NOT NULL),
+          false
+        ))::int AS invisible_sessions`;
 
 const quoteIdent = (name) => `"${String(name).replace(/"/g, '""')}"`;
 const toIso = (v) => (v === null || v === undefined ? null : new Date(v).toISOString());
@@ -191,12 +215,15 @@ export function floorCaptures(anchor, ...earlier) {
   };
 }
 
+const isZeroCount = (v) => v !== null && v !== undefined && v !== "" && Number(v) === 0;
+
 /** Normalise one capture row into metadata fields. */
 export function captureToMeta(row) {
   return {
     captured_at: toIso(row.now),
     oldest_open_xact_at: toIso(row.oldest_open_xact_at),
-    late_commit_bound: Number(row.invisible_sessions ?? 0) > 0 ? "overlap-only" : "observed",
+    // Positive proof only: a missing, null or malformed count is not zero.
+    late_commit_bound: isZeroCount(row.invisible_sessions) ? "observed" : "overlap-only",
   };
 }
 
@@ -269,7 +296,10 @@ export function validateArtifact(db, label = "backup") {
   if (meta.late_commit_bound !== "observed" && meta.late_commit_bound !== "overlap-only") {
     fail(`late_commit_bound missing or invalid: ${meta.late_commit_bound}`);
   }
-  if (meta.kind === "incremental" && (!meta.base_captured_at || !meta.since)) fail("incremental without base_captured_at/since");
+  if (!meta.artifact_id) fail("missing artifact_id");
+  if (meta.kind === "incremental" && (!meta.base_captured_at || !meta.since || !meta.parent_artifact_id)) {
+    fail("incremental without base_captured_at/since/parent_artifact_id");
+  }
   if (shapeSha256(db) !== meta.shape_sha256) fail("table layout does not match its recorded shape hash");
 
   const tables = Object.keys(manifest).sort();
@@ -299,7 +329,7 @@ export function validateArtifact(db, label = "backup") {
 /**
  * Decide where an incremental starts from a VALIDATED base (validateArtifact).
  *
- * @returns {{ since: string, baseCapturedAt: string, capturedTables: Set<string> }}
+ * @returns {{ since: string, baseCapturedAt: string, parentArtifactId: string, capturedTables: Set<string> }}
  */
 export function planIncremental(base, currentSchemaSha) {
   const { meta } = base;
@@ -313,7 +343,12 @@ export function planIncremental(base, currentSchemaSha) {
   const capturedTables = new Set(
     Object.entries(base.manifest ?? {}).filter(([, e]) => e.mode === "full" || e.mode === "delta").map(([table]) => table),
   );
-  return { since: new Date(sinceMs).toISOString(), baseCapturedAt: new Date(capturedMs).toISOString(), capturedTables };
+  return {
+    since: new Date(sinceMs).toISOString(),
+    baseCapturedAt: new Date(capturedMs).toISOString(),
+    parentArtifactId: meta.artifact_id,
+    capturedTables,
+  };
 }
 
 /**
@@ -348,7 +383,7 @@ export function writeManifest(db, meta, entries) {
       source_count: e.sourceCount ?? null,
     }));
     const putMeta = db.prepare(`INSERT INTO ${META_TABLE} (key, value) VALUES (?, ?)`);
-    for (const [k, v] of Object.entries({ ...meta, shape_sha256: shape, manifest_sha256: manifestSha256(rows) })) {
+    for (const [k, v] of Object.entries({ artifact_id: randomUUID(), ...meta, shape_sha256: shape, manifest_sha256: manifestSha256(rows) })) {
       if (v !== null && v !== undefined) putMeta.run(k, String(v));
     }
     const put = db.prepare(
