@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -795,5 +795,94 @@ describe.skipIf(!sqlite)("backup inventory classification (review r3 #2, #3)", (
     const base = mk("b0", meta("full", "t0"), "full");
     expect(() => validateChain([base, mk("b1", meta("incremental", "t1", "t0"), "delta")])).not.toThrow();
     expect(() => validateChain([base, mk("b1", meta("incremental", "t1", "t0"), "absent")])).toThrow(/daily_bars.*absent/);
+  });
+
+  it("restore refuses absent -> delta -> absent: a table first captured after the full link (review r4 #1)", async () => {
+    const { validateChain } = await import("../scripts/backup-restore.mjs");
+    const meta = (kind: string, at: string, base?: string) => ({ kind, captured_at: at, base_captured_at: base, schema_sha256: "s", shape_sha256: "h" });
+    const mk = (path: string, m: ReturnType<typeof meta>, mode: string) => ({ path, meta: m, manifest: { daily_bars: { mode } } });
+    const full = mk("b0", meta("full", "t0"), "absent");
+    const delta = mk("b1", meta("incremental", "t1", "t0"), "delta");
+    expect(() => validateChain([full, delta])).not.toThrow();
+    expect(() => validateChain([full, delta, mk("b2", meta("incremental", "t2", "t1"), "absent")])).toThrow(/b2.*daily_bars.*absent/);
+    // a table that stays absent throughout is still fine
+    expect(() => validateChain([full, mk("b1", meta("incremental", "t1", "t0"), "absent")])).not.toThrow();
+  });
+});
+
+describe.skipIf(!sqlite)("backup-to-sqlite CLI with a permission-hidden table (review r4 #2)", () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "bk-cli-")); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  /**
+   * Run the real CLI against a stub `@neondatabase/serverless` that answers
+   * discovery from `visible`, answers the pg_class catalog lookup true for
+   * `hidden`, and serves every table as empty.
+   */
+  function runCli(cliArgs: string[], visible: string[], hidden: string[]) {
+    mkdirSync(join(dir, "lib", "db"), { recursive: true });
+    cpSync(join(ROOT, "scripts"), join(dir, "scripts"), { recursive: true });
+    writeFileSync(join(dir, "lib", "db", "schema.sqlite.sql"), SCHEMA_SQL);
+    const pkg = join(dir, "node_modules", "@neondatabase", "serverless");
+    mkdirSync(pkg, { recursive: true });
+    writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "@neondatabase/serverless", type: "module", main: "index.mjs" }));
+    writeFileSync(
+      join(pkg, "index.mjs"),
+      `import { DatabaseSync } from "node:sqlite";
+       import { readFileSync } from "node:fs";
+       const mirror = new DatabaseSync(":memory:");
+       mirror.exec(readFileSync("lib/db/schema.sqlite.sql", "utf8"));
+       const cfg = JSON.parse(process.env.STUB_CFG);
+       function answer(text, params) {
+         if (/information_schema\.tables/.test(text)) return cfg.visible.map((table_name) => ({ table_name }));
+         if (/information_schema\.columns/.test(text)) {
+           return mirror.prepare('PRAGMA table_info("' + params[0] + '")').all()
+             .map((c) => ({ column_name: c.name, data_type: "text", udt_name: "text" }));
+         }
+         if (/pg_class/.test(text)) return cfg.hidden.includes(params[0]) ? [{ "?column?": 1 }] : [];
+         if (/pg_stat_activity/.test(text)) return [{ now: new Date().toISOString(), oldest_open_xact_at: null, invisible_sessions: 0 }];
+         return [];
+       }
+       export function neon() {
+         const sql = async (strings, ...values) => answer(strings.reduce((a, s, i) => a + s + (i < values.length ? "$" + (i + 1) : ""), ""), values);
+         sql.query = async (text, params) => answer(text, params ?? []);
+         return sql;
+       }`,
+    );
+    const out = join(dir, "out.sqlite");
+    const res = spawnSync(process.execPath, [join(dir, "scripts", "backup-to-sqlite.mjs"), `--out=${out}`, ...cliArgs], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH ?? "", DATABASE_URL: "postgresql://example.invalid/db", STUB_CFG: JSON.stringify({ visible, hidden }) },
+    });
+    return { res, out };
+  }
+
+  const modeOf = (out: string, table: string) => {
+    const db = new DatabaseSync(out, { readOnly: true });
+    try {
+      return (db.prepare("SELECT mode FROM _backup_manifest WHERE table_name = ?").get(table) as { mode: string } | undefined)?.mode;
+    } finally {
+      db.close();
+    }
+  };
+
+  it.each([
+    ["--tables=news_articles"],
+    ["--exclude=daily_bars"],
+  ])("%s exports and records the hidden daily_bars as excluded", (flag) => {
+    const { res, out } = runCli([flag], ["news_articles"], ["daily_bars"]);
+    expect(res.stderr).not.toMatch(/pg_class|hidden from information_schema/);
+    expect(res.status).toBe(0);
+    expect(modeOf(out, "daily_bars")).toBe("excluded");
+    expect(modeOf(out, "news_articles")).toBe("full");
+  });
+
+  it("still fails when a REQUESTED table exists but is hidden from discovery", () => {
+    const { res, out } = runCli(["--tables=news_articles,daily_bars"], ["news_articles"], ["daily_bars"]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/"daily_bars" exists in pg_class but is hidden/);
+    expect(existsSync(out)).toBe(false);
   });
 });

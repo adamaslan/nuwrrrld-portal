@@ -228,7 +228,14 @@ async function main() {
   let allTables = sourceTables;
   if (includeFilter) allTables = allTables.filter((t) => includeFilter.has(t));
   allTables = allTables.filter((t) => !excludeFilter.has(t));
-  const excludedTables = new Set(sourceTables.filter((t) => !allTables.includes(t)));
+  // A table the user explicitly omitted is "excluded" whether or not discovery
+  // can see it: a permission-hidden table is absent from sourceTables, so
+  // deriving the set from discovery alone would send it to the catalog check.
+  const omittedByFilter = (t) => (includeFilter !== null && !includeFilter.has(t)) || excludeFilter.has(t);
+  const excludedTables = new Set([
+    ...sourceTables.filter((t) => !allTables.includes(t)),
+    ...dataTables(db).filter(omittedByFilter),
+  ]);
   // information_schema hides tables this role cannot access, so "not listed"
   // is not "absent": confirm against pg_class, which every role can read.
   const provenAbsent = await provenAbsentTables({

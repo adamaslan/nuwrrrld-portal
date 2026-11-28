@@ -56,6 +56,7 @@ export function validateChain(links) {
     throw new Error(`${base.path}: first file must be a full backup (kind=${base.meta.kind ?? "none"})`);
   }
   const baseTables = Object.keys(base.manifest).sort().join(",");
+  const captured = new Set();
   for (const link of links) {
     if (link.meta.schema_sha256 !== base.meta.schema_sha256 || link.meta.shape_sha256 !== base.meta.shape_sha256) {
       throw new Error(`${link.path}: schema changed since ${base.path}; restore from a newer full backup`);
@@ -63,11 +64,15 @@ export function validateChain(links) {
     if (Object.keys(link.manifest).sort().join(",") !== baseTables) {
       throw new Error(`${link.path}: covers a different set of tables than ${base.path}`);
     }
-    // A table the base captured can never become "absent": restore would
-    // replace its rows with an empty table.
+    // A table captured by ANY earlier link can never become "absent": restore
+    // would replace its rows with an empty table.
     for (const [table, entry] of Object.entries(link.manifest)) {
-      if (entry.mode === "absent" && base.manifest[table]?.mode !== "absent") {
-        throw new Error(`${link.path}: "${table}" is marked absent but ${base.path} captured it; take a full backup`);
+      if (entry.mode === "absent") {
+        if (captured.has(table)) {
+          throw new Error(`${link.path}: "${table}" is marked absent but an earlier backup captured it; take a full backup`);
+        }
+      } else {
+        captured.add(table);
       }
     }
   }
