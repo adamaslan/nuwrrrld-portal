@@ -29,24 +29,34 @@
  *
  * Late commits: now() is transaction START time, so a writer that began
  * before a backup's snapshot and committed after it stamps rows older than
- * the snapshot. The next delta starts at the earlier of (snapshot − 6h) and
- * the oldest open transaction the snapshot could see in pg_stat_activity.
- * If some sessions were not visible to this role, only the 6h overlap
- * protects; the file records late_commit_bound = "overlap-only" and restore
- * carries that label forward. A writer transaction open longer than 6h that
- * this role cannot see can then be missed until the next full backup.
+ * the snapshot. pg_stat_activity is sampled BEFORE the snapshot as well as
+ * inside it, because a writer can commit after the data snapshot is taken
+ * but before the in-transaction sample runs, and then appears in neither.
+ * The recorded floor (oldest_open_xact_at) is the minimum of each sample's
+ * oldest open transaction and the earlier samples' observation times; any
+ * writer that started after the pre-snapshot sample stamps rows at or after
+ * that time. The next delta starts at min(snapshot − 6h, floor). If any
+ * sample could not see every client session, only the 6h overlap protects:
+ * the file records late_commit_bound = "overlap-only" and restore carries
+ * the label forward. A writer transaction open longer than 6h that this role
+ * cannot see can then be missed until the next full backup. (An enforced
+ * statement_timeout on the only daily_bars writer would make the 6h overlap
+ * a guarantee on its own; see the PR for that long-term simplification.)
  *
- * Each backup file carries _backup_meta (kind, captured_at, schema and shape
- * hashes, base link) and _backup_manifest (per-table mode, rows, live count),
- * written in the same transaction, and is published by an atomic no-overwrite
- * rename from a private .partial file. validateArtifact() re-derives the
- * facts the metadata claims before a file is used as a base or restored.
+ * Each backup file carries _backup_meta (kind, captured_at, schema, shape and
+ * manifest hashes, base link) and _backup_manifest (one entry for EVERY data
+ * table in the file: full, delta, absent from the source, or excluded by a
+ * filter), written in one transaction. It is built in a staging directory
+ * owned by this invocation (mkdtemp next to the destination) and published by
+ * a no-overwrite hard link. validateArtifact() re-derives the facts the
+ * metadata claims before a file is used as a base or restored.
  */
 import { createHash } from "node:crypto";
-import { existsSync, linkSync, rmSync, unlinkSync } from "node:fs";
+import { linkSync, mkdtempSync, rmSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fetchTableChunks, isResponseTooLargeError, DEFAULT_CHUNK_ROWS } from "./backup-pagination.mjs";
 
-export const BACKUP_FORMAT_VERSION = "2";
+export const BACKUP_FORMAT_VERSION = "3";
 
 /** table -> watermark column. See the header for why only daily_bars. */
 export const INCREMENTAL_TABLES = Object.freeze({ daily_bars: "fetched_at" });
@@ -86,6 +96,64 @@ export function shapeSha256(db) {
     return `${t}(${cols.map((c) => `${c.name}:${c.type}:${c.pk}`).join(",")})`;
   });
   return createHash("sha256").update(parts.join("\n")).digest("hex");
+}
+
+/** Manifest modes. `absent`: in the SQLite schema, not in the source DB;
+ * `excluded`: skipped by --tables/--exclude. Both carry zero rows. */
+export const MANIFEST_MODES = Object.freeze(["full", "delta", "absent", "excluded"]);
+
+/** Every data table in a backup file (metadata and sqlite_* excluded). */
+export function dataTables(db) {
+  return db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN (?, ?) AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    .all(META_TABLE, MANIFEST_TABLE)
+    .map((r) => r.name);
+}
+
+/**
+ * Add an explicit entry for every data table the export did not read, so the
+ * manifest is the file's exact inventory.
+ *
+ * @param {{ prepare(sql: string): any }} db
+ * @param {{ table: string, mode: string, rows: number }[]} entries
+ * @param {Set<string>} excluded  Tables skipped by --tables/--exclude.
+ */
+export function completeInventory(db, entries, excluded) {
+  const seen = new Set(entries.map((e) => e.table));
+  const added = dataTables(db)
+    .filter((t) => !seen.has(t))
+    .map((t) => ({
+      table: t,
+      mode: /** @type {const} */ (excluded.has(t) ? "excluded" : "absent"),
+      rows: db.prepare(`SELECT count(*) AS n FROM ${quoteIdent(t)}`).get().n,
+    }));
+  return [...entries, ...added];
+}
+
+/** Canonical digest of manifest rows (order-independent). */
+export function manifestSha256(rows) {
+  const canon = rows
+    .map((r) => [r.table_name, r.mode, r.rows, r.watermark_column ?? null, r.since ?? null, r.source_count ?? null])
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return createHash("sha256").update(JSON.stringify(canon)).digest("hex");
+}
+
+/**
+ * Combine an anchoring capture (the delta snapshot's, or the run start's for
+ * a full) with captures taken earlier: the floor is the minimum of every
+ * oldest open transaction and every earlier observation time, and any
+ * sample with invisible sessions makes the bound overlap-only.
+ */
+export function floorCaptures(anchor, ...earlier) {
+  const times = [anchor.oldest_open_xact_at, ...earlier.flatMap((c) => [c.oldest_open_xact_at, c.captured_at])]
+    .filter(Boolean)
+    .map((t) => Date.parse(t));
+  const all = [anchor, ...earlier];
+  return {
+    captured_at: anchor.captured_at,
+    oldest_open_xact_at: times.length ? new Date(Math.min(...times)).toISOString() : null,
+    late_commit_bound: all.every((c) => c.late_commit_bound === "observed") ? "observed" : "overlap-only",
+  };
 }
 
 /** Normalise one capture row into metadata fields. */
@@ -169,24 +237,26 @@ export function validateArtifact(db, label = "backup") {
   if (meta.kind === "incremental" && (!meta.base_captured_at || !meta.since)) fail("incremental without base_captured_at/since");
   if (shapeSha256(db) !== meta.shape_sha256) fail("table layout does not match its recorded shape hash");
 
-  const tables = Object.keys(manifest);
+  const tables = Object.keys(manifest).sort();
   if (tables.length === 0) fail("empty manifest");
+  const inventory = dataTables(db);
+  const missing = inventory.filter((t) => !manifest[t]);
+  if (missing.length) fail(`table(s) ${missing.join(", ")} missing from the manifest`);
+  const extra = tables.filter((t) => !inventory.includes(t));
+  if (extra.length) fail(`manifest names table(s) the file does not have: ${extra.join(", ")}`);
+  if (manifestSha256(Object.values(manifest)) !== meta.manifest_sha256) fail("manifest does not match its recorded digest");
   for (const [table, e] of Object.entries(manifest)) {
-    if (!hasTable(db, table)) fail(`manifest names "${table}" but the file has no such table`);
-    const wantDelta = meta.kind === "incremental" && table in INCREMENTAL_TABLES;
-    if (e.mode !== (wantDelta ? "delta" : "full")) fail(`"${table}" has mode ${e.mode}, expected ${wantDelta ? "delta" : "full"}`);
+    if (!MANIFEST_MODES.includes(e.mode)) fail(`"${table}" has unknown mode ${e.mode}`);
+    if (e.mode === "excluded") fail(`"${table}" was excluded by a filter`);
     const n = db.prepare(`SELECT count(*) AS n FROM ${quoteIdent(table)}`).get().n;
     if (n !== e.rows) fail(`"${table}" holds ${n} rows but the manifest declares ${e.rows}`);
-    if (e.mode === "delta" && !Number.isInteger(e.source_count)) fail(`delta "${table}" has no live source count`);
-  }
-  // A table with rows that the manifest doesn't account for means the
-  // manifest is incomplete, not that the table is optional.
-  for (const { name } of db
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN (?, ?) AND name NOT LIKE 'sqlite_%'")
-    .all(META_TABLE, MANIFEST_TABLE)) {
-    if (!manifest[name] && db.prepare(`SELECT count(*) AS n FROM ${quoteIdent(name)}`).get().n > 0) {
-      fail(`table "${name}" has rows but is missing from the manifest`);
+    if (e.mode === "absent") {
+      if (n !== 0) fail(`"${table}" is marked absent from the source but holds ${n} rows`);
+      continue;
     }
+    const wantDelta = meta.kind === "incremental" && table in INCREMENTAL_TABLES;
+    if (e.mode !== (wantDelta ? "delta" : "full")) fail(`"${table}" has mode ${e.mode}, expected ${wantDelta ? "delta" : "full"}`);
+    if (e.mode === "delta" && !Number.isInteger(e.source_count)) fail(`delta "${table}" has no live source count`);
   }
   return { meta, manifest };
 }
@@ -214,7 +284,7 @@ export function planIncremental(base, currentSchemaSha) {
  *
  * @param {{ exec(sql: string): void, prepare(sql: string): any }} db
  * @param {Record<string, string | null | undefined>} meta
- * @param {{ table: string, mode: "full"|"delta", rows: number, watermark?: string|null, since?: string|null, sourceCount?: number|null }[]} entries
+ * @param {{ table: string, mode: "full"|"delta"|"absent"|"excluded", rows: number, watermark?: string|null, since?: string|null, sourceCount?: number|null }[]} entries
  */
 export function writeManifest(db, meta, entries) {
   const shape = shapeSha256(db);
@@ -224,23 +294,29 @@ export function writeManifest(db, meta, entries) {
     db.exec(
       `CREATE TABLE ${MANIFEST_TABLE} (
          table_name TEXT PRIMARY KEY,
-         mode TEXT NOT NULL CHECK (mode IN ('full', 'delta')),
+         mode TEXT NOT NULL CHECK (mode IN ('full', 'delta', 'absent', 'excluded')),
          rows INTEGER NOT NULL,
          watermark_column TEXT,
          since TEXT,
          source_count INTEGER
        )`,
     );
+    const rows = entries.map((e) => ({
+      table_name: e.table,
+      mode: e.mode,
+      rows: e.rows,
+      watermark_column: e.watermark ?? null,
+      since: e.since ?? null,
+      source_count: e.sourceCount ?? null,
+    }));
     const putMeta = db.prepare(`INSERT INTO ${META_TABLE} (key, value) VALUES (?, ?)`);
-    for (const [k, v] of Object.entries({ ...meta, shape_sha256: shape })) {
+    for (const [k, v] of Object.entries({ ...meta, shape_sha256: shape, manifest_sha256: manifestSha256(rows) })) {
       if (v !== null && v !== undefined) putMeta.run(k, String(v));
     }
     const put = db.prepare(
       `INSERT INTO ${MANIFEST_TABLE} (table_name, mode, rows, watermark_column, since, source_count) VALUES (?, ?, ?, ?, ?, ?)`,
     );
-    for (const e of entries) {
-      put.run(e.table, e.mode, e.rows, e.watermark ?? null, e.since ?? null, e.sourceCount ?? null);
-    }
+    for (const r of rows) put.run(r.table_name, r.mode, r.rows, r.watermark_column, r.since, r.source_count);
     db.exec("COMMIT");
   } catch (err) {
     db.exec("ROLLBACK");
@@ -248,28 +324,36 @@ export function writeManifest(db, meta, entries) {
   }
 }
 
-/** Private working path for an output file; never matches backups/*.sqlite. */
-export function partialPath(outPath) {
-  return `${outPath}.partial`;
+/**
+ * A staging directory owned by this invocation alone: created exclusively
+ * (mkdtemp) next to the destination, so the final hard link stays on one
+ * filesystem and no other run can replace the file being built. The dot
+ * prefix keeps it out of backups/*.sqlite.
+ *
+ * @returns {{ dir: string, path: string }}
+ */
+export function createStaging(outPath) {
+  const dir = mkdtempSync(join(dirname(outPath), `.${basename(outPath)}.staging-`));
+  return { dir, path: join(dir, basename(outPath)) };
 }
 
 /**
- * Publish a finished working file: leave WAL mode (checkpoints into the main
+ * Publish a finished staged file: leave WAL mode (checkpoints into the main
  * file), close, then hard-link to outPath — which fails if outPath exists, so
- * a published backup is never overwritten — and drop the working name.
+ * a published backup is never overwritten — and remove this run's staging
+ * directory.
  */
-export function publishPartial(db, tmpPath, outPath) {
+export function publishStaged(db, staging, outPath) {
   db.exec("PRAGMA journal_mode = DELETE;");
   db.close();
-  linkSync(tmpPath, outPath);
-  unlinkSync(tmpPath);
+  linkSync(staging.path, outPath);
+  discardStaging(staging);
 }
 
-/** Best-effort removal of a working file and its sidecars. Never outPath. */
-export function discardPartial(tmpPath) {
-  for (const p of [tmpPath, `${tmpPath}-wal`, `${tmpPath}-shm`, `${tmpPath}-journal`]) {
-    try { if (existsSync(p)) rmSync(p); } catch { /* best-effort */ }
-  }
+/** Remove this invocation's staging directory only. Never outPath. */
+export function discardStaging(staging) {
+  if (!staging) return;
+  try { rmSync(staging.dir, { recursive: true, force: true }); } catch { /* best-effort */ }
 }
 
 /**
@@ -287,8 +371,9 @@ export function discardPartial(tmpPath) {
  * @param {string|null} [opts.since]  ISO start of the delta; null = full read.
  * @param {(stmts: { text: string, params: unknown[] }[]) => Promise<Record<string, unknown>[][]>} [opts.snapshot]
  *   Runs statements in one read-only REPEATABLE READ transaction. Required for a delta.
- * @param {{ text: string, params: unknown[] }} [opts.capture]  Clock statement (PG_CAPTURE_SQL).
- * @returns {Promise<{ table: string, mode: "full"|"delta", rows: number, watermark?: string, since?: string, sourceCount?: number, capture?: Record<string, unknown> }>}
+ * @param {{ text: string, params: unknown[] }} [opts.capture]  Clock statement (PG_CAPTURE_SQL), run inside the snapshot.
+ * @param {{ text: string, params: unknown[] }} [opts.preCapture]  Same statement, run just before the snapshot.
+ * @returns {Promise<{ table: string, mode: "full"|"delta", rows: number, watermark?: string, since?: string, sourceCount?: number, capture?: { captured_at: string|null, oldest_open_xact_at: string|null, late_commit_bound: string } }>}
  */
 export async function exportTable(query, db, opts) {
   const {
@@ -299,6 +384,7 @@ export async function exportTable(query, db, opts) {
     since = null,
     snapshot,
     capture = { text: PG_CAPTURE_SQL, params: [] },
+    preCapture = capture,
   } = opts;
   const colNames = pgColumns.map((c) => c.column_name);
   const selectList = colNames.map(quoteIdent).join(", ");
@@ -331,6 +417,8 @@ export async function exportTable(query, db, opts) {
     throw new Error(`"${table}" lacks a selectable primary key or "${watermark}" — cannot read it incrementally`);
   }
   const t = quoteIdent(table);
+  // Sampled before the snapshot: see "Late commits" in the header.
+  const [preRow] = await query(preCapture.text, preCapture.params);
   let results;
   try {
     results = await snapshot([
@@ -363,6 +451,6 @@ export async function exportTable(query, db, opts) {
     watermark,
     since,
     sourceCount: Number(countRow.n),
-    capture: captureRow,
+    capture: floorCaptures(captureToMeta(captureRow), captureToMeta(preRow)),
   };
 }

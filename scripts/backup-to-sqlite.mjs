@@ -48,11 +48,13 @@ import {
   BACKUP_FORMAT_VERSION,
   PG_CAPTURE_SQL,
   captureToMeta,
-  discardPartial,
+  completeInventory,
+  createStaging,
+  discardStaging,
   exportTable,
-  partialPath,
+  floorCaptures,
   planIncremental,
-  publishPartial,
+  publishStaged,
   validateArtifact,
   schemaSha256,
   writeManifest,
@@ -121,7 +123,8 @@ if (existsSync(outPath)) {
   process.exit(1);
 }
 mkdirSync(dirname(outPath), { recursive: true });
-const tmpPath = partialPath(outPath);
+// Created in main(); owned by this invocation only (see createStaging).
+let staging = null;
 
 const schemaPath = join(process.cwd(), "lib", "db", "schema.sqlite.sql");
 const schemaSql = readFileSync(schemaPath, "utf8");
@@ -204,8 +207,8 @@ async function main() {
 
   // Work in a private file; only a finished, validated backup is published
   // to outPath (see publishPartial).
-  discardPartial(tmpPath);
-  db = new DatabaseSync(tmpPath);
+  staging = createStaging(outPath);
+  db = new DatabaseSync(staging.path);
   db.exec("PRAGMA journal_mode = WAL;");
   // Bulk-loading a full snapshot table-by-table (in information_schema's
   // alphabetical order, not dependency order — e.g. ticker_cards sorts before
@@ -219,9 +222,11 @@ async function main() {
   // the load, then turn back on for the post-load PRAGMA foreign_key_check.
   db.exec("PRAGMA foreign_keys = OFF;");
 
-  let allTables = await getTables();
+  const sourceTables = await getTables();
+  let allTables = sourceTables;
   if (includeFilter) allTables = allTables.filter((t) => includeFilter.has(t));
   allTables = allTables.filter((t) => !excludeFilter.has(t));
+  const excludedTables = new Set(sourceTables.filter((t) => !allTables.includes(t)));
 
   const summary = [];
   const manifest = [];
@@ -293,7 +298,9 @@ async function main() {
       throw new Error(`Failed backing up "${table}": ${err.message}`);
     }
     const rowCount = entry.rows;
-    if (entry.capture) capture = captureToMeta(entry.capture);
+    // A delta re-anchors on its own snapshot; the run-start sample stays in
+    // the floor (floorCaptures never discards an earlier observation).
+    if (entry.capture) capture = floorCaptures(entry.capture, capture);
     delete entry.capture;
     manifest.push(entry);
     summary.push({ table, rows: rowCount });
@@ -324,13 +331,15 @@ async function main() {
       filtered: filtered ? "1" : "0",
       ...(incremental ? { since: incremental.since, base_captured_at: incremental.baseCapturedAt } : {}),
     },
-    manifest,
+    // One entry per data table in the file, including tables the source DB
+    // lacks ("absent") and tables a filter skipped ("excluded").
+    completeInventory(db, manifest, excludedTables),
   );
   // Self-check before publishing: the file must be what its metadata claims.
   // Filtered (--tables/--exclude) backups are valid files but never chain
   // anchors, so they skip the chain-level check.
-  if (!filtered) validateArtifact(db, tmpPath);
-  publishPartial(db, tmpPath, outPath);
+  if (!filtered) validateArtifact(db, staging.path);
+  publishStaged(db, staging, outPath);
   db = null;
 
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
@@ -341,13 +350,13 @@ async function main() {
 
 main().catch((err) => {
   console.error("\n✖ Backup failed:", err.message);
-  // Only the private working file is removed. outPath is written solely by
-  // publishPartial's no-overwrite link, so a failure can neither leave a
+  // Only this run's staging directory is removed. outPath is written solely
+  // by publishStaged's no-overwrite link, so a failure can neither leave a
   // half-written file there nor destroy a previous good backup. A hard kill
-  // leaves at most `<out>.partial`, which never matches backups/*.sqlite and
-  // fails validateArtifact.
+  // leaves at most a dot-prefixed staging directory, which never matches
+  // backups/*.sqlite and whose file fails validateArtifact.
   try { db?.close(); } catch { /* already closed, or never opened */ }
-  discardPartial(tmpPath);
+  discardStaging(staging);
   process.exit(1);
 });
 

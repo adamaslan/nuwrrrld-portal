@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,10 +8,15 @@ import {
   INCREMENTAL_TABLES,
   OVERLAP_MS,
   captureToMeta,
+  completeInventory,
+  createStaging,
+  discardStaging,
   exportTable,
-  partialPath,
+  floorCaptures,
+  manifestSha256,
   planIncremental,
-  publishPartial,
+  publishStaged,
+  readManifest,
   readMeta,
   schemaSha256,
   validateArtifact,
@@ -145,10 +150,23 @@ function pkOf(source: Db, table: string) {
     .map((c) => c.name);
 }
 
-interface ClockOpts { capturedAt: string; oldestOpen?: string | null; invisible?: number }
-const captureStmt = (c: ClockOpts) => ({
-  text: "SELECT ? AS now, ? AS oldest_open_xact_at, ? AS invisible_sessions",
-  params: [c.capturedAt, c.oldestOpen ?? null, c.invisible ?? 0],
+interface ClockOpts {
+  capturedAt: string;
+  oldestOpen?: string | null;
+  invisible?: number;
+  // The pg_stat_activity sample taken just before a delta snapshot. Defaults
+  // to 1s before capturedAt with the same visibility as the in-snapshot one.
+  pre?: { capturedAt?: string; oldestOpen?: string | null; invisible?: number };
+}
+const CAPTURE_SQL = "SELECT ? AS now, ? AS oldest_open_xact_at, ? AS invisible_sessions";
+const captureStmt = (c: ClockOpts) => ({ text: CAPTURE_SQL, params: [c.capturedAt, c.oldestOpen ?? null, c.invisible ?? 0] });
+const preCaptureStmt = (c: ClockOpts) => ({
+  text: CAPTURE_SQL,
+  params: [
+    c.pre?.capturedAt ?? iso(Date.parse(c.capturedAt) - 1_000),
+    c.pre && "oldestOpen" in c.pre ? c.pre.oldestOpen ?? null : c.oldestOpen ?? null,
+    c.pre?.invisible ?? c.invisible ?? 0,
+  ],
 });
 
 /** Mirrors backup-to-sqlite.mjs main(): private file, export, manifest, validate, publish. */
@@ -167,8 +185,8 @@ async function backup(
       b.close();
     }
   }
-  const tmp = partialPath(outPath);
-  const db = new DatabaseSync(tmp);
+  const staging = createStaging(outPath);
+  const db = new DatabaseSync(staging.path);
   db.exec(SCHEMA_SQL);
   db.exec("PRAGMA foreign_keys = OFF;");
   let capture = captureToMeta({ now: opts.capturedAt, oldest_open_xact_at: opts.oldestOpen ?? null, invisible_sessions: opts.invisible ?? 0 });
@@ -182,8 +200,9 @@ async function backup(
       since: plan?.since ?? null,
       snapshot: snapshotOn(src.reader, meter, { afterStatement: opts.afterStatement }),
       capture: captureStmt(opts),
+      preCapture: preCaptureStmt(opts),
     });
-    if (entry.capture) capture = captureToMeta(entry.capture);
+    if (entry.capture) capture = floorCaptures(entry.capture, capture);
     delete entry.capture;
     entries.push(entry);
   }
@@ -197,10 +216,16 @@ async function backup(
       filtered: "0",
       ...(plan ? { since: plan.since, base_captured_at: plan.baseCapturedAt } : {}),
     },
-    entries,
+    completeInventory(db, entries, new Set()),
   );
-  validateArtifact(db, tmp);
-  publishPartial(db, tmp, outPath);
+  try {
+    validateArtifact(db, staging.path);
+    publishStaged(db, staging, outPath);
+  } catch (err) {
+    try { db.close(); } catch { /* already closed */ }
+    discardStaging(staging);
+    throw err;
+  }
   return { meter, entries, plan };
 }
 
@@ -210,6 +235,15 @@ function dump(db: Db, table: string) {
 }
 
 const restore = async (paths: string[], out: string) => (await import("../scripts/backup-restore.mjs")).restoreChain(paths, out);
+
+/** Edit a published file and re-sign its manifest digest, so a test reaches
+ * the specific check behind the digest (an attacker-free "honest bug"). */
+function editAndResign(path: string, sql: string) {
+  const db = new DatabaseSync(path);
+  db.exec(sql);
+  db.prepare("UPDATE _backup_meta SET value = ? WHERE key = 'manifest_sha256'").run(manifestSha256(Object.values(readManifest(db as never))));
+  db.close();
+}
 
 describe("planIncremental", () => {
   const meta = {
@@ -232,6 +266,14 @@ describe("planIncremental", () => {
 
   it("refuses when the SQLite schema changed since the base", () => {
     expect(() => planIncremental({ meta, manifest: {} }, "different")).toThrow(/schema change/);
+  });
+
+  it("floorCaptures keeps earlier observations: their oldest open xact and their sample time", () => {
+    const anchor = { captured_at: "2026-11-25T12:00:00.000Z", oldest_open_xact_at: null, late_commit_bound: "observed" };
+    const pre = { captured_at: "2026-11-25T11:59:59.000Z", oldest_open_xact_at: "2026-11-25T03:00:00.000Z", late_commit_bound: "observed" };
+    expect(floorCaptures(anchor, pre)).toEqual({ ...anchor, oldest_open_xact_at: pre.oldest_open_xact_at });
+    expect(floorCaptures(anchor, { ...pre, oldest_open_xact_at: null }).oldest_open_xact_at).toBe(pre.captured_at);
+    expect(floorCaptures(anchor, { ...pre, late_commit_bound: "overlap-only" }).late_commit_bound).toBe("overlap-only");
   });
 
   it("only allows tables whose every write stamps the watermark", () => {
@@ -272,9 +314,10 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
     );
     expect(inc.meter.rows).toBeLessThan(full.meter.rows / 50);
     expect(inc.meter.bytes).toBeLessThan(full.meter.bytes / 50);
-    // The delta table is one request either way; it adds the clock and count.
-    expect(inc.meter.requests).toBe(full.meter.requests);
-    expect(inc.meter.statements).toBe(full.meter.statements + 2);
+    // The delta adds a pre-snapshot activity sample (one request) and, inside
+    // the snapshot request, the clock and the count.
+    expect(inc.meter.requests).toBe(full.meter.requests + 1);
+    expect(inc.meter.statements).toBe(full.meter.statements + 3);
   });
 
   it("restores full + incrementals to exactly the state a fresh full backup sees", async () => {
@@ -288,7 +331,7 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
     await backup(src, p("truth.sqlite"), { capturedAt: iso(T0 + 2 * DAY) });
 
     const counts = await restore([p("b0.sqlite"), p("b1.sqlite"), p("b2.sqlite")], p("restored.sqlite"));
-    expect(counts).toEqual({ daily_bars: 6_040, news_article_symbols: 3, news_articles: 3 });
+    expect(counts).toMatchObject({ daily_bars: 6_040, news_article_symbols: 3, news_articles: 3 });
 
     const restored = new DatabaseSync(p("restored.sqlite"), { readOnly: true });
     const truth = new DatabaseSync(p("truth.sqlite"), { readOnly: true });
@@ -301,7 +344,7 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
     });
     restored.close();
     truth.close();
-    expect(existsSync(partialPath(p("restored.sqlite")))).toBe(false);
+    expect(readdirSync(dir).filter((f) => f.includes(".staging-"))).toEqual([]);
   });
 
   it("a write committed between the delta read and the count cannot break the link (one snapshot)", async () => {
@@ -377,9 +420,7 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
       /1 stale row\(s\) deleted at the source.*take a full backup/,
     );
     // A link whose live count exceeds what the chain can rebuild is "missing".
-    const b1 = new DatabaseSync(p("b1.sqlite"));
-    b1.prepare("UPDATE _backup_manifest SET source_count = 6002 WHERE table_name = 'daily_bars'").run();
-    b1.close();
+    editAndResign(p("b1.sqlite"), "UPDATE _backup_manifest SET source_count = 6002 WHERE table_name = 'daily_bars'");
     await expect(restore([p("b0.sqlite"), p("b1.sqlite")], p("r2.sqlite"))).rejects.toThrow(/2 row\(s\) missing/);
     expect(existsSync(p("r.sqlite")) || existsSync(p("r2.sqlite"))).toBe(false);
   });
@@ -421,7 +462,28 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
     });
     it("rejects a manifest that is missing a table with rows", () => {
       tamper("DELETE FROM _backup_manifest WHERE table_name = 'news_articles'");
-      expect(check).toThrow(/"news_articles" has rows but is missing from the manifest/);
+      expect(check).toThrow(/news_articles missing from the manifest/);
+    });
+    it("rejects an emptied table whose manifest entry was removed (review r2 #3), even when re-signed", () => {
+      // Codex's fixture: truncate a table and drop its entry. The layout hash
+      // still matches, so only the exact inventory catches it.
+      tamper("PRAGMA foreign_keys = OFF; DELETE FROM news_article_symbols; DELETE FROM _backup_manifest WHERE table_name = 'news_article_symbols'");
+      expect(check).toThrow(/news_article_symbols missing from the manifest/);
+      editAndResign(p("b0.sqlite"), "SELECT 1");
+      expect(check).toThrow(/news_article_symbols missing from the manifest/);
+    });
+    it("rejects a zero-row table dropped from the manifest", () => {
+      expect(check().manifest.ticker_universe).toMatchObject({ mode: "absent", rows: 0 });
+      editAndResign(p("b0.sqlite"), "DELETE FROM _backup_manifest WHERE table_name = 'ticker_universe'");
+      expect(check).toThrow(/ticker_universe missing from the manifest/);
+    });
+    it("rejects any manifest edit that is not re-signed (digest)", () => {
+      tamper("UPDATE _backup_manifest SET rows = 0 WHERE table_name = 'ticker_universe' AND rows = 0; UPDATE _backup_manifest SET since = 'x' WHERE table_name = 'news_articles'");
+      expect(check).toThrow(/recorded digest/);
+    });
+    it("rejects a table marked absent that holds rows", () => {
+      editAndResign(p("b0.sqlite"), "UPDATE _backup_manifest SET mode = 'absent' WHERE table_name = 'news_articles'");
+      expect(check).toThrow(/marked absent from the source but holds 2 rows/);
     });
     it("rejects a changed table layout even when the declared schema hash matches", () => {
       tamper("ALTER TABLE daily_bars ADD COLUMN extra TEXT");
@@ -437,8 +499,8 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
     });
     it("rejects a delta entry without a live source count", async () => {
       await backup(src, p("b1.sqlite"), { capturedAt: iso(T0 + DAY), base: p("b0.sqlite") });
-      const db = new DatabaseSync(p("b1.sqlite"));
-      db.exec("UPDATE _backup_manifest SET source_count = NULL WHERE table_name = 'daily_bars'");
+      editAndResign(p("b1.sqlite"), "UPDATE _backup_manifest SET source_count = NULL WHERE table_name = 'daily_bars'");
+      const db = new DatabaseSync(p("b1.sqlite"), { readOnly: true });
       expect(() => validateArtifact(db, "b1")).toThrow(/no live source count/);
       db.close();
     });
@@ -470,7 +532,7 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
 
   it("an abrupt kill while writing metadata publishes nothing and leaves no usable checkpoint", () => {
     const out = p("killed.sqlite");
-    const tmp = partialPath(out);
+    const tmp = createStaging(out).path;
     const harness = p("harness.mjs");
     writeFileSync(
       harness,
@@ -495,10 +557,109 @@ describe.skipIf(!sqlite)("incremental backup + restore on synthetic data", { tim
 
   it("publishing never overwrites an existing backup", () => {
     writeFileSync(p("taken.sqlite"), "previous good backup");
-    const db = new DatabaseSync(partialPath(p("taken.sqlite")));
+    const staging = createStaging(p("taken.sqlite"));
+    const db = new DatabaseSync(staging.path);
     db.exec("CREATE TABLE t (id INTEGER)");
-    expect(() => publishPartial(db, partialPath(p("taken.sqlite")), p("taken.sqlite"))).toThrow(/EEXIST/);
+    expect(() => publishStaged(db, staging, p("taken.sqlite"))).toThrow(/EEXIST/);
     expect(readFileSync(p("taken.sqlite"), "utf8")).toBe("previous good backup");
+    discardStaging(staging);
+  });
+
+  describe("two invocations targeting the same output (review r2 #1)", () => {
+    it("cannot publish each other's staged file: each owns a private staging directory", () => {
+      const out = p("same.sqlite");
+      // Codex's interleaving: A validates, then B starts an unfinished file,
+      // then A publishes. With a shared staging name A published B's file.
+      const a = createStaging(out);
+      const dbA = new DatabaseSync(a.path);
+      dbA.exec("CREATE TABLE who (name TEXT); INSERT INTO who VALUES ('A-validated')");
+      const b = createStaging(out);
+      expect(b.dir).not.toBe(a.dir);
+      const dbB = new DatabaseSync(b.path);
+      dbB.exec("CREATE TABLE who (name TEXT); INSERT INTO who VALUES ('B-unfinished')");
+      publishStaged(dbA, a, out);
+      const pub = new DatabaseSync(out, { readOnly: true });
+      expect(pub.prepare("SELECT name FROM who").all()).toEqual([{ name: "A-validated" }]);
+      pub.close();
+      // B's failure path removes only B's own directory and never the output.
+      expect(() => publishStaged(dbB, b, out)).toThrow(/EEXIST/);
+      discardStaging(b);
+      expect(existsSync(out)).toBe(true);
+      expect(readdirSync(dir).filter((f) => f.includes(".staging-"))).toEqual([]);
+    });
+
+    it("concurrent full backups to one path: exactly one publishes, and it validates", async () => {
+      const out = p("race.sqlite");
+      const results = await Promise.allSettled([
+        backup(src, out, { capturedAt: iso(T0) }),
+        backup(src, out, { capturedAt: iso(T0 + 1) }),
+      ]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+      expect(String(rejected.reason)).toMatch(/EEXIST/);
+      const db = new DatabaseSync(out, { readOnly: true });
+      expect(validateArtifact(db, out).meta.kind).toBe("full");
+      db.close();
+      expect(readdirSync(dir).filter((f) => f.includes(".staging-"))).toEqual([]);
+    });
+  });
+
+  describe("a writer that commits between the data snapshot and the activity sample (review r2 #2)", () => {
+    // Correction stamped just before the 6h window of b1's snapshot: its
+    // writer was open when the pre-snapshot sample ran, committed after the
+    // delta was read (so b1 lacks it) and before the in-snapshot sample (so
+    // that sample no longer lists it).
+    const stamp = iso(T0 + DAY - OVERLAP_MS - 1);
+    const correctMidSnapshot = (i: number) => {
+      if (i === 1) {
+        src.writer
+          .prepare("UPDATE daily_bars SET close = 99, fetched_at = ? WHERE ticker = 'T07' AND bar_date = '2025-09-01'")
+          .run(stamp);
+      }
+    };
+    const closeOf = (path: string) => {
+      const db = new DatabaseSync(path, { readOnly: true });
+      const row = db.prepare("SELECT close FROM daily_bars WHERE ticker = 'T07' AND bar_date = '2025-09-01'").get();
+      db.close();
+      return (row as { close: number } | undefined)?.close ?? null;
+    };
+
+    it("keeps the pre-snapshot sample as a floor, so the next delta recovers the row and stays 'observed'", async () => {
+      await backup(src, p("b0.sqlite"), { capturedAt: iso(T0) });
+      await backup(src, p("b1.sqlite"), {
+        capturedAt: iso(T0 + DAY),
+        oldestOpen: null, // in-snapshot sample: the writer has already gone
+        pre: { oldestOpen: stamp }, // pre-snapshot sample: writer still open
+        base: p("b0.sqlite"),
+        afterStatement: correctMidSnapshot,
+      });
+      expect(closeOf(p("b1.sqlite"))).toBeNull(); // b1's delta really missed it
+      const b1 = new DatabaseSync(p("b1.sqlite"), { readOnly: true });
+      expect(readMeta(b1)).toMatchObject({ oldest_open_xact_at: stamp, late_commit_bound: "observed" });
+      b1.close();
+      await backup(src, p("b2.sqlite"), { capturedAt: iso(T0 + 2 * DAY), base: p("b1.sqlite") });
+      await restore([p("b0.sqlite"), p("b1.sqlite"), p("b2.sqlite")], p("r.sqlite"));
+      expect(closeOf(p("r.sqlite"))).toBe(99);
+      const r = new DatabaseSync(p("r.sqlite"), { readOnly: true });
+      expect(readMeta(r).late_commit_guarantee).toBe("observed");
+      r.close();
+    });
+
+    it("labels the link overlap-only when the pre-snapshot sample could not see every session", async () => {
+      await backup(src, p("b0.sqlite"), { capturedAt: iso(T0) });
+      await backup(src, p("b1.sqlite"), {
+        capturedAt: iso(T0 + DAY),
+        oldestOpen: null,
+        pre: { oldestOpen: null, invisible: 1 },
+        base: p("b0.sqlite"),
+        afterStatement: correctMidSnapshot,
+      });
+      await backup(src, p("b2.sqlite"), { capturedAt: iso(T0 + 2 * DAY), base: p("b1.sqlite") });
+      await restore([p("b0.sqlite"), p("b1.sqlite"), p("b2.sqlite")], p("r.sqlite"));
+      const r = new DatabaseSync(p("r.sqlite"), { readOnly: true });
+      expect(readMeta(r).late_commit_guarantee).toBe("overlap-only"); // the miss is labelled, never "observed"
+      r.close();
+    });
   });
 });
 

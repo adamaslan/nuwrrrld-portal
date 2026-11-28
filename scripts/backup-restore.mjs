@@ -20,8 +20,9 @@
  *     source that the delta could not remove — take a full backup).
  * The restored file records late_commit_guarantee: "overlap-only" when any
  * base in the chain could not see every open transaction (see
- * backup-incremental.mjs, "Late commits"). Written to a private .partial
- * file and published by a no-overwrite link; never overwrites --out.
+ * backup-incremental.mjs, "Late commits"). Built in a staging directory
+ * owned by this invocation and published by a no-overwrite hard link; never
+ * overwrites --out.
  */
 import { copyFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -31,9 +32,9 @@ import {
   MANIFEST_TABLE,
   BACKUP_FORMAT_VERSION,
   validateArtifact,
-  partialPath,
-  publishPartial,
-  discardPartial,
+  createStaging,
+  publishStaged,
+  discardStaging,
 } from "./backup-incremental.mjs";
 
 const quoteIdent = (name) => `"${String(name).replace(/"/g, '""')}"`;
@@ -91,10 +92,15 @@ export function restoreChain(paths, outPath) {
   const links = paths.map(readLink);
   validateChain(links);
 
-  const tmpPath = partialPath(outPath);
-  discardPartial(tmpPath);
-  copyFileSync(paths[0], tmpPath);
-  const out = new DatabaseSync(tmpPath);
+  const staging = createStaging(outPath);
+  let out;
+  try {
+    copyFileSync(paths[0], staging.path);
+    out = new DatabaseSync(staging.path);
+  } catch (err) {
+    discardStaging(staging);
+    throw err;
+  }
   try {
     out.exec("PRAGMA foreign_keys = OFF;");
     for (const link of links.slice(1)) {
@@ -103,7 +109,7 @@ export function restoreChain(paths, outPath) {
       try {
         for (const [table, entry] of Object.entries(link.manifest)) {
           const t = quoteIdent(table);
-          if (entry.mode === "full") {
+          if (entry.mode !== "delta") {
             out.exec(`DELETE FROM main.${t}`);
             out.exec(`INSERT INTO main.${t} SELECT * FROM inc.${t}`);
             continue;
@@ -163,11 +169,11 @@ export function restoreChain(paths, outPath) {
     for (const table of Object.keys(last.manifest)) {
       counts[table] = out.prepare(`SELECT count(*) AS n FROM ${quoteIdent(table)}`).get().n;
     }
-    publishPartial(out, tmpPath, outPath);
+    publishStaged(out, staging, outPath);
     return counts;
   } catch (err) {
     try { out.close(); } catch { /* already closed */ }
-    discardPartial(tmpPath);
+    discardStaging(staging);
     throw err;
   }
 }
